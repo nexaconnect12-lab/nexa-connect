@@ -28,10 +28,10 @@ D:\Thet Lwin Oo\DevOps\NexaConnect
 
 1. Install the .NET SDK configured in `global.json`.
 2. Install Docker Desktop.
-3. Create the actual projects using the commands in `scripts/bootstrap-projects.ps1`.
-4. Add the generated projects to `NexaConnect.sln`.
-5. Configure local secrets and environment variables.
-6. Start infrastructure with Docker Compose.
+3. Copy `.env.example` to `.env` and replace all placeholder secrets.
+4. Restore and build `NexaConnect.sln`.
+5. Start infrastructure with `docker compose up -d`.
+6. Follow the [Deployment Guide](docs/Deployment/Deployment-Guide.md) for database provisioning and migrations.
 
 See [Project Architecture](docs/Architecture/Project-Architecture.md).
 See [Restaurant POS Architecture](docs/Architecture/Restaurant-POS-Architecture.md) for the business capabilities, branch-offline model, kitchen workflow, kiosk and QR ordering, reporting, and shared identity boundary.

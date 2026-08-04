@@ -69,6 +69,14 @@ Keycloak owns credentials and stable identity subject identifiers. A separately 
 
 The accepted ownership boundary is defined by [ADR-002](../Architecture/Decisions/ADR-002-shared-platform-data-ownership.md).
 
+### 2.2 Database provisioning
+
+Cluster-level provisioning is separate from service schema migration. Provisioning creates databases, login roles, ownership, connection permissions, and default runtime privileges. Versioned service migrations create tables, constraints, indexes, comments, and migration history inside an existing database.
+
+Local Docker provisioning is implemented by [`docker/postgres/init/001_create_nexaconnect_databases.sh`](../../docker/postgres/init/001_create_nexaconnect_databases.sh). On the first start of an empty PostgreSQL volume it creates all eleven databases, a `nexaconnect_migration` DDL owner, and a restricted runtime login for each database.
+
+Initialization does not apply schema migrations and does not rerun for an existing data volume. Production environments must implement the same ownership boundary through infrastructure as code and managed secrets rather than relying on the local initializer.
+
 ## 3. Database and role allocation
 
 | Business capability | Database | Owning runtime | Suggested role |
@@ -88,6 +96,8 @@ The accepted ownership boundary is defined by [ADR-002](../Architecture/Decision
 Notification persistence should be added only when durable delivery state, templates, or retry history require it. If added, it must use a separately owned `NexaConnect_Notification` database.
 
 Application roles must not own the databases. Use a separate migration role for DDL operations and grant application roles only the permissions needed at runtime.
+
+Runtime roles must not read or modify `nexaconnect_schema_migrations`. The migration runner revokes inherited runtime access after creating or verifying its history table.
 
 ### 3.1 Platform Directory logical tables
 

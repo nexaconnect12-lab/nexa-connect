@@ -70,7 +70,7 @@ internal static class MigrationApplication
         await using NpgsqlDataSource dataSource = NpgsqlDataSource.Create(connectionString);
         await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellation.Token);
 
-        await EnsureHistoryTableAsync(connection, cancellation.Token);
+        await EnsureHistoryTableAsync(connection, RuntimeRole(options.Service), cancellation.Token);
 
         foreach (string scriptPath in scripts)
         {
@@ -82,15 +82,26 @@ internal static class MigrationApplication
 
     private static async Task EnsureHistoryTableAsync(
         NpgsqlConnection connection,
+        string runtimeRole,
         CancellationToken cancellationToken)
     {
-        const string sql = """
+        string sql = $$"""
             CREATE TABLE IF NOT EXISTS nexaconnect_schema_migrations
             (
                 script_name text PRIMARY KEY,
                 checksum_sha256 text NOT NULL,
                 applied_at_utc timestamptz NOT NULL DEFAULT now()
             );
+
+            DO $block$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{{runtimeRole}}') THEN
+                    EXECUTE format(
+                        'REVOKE ALL PRIVILEGES ON TABLE nexaconnect_schema_migrations FROM %I',
+                        '{{runtimeRole}}');
+                END IF;
+            END
+            $block$;
             """;
 
         await using var command = new NpgsqlCommand(sql, connection);
@@ -164,6 +175,14 @@ internal static class MigrationApplication
 
     private static string ConnectionStringEnvironmentVariable(string service) =>
         $"NEXACONNECT_{new string(service.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant()}_DB";
+
+    private static string RuntimeRole(string service)
+    {
+        string normalizedService = new string(service.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        return normalizedService == "platformdirectory"
+            ? "platform_directory_app"
+            : $"nexaconnect_{normalizedService}_app";
+    }
 
     private static void PrintUsage()
     {
