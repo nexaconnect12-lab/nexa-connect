@@ -123,7 +123,7 @@ CREATE TABLE organization_application_access
     concurrency_version bigint NOT NULL DEFAULT 1,
     CONSTRAINT pk_organization_application_access
         PRIMARY KEY (organization_id, application_id),
-    CONSTRAINT fk_organization_application_access_organizations_organization_id
+    CONSTRAINT fk_org_app_access_organizations_org_id
         FOREIGN KEY (organization_id) REFERENCES organizations (id) ON DELETE RESTRICT,
     CONSTRAINT fk_organization_application_access_applications_application_id
         FOREIGN KEY (application_id) REFERENCES applications (id) ON DELETE RESTRICT,

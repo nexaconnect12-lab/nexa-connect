@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS outbox_messages;
+DROP TABLE IF EXISTS idempotency_records;
+DROP TABLE IF EXISTS return_lines;
+DROP TABLE IF EXISTS returns;
+DROP TABLE IF EXISTS order_channel_contexts;
+DROP TABLE IF EXISTS order_status_history;
+DROP TABLE IF EXISTS order_line_modifiers;
+DROP TABLE IF EXISTS order_lines;
+DROP TABLE IF EXISTS orders;
