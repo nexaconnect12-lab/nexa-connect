@@ -235,18 +235,25 @@ For the first implementation, these can be folders inside one project. Split the
 
 ## 7. Data architecture
 
-Each service owns its data. Initial deployments may use one SQL Server instance with separate databases or schemas, but ownership boundaries must remain explicit.
+PostgreSQL is the standard transactional database technology. Each service owns its data. Initial deployments may use one PostgreSQL cluster with separate databases and roles, but ownership boundaries must remain explicit.
 
-Suggested databases:
+Initial databases:
 
 ```text
+PlatformDirectory
+NexaConnect_Restaurant
 NexaConnect_Catalog
 NexaConnect_Inventory
 NexaConnect_Order
+NexaConnect_Kitchen
 NexaConnect_Customer
 NexaConnect_Payment
 NexaConnect_POS
+NexaConnect_Media
+NexaConnect_Reporting
 ```
+
+Version-1 schema migrations exist for all eleven databases. The migration catalog currently defines 83 tables and 99 explicit indexes. These scripts remain pre-production until the migration runner supports versioned directories and clean-install, downgrade, and re-upgrade tests pass against PostgreSQL 17.
 
 Rules:
 
@@ -257,6 +264,7 @@ Rules:
 - Schema-first PostgreSQL scripts are the source of truth. Every released version provides paired, tested upgrade and downgrade scripts as defined by [ADR-001](Decisions/ADR-001-schema-first-versioned-migrations.md).
 - Application releases declare required per-service schema versions and prefer expand-and-contract compatibility for rollback.
 - Cross-product organization data is referenced by stable identifiers and consumed through the owning Platform Directory API, events, or local projections; it is not joined through shared tables.
+- Database credentials are issued only to the owning runtime and migration process; clients and other services must use the owning API or integration events.
 
 ## 8. Communication patterns
 
@@ -432,7 +440,8 @@ Core deployable units:
 - Keycloak
 - API Gateway
 - Business services
-- SQL Server
+- PostgreSQL
+- MinIO or an S3-compatible object store
 - Redis
 - RabbitMQ
 - Observability components
@@ -459,7 +468,7 @@ Each service should be independently buildable, configurable, deployable, and ro
 Create Architecture Decision Records for major choices, including:
 
 - Keycloak as identity provider
-- SQL Server versus PostgreSQL
+- PostgreSQL database-per-service deployment and recovery strategy
 - RabbitMQ versus another message broker
 - WPF versus WinUI for POS
 - React BFF authentication approach

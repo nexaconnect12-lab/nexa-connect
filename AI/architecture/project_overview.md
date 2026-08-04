@@ -254,17 +254,23 @@ For the first implementation, these can be folders inside one project. Split the
 
 PostgreSQL is the standard transactional database technology for NexaConnect. Each service owns its data. Initial deployments may use one PostgreSQL cluster with separate databases, schemas, roles, and credentials, but ownership boundaries must remain explicit. A shared PostgreSQL cluster must not become a shared application database.
 
-Suggested databases:
+Initial databases:
 
 ```text
+PlatformDirectory
+NexaConnect_Restaurant
 NexaConnect_Catalog
 NexaConnect_Inventory
 NexaConnect_Order
+NexaConnect_Kitchen
 NexaConnect_Customer
 NexaConnect_Payment
 NexaConnect_POS
 NexaConnect_Media
+NexaConnect_Reporting
 ```
+
+Version-1 migrations exist for all eleven databases and define 83 tables and 99 explicit indexes. The baseline is not production-executable until the migration runner supports versioned directories and the scripts pass clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Rules:
 

@@ -9,6 +9,7 @@ See [Database Design](Database-Design.md) for the PostgreSQL topology, service-o
 - Standard technical tables may share templates, but every service owns its own physical migration, outbox, inbox, idempotency, and audit records.
 - Keep migrations with the owning service.
 - Treat versioned PostgreSQL migration scripts as the schema source of truth.
+- Treat documentation tables as summaries; migration SQL is authoritative for physical names, constraints, and indexes.
 - Provide paired, tested upgrade and downgrade scripts for every released schema version.
 - Classify downgrade paths as safe, transformative, destructive, or unsupported.
 - Prefer expand-and-contract changes so an application can roll back without immediately downgrading its database.
@@ -16,3 +17,6 @@ See [Database Design](Database-Design.md) for the PostgreSQL topology, service-o
 - Use optimistic concurrency where appropriate.
 - Use the outbox pattern for reliable event publication.
 - Store timestamps in UTC.
+- Do not bypass the owning API by distributing another service's database credentials.
+- Do not flatten versioned migrations to accommodate the current runner; upgrade the runner to the accepted contract.
+- Validate clean install, downgrade, and re-upgrade against the supported PostgreSQL version before release.

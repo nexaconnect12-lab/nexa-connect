@@ -2,9 +2,15 @@
 
 ## 1. Purpose
 
-This document defines the initial logical database design for NexaConnect. It is the baseline for PostgreSQL database ownership, schema naming, migrations, sample-data generation, integration-event reliability, and media metadata.
+This document defines the initial logical and physical database baseline for NexaConnect. It covers PostgreSQL ownership, schema naming, migrations, sample-data generation, integration-event reliability, and media metadata.
 
 The design will evolve with the domain model. Every schema change must remain owned by one business service and must be delivered through an immutable migration.
+
+### 1.1 Baseline status
+
+Version-1 migrations now exist for Platform Directory, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, POS, Media, and Reporting. Together they define 83 tables and 99 explicit indexes. Each migration has metadata and paired upgrade and downgrade scripts.
+
+Static validation has confirmed metadata parsing, create/drop parity, PostgreSQL identifier lengths, output packaging, and a clean migration-project build. Live PostgreSQL clean-install, downgrade, and re-upgrade tests are still required. The current migration executable must also be upgraded to understand versioned directories before these scripts are production-executable.
 
 ## 2. Database topology
 
@@ -67,6 +73,7 @@ The accepted ownership boundary is defined by [ADR-002](../Architecture/Decision
 
 | Business capability | Database | Owning runtime | Suggested role |
 | --- | --- | --- | --- |
+| Shared organization directory | `PlatformDirectory` | Platform Directory Service | `platform_directory_app` |
 | Restaurant Management | `NexaConnect_Restaurant` | Restaurant Management Service | `nexaconnect_restaurant_app` |
 | Menu | `NexaConnect_Catalog` | Catalog Service, provisionally | `nexaconnect_catalog_app` |
 | Inventory | `NexaConnect_Inventory` | Inventory Service | `nexaconnect_inventory_app` |
@@ -117,7 +124,7 @@ The combination of `organization_id` and `identity_subject_id` must be unique fo
 - `status text` — enabled, suspended, or disabled.
 - `enabled_at_utc timestamptz` and `disabled_at_utc timestamptz`.
 
-Create this table only when platform-level product enablement, subscription, or licensing is required. Product-specific roles and permissions do not belong here.
+The version-1 baseline creates this table to support platform-level product enablement. Product-specific roles and permissions do not belong here.
 
 ### 3.2 Dashboard data access
 
@@ -172,16 +179,30 @@ The following table designs may be standardized as templates, but each service d
 
 Sharing SQL templates does not grant one service permission to read or write another service's technical tables.
 
-## 6. Initial logical model
+## 6. Initial schema model
 
-The following tables describe capability ownership. They are a starting point, not final migration scripts.
+The following summaries describe the implemented version-1 ownership model. The SQL under `src/Tools/NexaConnect.DataMigration/Scripts` is authoritative when a summary differs from a physical column, constraint, or index.
+
+| Database | Version-1 tables | Notes |
+| --- | ---: | --- |
+| PlatformDirectory | 5 | Organizations, memberships, applications, access, and outbox |
+| Restaurant | 7 | Restaurant structure, operating configuration, and outbox |
+| Catalog | 20 | Menu, modifiers, pricing, availability, routing, media links, and outbox |
+| Inventory | 7 | Stock locations, balances, ledger, reservations, replenishment, inbox, and outbox |
+| Order | 9 | Orders, snapshots, lifecycle, returns, idempotency, and outbox |
+| Kitchen | 6 | Tickets, items, lifecycle, adjustments, inbox, and outbox |
+| Customer | 5 | Profiles, contacts, addresses, loyalty, and outbox |
+| Payment | 5 | Intents, provider transactions, refunds, reconciliation, and outbox |
+| POS | 8 | Stores, terminals, shifts, cash, synchronization, and outbox |
+| Media | 4 | Assets, variants, processing attempts, and outbox |
+| Reporting | 7 | Rebuildable facts, checkpoints, and consumer deduplication |
 
 ### 6.1 Restaurant Management
 
 - `restaurants` — tenant-owned restaurant identity and operating status.
 - `branches` — branch address, time zone, business configuration, and status.
 - `dining_areas` — floor or seating area within a branch.
-- `tables` — table number, QR context, capacity, and availability status.
+- `dining_tables` — table code, QR context, capacity, display order, and availability status.
 - `business_hours` — branch opening schedules and exceptions.
 - `preparation_stations` — kitchen, bar, dessert, expediter, or other routing destination.
 
@@ -190,11 +211,16 @@ Restaurant Management owns the stable restaurant and branch identifiers used by 
 ### 6.2 Menu
 
 - `products` — SKU, name, description, tax classification, lifecycle status, and optional `jsonb` attributes.
+- `product_variants` — sizes or other product variants with stable identifiers and flexible attributes.
 - `categories` — hierarchical product classification.
 - `product_categories` — product-to-category membership.
 - `product_barcodes` — barcode values and barcode types.
+- `menus`, `menu_channels`, `menu_categories`, and `menu_items` — channel-aware restaurant or branch menu composition.
+- `modifier_groups`, `modifier_options`, and `product_modifier_groups` — selection rules and product-specific modifier availability.
 - `price_lists` — currency, validity, tenant, store, or customer scope.
-- `product_prices` — product price within a price list and effective period.
+- `product_prices` and `modifier_option_prices` — effective-dated prices within a price list.
+- `product_availability` — branch menu availability and sold-out state; stock quantities remain Inventory-owned.
+- `preparation_routes` — associations to Restaurant-owned preparation-station identifiers.
 - `product_images` — association between a product and a Media asset identifier; no image binary is stored here.
 
 Menu publishes item, price, availability, modifier, and preparation-routing changes. It does not own stock balances. The existing Catalog service and database names are provisional until the Menu naming decision is recorded.
@@ -215,7 +241,7 @@ The combination of tenant, warehouse, and product should be unique for a stock i
 - `order_lines` — product snapshot, quantity, unit price, discount, and tax values.
 - `order_line_modifiers` — modifier name, option, quantity, and price snapshot.
 - `order_status_history` — append-only status transitions.
-- `order_channel_context` — POS, waiter, kiosk, or QR channel identifiers without exposing QR security tokens or device credentials.
+- `order_channel_contexts` — POS, waiter, kiosk, or QR channel identifiers without exposing QR security tokens or device credentials.
 - `returns` — return authorization and status.
 - `return_lines` — returned quantities and reasons.
 
@@ -254,6 +280,7 @@ Do not store raw card numbers, CVV values, access tokens, or provider secrets. P
 - `terminals` — POS and kiosk device type, registration, branch assignment, revocation, health, and synchronization state.
 - `shifts` — employee and terminal shift lifecycle.
 - `cash_sessions` — opening balance, movements, and closing balance.
+- `cash_movements` — append-only sales, refunds, pay-ins, pay-outs, and float adjustments.
 - `sync_operations` — client-generated operation identifier, processing status, and response reference.
 - `sync_checkpoints` — terminal synchronization cursor per data stream.
 
@@ -333,9 +360,11 @@ src/Tools/NexaConnect.DataMigration/Scripts/<Service>/<Version>_<Name>/
 
 NexaConnect uses schema-first development. The versioned PostgreSQL scripts are the authoritative schema definition. EF Core or other .NET persistence models are mapped or generated only after the target schema is applied and validated.
 
-Schema versions are independent and linear for each service. The migration runner moves one service database to an explicit target version. Upgrades execute `up.sql` in ascending order; downgrades execute `down.sql` in descending order.
+Schema versions are independent and linear for each service. Under the accepted runner contract, the migration runner moves one service database to an explicit target version. Upgrades execute `up.sql` in ascending order; downgrades execute `down.sql` in descending order.
 
 Applied migrations are recorded in `nexaconnect_schema_migrations` with the version, name, upgrade and downgrade checksums, downgrade-safety classification, application timestamp, application version, and execution identifier.
+
+The current executable does not implement this complete contract and cannot discover the versioned migration directories. Do not flatten, manually concatenate, or apply the baseline as a production workaround. Upgrade the runner first, then verify every service through clean install, downgrade to version 0 in a disposable database, and re-upgrade to version 1.
 
 Downgrade classifications:
 

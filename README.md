@@ -36,4 +36,13 @@ D:\Thet Lwin Oo\DevOps\NexaConnect
 See [Project Architecture](docs/Architecture/Project-Architecture.md).
 See [Restaurant POS Architecture](docs/Architecture/Restaurant-POS-Architecture.md) for the business capabilities, branch-offline model, kitchen workflow, kiosk and QR ordering, reporting, and shared identity boundary.
 The cross-product Platform Admin Dashboard is owned by the shared platform; `NexaConnect.Admin` remains the independently deployed restaurant-product dashboard.
-"# nexa-connect" 
+
+## Database baseline
+
+NexaConnect uses schema-first PostgreSQL migrations with one independently owned database per service. The initial migration catalog covers Platform Directory, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, POS, Media, and Reporting.
+
+- [Database Design](docs/Database/Database-Design.md) describes topology, ownership, logical models, and operational rules.
+- [Database Guidelines](docs/Database/Database-Guidelines.md) contains the rules every service must follow.
+- [Data Migration](src/Tools/NexaConnect.DataMigration/README.md) documents migration layout, current implementation status, and release validation.
+
+Other projects consume owned data through versioned APIs and integration events. They never connect directly to another service's PostgreSQL tables.
