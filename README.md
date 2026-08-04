@@ -1,0 +1,39 @@
+# NexaConnect
+
+NexaConnect is a restaurant operating platform with staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, offline branch operation, synchronization, and reporting. It is built around ASP.NET Core services, PostgreSQL, messaging, shared OpenID Connect identity, and offline-capable clients.
+
+## Local path
+
+Extract or copy this repository to:
+
+```text
+D:\Thet Lwin Oo\DevOps\NexaConnect
+```
+
+## Initial components
+
+- ASP.NET Core services
+- YARP API Gateway
+- Keycloak identity provider
+- React + TypeScript + Ant Design web clients
+- Product-specific NexaConnect administration dashboard
+- .NET MAUI mobile client
+- WPF Windows POS client
+- Touch-screen kiosk client
+- PostgreSQL, Redis, and RabbitMQ
+- .NET Aspire for local orchestration
+- OpenTelemetry-based observability
+
+## First setup
+
+1. Install the .NET SDK configured in `global.json`.
+2. Install Docker Desktop.
+3. Create the actual projects using the commands in `scripts/bootstrap-projects.ps1`.
+4. Add the generated projects to `NexaConnect.sln`.
+5. Configure local secrets and environment variables.
+6. Start infrastructure with Docker Compose.
+
+See [Project Architecture](docs/Architecture/Project-Architecture.md).
+See [Restaurant POS Architecture](docs/Architecture/Restaurant-POS-Architecture.md) for the business capabilities, branch-offline model, kitchen workflow, kiosk and QR ordering, reporting, and shared identity boundary.
+The cross-product Platform Admin Dashboard is owned by the shared platform; `NexaConnect.Admin` remains the independently deployed restaurant-product dashboard.
+"# nexa-connect" 
