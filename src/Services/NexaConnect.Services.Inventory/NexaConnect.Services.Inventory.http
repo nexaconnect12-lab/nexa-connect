@@ -1,0 +1,6 @@
+@NexaConnect.Services.Inventory_HostAddress = http://localhost:5220
+
+GET {{NexaConnect.Services.Inventory_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

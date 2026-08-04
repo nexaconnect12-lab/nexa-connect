@@ -1,0 +1,6 @@
+@NexaConnect.Gateway_HostAddress = http://localhost:5164
+
+GET {{NexaConnect.Gateway_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

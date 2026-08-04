@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "name": "initial_schema",
+  "transactional": true,
+  "downgradeSafety": "destructive",
+  "minimumApplicationVersion": "0.1.0"
+}

@@ -1,0 +1,419 @@
+# NexaConnect Database Design
+
+## 1. Purpose
+
+This document defines the initial logical database design for NexaConnect. It is the baseline for PostgreSQL database ownership, schema naming, migrations, sample-data generation, integration-event reliability, and media metadata.
+
+The design will evolve with the domain model. Every schema change must remain owned by one business service and must be delivered through an immutable migration.
+
+## 2. Database topology
+
+PostgreSQL is the standard transactional database technology. A single PostgreSQL cluster is acceptable for the initial deployment, but each service must have an independently owned database, role, connection string, migrations, and backup policy.
+
+```mermaid
+flowchart TB
+    PG[(PostgreSQL Cluster)]
+
+    PG --> RESTAURANT[(NexaConnect_Restaurant)]
+    PG --> CATALOG[(NexaConnect_Catalog)]
+    PG --> INVENTORY[(NexaConnect_Inventory)]
+    PG --> ORDERDB[(NexaConnect_Order)]
+    PG --> KITCHEN[(NexaConnect_Kitchen)]
+    PG --> CUSTOMER[(NexaConnect_Customer)]
+    PG --> PAYMENT[(NexaConnect_Payment)]
+    PG --> POS[(NexaConnect_POS)]
+    PG --> MEDIA[(NexaConnect_Media)]
+    PG --> REPORTING[(NexaConnect_Reporting)]
+
+    RESTAURANT --- RESTAURANTSVC[Restaurant Management]
+    CATALOG --- CATALOGSVC[Catalog Service]
+    INVENTORY --- INVENTORYSVC[Inventory Service]
+    ORDERDB --- ORDERSVC[Order Service]
+    KITCHEN --- KITCHENSVC[Kitchen Execution]
+    CUSTOMER --- CUSTOMERSVC[Customer Service]
+    PAYMENT --- PAYMENTSVC[Payment Service]
+    POS --- POSSVC[POS Service]
+    MEDIA --- MEDIASVC[Media API and Worker]
+    REPORTING --- REPORTINGSVC[Reporting Projectors and API]
+
+    MEDIASVC --> OBJECTS[(MinIO or S3-compatible Object Storage)]
+```
+
+Services must not query, update, or create foreign keys against another service database. Cross-service data is obtained through APIs, integration events, or service-owned read projections.
+
+### 2.1 Cross-product platform boundary
+
+Shared authentication and organization data is not stored in a database directly shared by NexaConnect and other products.
+
+```mermaid
+flowchart LR
+    IDP[Keycloak Identity Platform]
+    DIRECTORY[Platform Directory Service]
+    PLATFORMDB[(Platform Directory PostgreSQL)]
+    NEXA[NexaConnect]
+    OTHER[Other Product]
+
+    IDP --> DIRECTORY
+    DIRECTORY --> PLATFORMDB
+    DIRECTORY -->|Versioned API and events| NEXA
+    DIRECTORY -->|Versioned API and events| OTHER
+```
+
+Keycloak owns credentials and stable identity subject identifiers. A separately owned Platform Directory stores shared organizations and memberships when they are required across products. NexaConnect stores stable `identity_subject_id` and `organization_id` values without cross-database foreign keys.
+
+The accepted ownership boundary is defined by [ADR-002](../Architecture/Decisions/ADR-002-shared-platform-data-ownership.md).
+
+## 3. Database and role allocation
+
+| Business capability | Database | Owning runtime | Suggested role |
+| --- | --- | --- | --- |
+| Restaurant Management | `NexaConnect_Restaurant` | Restaurant Management Service | `nexaconnect_restaurant_app` |
+| Menu | `NexaConnect_Catalog` | Catalog Service, provisionally | `nexaconnect_catalog_app` |
+| Inventory | `NexaConnect_Inventory` | Inventory Service | `nexaconnect_inventory_app` |
+| Order | `NexaConnect_Order` | Order Service | `nexaconnect_order_app` |
+| Kitchen Execution | `NexaConnect_Kitchen` | Kitchen Service | `nexaconnect_kitchen_app` |
+| Customer | `NexaConnect_Customer` | Customer Service | `nexaconnect_customer_app` |
+| Payment | `NexaConnect_Payment` | Payment Service | `nexaconnect_payment_app` |
+| POS | `NexaConnect_POS` | POS Service | `nexaconnect_pos_app` |
+| Media | `NexaConnect_Media` | Media API and Worker | `nexaconnect_media_app` |
+| Reporting | `NexaConnect_Reporting` | Reporting Projectors and API | `nexaconnect_reporting_app` |
+
+Notification persistence should be added only when durable delivery state, templates, or retry history require it. If added, it must use a separately owned `NexaConnect_Notification` database.
+
+Application roles must not own the databases. Use a separate migration role for DDL operations and grant application roles only the permissions needed at runtime.
+
+### 3.1 Platform Directory logical tables
+
+The Platform Directory is outside NexaConnect's restaurant service databases. Its initial schema-first logical model is:
+
+#### `organizations`
+
+- `id uuid` — stable cross-product organization identifier.
+- `code text` — immutable or carefully governed business code.
+- `name text` — display name.
+- `status text` — pending, active, suspended, or closed.
+- `default_time_zone text` — organization default, overridden by restaurant branches where needed.
+- Standard creation and update audit columns.
+
+#### `organization_memberships`
+
+- `id uuid` — membership identifier.
+- `organization_id uuid` — owned foreign key to `organizations` inside the Platform Directory database.
+- `identity_subject_id text` — stable Keycloak subject identifier, not a database foreign key.
+- `status text` — invited, active, suspended, or removed.
+- `joined_at_utc timestamptz` and membership audit timestamps.
+
+The combination of `organization_id` and `identity_subject_id` must be unique for an effective membership according to the selected history model.
+
+#### `applications`
+
+- `id uuid` — platform application identifier.
+- `code text` — stable unique code such as `nexaconnect-pos`.
+- `name text` and `status text`.
+
+#### `organization_application_access`
+
+- `organization_id uuid` and `application_id uuid`.
+- `status text` — enabled, suspended, or disabled.
+- `enabled_at_utc timestamptz` and `disabled_at_utc timestamptz`.
+
+Create this table only when platform-level product enablement, subscription, or licensing is required. Product-specific roles and permissions do not belong here.
+
+### 3.2 Dashboard data access
+
+The Platform Admin Dashboard reads and changes platform data only through Platform Control Plane APIs. Product dashboards read and change product data only through their product gateways and APIs. Dashboards never connect directly to PostgreSQL.
+
+Cross-product dashboard summaries use explicitly published metrics, APIs, or reporting events. Platform reporting must not query or join product operational databases. Detailed NexaConnect reports remain owned by the NexaConnect Reporting capability.
+
+Dashboard separation and identity-client boundaries are defined by [ADR-003](../Architecture/Decisions/ADR-003-platform-and-product-dashboard-separation.md).
+
+## 4. Naming conventions
+
+- Use `snake_case` for schemas, tables, columns, indexes, and constraints.
+- Use plural table names, such as `products` and `order_lines`.
+- Name primary keys `id` and foreign-key columns `<entity>_id`.
+- Name primary keys `pk_<table>`.
+- Name foreign keys `fk_<table>_<referenced_table>_<column>`.
+- Name unique constraints `uq_<table>_<columns>`.
+- Name indexes `ix_<table>_<columns>`.
+- Use unquoted PostgreSQL identifiers.
+- Use UTC and PostgreSQL `timestamptz` for instants.
+
+## 5. Common column standards
+
+These are conventions, not a requirement for every table:
+
+| Purpose | PostgreSQL type | Notes |
+| --- | --- | --- |
+| Entity identifier | `uuid` | Generate outside the database when offline creation or idempotent retries are required. |
+| Tenant identifier | `uuid` | Include in tenant-scoped unique constraints and indexes. |
+| Store identifier | `uuid` | Required on store-scoped operational records. |
+| Timestamp | `timestamptz` | Store UTC instants. |
+| Money amount | `numeric(19,4)` | Never use floating-point types for money. |
+| Currency | `char(3)` | ISO 4217 code validated by the application or a reference table. |
+| Flexible attributes | `jsonb` | Use only for attributes without stable relational structure. |
+| Concurrency token | `bigint` | Increment on updates when application-managed optimistic concurrency is required. |
+| External idempotency key | `text` | Scope with tenant, operation type, or provider as appropriate. |
+
+Typical audit columns are `created_at_utc`, `created_by`, `updated_at_utc`, and `updated_by`. Use explicit lifecycle states instead of applying generic soft deletion to every table.
+
+### 5.1 Shared technical table conventions
+
+The following table designs may be standardized as templates, but each service database owns a separate physical copy:
+
+| Convention | Physical ownership |
+| --- | --- |
+| `nexaconnect_schema_migrations` | One history table per service database |
+| `outbox_messages` | One outbox per event-publishing service |
+| `inbox_messages` or `processed_messages` | One deduplication store per consuming service |
+| `idempotency_records` | One store per service requiring request deduplication |
+| Audit records | Owned by the service that performs the audited business action |
+| Synchronization operations | Owned by POS or branch-edge capabilities |
+
+Sharing SQL templates does not grant one service permission to read or write another service's technical tables.
+
+## 6. Initial logical model
+
+The following tables describe capability ownership. They are a starting point, not final migration scripts.
+
+### 6.1 Restaurant Management
+
+- `restaurants` — tenant-owned restaurant identity and operating status.
+- `branches` — branch address, time zone, business configuration, and status.
+- `dining_areas` — floor or seating area within a branch.
+- `tables` — table number, QR context, capacity, and availability status.
+- `business_hours` — branch opening schedules and exceptions.
+- `preparation_stations` — kitchen, bar, dessert, expediter, or other routing destination.
+
+Restaurant Management owns the stable restaurant and branch identifiers used by other services. Other databases store those identifiers without cross-database foreign keys.
+
+### 6.2 Menu
+
+- `products` — SKU, name, description, tax classification, lifecycle status, and optional `jsonb` attributes.
+- `categories` — hierarchical product classification.
+- `product_categories` — product-to-category membership.
+- `product_barcodes` — barcode values and barcode types.
+- `price_lists` — currency, validity, tenant, store, or customer scope.
+- `product_prices` — product price within a price list and effective period.
+- `product_images` — association between a product and a Media asset identifier; no image binary is stored here.
+
+Menu publishes item, price, availability, modifier, and preparation-routing changes. It does not own stock balances. The existing Catalog service and database names are provisional until the Menu naming decision is recorded.
+
+### 6.3 Inventory
+
+- `warehouses` — stock-holding locations.
+- `stock_items` — current balance per product and warehouse.
+- `stock_movements` — immutable receipts, sales, transfers, and adjustments.
+- `stock_reservations` — time-bound reservations for orders.
+- `replenishment_requests` — requested and fulfilled replenishment operations.
+
+The combination of tenant, warehouse, and product should be unique for a stock item. Stock changes use optimistic concurrency and an immutable movement record.
+
+### 6.4 Order
+
+- `orders` — customer, store, currency, totals, status, and submission information.
+- `order_lines` — product snapshot, quantity, unit price, discount, and tax values.
+- `order_line_modifiers` — modifier name, option, quantity, and price snapshot.
+- `order_status_history` — append-only status transitions.
+- `order_channel_context` — POS, waiter, kiosk, or QR channel identifiers without exposing QR security tokens or device credentials.
+- `returns` — return authorization and status.
+- `return_lines` — returned quantities and reasons.
+
+Order lines store the commercial product and price snapshot used at checkout. They must not depend on the current Catalog values after an order is submitted.
+
+### 6.5 Kitchen Execution
+
+- `kitchen_tickets` — order reference, branch, service sequence, and ticket status.
+- `kitchen_ticket_items` — order-line snapshot, preparation station, quantity, and preparation state.
+- `kitchen_status_history` — append-only ticket and item transitions.
+- `kitchen_adjustments` — additions, quantity changes, cancellations, and void instructions received after submission.
+
+Kitchen records are created idempotently from accepted Ordering events. An order may produce multiple station tickets, but Kitchen does not recalculate commercial totals or payment state.
+
+### 6.6 Customer
+
+- `customers` — profile, lifecycle status, contact preferences, and flexible attributes.
+- `customer_addresses` — postal and delivery addresses.
+- `customer_contacts` — email and telephone contact points.
+- `loyalty_accounts` — loyalty identifier, status, and balance reference.
+
+Sensitive personal data must be minimized, access-controlled, and excluded from logs and integration events unless required.
+
+### 6.7 Payment
+
+- `payment_intents` — requested amount, currency, order reference, status, and idempotency key.
+- `provider_transactions` — provider identifiers and sanitized transaction results.
+- `refunds` — requested and completed refunds.
+- `reconciliation_records` — settlement and reconciliation references.
+
+Do not store raw card numbers, CVV values, access tokens, or provider secrets. Provider payloads must be filtered before optional storage in `jsonb`.
+
+### 6.8 POS
+
+- `stores` — store configuration and operational status.
+- `terminals` — POS and kiosk device type, registration, branch assignment, revocation, health, and synchronization state.
+- `shifts` — employee and terminal shift lifecycle.
+- `cash_sessions` — opening balance, movements, and closing balance.
+- `sync_operations` — client-generated operation identifier, processing status, and response reference.
+- `sync_checkpoints` — terminal synchronization cursor per data stream.
+
+The server must enforce uniqueness for each terminal and client-generated operation identifier so offline retries cannot create duplicate sales or payments.
+
+### 6.9 Media
+
+- `media_assets` — owner reference, object key, original name, content type, size, checksum, dimensions, and processing status.
+- `media_variants` — thumbnail or transformed variant, dimensions, format, object key, and checksum.
+- `media_processing_attempts` — worker attempt, outcome, error category, and timestamps.
+
+Image binaries belong in MinIO or S3-compatible object storage. PostgreSQL stores metadata and lifecycle state only. MongoDB is not part of the initial media design; it may be introduced later for a bounded context containing complex document-oriented results. GridFS is used only when object storage is unsuitable.
+
+### 6.10 Reporting
+
+- `sales_facts` — order, branch, POS, waiter, kiosk or QR channel, employee where applicable, time, and commercial measures.
+- `payment_facts` — payment method, status, amount, refund, and reconciliation measures.
+- `item_sales_facts` — menu item, category, modifier, quantity, discount, and revenue measures.
+- `kitchen_time_facts` — queued, started, ready, and completed timestamps by station and item.
+- `shift_cash_facts` — shift totals, tenders, cash movements, and variance measures.
+- `projection_checkpoints` — last processed event position for each reporting projector.
+
+Reporting tables are projections of versioned events and can be rebuilt. Every report exposes or records its data freshness. Reporting never writes back into operational service databases.
+
+## 7. Branch-local data
+
+POS terminals and self-service kiosks use SQLite for local configuration, allowed cached menu data, pending commands, synchronization checkpoints, and a durable outbox. POS additionally retains active shift state; kiosk local storage must clear customer-session data after completion or timeout.
+
+The branch edge service requires a durable local store for active branch orders, kitchen tickets, device state, acknowledgements, and cloud synchronization. PostgreSQL versus SQLite for the edge remains an architecture decision based on hardware, concurrency, support, backup, and upgrade requirements.
+
+Branch-local data rules:
+
+- Commit an allowed local operation and its outbox entry atomically.
+- Use cloud-stable UUID identifiers generated by the originating device or edge service.
+- Retain acknowledged operations according to an explicit recovery and audit policy.
+- Encrypt sensitive local data where supported and minimize cached personal information.
+- Do not copy full cloud databases to the branch when a bounded synchronization model is sufficient.
+- Keep commercial order snapshots so later menu changes cannot rewrite historical orders.
+
+## 8. Flexible attributes with `jsonb`
+
+Use `jsonb` for genuinely variable properties, such as category-specific product specifications. Stable and frequently joined or constrained fields remain relational columns.
+
+Rules:
+
+- Validate the document shape in the owning service.
+- Version materially different document structures.
+- Promote frequently filtered attributes to typed columns when appropriate.
+- Add targeted expression or GIN indexes only for measured query patterns.
+- Do not use `jsonb` to hide undefined ownership or replace normal relational modeling.
+
+## 9. Reliable messaging tables
+
+Every service that publishes integration events from a database transaction should own an `outbox_messages` table containing:
+
+- Message identifier
+- Event type and contract version
+- Serialized payload
+- Occurred timestamp
+- Published timestamp
+- Retry count and last error category
+
+Consumers that require durable deduplication should own an `inbox_messages` or `processed_messages` table. The message identifier and consumer name form the uniqueness boundary.
+
+Outbox cleanup must retain enough history for operational diagnosis while preventing unbounded table growth.
+
+## 10. Migration workflow
+
+Migration scripts are stored under the owning service directory in [NexaConnect.DataMigration](../../src/Tools/NexaConnect.DataMigration/README.md):
+
+```text
+src/Tools/NexaConnect.DataMigration/Scripts/<Service>/<Version>_<Name>/
+├── migration.json
+├── up.sql
+└── down.sql
+```
+
+NexaConnect uses schema-first development. The versioned PostgreSQL scripts are the authoritative schema definition. EF Core or other .NET persistence models are mapped or generated only after the target schema is applied and validated.
+
+Schema versions are independent and linear for each service. The migration runner moves one service database to an explicit target version. Upgrades execute `up.sql` in ascending order; downgrades execute `down.sql` in descending order.
+
+Applied migrations are recorded in `nexaconnect_schema_migrations` with the version, name, upgrade and downgrade checksums, downgrade-safety classification, application timestamp, application version, and execution identifier.
+
+Downgrade classifications:
+
+- `safe` — restores the preceding schema without expected data loss.
+- `transformative` — converts data back and requires validation.
+- `destructive` — may discard data and requires explicit authorization and a verified backup.
+- `unsupported` — blocks production release until a supported downgrade or recovery path is designed.
+
+Rules:
+
+- Never modify an applied migration; create a new migration.
+- Keep one service's changes out of another service's migration.
+- Provide paired and tested `up.sql` and `down.sql` scripts for every released version.
+- Test clean installation, upgrade from the preceding version, and downgrade to the preceding version.
+- Acquire a PostgreSQL advisory lock so only one migration operation changes a service database at a time.
+- Verify metadata and script checksums before execution.
+- Generate and review a migration plan before mutation.
+- Apply one version at a time and stop on the first failure.
+- Use a transaction by default; explicitly classify exceptional non-transactional operations and document their recovery.
+- Prefer backward-compatible expand-and-contract changes for independently deployed services.
+- Prefer application rollback without physical schema downgrade while the compatibility window is active.
+- Back up and rehearse downgrade or forward-recovery procedures for transformative and destructive changes.
+- Do not automatically run production migrations from every application replica at startup.
+
+A supported downgrade path does not guarantee lossless reversal. Database changes cannot automatically reverse external effects such as emitted events, object-storage changes, provider transactions, or data already consumed by another service. Those effects require explicit compensation or recovery procedures.
+
+Each application release should include a manifest mapping its application version to the required schema version for every service. The accepted decision is recorded in [ADR-001](../Architecture/Decisions/ADR-001-schema-first-versioned-migrations.md).
+
+## 11. Sample-data workflow
+
+Repeatable sample-data scripts are stored under [NexaConnect.DataGeneration](../../src/Tools/NexaConnect.DataGeneration/README.md):
+
+```text
+src/Tools/NexaConnect.DataGeneration/Seeds/<Service>/
+```
+
+Sample data must:
+
+- Use stable identifiers and idempotent `INSERT ... ON CONFLICT` behavior.
+- Contain fictional information only.
+- Be deterministic when automated tests depend on it.
+- Respect service ownership and public application invariants.
+- Require explicit confirmation before changing a database.
+- Never be run against production unless a separately reviewed operational procedure explicitly allows it.
+
+## 12. Indexing and performance
+
+- Create indexes from demonstrated query and constraint requirements.
+- Include `tenant_id` early in indexes used by tenant-scoped queries.
+- Use partial indexes for small active subsets when justified.
+- Review foreign-key indexes explicitly; do not assume every foreign key requires the same access pattern.
+- Use keyset pagination for large, ordered result sets.
+- Monitor slow queries and execution plans before adding denormalized projections.
+- Keep reporting queries away from transactional databases when their load or ownership requires a dedicated read model.
+
+## 13. Security and operations
+
+- Keep connection strings in environment variables or a managed secret store.
+- Require TLS outside local development.
+- Rotate database credentials and use separate credentials per environment.
+- Enable encrypted backups and test restoration regularly.
+- Define recovery-point and recovery-time objectives for each service database.
+- Record administrative and migration access in audit logs.
+- Mask or synthesize personal data in non-production environments.
+- Set connection, command, and transaction timeouts appropriate to each workload.
+
+## 14. Decisions still required
+
+Create Architecture Decision Records for:
+
+- Database-per-service versus schema-per-service isolation in each environment.
+- Tenant isolation and whether PostgreSQL row-level security is required.
+- Platform Directory deployment, availability, and organization-history model.
+- Versioned OIDC claims, Platform Directory API, and integration-event contracts.
+- Identifier generation and ordering strategy.
+- Backup, retention, restoration, and disaster-recovery objectives.
+- Reporting projections and analytics storage.
+- Media retention, versioning, and object lifecycle rules.
+- Criteria for introducing MongoDB for complex document-oriented results.
+- Branch-edge database technology, backup, upgrade, and recovery model.
+- Reporting projection storage, retention, replay, and freshness requirements.
