@@ -35,6 +35,7 @@ D:\Thet Lwin Oo\DevOps\NexaConnect
 
 See [Project Architecture](docs/Architecture/Project-Architecture.md).
 See [Restaurant POS Architecture](docs/Architecture/Restaurant-POS-Architecture.md) for the business capabilities, branch-offline model, kitchen workflow, kiosk and QR ordering, reporting, and shared identity boundary.
+See [Keycloak configuration](docker/keycloak/README.md), the [identity client matrix](docs/Identity/Client-Matrix.md), the [claims contract](docs/Identity/Claims-Contract.md), and the [production runbook](docs/Identity/Production-Runbook.md) for identity integration and deployment.
 The cross-product Platform Admin Dashboard is owned by the shared platform; `NexaConnect.Admin` remains the independently deployed restaurant-product dashboard.
 
 ## Database baseline

@@ -22,9 +22,9 @@ The version-1 schema baseline has been authored for 11 independently owned datab
 
 Every baseline migration contains `migration.json`, `up.sql`, and `down.sql`. Metadata parsing, create/drop parity, PostgreSQL identifier lengths, output packaging, and the migration project build have been checked.
 
-The executable runner is still the original forward-only implementation. It reads flat `.sql` files from the service directory and records only a script checksum. It does **not** discover the versioned subdirectories or implement target versions, planning, advisory locking, paired downgrade execution, downgrade authorization, or release manifests.
+The executable runner implements the versioned-directory contract. It discovers and validates linear service catalogs, verifies immutable metadata and SQL checksums, reports status, plans explicit target versions, executes paired upgrades and downgrades, serializes mutation with a PostgreSQL advisory lock, and protects transformative and destructive downgrades with explicit authorization flags.
 
-Consequently, the baseline is an authoritative design and implementation artifact, but it is not yet approved for production execution. Upgrade the runner and execute clean-install and downgrade tests against PostgreSQL 17 before treating version 1 as released. Do not flatten or manually reorder the scripts to work around the runner.
+The baseline is still not approved for production execution until every service passes live clean-install, downgrade, and re-upgrade tests against PostgreSQL 17. Do not flatten or manually reorder the scripts.
 
 ## Script ownership and layout
 
@@ -68,9 +68,9 @@ Supported downgrade-safety values are:
 
 ## Target-version behavior
 
-The completed runner will accept an explicit target version for one service database. It will apply `up.sql` files in ascending order when upgrading and `down.sql` files in descending order when downgrading.
+The runner accepts an explicit target version for one service database. It applies `up.sql` files in ascending order when upgrading and `down.sql` files in descending order when downgrading.
 
-Planned commands:
+Supported commands:
 
 ```powershell
 # Inspect the current service schema version.
@@ -88,7 +88,23 @@ dotnet run --project src/Tools/NexaConnect.DataMigration -- `
 
 Connection strings are read from `NEXACONNECT_<SERVICE>_DB` so secrets do not appear in command arguments.
 
-The commands above document the accepted contract; they are not supported by the current executable yet.
+Visual Studio launch profiles use `--environment-file .env` with the repository root as their working directory. This loads local connection strings without placing passwords in `launchSettings.json`. Existing process environment variables take precedence over values in the file.
+
+`--plan` is read-only. `--confirm` is required for mutation. A transformative downgrade also requires `--allow-transformative`; a destructive downgrade requires both `--allow-destructive` and `--backup-verified`.
+
+To plan every service to the latest catalog version, loading connection strings from the repository `.env` file:
+
+```powershell
+.\scripts\migrate-databases.ps1
+```
+
+After reviewing all plans, execute them with explicit confirmation:
+
+```powershell
+.\scripts\migrate-databases.ps1 -Confirm
+```
+
+The wrapper stops on the first failed service. Each service retains its own history, transaction boundary, connection string, and advisory lock; the wrapper does not create a cross-database transaction.
 
 ## Database provisioning
 
@@ -112,7 +128,7 @@ Provisioning credentials come from `.env`; migration-tool connection strings use
 
 ## Required safety behavior
 
-The completed runner must:
+The runner:
 
 - Reject missing, duplicate, or branched version sequences.
 - Verify checksums for metadata, upgrade scripts, and downgrade scripts.

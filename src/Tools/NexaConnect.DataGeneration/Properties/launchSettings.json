@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "All Data Generate": {
+      "commandName": "Project",
+      "commandLineArgs": "--all --confirm --environment-file .env",
+      "workingDirectory": "../../.."
+    },
+    "All Data Plan": {
+      "commandName": "Project",
+      "commandLineArgs": "--all --plan --environment-file .env",
+      "workingDirectory": "../../.."
+    }
+  }
+}

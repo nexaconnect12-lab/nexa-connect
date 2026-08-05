@@ -10,7 +10,7 @@ The design will evolve with the domain model. Every schema change must remain ow
 
 Version-1 migrations now exist for Platform Directory, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, POS, Media, and Reporting. Together they define 83 tables and 99 explicit indexes. Each migration has metadata and paired upgrade and downgrade scripts.
 
-Static validation has confirmed metadata parsing, create/drop parity, PostgreSQL identifier lengths, output packaging, and a clean migration-project build. Live PostgreSQL clean-install, downgrade, and re-upgrade tests are still required. The current migration executable must also be upgraded to understand versioned directories before these scripts are production-executable.
+Static validation has confirmed metadata parsing, create/drop parity, PostgreSQL identifier lengths, output packaging, and a clean migration-project build. The migration executable now understands versioned directories and explicit target versions. Live PostgreSQL clean-install, downgrade, and re-upgrade tests are still required before these scripts are production-executable.
 
 ## 2. Database topology
 
@@ -370,11 +370,11 @@ src/Tools/NexaConnect.DataMigration/Scripts/<Service>/<Version>_<Name>/
 
 NexaConnect uses schema-first development. The versioned PostgreSQL scripts are the authoritative schema definition. EF Core or other .NET persistence models are mapped or generated only after the target schema is applied and validated.
 
-Schema versions are independent and linear for each service. Under the accepted runner contract, the migration runner moves one service database to an explicit target version. Upgrades execute `up.sql` in ascending order; downgrades execute `down.sql` in descending order.
+Schema versions are independent and linear for each service. The migration runner moves one service database to an explicit target version. Upgrades execute `up.sql` in ascending order; downgrades execute `down.sql` in descending order.
 
-Applied migrations are recorded in `nexaconnect_schema_migrations` with the version, name, upgrade and downgrade checksums, downgrade-safety classification, application timestamp, application version, and execution identifier.
+Applied migrations are recorded in `nexaconnect_schema_migrations` with the version, name, metadata and SQL checksums, downgrade-safety classification, application timestamp, application version, and execution identifier.
 
-The current executable does not implement this complete contract and cannot discover the versioned migration directories. Do not flatten, manually concatenate, or apply the baseline as a production workaround. Upgrade the runner first, then verify every service through clean install, downgrade to version 0 in a disposable database, and re-upgrade to version 1.
+The executable implements this contract and discovers the versioned migration directories. Before production release, verify every service through clean install, downgrade to version 0 in a disposable database, and re-upgrade to version 1. Do not flatten, manually concatenate, or reorder migrations.
 
 Downgrade classifications:
 

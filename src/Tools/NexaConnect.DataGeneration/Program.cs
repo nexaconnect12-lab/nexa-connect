@@ -4,6 +4,21 @@ return await DataGenerationApplication.RunAsync(args);
 
 internal static class DataGenerationApplication
 {
+    internal static readonly string[] ServiceOrder =
+    [
+        "PlatformDirectory",
+        "Restaurant",
+        "Catalog",
+        "Customer",
+        "Order",
+        "Inventory",
+        "Kitchen",
+        "Payment",
+        "POS",
+        "Media",
+        "Reporting"
+    ];
+
     public static async Task<int> RunAsync(string[] args)
     {
         DataGenerationOptions? options;
@@ -25,82 +40,144 @@ internal static class DataGenerationApplication
             return 0;
         }
 
-        string serviceDirectory = Path.Combine(options.SeedsRoot, options.Service);
-        string[] seeds = Directory.Exists(serviceDirectory)
-            ? Directory.GetFiles(serviceDirectory, "*.sql", SearchOption.TopDirectoryOnly)
-                .OrderBy(Path.GetFileName, StringComparer.Ordinal)
-                .ToArray()
-            : [];
-
-        if (seeds.Length == 0)
-        {
-            Console.WriteLine($"No seed scripts found for {options.Service} in {serviceDirectory}.");
-            return 0;
-        }
-
-        Console.WriteLine($"Found {seeds.Length} seed script(s) for {options.Service}.");
-        foreach (string seed in seeds)
-        {
-            Console.WriteLine($"  {Path.GetFileName(seed)}");
-        }
-
-        if (options.DryRun)
-        {
-            return 0;
-        }
-
-        if (!options.Confirmed)
-        {
-            Console.Error.WriteLine("Data generation changes the database. Pass --confirm after reviewing --dry-run output.");
-            return 2;
-        }
-
-        string environmentVariable = ConnectionStringEnvironmentVariable(options.Service);
-        string? connectionString = Environment.GetEnvironmentVariable(environmentVariable);
-
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            Console.Error.WriteLine($"Set {environmentVariable} to the owning service's PostgreSQL connection string.");
-            return 2;
-        }
-
         using var cancellation = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, eventArgs) =>
+        ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
         {
             eventArgs.Cancel = true;
             cancellation.Cancel();
         };
-
-        await using NpgsqlDataSource dataSource = NpgsqlDataSource.Create(connectionString);
-        await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellation.Token);
-
-        foreach (string seedPath in seeds)
-        {
-            await ExecuteSeedAsync(connection, seedPath, cancellation.Token);
-        }
-
-        return 0;
-    }
-
-    private static async Task ExecuteSeedAsync(
-        NpgsqlConnection connection,
-        string seedPath,
-        CancellationToken cancellationToken)
-    {
-        string sql = await File.ReadAllTextAsync(seedPath, cancellationToken);
-        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken);
+        Console.CancelKeyPress += cancelHandler;
 
         try
         {
-            await using var command = new NpgsqlCommand(sql, connection, transaction);
-            await command.ExecuteNonQueryAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            Console.WriteLine($"Executed {Path.GetFileName(seedPath)}.");
+            if (options.EnvironmentFile is not null)
+            {
+                EnvironmentFile.Load(options.EnvironmentFile);
+            }
+
+            ValidateEnvironment();
+            string[] services = options.AllServices
+                ? ServiceOrder
+                : [options.Service!];
+            var catalogs = new List<SeedCatalog>(services.Length);
+            foreach (string service in services)
+            {
+                catalogs.Add(await SeedCatalog.LoadAsync(
+                    options.SeedsRoot,
+                    service,
+                    cancellation.Token));
+            }
+
+            foreach (SeedCatalog catalog in catalogs)
+            {
+                PrintPlan(catalog);
+            }
+            if (options.Command == DataGenerationCommand.Plan)
+            {
+                return 0;
+            }
+
+            var connectionStrings = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (SeedCatalog catalog in catalogs)
+            {
+                string variable = ConnectionStringEnvironmentVariable(catalog.Service);
+                string? connectionString = Environment.GetEnvironmentVariable(variable);
+                if (string.IsNullOrWhiteSpace(connectionString))
+                {
+                    throw new DataGenerationException(
+                        $"Set {variable} to the owning service's PostgreSQL connection string.");
+                }
+
+                connectionStrings.Add(catalog.Service, connectionString);
+            }
+
+            foreach (SeedCatalog catalog in catalogs)
+            {
+                await GenerateServiceAsync(
+                    catalog,
+                    connectionStrings[catalog.Service],
+                    cancellation.Token);
+            }
+
+            Console.WriteLine(
+                options.AllServices
+                    ? $"Generated sample data for all {catalogs.Count} databases successfully."
+                    : $"Generated {catalogs[0].Service} sample data successfully.");
+            return 0;
         }
-        catch
+        catch (OperationCanceledException)
         {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
+            Console.Error.WriteLine("Data generation cancelled.");
+            return 130;
+        }
+        catch (Exception exception) when (
+            exception is DataGenerationException or NpgsqlException or IOException)
+        {
+            Console.Error.WriteLine(exception.Message);
+            return 1;
+        }
+        finally
+        {
+            Console.CancelKeyPress -= cancelHandler;
+        }
+    }
+
+    private static async Task GenerateServiceAsync(
+        SeedCatalog catalog,
+        string connectionString,
+        CancellationToken cancellationToken)
+    {
+        await using NpgsqlDataSource dataSource = NpgsqlDataSource.Create(connectionString);
+        await using NpgsqlConnection connection =
+            await dataSource.OpenConnectionAsync(cancellationToken);
+        var database = new SeedDatabase(connection);
+
+        await database.AcquireLockAsync(catalog.Service, cancellationToken);
+        try
+        {
+            int schemaVersion = await database.ReadSchemaVersionAsync(cancellationToken);
+            foreach (SeedDefinition seed in catalog.Seeds)
+            {
+                if (seed.RequiredSchemaVersion > schemaVersion)
+                {
+                    throw new DataGenerationException(
+                        $"Seed {seed.FileName} requires schema version " +
+                        $"{seed.RequiredSchemaVersion}, but the database is at version {schemaVersion}.");
+                }
+
+                await database.ExecuteAsync(seed, cancellationToken);
+                Console.WriteLine($"Applied {catalog.Service}/{seed.FileName}.");
+            }
+        }
+        finally
+        {
+            await database.ReleaseLockAsync(catalog.Service, CancellationToken.None);
+        }
+    }
+
+    internal static void ValidateEnvironment()
+    {
+        string? environment =
+            Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT") ??
+            Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ??
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+
+        if (string.Equals(environment, "Production", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new DataGenerationException(
+                "Data generation is disabled when the environment is Production.");
+        }
+    }
+
+    private static void PrintPlan(SeedCatalog catalog)
+    {
+        Console.WriteLine($"Service: {catalog.Service}");
+        Console.WriteLine($"Seed scripts: {catalog.Seeds.Count}");
+        foreach (SeedDefinition seed in catalog.Seeds)
+        {
+            Console.WriteLine(
+                $"  {seed.FileName} schema>={seed.RequiredSchemaVersion} " +
+                $"sha256={seed.Checksum[..12]}");
         }
     }
 
@@ -110,61 +187,12 @@ internal static class DataGenerationApplication
     private static void PrintUsage()
     {
         Console.WriteLine("Usage:");
-        Console.WriteLine("  dotnet run -- --service <name> [--seeds-root <path>] [--dry-run | --confirm]");
+        Console.WriteLine("  dotnet run -- --all --plan [--seeds-root <path>]");
+        Console.WriteLine("  dotnet run -- --all --confirm [--environment-file <path>]");
+        Console.WriteLine("  dotnet run -- --service <name> --plan [--seeds-root <path>]");
+        Console.WriteLine("  dotnet run -- --service <name> --confirm [--environment-file <path>]");
         Console.WriteLine();
         Console.WriteLine("Connection strings are read from NEXACONNECT_<SERVICE>_DB.");
-    }
-}
-
-internal sealed record DataGenerationOptions(
-    string Service,
-    string SeedsRoot,
-    bool DryRun,
-    bool Confirmed)
-{
-    public static DataGenerationOptions? Parse(string[] args)
-    {
-        if (args.Contains("--help", StringComparer.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        string? service = null;
-        string seedsRoot = Path.Combine(AppContext.BaseDirectory, "Seeds");
-        bool dryRun = false;
-        bool confirmed = false;
-
-        for (int index = 0; index < args.Length; index++)
-        {
-            switch (args[index])
-            {
-                case "--service" when index + 1 < args.Length:
-                    service = args[++index];
-                    break;
-                case "--seeds-root" when index + 1 < args.Length:
-                    seedsRoot = Path.GetFullPath(args[++index]);
-                    break;
-                case "--dry-run":
-                    dryRun = true;
-                    break;
-                case "--confirm":
-                    confirmed = true;
-                    break;
-                default:
-                    throw new ArgumentException($"Unknown or incomplete argument: {args[index]}");
-            }
-        }
-
-        if (string.IsNullOrWhiteSpace(service))
-        {
-            throw new ArgumentException("The --service argument is required.");
-        }
-
-        if (dryRun && confirmed)
-        {
-            throw new ArgumentException("Use either --dry-run or --confirm, not both.");
-        }
-
-        return new DataGenerationOptions(service, seedsRoot, dryRun, confirmed);
+        Console.WriteLine("The runner refuses to execute when the environment is Production.");
     }
 }

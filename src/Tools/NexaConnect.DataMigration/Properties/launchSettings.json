@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "Order Migration Plan": {
+      "commandName": "Project",
+      "commandLineArgs": "--service Order --target 1 --plan --environment-file .env",
+      "workingDirectory": "../../.."
+    },
+    "Order Migration Status": {
+      "commandName": "Project",
+      "commandLineArgs": "--service Order --status --environment-file .env",
+      "workingDirectory": "../../.."
+    }
+  }
+}

@@ -18,5 +18,5 @@ See [Database Design](Database-Design.md) for the PostgreSQL topology, service-o
 - Use the outbox pattern for reliable event publication.
 - Store timestamps in UTC.
 - Do not bypass the owning API by distributing another service's database credentials.
-- Do not flatten versioned migrations to accommodate the current runner; upgrade the runner to the accepted contract.
+- Execute versioned directories through the migration runner; never flatten, concatenate, or manually reorder them.
 - Validate clean install, downgrade, and re-upgrade against the supported PostgreSQL version before release.

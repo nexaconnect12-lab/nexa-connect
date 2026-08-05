@@ -22,7 +22,7 @@ Each service owns an independent, linear migration sequence. Every released migr
 - `up.sql` to move from the preceding version to this version.
 - `down.sql` to move from this version to the preceding supported version.
 
-The migration runner will accept an explicit target version. It upgrades in ascending order and downgrades in descending order. It records immutable checksums and execution history inside the owning database.
+The migration runner accepts an explicit target version. It upgrades in ascending order and downgrades in descending order. It records immutable checksums and execution history inside the owning database.
 
 Every released version requires tested clean-install, upgrade, and downgrade paths. Downgrades are classified as safe, transformative, destructive, or unsupported. A production release cannot contain an unsupported downgrade without a separately accepted recovery decision.
 
@@ -59,4 +59,4 @@ Application releases will declare their required schema versions per service. Ex
 
 ## Implementation status
 
-Accepted but not yet implemented by the migration runner. The current forward-only runner must be redesigned before the first production schema migration is created.
+Implemented by the migration runner. The version-1 catalog still requires live PostgreSQL clean-install, downgrade, and re-upgrade validation before production release.

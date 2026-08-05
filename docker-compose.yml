@@ -36,10 +36,15 @@ services:
       POSTGRES_PASSWORD: "${KEYCLOAK_DB_PASSWORD}"
     volumes:
       - keycloak-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   keycloak:
-    image: quay.io/keycloak/keycloak:latest
-    command: start-dev
+    image: quay.io/keycloak/keycloak:26.7.0
+    command: start-dev --import-realm
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
@@ -47,10 +52,45 @@ services:
       KC_DB_PASSWORD: "${KEYCLOAK_DB_PASSWORD}"
       KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_ADMIN_USERNAME}"
       KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD}"
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      NEXA_REALM_NAME: "${KEYCLOAK_REALM:-nexa-dev}"
+      NEXA_REALM_DISPLAY_NAME: "${KEYCLOAK_REALM_DISPLAY_NAME:-Nexa Development}"
+      NEXA_VERIFY_EMAIL: "false"
+      NEXA_REQUIRE_MFA: "false"
+      NEXA_SMTP_HOST: "${KEYCLOAK_SMTP_HOST:-localhost}"
+      NEXA_SMTP_PORT: "${KEYCLOAK_SMTP_PORT:-1025}"
+      NEXA_SMTP_FROM: "${KEYCLOAK_SMTP_FROM:-noreply@nexa.local}"
+      NEXA_SMTP_FROM_DISPLAY_NAME: "${KEYCLOAK_SMTP_FROM_DISPLAY_NAME:-Nexa Development}"
+      NEXA_SMTP_AUTH: "${KEYCLOAK_SMTP_AUTH:-false}"
+      NEXA_SMTP_USER: "${KEYCLOAK_SMTP_USER:-}"
+      NEXA_SMTP_PASSWORD: "${KEYCLOAK_SMTP_PASSWORD:-}"
+      NEXA_SMTP_STARTTLS: "${KEYCLOAK_SMTP_STARTTLS:-false}"
+      NEXA_SMTP_SSL: "${KEYCLOAK_SMTP_SSL:-false}"
+      NEXACONNECT_WEB_BFF_CLIENT_SECRET: "${NEXACONNECT_WEB_BFF_CLIENT_SECRET:-local-dev-only-change-me}"
+      NEXACONNECT_ADMIN_BFF_CLIENT_SECRET: "${NEXACONNECT_ADMIN_BFF_CLIENT_SECRET:-local-dev-only-change-me}"
+      NEXACONNECT_WEB_BFF_REDIRECT_URI: "${NEXACONNECT_WEB_BFF_REDIRECT_URI:-https://localhost:7100/signin-oidc}"
+      NEXACONNECT_WEB_BFF_POST_LOGOUT_REDIRECT_URI: "${NEXACONNECT_WEB_BFF_POST_LOGOUT_REDIRECT_URI:-https://localhost:7100/signout-callback-oidc}"
+      NEXACONNECT_WEB_ORIGIN: "${NEXACONNECT_WEB_ORIGIN:-https://localhost:7100}"
+      NEXACONNECT_ADMIN_BFF_REDIRECT_URI: "${NEXACONNECT_ADMIN_BFF_REDIRECT_URI:-https://localhost:7200/signin-oidc}"
+      NEXACONNECT_ADMIN_BFF_POST_LOGOUT_REDIRECT_URI: "${NEXACONNECT_ADMIN_BFF_POST_LOGOUT_REDIRECT_URI:-https://localhost:7200/signout-callback-oidc}"
+      NEXACONNECT_ADMIN_ORIGIN: "${NEXACONNECT_ADMIN_ORIGIN:-https://localhost:7200}"
+      NEXACONNECT_MOBILE_REDIRECT_URI: "${NEXACONNECT_MOBILE_REDIRECT_URI:-nexaconnect://oauth/callback}"
+      NEXACONNECT_POS_REDIRECT_URI: "${NEXACONNECT_POS_REDIRECT_URI:-nexaconnect-pos://oauth/callback}"
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - ./docker/keycloak/realm:/opt/keycloak/data/import:ro
     depends_on:
-      - keycloak-db
+      keycloak-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "{ printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep -q '200 OK'; } 0<>/dev/tcp/127.0.0.1/9000"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
 
   redis:
     image: redis:7-alpine

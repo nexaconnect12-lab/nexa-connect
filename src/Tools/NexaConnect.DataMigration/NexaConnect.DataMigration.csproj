@@ -9,6 +9,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="NexaConnect.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="Scripts\**\*.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Scripts\**\*.sql" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

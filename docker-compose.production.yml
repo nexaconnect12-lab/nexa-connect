@@ -1,0 +1,125 @@
+x-keycloak-environment: &keycloak-environment
+  KC_DB: postgres
+  KC_DB_URL: "${KEYCLOAK_DB_URL:?KEYCLOAK_DB_URL is required}"
+  KC_DB_USERNAME: "${KEYCLOAK_DB_USERNAME:?KEYCLOAK_DB_USERNAME is required}"
+  KC_DB_PASSWORD: "${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}"
+  KC_DB_POOL_INITIAL_SIZE: "${KEYCLOAK_DB_POOL_SIZE:-20}"
+  KC_DB_POOL_MIN_SIZE: "${KEYCLOAK_DB_POOL_SIZE:-20}"
+  KC_DB_POOL_MAX_SIZE: "${KEYCLOAK_DB_POOL_SIZE:-20}"
+  KC_HOSTNAME: "${KEYCLOAK_PUBLIC_URL:?KEYCLOAK_PUBLIC_URL is required}"
+  KC_HOSTNAME_ADMIN: "${KEYCLOAK_ADMIN_URL:?KEYCLOAK_ADMIN_URL is required}"
+  KC_HTTP_ENABLED: "true"
+  KC_PROXY_HEADERS: "${KEYCLOAK_PROXY_HEADERS:-xforwarded}"
+  KC_PROXY_TRUSTED_ADDRESSES: "${KEYCLOAK_PROXY_TRUSTED_ADDRESSES:?KEYCLOAK_PROXY_TRUSTED_ADDRESSES is required}"
+  KC_HEALTH_ENABLED: "true"
+  KC_METRICS_ENABLED: "true"
+  KC_CACHE: ispn
+  KC_CACHE_STACK: jdbc-ping
+  KC_SHUTDOWN_DELAY: 15s
+  KC_SHUTDOWN_TIMEOUT: 30s
+  KC_LOG_LEVEL: "${KEYCLOAK_LOG_LEVEL:-info}"
+
+x-realm-environment: &realm-environment
+  NEXA_REALM_NAME: "${KEYCLOAK_REALM:-nexa-prod}"
+  NEXA_REALM_DISPLAY_NAME: "${KEYCLOAK_REALM_DISPLAY_NAME:-Nexa}"
+  NEXA_VERIFY_EMAIL: "true"
+  NEXA_REQUIRE_MFA: "true"
+  NEXA_SMTP_HOST: "${KEYCLOAK_SMTP_HOST:?KEYCLOAK_SMTP_HOST is required}"
+  NEXA_SMTP_PORT: "${KEYCLOAK_SMTP_PORT:-587}"
+  NEXA_SMTP_FROM: "${KEYCLOAK_SMTP_FROM:?KEYCLOAK_SMTP_FROM is required}"
+  NEXA_SMTP_FROM_DISPLAY_NAME: "${KEYCLOAK_SMTP_FROM_DISPLAY_NAME:-Nexa}"
+  NEXA_SMTP_AUTH: "true"
+  NEXA_SMTP_USER: "${KEYCLOAK_SMTP_USER:?KEYCLOAK_SMTP_USER is required}"
+  NEXA_SMTP_PASSWORD: "${KEYCLOAK_SMTP_PASSWORD:?KEYCLOAK_SMTP_PASSWORD is required}"
+  NEXA_SMTP_STARTTLS: "${KEYCLOAK_SMTP_STARTTLS:-true}"
+  NEXA_SMTP_SSL: "${KEYCLOAK_SMTP_SSL:-false}"
+  NEXACONNECT_WEB_BFF_CLIENT_SECRET: "${NEXACONNECT_WEB_BFF_CLIENT_SECRET:?NEXACONNECT_WEB_BFF_CLIENT_SECRET is required}"
+  NEXACONNECT_ADMIN_BFF_CLIENT_SECRET: "${NEXACONNECT_ADMIN_BFF_CLIENT_SECRET:?NEXACONNECT_ADMIN_BFF_CLIENT_SECRET is required}"
+  NEXACONNECT_WEB_BFF_REDIRECT_URI: "${NEXACONNECT_WEB_BFF_REDIRECT_URI:?NEXACONNECT_WEB_BFF_REDIRECT_URI is required}"
+  NEXACONNECT_WEB_BFF_POST_LOGOUT_REDIRECT_URI: "${NEXACONNECT_WEB_BFF_POST_LOGOUT_REDIRECT_URI:?NEXACONNECT_WEB_BFF_POST_LOGOUT_REDIRECT_URI is required}"
+  NEXACONNECT_WEB_ORIGIN: "${NEXACONNECT_WEB_ORIGIN:?NEXACONNECT_WEB_ORIGIN is required}"
+  NEXACONNECT_ADMIN_BFF_REDIRECT_URI: "${NEXACONNECT_ADMIN_BFF_REDIRECT_URI:?NEXACONNECT_ADMIN_BFF_REDIRECT_URI is required}"
+  NEXACONNECT_ADMIN_BFF_POST_LOGOUT_REDIRECT_URI: "${NEXACONNECT_ADMIN_BFF_POST_LOGOUT_REDIRECT_URI:?NEXACONNECT_ADMIN_BFF_POST_LOGOUT_REDIRECT_URI is required}"
+  NEXACONNECT_ADMIN_ORIGIN: "${NEXACONNECT_ADMIN_ORIGIN:?NEXACONNECT_ADMIN_ORIGIN is required}"
+  NEXACONNECT_MOBILE_REDIRECT_URI: "${NEXACONNECT_MOBILE_REDIRECT_URI:?NEXACONNECT_MOBILE_REDIRECT_URI is required}"
+  NEXACONNECT_POS_REDIRECT_URI: "${NEXACONNECT_POS_REDIRECT_URI:?NEXACONNECT_POS_REDIRECT_URI is required}"
+
+services:
+  keycloak:
+    image: "nexa-keycloak:${KEYCLOAK_VERSION:-26.7.0}"
+    build:
+      context: ./docker/keycloak
+      dockerfile: Containerfile
+      args:
+        KEYCLOAK_IMAGE: "${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13}"
+    command: ["start", "--optimized"]
+    environment:
+      <<: *keycloak-environment
+    expose:
+      - "8080"
+      - "9000"
+    healthcheck:
+      test: ["CMD-SHELL", "{ printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep -q '200 OK'; } 0<>/dev/tcp/127.0.0.1/9000"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 45s
+    restart: unless-stopped
+    stop_grace_period: 45s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - identity
+
+  keycloak-bootstrap:
+    profiles: ["bootstrap"]
+    image: "nexa-keycloak:${KEYCLOAK_VERSION:-26.7.0}"
+    build:
+      context: ./docker/keycloak
+      dockerfile: Containerfile
+      args:
+        KEYCLOAK_IMAGE: "${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13}"
+    command:
+      - import
+      - --file=/opt/keycloak/data/import/nexa-dev-realm.json
+      - --override=false
+      - --optimized
+    environment:
+      <<: [*keycloak-environment, *realm-environment]
+    volumes:
+      - ./docker/keycloak/realm:/opt/keycloak/data/import:ro
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - identity
+
+  keycloak-bootstrap-admin:
+    profiles: ["bootstrap"]
+    image: "nexa-keycloak:${KEYCLOAK_VERSION:-26.7.0}"
+    build:
+      context: ./docker/keycloak
+      dockerfile: Containerfile
+      args:
+        KEYCLOAK_IMAGE: "${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13}"
+    command:
+      - bootstrap-admin
+      - user
+      - --username:env=KEYCLOAK_TEMP_ADMIN_USERNAME
+      - --password:env=KEYCLOAK_TEMP_ADMIN_PASSWORD
+      - --no-prompt
+      - --optimized
+    environment:
+      <<: *keycloak-environment
+      KEYCLOAK_TEMP_ADMIN_USERNAME: "${KEYCLOAK_TEMP_ADMIN_USERNAME:?KEYCLOAK_TEMP_ADMIN_USERNAME is required}"
+      KEYCLOAK_TEMP_ADMIN_PASSWORD: "${KEYCLOAK_TEMP_ADMIN_PASSWORD:?KEYCLOAK_TEMP_ADMIN_PASSWORD is required}"
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - identity
+
+networks:
+  identity:
+    external: true
+    name: "${KEYCLOAK_NETWORK:?KEYCLOAK_NETWORK is required}"

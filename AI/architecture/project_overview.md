@@ -270,7 +270,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Version-1 migrations exist for all eleven databases and define 83 tables and 99 explicit indexes. The baseline is not production-executable until the migration runner supports versioned directories and the scripts pass clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Version-1 migrations exist for all eleven databases and define 83 tables and 99 explicit indexes. The runner supports their versioned directories; the baseline remains pre-production until the scripts pass clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Rules:
 

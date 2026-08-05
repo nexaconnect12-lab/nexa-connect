@@ -24,7 +24,7 @@ Versions must be linear, sortable, immutable, and independently owned by one ser
 
 Every release migration requires tested clean-install, upgrade, and downgrade paths. Downgrades that transform or discard data must be classified and protected by explicit operational approval and backup requirements.
 
-Version 1 is a reviewed baseline, not a production release. The current executable migration runner cannot execute this directory format yet, and the scripts still require live PostgreSQL clean-install and downgrade verification.
+Version 1 is a reviewed baseline, not a production release. The executable runner supports this directory format, but the scripts still require live PostgreSQL clean-install, downgrade, and re-upgrade verification before release.
 
 Never add a cross-database foreign key. Columns that identify another service's entity must be documented as external identifiers and populated through APIs or versioned events.
 
