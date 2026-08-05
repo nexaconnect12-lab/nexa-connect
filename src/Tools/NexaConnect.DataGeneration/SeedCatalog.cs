@@ -18,7 +18,7 @@ internal sealed class SeedCatalog
         RegexOptions.CultureInvariant);
 
     private static readonly Regex SchemaVersionPattern = new(
-        "^--[ ]*requires-schema-version:[ ]*(?<version>[0-9]+)[ ]*$",
+        "^--[ ]*requires-schema-version:[ ]*(?<version>[0-9]+)[ ]*\r?$",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Multiline);
 
     private SeedCatalog(string service, IReadOnlyList<SeedDefinition> seeds)

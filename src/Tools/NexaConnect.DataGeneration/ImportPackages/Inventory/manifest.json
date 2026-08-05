@@ -1,0 +1,65 @@
+{
+  "formatVersion": 1,
+  "service": "Inventory",
+  "requiredSchemaVersion": 1,
+  "minimumTotalRows": 350,
+  "tables": [
+    {
+      "table": "warehouses",
+      "file": "warehouses.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "stock_items",
+      "file": "stock_items.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "stock_movements",
+      "file": "stock_movements.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "stock_reservations",
+      "file": "stock_reservations.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "replenishment_requests",
+      "file": "replenishment_requests.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "processed_messages",
+      "file": "processed_messages.csv",
+      "keyColumns": [
+        "message_id",
+        "consumer_name"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "outbox_messages",
+      "file": "outbox_messages.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    }
+  ]
+}

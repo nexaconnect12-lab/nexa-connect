@@ -1,0 +1,73 @@
+{
+  "formatVersion": 1,
+  "service": "POS",
+  "requiredSchemaVersion": 1,
+  "minimumTotalRows": 400,
+  "tables": [
+    {
+      "table": "stores",
+      "file": "stores.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "terminals",
+      "file": "terminals.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "shifts",
+      "file": "shifts.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "cash_sessions",
+      "file": "cash_sessions.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "cash_movements",
+      "file": "cash_movements.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "sync_operations",
+      "file": "sync_operations.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "sync_checkpoints",
+      "file": "sync_checkpoints.csv",
+      "keyColumns": [
+        "terminal_id",
+        "stream_name"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "outbox_messages",
+      "file": "outbox_messages.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    }
+  ]
+}

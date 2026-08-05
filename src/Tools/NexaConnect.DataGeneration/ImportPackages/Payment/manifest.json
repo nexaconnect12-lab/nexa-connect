@@ -1,0 +1,48 @@
+{
+  "formatVersion": 1,
+  "service": "Payment",
+  "requiredSchemaVersion": 1,
+  "minimumTotalRows": 250,
+  "tables": [
+    {
+      "table": "payment_intents",
+      "file": "payment_intents.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "provider_transactions",
+      "file": "provider_transactions.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "refunds",
+      "file": "refunds.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "reconciliation_records",
+      "file": "reconciliation_records.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "outbox_messages",
+      "file": "outbox_messages.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    }
+  ]
+}

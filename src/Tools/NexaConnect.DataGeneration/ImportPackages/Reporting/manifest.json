@@ -1,0 +1,66 @@
+{
+  "formatVersion": 1,
+  "service": "Reporting",
+  "requiredSchemaVersion": 1,
+  "minimumTotalRows": 350,
+  "tables": [
+    {
+      "table": "sales_facts",
+      "file": "sales_facts.csv",
+      "keyColumns": [
+        "order_id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "item_sales_facts",
+      "file": "item_sales_facts.csv",
+      "keyColumns": [
+        "order_line_id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "payment_facts",
+      "file": "payment_facts.csv",
+      "keyColumns": [
+        "payment_intent_id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "kitchen_time_facts",
+      "file": "kitchen_time_facts.csv",
+      "keyColumns": [
+        "kitchen_ticket_item_id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "shift_cash_facts",
+      "file": "shift_cash_facts.csv",
+      "keyColumns": [
+        "shift_id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "projection_checkpoints",
+      "file": "projection_checkpoints.csv",
+      "keyColumns": [
+        "projector_name",
+        "source_stream"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "processed_messages",
+      "file": "processed_messages.csv",
+      "keyColumns": [
+        "message_id",
+        "consumer_name"
+      ],
+      "minimumRows": 50
+    }
+  ]
+}

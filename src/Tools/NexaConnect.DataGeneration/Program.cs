@@ -56,6 +56,11 @@ internal static class DataGenerationApplication
             }
 
             ValidateEnvironment();
+            if (options.ImportPackage is not null)
+            {
+                return await RunCsvImportAsync(options, cancellation.Token);
+            }
+
             string[] services = options.AllServices
                 ? ServiceOrder
                 : [options.Service!];
@@ -122,6 +127,114 @@ internal static class DataGenerationApplication
         }
     }
 
+    private static async Task<int> RunCsvImportAsync(
+        DataGenerationOptions options,
+        CancellationToken cancellationToken)
+    {
+        string[] expectedServices = options.AllServices
+            ? ServiceOrder
+            : [options.Service!];
+        var packages = new List<CsvImportPackage>(expectedServices.Length);
+        foreach (string expectedService in expectedServices)
+        {
+            if (!ServiceOrder.Contains(expectedService, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new DataGenerationException(
+                    $"Unsupported import service '{expectedService}'.");
+            }
+
+            string packagePath = options.AllServices
+                ? Path.Combine(options.ImportPackage!, expectedService)
+                : options.ImportPackage!;
+            CsvImportPackage package = await CsvImportPackage.LoadAsync(
+                packagePath,
+                cancellationToken);
+            if (!string.Equals(package.Service, expectedService, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new DataGenerationException(
+                    $"Import package service '{package.Service}' does not match " +
+                    $"the requested service '{expectedService}'.");
+            }
+
+            packages.Add(package);
+        }
+
+        foreach (CsvImportPackage package in packages)
+        {
+            PrintImportPlan(package);
+        }
+        if (options.Command == DataGenerationCommand.Plan)
+        {
+            return 0;
+        }
+
+        var connectionStrings = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (CsvImportPackage package in packages)
+        {
+            string variable = ConnectionStringEnvironmentVariable(package.Service);
+            string? connectionString = Environment.GetEnvironmentVariable(variable);
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new DataGenerationException(
+                    $"Set {variable} to the owning service's PostgreSQL connection string.");
+            }
+
+            connectionStrings.Add(package.Service, connectionString);
+        }
+
+        foreach (CsvImportPackage package in packages)
+        {
+            await ImportCsvPackageAsync(
+                package,
+                connectionStrings[package.Service],
+                cancellationToken);
+        }
+
+        Console.WriteLine(
+            options.AllServices
+                ? $"Imported CSV packages for all {packages.Count} databases successfully."
+                : $"Imported CSV package for {packages[0].Service} successfully.");
+        return 0;
+    }
+
+    private static async Task ImportCsvPackageAsync(
+        CsvImportPackage package,
+        string connectionString,
+        CancellationToken cancellationToken)
+    {
+        await using NpgsqlDataSource dataSource = NpgsqlDataSource.Create(connectionString);
+        await using NpgsqlConnection connection =
+            await dataSource.OpenConnectionAsync(cancellationToken);
+        var seedDatabase = new SeedDatabase(connection);
+        await seedDatabase.AcquireLockAsync(package.Service, cancellationToken);
+        try
+        {
+            int schemaVersion = await seedDatabase.ReadSchemaVersionAsync(cancellationToken);
+            if (package.RequiredSchemaVersion > schemaVersion)
+            {
+                throw new DataGenerationException(
+                    $"Import package requires schema version {package.RequiredSchemaVersion}, " +
+                    $"but the database is at version {schemaVersion}.");
+            }
+
+            var database = new CsvImportDatabase(connection);
+            IReadOnlyList<CsvImportResult> results = await database.ImportAsync(
+                package,
+                cancellationToken);
+            foreach (CsvImportResult result in results)
+            {
+                Console.WriteLine(
+                    $"Imported {result.SourceRows} rows into {result.Table} " +
+                    $"({result.AffectedRows} inserted or updated).");
+            }
+        }
+        finally
+        {
+            await seedDatabase.ReleaseLockAsync(package.Service, CancellationToken.None);
+        }
+
+    }
+
     private static async Task GenerateServiceAsync(
         SeedCatalog catalog,
         string connectionString,
@@ -181,6 +294,20 @@ internal static class DataGenerationApplication
         }
     }
 
+    private static void PrintImportPlan(CsvImportPackage package)
+    {
+        Console.WriteLine($"CSV import service: {package.Service}");
+        Console.WriteLine($"Required schema version: {package.RequiredSchemaVersion}");
+        Console.WriteLine($"Tables: {package.Tables.Count}");
+        Console.WriteLine($"Rows: {package.Tables.Sum(table => table.RowCount)}");
+        foreach (CsvImportTable table in package.Tables)
+        {
+            Console.WriteLine(
+                $"  {table.Table} <= {table.File}: {table.RowCount} rows, " +
+                $"key=({string.Join(",", table.KeyColumns)})");
+        }
+    }
+
     private static string ConnectionStringEnvironmentVariable(string service) =>
         $"NEXACONNECT_{new string(service.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant()}_DB";
 
@@ -191,6 +318,14 @@ internal static class DataGenerationApplication
         Console.WriteLine("  dotnet run -- --all --confirm [--environment-file <path>]");
         Console.WriteLine("  dotnet run -- --service <name> --plan [--seeds-root <path>]");
         Console.WriteLine("  dotnet run -- --service <name> --confirm [--environment-file <path>]");
+        Console.WriteLine("  dotnet run -- --service <name> --import-package <path> --plan");
+        Console.WriteLine(
+            "  dotnet run -- --service <name> --import-package <path> --confirm " +
+            "[--environment-file <path>]");
+        Console.WriteLine("  dotnet run -- --all --import-package <root> --plan");
+        Console.WriteLine(
+            "  dotnet run -- --all --import-package <root> --confirm " +
+            "[--environment-file <path>]");
         Console.WriteLine();
         Console.WriteLine("Connection strings are read from NEXACONNECT_<SERVICE>_DB.");
         Console.WriteLine("The runner refuses to execute when the environment is Production.");

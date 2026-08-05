@@ -1,0 +1,32 @@
+{
+  "formatVersion": 1,
+  "service": "Catalog",
+  "requiredSchemaVersion": 1,
+  "minimumTotalRows": 50,
+  "tables": [
+    {
+      "table": "tax_classifications",
+      "file": "tax_classifications.csv",
+      "keyColumns": ["id"],
+      "minimumRows": 1
+    },
+    {
+      "table": "categories",
+      "file": "categories.csv",
+      "keyColumns": ["id"],
+      "minimumRows": 5
+    },
+    {
+      "table": "products",
+      "file": "products.csv",
+      "keyColumns": ["id"],
+      "minimumRows": 50
+    },
+    {
+      "table": "product_categories",
+      "file": "product_categories.csv",
+      "keyColumns": ["restaurant_id", "product_id", "category_id"],
+      "minimumRows": 50
+    }
+  ]
+}

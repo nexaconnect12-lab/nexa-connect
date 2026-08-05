@@ -9,7 +9,8 @@ internal sealed record DataGenerationOptions(
     bool AllServices,
     string SeedsRoot,
     string? EnvironmentFile,
-    DataGenerationCommand Command)
+    DataGenerationCommand Command,
+    string? ImportPackage)
 {
     public static DataGenerationOptions? Parse(string[] args)
     {
@@ -23,6 +24,7 @@ internal sealed record DataGenerationOptions(
         bool allServices = false;
         string seedsRoot = Path.Combine(AppContext.BaseDirectory, "Seeds");
         string? environmentFile = null;
+        string? importPackage = null;
         DataGenerationCommand? command = null;
 
         for (int index = 0; index < args.Length; index++)
@@ -40,6 +42,9 @@ internal sealed record DataGenerationOptions(
                     break;
                 case "--environment-file" when index + 1 < args.Length:
                     environmentFile = Path.GetFullPath(args[++index]);
+                    break;
+                case "--import-package" when index + 1 < args.Length:
+                    importPackage = Path.GetFullPath(args[++index]);
                     break;
                 case "--plan":
                 case "--dry-run":
@@ -68,7 +73,8 @@ internal sealed record DataGenerationOptions(
             allServices,
             seedsRoot,
             environmentFile,
-            command.Value);
+            command.Value,
+            importPackage);
     }
 
     private static DataGenerationCommand SetCommand(

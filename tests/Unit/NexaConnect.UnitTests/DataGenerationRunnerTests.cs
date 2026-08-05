@@ -124,6 +124,26 @@ public sealed class DataGenerationRunnerTests
         Assert.Contains("requires-schema-version", exception.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public async Task Catalog_accepts_common_line_endings(string newline)
+    {
+        using var fixture = new SeedFixture();
+        fixture.AddSeed(
+            1,
+            "valid_header",
+            $"-- requires-schema-version: 1{newline}SELECT 1;");
+
+        SeedCatalog catalog = await SeedCatalog.LoadAsync(
+            fixture.Root,
+            "Catalog",
+            CancellationToken.None);
+
+        SeedDefinition seed = Assert.Single(catalog.Seeds);
+        Assert.Equal(1, seed.RequiredSchemaVersion);
+    }
+
     private sealed class SeedFixture : IDisposable
     {
         public SeedFixture()

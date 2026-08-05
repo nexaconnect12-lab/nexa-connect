@@ -1,0 +1,40 @@
+{
+  "formatVersion": 1,
+  "service": "Media",
+  "requiredSchemaVersion": 1,
+  "minimumTotalRows": 200,
+  "tables": [
+    {
+      "table": "media_assets",
+      "file": "media_assets.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "media_variants",
+      "file": "media_variants.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "media_processing_attempts",
+      "file": "media_processing_attempts.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "outbox_messages",
+      "file": "outbox_messages.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    }
+  ]
+}

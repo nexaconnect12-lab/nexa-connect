@@ -1,0 +1,49 @@
+{
+  "formatVersion": 1,
+  "service": "PlatformDirectory",
+  "requiredSchemaVersion": 1,
+  "minimumTotalRows": 250,
+  "tables": [
+    {
+      "table": "organizations",
+      "file": "organizations.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "organization_memberships",
+      "file": "organization_memberships.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "applications",
+      "file": "applications.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "organization_application_access",
+      "file": "organization_application_access.csv",
+      "keyColumns": [
+        "organization_id",
+        "application_id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "outbox_messages",
+      "file": "outbox_messages.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    }
+  ]
+}

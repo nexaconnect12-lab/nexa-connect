@@ -1,0 +1,174 @@
+{
+  "formatVersion": 1,
+  "service": "Catalog",
+  "requiredSchemaVersion": 1,
+  "minimumTotalRows": 1000,
+  "tables": [
+    {
+      "table": "tax_classifications",
+      "file": "tax_classifications.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "categories",
+      "file": "categories.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "products",
+      "file": "products.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "product_variants",
+      "file": "product_variants.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "product_categories",
+      "file": "product_categories.csv",
+      "keyColumns": [
+        "restaurant_id",
+        "product_id",
+        "category_id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "modifier_groups",
+      "file": "modifier_groups.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "modifier_options",
+      "file": "modifier_options.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "product_modifier_groups",
+      "file": "product_modifier_groups.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "price_lists",
+      "file": "price_lists.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "product_prices",
+      "file": "product_prices.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "modifier_option_prices",
+      "file": "modifier_option_prices.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "menus",
+      "file": "menus.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "menu_channels",
+      "file": "menu_channels.csv",
+      "keyColumns": [
+        "restaurant_id",
+        "menu_id",
+        "channel"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "menu_categories",
+      "file": "menu_categories.csv",
+      "keyColumns": [
+        "restaurant_id",
+        "menu_id",
+        "category_id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "menu_items",
+      "file": "menu_items.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "product_barcodes",
+      "file": "product_barcodes.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "product_availability",
+      "file": "product_availability.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "preparation_routes",
+      "file": "preparation_routes.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "product_images",
+      "file": "product_images.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "outbox_messages",
+      "file": "outbox_messages.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    }
+  ]
+}

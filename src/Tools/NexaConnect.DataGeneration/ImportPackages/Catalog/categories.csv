@@ -1,0 +1,101 @@
+id,restaurant_id,parent_category_id,code,name,description,display_order,status,created_at_utc,created_by,updated_at_utc,updated_by,concurrency_version
+ca000000-0000-0000-0000-000000000201,ca000000-0000-0000-0000-000000000001,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+ca000000-0000-0000-0000-000000000202,ca000000-0000-0000-0000-000000000001,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+2998a577-5416-5833-bdab-4c735e5f3b66,6e5493c8-856c-52d6-b23f-a9b8265b82a1,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+b2f46c5d-d932-53b5-aa1d-b90bbef0be4f,6e5493c8-856c-52d6-b23f-a9b8265b82a1,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+15cb7453-c9ed-5fce-ba01-f40261e0a3de,bb432b46-9db3-5087-86a6-667d8a5461d2,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+1f417d8c-2b59-5b35-88c6-c6cc715f3d28,bb432b46-9db3-5087-86a6-667d8a5461d2,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+459e0e39-2ccd-563a-9915-f122721e5a0e,02893fb5-cd61-516d-a1c6-a31b633a8440,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+53456a93-868d-5b2f-9ee1-a0015e303f97,02893fb5-cd61-516d-a1c6-a31b633a8440,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+7c494735-cbff-5541-8e2e-44fc5c710c73,8c3b74c7-06ef-5cee-b54c-5f1604076f2e,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+f1eff3b8-9e5a-5f98-9bb2-ca80632687a7,8c3b74c7-06ef-5cee-b54c-5f1604076f2e,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+c1c71187-0109-536e-a124-ec21d3beff0b,292495cc-29f1-532a-8347-61381793ace8,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+b1cc0e7a-65b3-5b8b-b253-0bced17944da,292495cc-29f1-532a-8347-61381793ace8,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+8c36cb64-8013-51e6-8dbc-9e578e054bae,f336981e-6b07-55f6-8f3b-5bb68a996561,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+dc591a22-1d1c-585a-8bfe-88c1cdcdc7ae,f336981e-6b07-55f6-8f3b-5bb68a996561,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+a6bedc75-c7d6-583d-95ba-ab737657b0d0,5afbb73d-34da-5169-9cd6-3631b29d6906,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+ea79216c-be3e-5099-9440-75799c8c6b8d,5afbb73d-34da-5169-9cd6-3631b29d6906,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+56bec659-ae38-5971-b4f5-d7730a15b51e,95aa4d42-7203-5581-a314-7ba4ff85735b,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+68a5a088-5a51-5038-a2c5-ecf5e0bbd3ae,95aa4d42-7203-5581-a314-7ba4ff85735b,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+1890af95-243f-5618-a036-1a42b4839fc3,8550b566-c89f-5552-86ca-8f25b0b21d4d,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+19eb7dee-012a-52d7-89d1-52315171e753,8550b566-c89f-5552-86ca-8f25b0b21d4d,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+5c7790b1-45c3-52aa-8d63-eea4753dd0db,d615a3b5-351d-5ed5-bb69-c4dcac36aa00,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+d79aaed9-cb13-5144-ad35-393f8ac15dee,d615a3b5-351d-5ed5-bb69-c4dcac36aa00,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+02970b73-1495-5953-91d8-d57c67a55fee,bb3ac671-6c2e-5416-acd7-85d71693d50e,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+b80b6aaf-181b-5abc-aad9-f6766de27087,bb3ac671-6c2e-5416-acd7-85d71693d50e,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+36701db7-c91c-5644-b7d0-c8de1fa74744,bfad71f3-0e54-5467-bb83-c8664b3d7bc3,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+aa65b01f-98b5-55d8-aaf4-68dd4667d48b,bfad71f3-0e54-5467-bb83-c8664b3d7bc3,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+e19bc789-bc85-511a-ab05-6c0b237de186,104f9e79-e136-5ed4-a852-64d160340e45,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+4b29e286-f2d2-5f79-a91f-f1dfdf7e6564,104f9e79-e136-5ed4-a852-64d160340e45,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+c36d847a-7c8b-5c07-963b-5d7f32837ee6,caa70f0d-2314-5cf5-a481-0c259c347e04,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+b549eb08-7a51-5e32-bb7f-e5935368b2f5,caa70f0d-2314-5cf5-a481-0c259c347e04,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+346cbbec-27f1-5272-9858-c8c612dae69b,a8e4c50c-665a-56b1-b68c-03b500b4ba4a,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+9fce7e73-d9e7-5e5e-b987-60db55d3c7cf,a8e4c50c-665a-56b1-b68c-03b500b4ba4a,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+c22700c8-a76a-5cc9-85d9-5de4d4ea7c75,6cf0dd31-f5a3-5fb4-bdc2-733a20f5f35c,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+ee28ff89-16d3-51e6-be51-408e19bc3911,6cf0dd31-f5a3-5fb4-bdc2-733a20f5f35c,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+031da904-7c98-5c4b-93c5-f287f049402c,5a29b0dd-09ca-560f-b248-db0555c5c325,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+5f0ed5f5-bfe7-56bc-bc34-98801cb8a895,5a29b0dd-09ca-560f-b248-db0555c5c325,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+897b2a17-5b21-50bc-9d62-0ad494179e88,bab016a4-e1f0-5423-95ba-68a55a375518,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+a403c70a-d1d3-599d-bebf-537bddb68ee0,bab016a4-e1f0-5423-95ba-68a55a375518,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+f5e56f44-24fb-550d-bbe8-e351a4c2c166,bf67c71a-ef24-5eed-87ee-0b99059448c0,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+16e071db-0fad-5585-b68c-4362a6d40f01,bf67c71a-ef24-5eed-87ee-0b99059448c0,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+b670af7e-4636-5fca-96af-6569d5c73d79,07b24cca-976d-532c-9467-d2343cc9f38d,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+ea4a57a1-d47e-5933-9b07-ae50b4ffdc8f,07b24cca-976d-532c-9467-d2343cc9f38d,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+9de4bff0-9f43-5085-a8f5-6f27b15bc48d,fa9711c5-4a59-5910-b824-83392f64a533,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+7e0e360e-2482-5cc4-9e55-67ced6f1cefe,fa9711c5-4a59-5910-b824-83392f64a533,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+f8a04303-9b0c-5242-8735-e0f7375cfd70,597b352f-cbab-5ea6-893f-73309ac2fbf9,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+15a8a9ba-7de7-5189-8cff-5cd144f85a07,597b352f-cbab-5ea6-893f-73309ac2fbf9,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+3543c7d9-cc42-55b4-a372-212d8c75c51c,22681635-41b9-56da-a764-798ba158a3ac,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+00eebb78-5dcc-5db6-b126-f06df75bb3e8,22681635-41b9-56da-a764-798ba158a3ac,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+4a7f74e7-5c9c-5dd8-84c2-3de0d9a5df2a,07ec22d2-2b6d-5c14-8ffc-39efd39e0a9e,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+3d75e4d0-9b0e-5162-9415-6fc60accfef1,07ec22d2-2b6d-5c14-8ffc-39efd39e0a9e,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+2cf73a28-898a-558b-8bd6-e2cf28112977,fce39051-f305-572f-83db-29fbaf5b798a,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+c4dde9f8-34b9-5bd3-aa34-b1dd5641cb89,fce39051-f305-572f-83db-29fbaf5b798a,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+8986d78e-57bb-5289-8d24-3f339cb60774,d6cf8637-33f0-58ca-a006-64b3c3f5b7f1,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+884e0b79-4841-5668-8a95-085e9d7c3ae3,d6cf8637-33f0-58ca-a006-64b3c3f5b7f1,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+44508c86-1118-518f-8f86-6ee929c07f9f,4b8ac2bc-db12-5fb9-8556-20aa186929f6,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+eb5b060f-fc86-5d56-b934-39ee07f3c3a3,4b8ac2bc-db12-5fb9-8556-20aa186929f6,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+ab43b83a-fe12-5ec0-96cf-f13f45519f9b,7a5fbc73-7498-500c-b457-d15f22bb9989,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+920eb747-cbec-5406-baa6-4408a842931a,7a5fbc73-7498-500c-b457-d15f22bb9989,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+4d070d30-21bb-51f8-9f8e-d31b0736f125,8ca9e1ae-e628-59af-8ab4-395d06328807,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+a475fa51-6e29-5a22-87b5-ee8f3dae954c,8ca9e1ae-e628-59af-8ab4-395d06328807,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+128c7568-99a9-5277-85fc-56d17bf8991f,98e2754e-6697-50e6-8bab-81a98e4aeca7,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+399c78ac-98e1-5ace-b1a1-14ce1f7891e3,98e2754e-6697-50e6-8bab-81a98e4aeca7,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+9dba27cd-95d5-5c57-a7be-ad4e04dc48ce,bbf4f4ee-81c9-55b0-80af-33be79e561ee,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+f528aa01-cab9-5ab1-905f-b6ffe3cbd6a1,bbf4f4ee-81c9-55b0-80af-33be79e561ee,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+24ee7485-7245-5672-8e1c-7e3e84569ca0,c1460c74-b0e2-5d90-9797-9f6b2e861e30,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+84cd288a-5f69-5ff4-bba7-3c834d93b0b0,c1460c74-b0e2-5d90-9797-9f6b2e861e30,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+d2c582d7-ad2e-5bc5-aeb3-697a8774c694,67af2cf8-ba63-5420-aaa1-3d4828850036,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+1139891d-49d8-538c-958e-6fe9dc1bdccb,67af2cf8-ba63-5420-aaa1-3d4828850036,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+064c879e-3acc-5811-b547-e0cc5173d473,517ff701-319d-502a-b5b9-e1c36a3cde3c,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+ec43640f-fa3b-531b-b11e-e6528dc15cb2,517ff701-319d-502a-b5b9-e1c36a3cde3c,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+eb66ba4b-ad4a-5c89-bb27-fb6ea8903b88,b3efb6f0-9635-58cf-b533-6394b23e857d,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+5eb7a6f1-77fe-5550-a81c-357f5e20d130,b3efb6f0-9635-58cf-b533-6394b23e857d,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+298b5325-a6ae-510f-805a-ce2294466245,707f9a45-b18a-5759-b1bd-cb4b9991c763,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+1b7152e9-a055-509e-a408-316b789e00d4,707f9a45-b18a-5759-b1bd-cb4b9991c763,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+0882abae-1bc8-5687-a548-7f0a694d7f64,4b4841d6-837e-5b3a-8625-eb21c5856ff2,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+c8c9c1cf-2c8a-5bb6-9434-d6dd09319cb3,4b4841d6-837e-5b3a-8625-eb21c5856ff2,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+2be18208-3f26-5c7c-b45c-551c0c180735,c4afafa8-25c3-527c-95bc-c2ce6efb5a36,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+342f61ac-9938-5cfb-806d-cb8b74d4749e,c4afafa8-25c3-527c-95bc-c2ce6efb5a36,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+86a8d347-57f1-5744-9408-9c5ac9fa8ec1,44c58e92-2d0f-5de4-949a-53cca4b7c650,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+d083d28b-4d73-59b5-af8a-fd65f3e3a91b,44c58e92-2d0f-5de4-949a-53cca4b7c650,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+be57bf80-629d-5987-b998-eba6d73ad3bf,fadf79e7-84bd-54aa-8fce-71315980e940,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+efc14e77-5fdf-53bf-9423-732fee061c09,fadf79e7-84bd-54aa-8fce-71315980e940,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+651f6276-41c5-53df-94d9-0c4b19c9f496,a3bed95f-b4d1-5aea-963e-723a3b5343d7,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+5964f8a6-933e-5f3c-b72c-0fdd1ac71114,a3bed95f-b4d1-5aea-963e-723a3b5343d7,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+828140a0-d32e-56fa-b23d-d6e907adfc72,dfc9650b-5da6-5083-b918-0069b7f18a39,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+717085b4-59e2-5df0-8b18-a3fb07f5e6e4,dfc9650b-5da6-5083-b918-0069b7f18a39,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+99c915bb-4bd3-5869-b205-506147dd8c69,e40302ce-cd87-5926-898b-7077c873c69c,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+3a70c544-4117-5274-a87b-23f9496265cb,e40302ce-cd87-5926-898b-7077c873c69c,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+4bcc2a29-645e-5db5-b2ad-c25136d29061,c1f4e8f0-e00b-5a1e-82a4-2aa113ce0e2e,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+429a9447-513f-52d9-b068-4c6748de4fa0,c1f4e8f0-e00b-5a1e-82a4-2aa113ce0e2e,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+2b62a04c-28d6-59b7-bb40-06b392920a5f,80267d1d-6166-5d66-a39a-2fe7d3ec9558,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+23d2dd9f-b9a2-5369-8468-5444f087b569,80267d1d-6166-5d66-a39a-2fe7d3ec9558,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+d43289d6-df5d-5e4b-90ad-018740d8f481,7e941da0-444e-555b-8c14-37022c2450f6,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+6e579145-63a8-5b3c-8d9e-2db665f54495,7e941da0-444e-555b-8c14-37022c2450f6,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+35eea5e2-ea24-544d-a8ca-4ff5e3310b30,9e1b7503-21ff-59f4-83b8-5c7bb3c79c9c,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+b7f79e7e-687b-59c4-8817-cc173fda34b5,9e1b7503-21ff-59f4-83b8-5c7bb3c79c9c,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+4fde4cab-acaa-518b-81d2-98c65b32df76,c824a05f-57b4-564d-8182-a0acb1779be0,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+58e95ccd-ffb2-5b3f-88c1-79ee8039fa72,c824a05f-57b4-564d-8182-a0acb1779be0,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+864436f1-4d8b-5298-bead-890657b5cf18,7b2007ac-f4b3-5a96-998c-4b5bdb6201f7,\N,mains,Main Dishes,Fictional sample main dishes,10,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1
+2c643cfe-a017-5663-86f1-96d59a7e5357,7b2007ac-f4b3-5a96-998c-4b5bdb6201f7,\N,drinks,Drinks,Fictional sample beverages,20,active,2026-01-01T00:00:00Z,sample-data,2026-01-01T00:00:00Z,sample-data,1

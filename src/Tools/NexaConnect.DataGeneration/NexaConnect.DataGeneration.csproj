@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <Content Include="Seeds\**\*.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="ImportPackages\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,48 @@
+{
+  "formatVersion": 1,
+  "service": "Customer",
+  "requiredSchemaVersion": 1,
+  "minimumTotalRows": 250,
+  "tables": [
+    {
+      "table": "customers",
+      "file": "customers.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "customer_contacts",
+      "file": "customer_contacts.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "customer_addresses",
+      "file": "customer_addresses.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "loyalty_accounts",
+      "file": "loyalty_accounts.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "outbox_messages",
+      "file": "outbox_messages.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    }
+  ]
+}

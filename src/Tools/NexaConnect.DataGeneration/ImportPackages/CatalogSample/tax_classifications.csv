@@ -1,0 +1,2 @@
+id,restaurant_id,code,name,status,created_at_utc,created_by,updated_at_utc,updated_by,concurrency_version
+ca100000-0000-0000-0000-000000000501,ca000000-0000-0000-0000-000000000001,import-standard,Imported Standard Tax,active,2026-01-01T00:00:00Z,csv-import,2026-01-01T00:00:00Z,csv-import,1

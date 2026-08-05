@@ -24,4 +24,10 @@
     <ProjectReference Include="..\..\..\src\Tools\NexaConnect.DataMigration\NexaConnect.DataMigration.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\..\..\src\Tools\NexaConnect.DataGeneration\ImportPackages\**\*"
+             Link="ImportPackages\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

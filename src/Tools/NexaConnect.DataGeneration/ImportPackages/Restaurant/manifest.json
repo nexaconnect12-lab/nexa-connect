@@ -1,0 +1,64 @@
+{
+  "formatVersion": 1,
+  "service": "Restaurant",
+  "requiredSchemaVersion": 1,
+  "minimumTotalRows": 350,
+  "tables": [
+    {
+      "table": "restaurants",
+      "file": "restaurants.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "branches",
+      "file": "branches.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "dining_areas",
+      "file": "dining_areas.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "dining_tables",
+      "file": "dining_tables.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "business_hours",
+      "file": "business_hours.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "preparation_stations",
+      "file": "preparation_stations.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "outbox_messages",
+      "file": "outbox_messages.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    }
+  ]
+}

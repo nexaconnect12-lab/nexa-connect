@@ -1,0 +1,81 @@
+{
+  "formatVersion": 1,
+  "service": "Order",
+  "requiredSchemaVersion": 1,
+  "minimumTotalRows": 450,
+  "tables": [
+    {
+      "table": "orders",
+      "file": "orders.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "order_lines",
+      "file": "order_lines.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "order_line_modifiers",
+      "file": "order_line_modifiers.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "order_status_history",
+      "file": "order_status_history.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "order_channel_contexts",
+      "file": "order_channel_contexts.csv",
+      "keyColumns": [
+        "order_id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "returns",
+      "file": "returns.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "return_lines",
+      "file": "return_lines.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "idempotency_records",
+      "file": "idempotency_records.csv",
+      "keyColumns": [
+        "operation_scope",
+        "idempotency_key"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "outbox_messages",
+      "file": "outbox_messages.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    }
+  ]
+}

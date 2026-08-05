@@ -1,0 +1,6 @@
+id,restaurant_id,parent_category_id,code,name,description,display_order,status,created_at_utc,created_by,updated_at_utc,updated_by,concurrency_version
+ca100000-0000-0000-0000-000000001001,ca000000-0000-0000-0000-000000000001,\N,import-breakfast,Imported Breakfast,Fictional external-system sample,10,active,2026-01-01T00:00:00Z,csv-import,2026-01-01T00:00:00Z,csv-import,1
+ca100000-0000-0000-0000-000000001002,ca000000-0000-0000-0000-000000000001,\N,import-mains,Imported Main Dishes,Fictional external-system sample,20,active,2026-01-01T00:00:00Z,csv-import,2026-01-01T00:00:00Z,csv-import,1
+ca100000-0000-0000-0000-000000001003,ca000000-0000-0000-0000-000000000001,\N,import-desserts,Imported Desserts,Fictional external-system sample,30,active,2026-01-01T00:00:00Z,csv-import,2026-01-01T00:00:00Z,csv-import,1
+ca100000-0000-0000-0000-000000001004,ca000000-0000-0000-0000-000000000001,\N,import-drinks,Imported Drinks,Fictional external-system sample,40,active,2026-01-01T00:00:00Z,csv-import,2026-01-01T00:00:00Z,csv-import,1
+ca100000-0000-0000-0000-000000001005,ca000000-0000-0000-0000-000000000001,\N,import-specials,Imported Specials,Fictional external-system sample,50,active,2026-01-01T00:00:00Z,csv-import,2026-01-01T00:00:00Z,csv-import,1

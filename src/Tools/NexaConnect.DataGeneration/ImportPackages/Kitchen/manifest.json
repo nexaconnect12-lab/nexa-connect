@@ -1,0 +1,57 @@
+{
+  "formatVersion": 1,
+  "service": "Kitchen",
+  "requiredSchemaVersion": 1,
+  "minimumTotalRows": 300,
+  "tables": [
+    {
+      "table": "kitchen_tickets",
+      "file": "kitchen_tickets.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "kitchen_ticket_items",
+      "file": "kitchen_ticket_items.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "kitchen_status_history",
+      "file": "kitchen_status_history.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "kitchen_adjustments",
+      "file": "kitchen_adjustments.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "processed_messages",
+      "file": "processed_messages.csv",
+      "keyColumns": [
+        "message_id",
+        "consumer_name"
+      ],
+      "minimumRows": 50
+    },
+    {
+      "table": "outbox_messages",
+      "file": "outbox_messages.csv",
+      "keyColumns": [
+        "id"
+      ],
+      "minimumRows": 50
+    }
+  ]
+}
