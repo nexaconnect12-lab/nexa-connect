@@ -34,6 +34,21 @@ public sealed class PosAuthentication : IDisposable
 
     public PosTokenSet? CurrentToken { get; private set; }
 
+    public void SignOut()
+    {
+        lock (_sync)
+        {
+            _pending?.TrySetCanceled();
+            _pending = null;
+            _pkce = null;
+            _callbackConsumed = 0;
+        }
+
+        CurrentToken = null;
+        _tokenStore.Delete();
+        StatusChanged?.Invoke(this, "Signed out. Stored credentials were cleared.");
+    }
+
     public async Task<PosTokenSet> SignInAsync(CancellationToken cancellationToken = default)
     {
         TaskCompletionSource<PosTokenSet> completion = new(

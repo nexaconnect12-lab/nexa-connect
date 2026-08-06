@@ -17,6 +17,8 @@
         <StackPanel Grid.Row="2" Orientation="Horizontal">
             <Button x:Name="SignInButton" Width="140" Content="Sign in"
                     Click="SignIn_Click" />
+            <Button x:Name="SignOutButton" Width="140" Margin="12,0,0,0" Content="Sign out"
+                    Click="SignOut_Click" IsEnabled="False" />
             <Button x:Name="OpenShiftButton" Width="140" Margin="12,0,0,0" Content="Open shift"
                     Click="OpenShift_Click" IsEnabled="False" />
             <Button x:Name="CloseShiftButton" Width="140" Margin="12,0,0,0" Content="Close shift"

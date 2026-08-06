@@ -102,6 +102,19 @@ public partial class MainWindow : Window
         }
     }
 
+    private void SignOut_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeShift is not null)
+        {
+            StatusText.Text = "Close the active shift before signing out.";
+            return;
+        }
+
+        _authentication.SignOut();
+        StatusText.Text = "Signed out. Stored credentials were cleared.";
+        UpdateOperationalState();
+    }
+
     private void ValidateTerminalConfiguration()
     {
         if (_configuration.BranchId == Guid.Empty ||
@@ -131,6 +144,7 @@ public partial class MainWindow : Window
             _authentication.CurrentToken.ExpiresAtUtc > DateTimeOffset.UtcNow;
         bool hasActiveShift = _activeShift is not null;
         SignInButton.IsEnabled = !signedIn;
+        SignOutButton.IsEnabled = signedIn;
         OpenShiftButton.IsEnabled = signedIn && !hasActiveShift;
         CloseShiftButton.IsEnabled = signedIn && hasActiveShift;
         ActiveShiftText.Text = hasActiveShift

@@ -33,3 +33,15 @@ The service resolves the branch through Restaurant, verifies the active store an
 The service loads the open shift, re-resolves its Restaurant scope, requests the `pos.shift.close` decision, and applies an optimistic-concurrency update. A successful close returns `204 No Content`. Missing or already-closed shifts return `404`; denied scope or authorization returns `403`; a concurrent update returns `409`; and an unavailable Restaurant or Authorization dependency returns `503` without exposing provider details.
 
 The API does not redirect to Keycloak. Interactive login is owned by the BFF or the native POS client; this service validates and consumes the resulting access token.
+
+## Cash sessions
+
+- `POST /api/pos/v1/cash-sessions/open` opens a cash session for an open shift with a currency and opening amount.
+- `POST /api/pos/v1/cash-sessions/{cashSessionId}/movements` records a positive sale, refund, pay-in, pay-out, or float-adjustment movement.
+- `POST /api/pos/v1/cash-sessions/{cashSessionId}/close` closes the session and calculates the variance from the opening amount and movements.
+
+All cash endpoints require an authenticated bearer token. Cash-session state is owned by the POS database; the client must not infer a successful close until the API returns `204`.
+
+## Terminal enrollment
+
+`POST /api/pos/v1/terminals/enroll` enrolls or reactivates a terminal after Restaurant scope validation and the `pos.terminal.enroll` Authorization decision. The request includes branch, store, terminal, code, and device type. Enrollment is an online administrative operation and is not performed from an offline client.

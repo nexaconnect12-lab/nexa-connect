@@ -26,6 +26,8 @@ dotnet run --project src/Clients/NexaConnect.POS/NexaConnect.POS.csproj
 
 The development configuration expects Keycloak at `http://localhost:8080/realms/nexa-dev` and the POS API at `http://localhost:5225/`. Do not log callback URIs, authorization codes, access tokens, or refresh tokens.
 
-Configure `Pos:BranchId`, `Pos:StoreId`, and `Pos:TerminalId` in `appsettings.json` (or the deployment configuration) before opening a shift. Cash sessions, cash movements, terminal enrollment, hardware adapters, and durable offline outbox replay require the corresponding service APIs and remain follow-up work; the current local state file is only the active-shift recovery reference.
+Configure `Pos:BranchId`, `Pos:StoreId`, and `Pos:TerminalId` in `appsettings.json` (or the deployment configuration) before opening a shift. Cash-session and terminal-enrollment APIs now exist on the POS service. The client includes durable local outbox and hardware-adapter interfaces; production device implementations and operation-specific replay wiring remain deployment work. The local state file is only the active-shift recovery reference.
+
+Sign out from the POS window to clear the current access and refresh tokens from memory and Windows-protected storage. Do not sign out while a shift is active.
 
 Online Keycloak authentication enrolls the employee and device. Offline unlock, cached permissions, expiration, manager overrides, and audit records remain NexaConnect responsibilities and must not be represented as indefinitely valid Keycloak tokens. The POS must clear online credentials when a device is revoked or deregistered and must never treat a locally entered PIN as a Keycloak password.
