@@ -23,6 +23,16 @@ Startup import skips an existing realm. Apply subsequent realm changes through a
 
 The checked-in realm contains no users. Create local users in the Admin Console and assign only the coarse roles needed for development. See [Client Matrix](../Identity/Client-Matrix.md) and [Claims Contract](../Identity/Claims-Contract.md).
 
+To run the WPF POS client locally, build it and register its custom callback protocol for the current Windows user:
+
+```powershell
+dotnet build src/Clients/NexaConnect.POS/NexaConnect.POS.csproj
+./scripts/register-pos-protocol.ps1 -ExecutablePath ./src/Clients/NexaConnect.POS/bin/Debug/net10.0-windows/NexaConnect.POS.exe
+dotnet run --project src/Clients/NexaConnect.POS/NexaConnect.POS.csproj
+```
+
+The protocol registration is per-user for development. Production installers must register the same exact `nexaconnect-pos://oauth/callback` callback for the signed executable and must not log callback URIs, authorization codes, or tokens.
+
 ## PostgreSQL provisioning
 
 The local PostgreSQL initializer creates these databases on the first start of an empty `postgres-data` volume:

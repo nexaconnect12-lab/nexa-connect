@@ -70,6 +70,8 @@ The initial realm configuration provides:
 - realm and administrative events;
 - a dedicated API audience and deliberately mapped coarse roles.
 
+For managed Windows POS devices, the deployment package must register the `nexaconnect-pos` URI scheme to the signed POS executable and verify that the exact redirect URI is present in the realm client configuration. The POS client is public and must not receive a client secret.
+
 Platform Directory remains authoritative for organizations and memberships. Product services remain authoritative for restaurant resources and fine-grained permissions.
 
 ## Changes and upgrades
