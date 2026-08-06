@@ -1,8 +1,9 @@
 using Npgsql;
+using NexaConnect.Services.PlatformDirectory.Application.Access;
 
-namespace NexaConnect.Services.PlatformDirectory;
+namespace NexaConnect.Services.PlatformDirectory.Infrastructure.Persistence;
 
-public sealed class OrganizationAccessStore(NpgsqlDataSource dataSource)
+public sealed class PostgresOrganizationAccessReader(NpgsqlDataSource dataSource) : IOrganizationAccessReader
 {
     public async Task<bool> HasNexaConnectAccessAsync(
         Guid organizationId,
@@ -27,7 +28,6 @@ public sealed class OrganizationAccessStore(NpgsqlDataSource dataSource)
                   AND access.status = 'enabled'
             );
             """;
-
         await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue(organizationId);

@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using NexaConnect.Infrastructure.Authentication;
+using NexaConnect.Services.Authorization.Application.Decisions;
+using ApplicationDecision = NexaConnect.Services.Authorization.Application.Decisions.AuthorizationDecision;
 
 [ApiController]
 [Route("api/authorization/v1/decisions")]
 public sealed class AuthorizationDecisionsController(
-    AuthorizationStore store,
+    IAuthorizationDecisionService decisionService,
     ILogger<AuthorizationDecisionsController> logger) : ControllerBase
 {
     [HttpPost]
@@ -13,7 +15,7 @@ public sealed class AuthorizationDecisionsController(
     {
         string? subjectId = User.FindFirst(NexaAuthenticationDefaults.SubjectClaim)?.Value;
         if (string.IsNullOrWhiteSpace(subjectId)) return Forbid();
-        AuthorizationDecision decision = await store.DecideAsync(subjectId, request.OrganizationId, request.RestaurantId,
+        ApplicationDecision decision = await decisionService.DecideAsync(subjectId, request.OrganizationId, request.RestaurantId,
             request.BranchId, request.Permission, request.Amount, request.Currency, cancellationToken);
         logger.LogInformation(
             "Authorization decision {DecisionId}: granted {Granted} for subject {Subject}, permission {Permission}, organization {OrganizationId}, restaurant {RestaurantId}, branch {BranchId}.",

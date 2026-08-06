@@ -1,8 +1,12 @@
 using Npgsql;
+using NexaConnect.Services.Authorization.Application.Decisions;
+using ApplicationDecision = NexaConnect.Services.Authorization.Application.Decisions.AuthorizationDecision;
 
-public sealed class AuthorizationStore(NpgsqlDataSource dataSource)
+namespace NexaConnect.Services.Authorization.Infrastructure.Persistence;
+
+public sealed class PostgresAuthorizationDecisionService(NpgsqlDataSource dataSource) : IAuthorizationDecisionService
 {
-    public async Task<AuthorizationDecision> DecideAsync(
+    public async Task<ApplicationDecision> DecideAsync(
         string subjectId, Guid organizationId, Guid? restaurantId, Guid? branchId,
         string permission, decimal? amount, string? currency, CancellationToken cancellationToken)
     {
@@ -58,7 +62,7 @@ public sealed class AuthorizationStore(NpgsqlDataSource dataSource)
         record.Parameters.AddWithValue((object?)limit ?? DBNull.Value);
         record.Parameters.AddWithValue((object?)currency ?? DBNull.Value);
         await record.ExecuteNonQueryAsync(cancellationToken);
-        return new AuthorizationDecision(decisionId, granted, limit);
+        return new ApplicationDecision(decisionId, granted, limit);
     }
 
     private static async Task<decimal?> ReadLimitAsync(
@@ -85,5 +89,3 @@ public sealed class AuthorizationStore(NpgsqlDataSource dataSource)
         return result is DBNull or null ? null : (decimal)result;
     }
 }
-
-public sealed record AuthorizationDecision(Guid Id, bool Granted, decimal? EvaluatedLimit);

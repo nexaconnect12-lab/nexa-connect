@@ -1,31 +1,23 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NexaConnect.Infrastructure.Authentication;
-using Npgsql;
+using NexaConnect.Services.Restaurant.Application.Authorization;
 
 namespace NexaConnect.Services.Restaurant.Controllers;
 
 [ApiController]
 [Route("api/restaurant/v1/branches")]
-public sealed class AuthorizationScopeController(NpgsqlDataSource dataSource) : ControllerBase
+public sealed class AuthorizationScopeController(IAuthorizationScopeReader scopeReader) : ControllerBase
 {
     [Authorize(Policy = NexaAuthorizationPolicies.PosWorkload)]
     [HttpGet("{branchId:guid}/authorization-scope")]
     public async Task<ActionResult<AuthorizationScopeResponse>> GetAsync(
         Guid branchId, CancellationToken cancellationToken)
     {
-        const string sql = """
-            SELECT restaurant.organization_id, restaurant.id, branch.id
-            FROM branches branch
-            JOIN restaurants restaurant ON restaurant.id = branch.restaurant_id
-            WHERE branch.id = $1 AND branch.status = 'active' AND restaurant.status = 'active';
-            """;
-        await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue(branchId);
-        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken)) return NotFound();
-        return Ok(new AuthorizationScopeResponse(reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2)));
+        AuthorizationScope? scope = await scopeReader.GetAsync(branchId, cancellationToken);
+        return scope is null
+            ? NotFound()
+            : Ok(new AuthorizationScopeResponse(scope.OrganizationId, scope.RestaurantId, scope.BranchId));
     }
 }
 

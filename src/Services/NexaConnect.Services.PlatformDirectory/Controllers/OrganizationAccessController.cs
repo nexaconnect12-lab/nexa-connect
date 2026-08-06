@@ -2,12 +2,13 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NexaConnect.Infrastructure.Authentication;
+using NexaConnect.Services.PlatformDirectory.Application.Access;
 
 namespace NexaConnect.Services.PlatformDirectory.Controllers;
 
 [ApiController]
 [Route("api/platform-directory/v1/organizations")]
-public sealed class OrganizationAccessController(OrganizationAccessStore accessStore) : ControllerBase
+public sealed class OrganizationAccessController(IOrganizationAccessReader accessReader) : ControllerBase
 {
     [HttpGet("{organizationId:guid}/access")]
     public async Task<ActionResult<OrganizationAccessResponse>> GetAccessAsync(
@@ -20,7 +21,7 @@ public sealed class OrganizationAccessController(OrganizationAccessStore accessS
             return Forbid();
         }
 
-        bool granted = await accessStore.HasNexaConnectAccessAsync(
+        bool granted = await accessReader.HasNexaConnectAccessAsync(
             organizationId,
             subjectId,
             cancellationToken);
@@ -34,7 +35,7 @@ public sealed class OrganizationAccessController(OrganizationAccessStore accessS
         string subjectId,
         CancellationToken cancellationToken)
     {
-        bool granted = await accessStore.HasNexaConnectAccessAsync(
+        bool granted = await accessReader.HasNexaConnectAccessAsync(
             organizationId,
             subjectId,
             cancellationToken);

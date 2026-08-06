@@ -1,5 +1,7 @@
 using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.PlatformDirectory;
+using NexaConnect.Services.PlatformDirectory.Application.Access;
+using NexaConnect.Services.PlatformDirectory.Infrastructure.Persistence;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,7 +14,7 @@ builder.Services.AddSingleton<NpgsqlDataSource>(_ =>
         ?? throw new InvalidOperationException("ConnectionStrings:PlatformDirectory is required.");
     return NpgsqlDataSource.Create(connectionString);
 });
-builder.Services.AddScoped<OrganizationAccessStore>();
+builder.Services.AddScoped<IOrganizationAccessReader, PostgresOrganizationAccessReader>();
 
 var app = builder.Build();
 if (app.Environment.IsDevelopment())

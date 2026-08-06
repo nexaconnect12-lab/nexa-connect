@@ -1,4 +1,6 @@
 using NexaConnect.Infrastructure.Authentication;
+using NexaConnect.Services.Restaurant.Application.Authorization;
+using NexaConnect.Services.Restaurant.Infrastructure.Persistence;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,6 +10,7 @@ builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
 builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(
     builder.Configuration.GetConnectionString("Restaurant")
     ?? throw new InvalidOperationException("ConnectionStrings:Restaurant is required.")));
+builder.Services.AddScoped<IAuthorizationScopeReader, PostgresAuthorizationScopeReader>();
 var app = builder.Build();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
