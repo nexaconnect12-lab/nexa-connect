@@ -8,3 +8,10 @@ public static class NexaAuthenticationDefaults
     public const string SubjectClaim = "sub";
     public const string UsernameClaim = "preferred_username";
 }
+
+public static class NexaAuthorizationPolicies
+{
+    public const string SystemAdministrator = "SystemAdministrator";
+    public const string ReportViewer = "ReportViewer";
+    public const string PosWorkload = "PosWorkload";
+}

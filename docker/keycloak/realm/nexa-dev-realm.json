@@ -400,6 +400,18 @@
       "redirectUris": ["${NEXACONNECT_POS_REDIRECT_URI}"],
       "attributes": { "pkce.code.challenge.method": "S256" },
       "defaultClientScopes": ["profile", "email", "nexaconnect-api"]
+    },
+    {
+      "clientId": "nexaconnect-pos-service",
+      "name": "NexaConnect POS Workload",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${NEXACONNECT_POS_SERVICE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["nexaconnect-api"]
     }
   ]
 }

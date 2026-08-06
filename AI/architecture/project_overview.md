@@ -4,7 +4,7 @@
 
 NexaConnect is a restaurant operating platform that supports staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, reporting, and external integrations. Restaurant branches must continue approved operations during internet or cloud outages and synchronize safely after recovery. The architecture separates business capabilities into independently maintainable services while keeping the initial implementation practical for a small team.
 
-Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first migrations, and sample-data tooling. Domain APIs, persistence, messaging, offline synchronization, and resource-level authorization are planned and are not yet implemented.
+Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first migrations, sample-data tooling, and a PostgreSQL-backed Platform Directory organization-access API. Remaining domain APIs, messaging, offline synchronization, and product resource-level authorization are planned and are not yet implemented.
 
 The detailed restaurant domains, branch-edge topology, offline failure model, kitchen flow, QR behavior, reporting architecture, and shared identity boundary are defined in [`docs/Architecture/Restaurant-POS-Architecture.md`](../../docs/Architecture/Restaurant-POS-Architecture.md). This document summarizes the supporting project architecture.
 
@@ -53,6 +53,7 @@ flowchart TB
     GW --> CUSTOMER[Customer Service]
     GW --> PAYMENT[Payment Service]
     GW --> POSSVC[POS Service]
+    GW --> DIRECTORY[Platform Directory]
     GW --> MEDIA[Media API]
 
     ORDER --> BUS[(RabbitMQ)]
@@ -68,6 +69,7 @@ flowchart TB
     CUSTOMER --> CUSTOMERDB[(Customer DB)]
     PAYMENT --> PAYMENTDB[(Payment DB)]
     POSSVC --> POSDB[(POS DB)]
+    DIRECTORY --> DIRECTORYDB[(Platform Directory DB)]
     MEDIA --> MEDIADB[(Media Metadata DB)]
     MEDIA --> OBJECTSTORE[(MinIO / S3 Object Storage)]
     IMAGEWORKER --> OBJECTSTORE
@@ -109,6 +111,7 @@ NexaConnect/
 │   │   └── NexaConnect.DataGeneration/
 │   ├── Services/
 │   │   ├── NexaConnect.Services.Catalog/
+│   │   ├── NexaConnect.Services.PlatformDirectory/
 │   │   ├── NexaConnect.Services.Inventory/
 │   │   ├── NexaConnect.Services.Order/
 │   │   ├── NexaConnect.Services.Customer/
@@ -172,6 +175,10 @@ Suggested realm roles:
 ### 5.3 Catalog Service
 
 Owns products, categories, barcodes, tax classifications, price definitions, and product availability metadata.
+
+### 5.3.1 Platform Directory Service
+
+Owns shared organizations, identity-subject memberships, and organization-level NexaConnect access. Its versioned organization-access API evaluates active membership and application enrollment; restaurant resource authorization remains product-owned.
 
 ### 5.4 Inventory Service
 

@@ -83,6 +83,8 @@ public sealed class AuthenticationConfigurationTests
         Assert.Contains(
             authorizationOptions.FallbackPolicy.Requirements,
             requirement => requirement is DenyAnonymousAuthorizationRequirement);
+        Assert.True(authorizationOptions.GetPolicy(NexaAuthorizationPolicies.SystemAdministrator) is not null);
+        Assert.True(authorizationOptions.GetPolicy(NexaAuthorizationPolicies.ReportViewer) is not null);
     }
 
     private static IConfiguration CreateConfiguration(string authority, bool requireHttpsMetadata)

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NexaConnect.Infrastructure.Authentication;
 
 namespace NexaConnect.Gateway.Controllers;
 
@@ -19,7 +20,7 @@ public sealed class IdentityController : ControllerBase
         });
     }
 
-    [Authorize(Roles = "report-viewer")]
+    [Authorize(Policy = NexaAuthorizationPolicies.ReportViewer)]
     [HttpGet("report-access")]
     public IActionResult ReportAccess()
     {

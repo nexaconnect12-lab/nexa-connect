@@ -9,6 +9,7 @@ public sealed class MigrationRunnerTests
         string[] services =
         [
             "PlatformDirectory",
+            "Authorization",
             "Restaurant",
             "Catalog",
             "Inventory",

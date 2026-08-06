@@ -58,6 +58,15 @@ public static class AuthenticationServiceCollectionExtensions
             options.FallbackPolicy = new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .Build();
+            options.AddPolicy(
+                NexaAuthorizationPolicies.SystemAdministrator,
+                policy => policy.RequireRole("system-admin"));
+            options.AddPolicy(
+                NexaAuthorizationPolicies.ReportViewer,
+                policy => policy.RequireRole("report-viewer"));
+            options.AddPolicy(
+                NexaAuthorizationPolicies.PosWorkload,
+                policy => policy.RequireClaim("azp", "nexaconnect-pos-service"));
         });
 
         return services;

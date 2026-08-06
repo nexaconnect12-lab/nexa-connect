@@ -25,6 +25,8 @@ Realm roles may grant coarse access such as `report-viewer` or `tenant-admin`. T
 
 Organization membership is resolved through the Platform Directory API or an approved local projection. It is not inferred from email domains, usernames, client roles, or direct Keycloak database access.
 
+The initial current-access API is `GET /api/platform-directory/v1/organizations/{organizationId}/access`. It evaluates the caller's `sub`, active membership, active organization, and enabled `nexa_connect` application access. It is an organization-level boundary, not a substitute for product resource authorization.
+
 ## Validation rules
 
 - Validate signature, issuer, audience, lifetime, and signing-key rollover.
