@@ -47,6 +47,31 @@ public sealed class DataGenerationRunnerTests
     }
 
     [Fact]
+    public void Validate_environment_requires_an_explicit_safe_environment()
+    {
+        string? originalNexa = Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT");
+        string? originalDotnet = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+        string? originalAspnet = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        try
+        {
+            Environment.SetEnvironmentVariable("NEXACONNECT_ENVIRONMENT", null);
+            Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", null);
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", null);
+
+            Assert.Throws<DataGenerationException>(DataGenerationApplication.ValidateEnvironment);
+
+            Environment.SetEnvironmentVariable("NEXACONNECT_ENVIRONMENT", "Development");
+            DataGenerationApplication.ValidateEnvironment();
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("NEXACONNECT_ENVIRONMENT", originalNexa);
+            Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", originalDotnet);
+            Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", originalAspnet);
+        }
+    }
+
+    [Fact]
     public async Task Catalog_loads_ordered_repository_seeds()
     {
         string seedsRoot = Path.Combine(AppContext.BaseDirectory, "Seeds");

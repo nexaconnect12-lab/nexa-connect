@@ -124,6 +124,18 @@ public sealed class MigrationRunnerTests
     }
 
     [Fact]
+    public async Task Catalog_rejects_non_transactional_migrations()
+    {
+        using var fixture = new MigrationFixture();
+        fixture.AddMigration(1, "concurrent_operation", "safe", transactional: false);
+
+        MigrationException exception = await Assert.ThrowsAsync<MigrationException>(
+            () => MigrationCatalog.LoadAsync(fixture.Root, "Order", CancellationToken.None));
+
+        Assert.Contains("non-transactional", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Catalog_detects_modified_applied_files()
     {
         using var fixture = new MigrationFixture();
@@ -141,6 +153,23 @@ public sealed class MigrationRunnerTests
             () => catalog.ValidateAppliedMigrations([recorded]));
 
         Assert.Contains("differs", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Catalog_retains_the_validated_script_content()
+    {
+        using var fixture = new MigrationFixture();
+        fixture.AddMigration(1, "initial_schema", "safe");
+        MigrationCatalog catalog = await MigrationCatalog.LoadAsync(
+            fixture.Root,
+            "Order",
+            CancellationToken.None);
+
+        File.WriteAllText(
+            Path.Combine(fixture.Root, "Order", "0001_initial_schema", "up.sql"),
+            "SELECT 999;");
+
+        Assert.Equal("SELECT 1;", catalog.Migrations[0].UpSql);
     }
 
     private static AppliedMigration ToAppliedMigration(MigrationDefinition migration) =>
@@ -165,13 +194,17 @@ public sealed class MigrationRunnerTests
 
         public string Root { get; }
 
-        public void AddMigration(int version, string name, string downgradeSafety)
+        public void AddMigration(
+            int version,
+            string name,
+            string downgradeSafety,
+            bool transactional = true)
         {
             string directory = Path.Combine(Root, "Order", $"{version:D4}_{name}");
             Directory.CreateDirectory(directory);
             File.WriteAllText(
                 Path.Combine(directory, "migration.json"),
-                $$"""{"version":{{version}},"name":"{{name}}","transactional":true,"downgradeSafety":"{{downgradeSafety}}","minimumApplicationVersion":"0.1.0"}""");
+                $$"""{"version":{{version}},"name":"{{name}}","transactional":{{transactional.ToString().ToLowerInvariant()}},"downgradeSafety":"{{downgradeSafety}}","minimumApplicationVersion":"0.1.0"}""");
             File.WriteAllText(Path.Combine(directory, "up.sql"), $"SELECT {version};");
             File.WriteAllText(Path.Combine(directory, "down.sql"), $"SELECT {-version};");
         }

@@ -4,6 +4,8 @@
 
 NexaConnect is a restaurant operating platform that supports staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, reporting, and external integrations. Restaurant branches must continue approved operations during internet or cloud outages and synchronize safely after recovery. The architecture separates business capabilities into independently maintainable services while keeping the initial implementation practical for a small team.
 
+Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first migrations, and sample-data tooling. Domain APIs, persistence, messaging, offline synchronization, and resource-level authorization are planned and are not yet implemented.
+
 The detailed restaurant domains, branch-edge topology, offline failure model, kitchen flow, QR behavior, reporting architecture, and shared identity boundary are defined in [Restaurant POS Architecture](Restaurant-POS-Architecture.md). This document defines the supporting technical architecture.
 
 ## 2. Architectural principles
@@ -79,7 +81,7 @@ NexaConnect/
 │   └── Deployment/
 ├── docker/
 │   ├── keycloak/
-│   ├── sqlserver/
+│   ├── postgres/
 │   ├── redis/
 │   ├── rabbitmq/
 │   ├── prometheus/
@@ -96,6 +98,9 @@ NexaConnect/
 │   │   └── NexaConnect.Shared/
 │   ├── Gateway/
 │   │   └── NexaConnect.Gateway/
+│   ├── Tools/
+│   │   ├── NexaConnect.DataMigration/
+│   │   └── NexaConnect.DataGeneration/
 │   ├── Services/
 │   │   ├── NexaConnect.Services.Catalog/
 │   │   ├── NexaConnect.Services.Inventory/
@@ -186,6 +191,14 @@ Owns terminals, stores, shifts, cash sessions, device registration, synchronizat
 
 Consumes integration events and sends email, SMS, push, or in-application notifications. Notification failures must not roll back completed sales transactions.
 
+### 5.10 Data Migration Tool
+
+`NexaConnect.DataMigration` applies ordered, transactional PostgreSQL scripts for one service-owned database at a time. It checksum-validates and retains SQL content before execution, records schema history atomically with the migration, and bounds database commands and advisory-lock acquisition to 60 seconds. Non-transactional migrations are rejected.
+
+### 5.11 Data Generation Tool
+
+`NexaConnect.DataGeneration` loads deterministic sample data into one service-owned database at a time only when an explicitly named Development or test environment is configured. Repository SQL seeds use migration credentials; external CSV imports require the owning service's restricted runtime credentials and cannot target reserved operational tables.
+
 ## 6. Internal service layout
 
 Each service should follow a consistent structure. A Clean Architecture-inspired layout is recommended without excessive abstraction:
@@ -267,6 +280,7 @@ Rules:
 - Application releases declare required per-service schema versions and prefer expand-and-contract compatibility for rollback.
 - Cross-product organization data is referenced by stable identifiers and consumed through the owning Platform Directory API, events, or local projections; it is not joined through shared tables.
 - Database credentials are issued only to the owning runtime and migration process; clients and other services must use the owning API or integration events.
+- Local Compose infrastructure ports bind to loopback only; production infrastructure is not directly exposed to public networks.
 
 ## 8. Communication patterns
 

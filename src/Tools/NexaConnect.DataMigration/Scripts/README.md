@@ -20,7 +20,7 @@ Create one directory per owning service and one subdirectory per sequential migr
 
 The initial catalog contains 83 tables. Counts include service-owned technical tables such as outboxes, processed-message stores, idempotency records, and projection checkpoints.
 
-Versions must be linear, sortable, immutable, and independently owned by one service. Scripts should normally be safe to execute inside a PostgreSQL transaction. A non-transactional migration must declare that requirement in its metadata and document its recovery procedure.
+Versions must be linear, sortable, immutable, independently owned by one service, and transactional. Non-transactional migrations are not supported because schema mutation and migration-history recording must remain atomic.
 
 Every release migration requires tested clean-install, upgrade, and downgrade paths. Downgrades that transform or discard data must be classified and protected by explicit operational approval and backup requirements.
 

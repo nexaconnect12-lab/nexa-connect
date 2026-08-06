@@ -32,7 +32,9 @@ internal sealed record MigrationDefinition(
     string DownPath,
     string MetadataChecksum,
     string UpChecksum,
-    string DownChecksum);
+    string DownChecksum,
+    string UpSql,
+    string DownSql);
 
 internal sealed record ValidatedMigrationMetadata(
     string Name,
@@ -161,6 +163,15 @@ internal sealed class MigrationCatalog
                     $"minimumApplicationVersion is required in {metadataPath}.");
             }
 
+            if (!metadata.Transactional)
+            {
+                throw new MigrationException(
+                    $"Migration {directoryName} is non-transactional. " +
+                    "Non-transactional migrations are not supported.");
+            }
+
+            string upSql = await File.ReadAllTextAsync(upPath, cancellationToken);
+            string downSql = await File.ReadAllTextAsync(downPath, cancellationToken);
             migrations.Add(new MigrationDefinition(
                 metadata.Version,
                 new ValidatedMigrationMetadata(
@@ -172,8 +183,10 @@ internal sealed class MigrationCatalog
                 upPath,
                 downPath,
                 await ComputeChecksumAsync(metadataPath, cancellationToken),
-                await ComputeChecksumAsync(upPath, cancellationToken),
-                await ComputeChecksumAsync(downPath, cancellationToken)));
+                ComputeChecksum(upSql),
+                ComputeChecksum(downSql),
+                upSql,
+                downSql));
         }
 
         if (migrations.Count == 0)
@@ -273,6 +286,12 @@ internal sealed class MigrationCatalog
         CancellationToken cancellationToken)
     {
         byte[] bytes = await File.ReadAllBytesAsync(path, cancellationToken);
-        return Convert.ToHexString(SHA256.HashData(bytes));
+        return ComputeChecksum(bytes);
     }
+
+    private static string ComputeChecksum(string content) =>
+        ComputeChecksum(System.Text.Encoding.UTF8.GetBytes(content));
+
+    private static string ComputeChecksum(byte[] bytes) =>
+        Convert.ToHexString(SHA256.HashData(bytes));
 }

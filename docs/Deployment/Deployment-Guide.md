@@ -8,7 +8,7 @@
 4. Preview every service migration with `.\scripts\migrate-databases.ps1`.
 5. After reviewing the plans, apply them with `.\scripts\migrate-databases.ps1 -Confirm`.
 
-The application PostgreSQL container listens on port `5432`. Keycloak uses a separate PostgreSQL container and database because Keycloak owns its schema and lifecycle.
+The application PostgreSQL container listens on `127.0.0.1:5432`. Redis (`127.0.0.1:6379`) and RabbitMQ including its management UI (`127.0.0.1:5672` and `127.0.0.1:15672`) are local-only Compose endpoints. Keycloak uses a separate PostgreSQL container and database because Keycloak owns its schema and lifecycle.
 
 ## Local identity platform
 

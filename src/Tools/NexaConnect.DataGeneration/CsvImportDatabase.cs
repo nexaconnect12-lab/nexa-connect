@@ -2,6 +2,7 @@ using Npgsql;
 
 internal sealed class CsvImportDatabase(NpgsqlConnection connection)
 {
+    private const int CommandTimeoutSeconds = 60;
     public async Task<IReadOnlyList<CsvImportResult>> ImportAsync(
         CsvImportPackage package,
         CancellationToken cancellationToken)
@@ -99,7 +100,7 @@ internal sealed class CsvImportDatabase(NpgsqlConnection connection)
             """;
         await using var command = new NpgsqlCommand(sql, connection, transaction)
         {
-            CommandTimeout = 0
+            CommandTimeout = CommandTimeoutSeconds
         };
         return await command.ExecuteNonQueryAsync(cancellationToken);
     }

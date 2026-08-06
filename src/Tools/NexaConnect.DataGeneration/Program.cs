@@ -171,12 +171,12 @@ internal static class DataGenerationApplication
         var connectionStrings = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (CsvImportPackage package in packages)
         {
-            string variable = ConnectionStringEnvironmentVariable(package.Service);
+            string variable = ImportConnectionStringEnvironmentVariable(package.Service);
             string? connectionString = Environment.GetEnvironmentVariable(variable);
             if (string.IsNullOrWhiteSpace(connectionString))
             {
                 throw new DataGenerationException(
-                    $"Set {variable} to the owning service's PostgreSQL connection string.");
+                    $"Set {variable} to the owning service's restricted import connection string.");
             }
 
             connectionStrings.Add(package.Service, connectionString);
@@ -275,10 +275,13 @@ internal static class DataGenerationApplication
             Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ??
             Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 
-        if (string.Equals(environment, "Production", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(environment, "Test", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(environment, "Testing", StringComparison.OrdinalIgnoreCase))
         {
             throw new DataGenerationException(
-                "Data generation is disabled when the environment is Production.");
+                "Data generation requires NEXACONNECT_ENVIRONMENT, DOTNET_ENVIRONMENT, or " +
+                "ASPNETCORE_ENVIRONMENT to be Development, Test, or Testing.");
         }
     }
 
@@ -311,6 +314,9 @@ internal static class DataGenerationApplication
     private static string ConnectionStringEnvironmentVariable(string service) =>
         $"NEXACONNECT_{new string(service.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant()}_DB";
 
+    private static string ImportConnectionStringEnvironmentVariable(string service) =>
+        $"NEXACONNECT_{new string(service.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant()}_IMPORT_DB";
+
     private static void PrintUsage()
     {
         Console.WriteLine("Usage:");
@@ -327,7 +333,7 @@ internal static class DataGenerationApplication
             "  dotnet run -- --all --import-package <root> --confirm " +
             "[--environment-file <path>]");
         Console.WriteLine();
-        Console.WriteLine("Connection strings are read from NEXACONNECT_<SERVICE>_DB.");
-        Console.WriteLine("The runner refuses to execute when the environment is Production.");
+        Console.WriteLine("Seeds use NEXACONNECT_<SERVICE>_DB; CSV imports use NEXACONNECT_<SERVICE>_IMPORT_DB.");
+        Console.WriteLine("The runner executes only in Development, Test, or Testing environments.");
     }
 }

@@ -22,7 +22,7 @@ The version-1 schema baseline has been authored for 11 independently owned datab
 
 Every baseline migration contains `migration.json`, `up.sql`, and `down.sql`. Metadata parsing, create/drop parity, PostgreSQL identifier lengths, output packaging, and the migration project build have been checked.
 
-The executable runner implements the versioned-directory contract. It discovers and validates linear service catalogs, verifies immutable metadata and SQL checksums, reports status, plans explicit target versions, executes paired upgrades and downgrades, serializes mutation with a PostgreSQL advisory lock, and protects transformative and destructive downgrades with explicit authorization flags.
+The executable runner implements the versioned-directory contract. It discovers and validates linear service catalogs, retains the checksum-validated SQL content for execution, reports status, plans explicit target versions, executes paired upgrades and downgrades, serializes mutation with a PostgreSQL advisory lock, and protects transformative and destructive downgrades with explicit authorization flags.
 
 The baseline is still not approved for production execution until every service passes live clean-install, downgrade, and re-upgrade tests against PostgreSQL 17. Do not flatten or manually reorder the scripts.
 
@@ -136,10 +136,10 @@ The runner:
 - Acquire a PostgreSQL advisory lock before changing a schema.
 - Produce an execution plan before mutation.
 - Apply one migration version at a time.
-- Use a transaction by default and require explicit metadata for non-transactional scripts.
+- Require every migration to be transactional; non-transactional scripts are rejected because schema mutation and migration history must remain atomic.
 - Update migration history atomically with transactional schema changes.
 - Require `--confirm` for mutation and stronger authorization for destructive downgrades.
-- Stop on the first failure and preserve diagnostic execution information.
+- Bound database commands and advisory-lock acquisition to 60 seconds, stop on the first failure, and preserve diagnostic execution information.
 - Never log connection strings or credentials.
 
 ## Upgrade and downgrade guarantee

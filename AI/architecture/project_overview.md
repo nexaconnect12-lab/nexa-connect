@@ -4,6 +4,8 @@
 
 NexaConnect is a restaurant operating platform that supports staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, reporting, and external integrations. Restaurant branches must continue approved operations during internet or cloud outages and synchronize safely after recovery. The architecture separates business capabilities into independently maintainable services while keeping the initial implementation practical for a small team.
 
+Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first migrations, and sample-data tooling. Domain APIs, persistence, messaging, offline synchronization, and resource-level authorization are planned and are not yet implemented.
+
 The detailed restaurant domains, branch-edge topology, offline failure model, kitchen flow, QR behavior, reporting architecture, and shared identity boundary are defined in [`docs/Architecture/Restaurant-POS-Architecture.md`](../../docs/Architecture/Restaurant-POS-Architecture.md). This document summarizes the supporting project architecture.
 
 ## 2. Architectural principles
@@ -85,7 +87,7 @@ NexaConnect/
 │   └── Deployment/
 ├── docker/
 │   ├── keycloak/
-│   ├── sqlserver/
+│   ├── postgres/
 │   ├── redis/
 │   ├── rabbitmq/
 │   ├── prometheus/
@@ -197,11 +199,11 @@ Consumes integration events and sends email, SMS, push, or in-application notifi
 
 ### 5.10 Data Migration Tool
 
-`NexaConnect.DataMigration` is a .NET console tool that applies ordered PostgreSQL scripts for one service-owned database at a time. Migration scripts are grouped by owning service, recorded with a checksum, and treated as immutable after application.
+`NexaConnect.DataMigration` is a .NET console tool that applies ordered, transactional PostgreSQL scripts for one service-owned database at a time. Migration scripts are checksum-validated, retained in memory for execution, bounded by a 60-second command/lock timeout, and treated as immutable after application.
 
 ### 5.11 Data Generation Tool
 
-`NexaConnect.DataGeneration` is a .NET console tool that loads deterministic, repeatable sample data into one service-owned PostgreSQL database at a time. It is intended for local development, automated testing, demonstrations, and explicitly approved non-production environments.
+`NexaConnect.DataGeneration` is a .NET console tool that loads deterministic, repeatable sample data into one service-owned PostgreSQL database at a time. It executes only in explicitly named Development or test environments. Repository seeds use the migration role; CSV imports use restricted runtime credentials and cannot target reserved operational tables.
 
 ## 6. Internal service layout
 
@@ -284,6 +286,7 @@ Rules:
 - Cross-product organization data is referenced by stable identifiers and consumed through Platform Directory APIs, events, or controlled local projections rather than shared tables.
 - Flexible business attributes use PostgreSQL `jsonb` when a relational core with extensible attributes is appropriate.
 - Each service receives only the database permissions required for its owned database or schema.
+- Local Compose infrastructure ports bind to loopback only; production infrastructure is not exposed directly to public networks.
 
 ### 7.1 Image storage and processing
 

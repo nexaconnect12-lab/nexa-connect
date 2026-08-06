@@ -3,6 +3,7 @@ using Npgsql;
 internal sealed class MigrationHistoryStore(NpgsqlConnection connection)
 {
     private const string HistoryTable = "public.nexaconnect_schema_migrations";
+    private const int CommandTimeoutSeconds = 60;
 
     public async Task<IReadOnlyList<AppliedMigration>> ReadAppliedAsync(
         CancellationToken cancellationToken)
@@ -229,7 +230,7 @@ internal sealed class MigrationHistoryStore(NpgsqlConnection connection)
     }
 
     private NpgsqlCommand CreateCommand(string sql, NpgsqlTransaction? transaction = null) =>
-        new(sql, connection, transaction) { CommandTimeout = 0 };
+        new(sql, connection, transaction) { CommandTimeout = CommandTimeoutSeconds };
 
     private static string LockName(string service) => $"nexaconnect:migrations:{service}";
 
@@ -245,16 +246,17 @@ internal sealed class MigrationExecutor(
     MigrationHistoryStore history,
     NpgsqlConnection connection)
 {
+    private const int CommandTimeoutSeconds = 60;
+
     public async Task ExecuteAsync(
         MigrationStep step,
         string applicationVersion,
         Guid executionId,
         CancellationToken cancellationToken)
     {
-        string scriptPath = step.Direction == MigrationDirection.Up
-            ? step.Migration.UpPath
-            : step.Migration.DownPath;
-        string sql = await File.ReadAllTextAsync(scriptPath, cancellationToken);
+        string sql = step.Direction == MigrationDirection.Up
+            ? step.Migration.UpSql
+            : step.Migration.DownSql;
 
         if (step.Migration.Metadata.Transactional)
         {
@@ -267,12 +269,9 @@ internal sealed class MigrationExecutor(
         }
         else
         {
-            await ExecuteNonTransactionalAsync(
-                step,
-                sql,
-                applicationVersion,
-                executionId,
-                cancellationToken);
+            throw new MigrationException(
+                $"Migration {step.Migration.Version:D4}_{step.Migration.Metadata.Name} " +
+                "is non-transactional. Non-transactional migrations are not supported.");
         }
 
         Console.WriteLine(
@@ -308,22 +307,6 @@ internal sealed class MigrationExecutor(
         }
     }
 
-    private async Task ExecuteNonTransactionalAsync(
-        MigrationStep step,
-        string sql,
-        string applicationVersion,
-        Guid executionId,
-        CancellationToken cancellationToken)
-    {
-        await ExecuteSqlAsync(sql, null, cancellationToken);
-        await UpdateHistoryAsync(
-            step,
-            applicationVersion,
-            executionId,
-            null,
-            cancellationToken);
-    }
-
     private async Task ExecuteSqlAsync(
         string sql,
         NpgsqlTransaction? transaction,
@@ -331,7 +314,7 @@ internal sealed class MigrationExecutor(
     {
         await using var command = new NpgsqlCommand(sql, connection, transaction)
         {
-            CommandTimeout = 0
+            CommandTimeout = CommandTimeoutSeconds
         };
         await command.ExecuteNonQueryAsync(cancellationToken);
     }

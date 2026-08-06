@@ -78,6 +78,11 @@ internal sealed record CsvImportPackage(
         foreach (ImportTableManifest entry in manifest.Tables)
         {
             ValidateIdentifier(entry.Table, "table");
+            if (entry.Table.StartsWith("nexaconnect_", StringComparison.Ordinal))
+            {
+                throw new DataGenerationException(
+                    $"Table {entry.Table} is reserved for NexaConnect operational data and cannot be imported.");
+            }
             if (!tableNames.Add(entry.Table))
             {
                 throw new DataGenerationException($"Duplicate table in import manifest: {entry.Table}");

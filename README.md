@@ -1,6 +1,6 @@
 # NexaConnect
 
-NexaConnect is a restaurant operating platform with staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, offline branch operation, synchronization, and reporting. It is built around ASP.NET Core services, PostgreSQL, messaging, shared OpenID Connect identity, and offline-capable clients.
+NexaConnect is a restaurant operating platform design and implementation scaffold for staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, offline branch operation, synchronization, and reporting. The current implementation provides service and client scaffolding, shared JWT validation, local identity/infrastructure configuration, and schema-first PostgreSQL tooling; domain APIs, persistence, messaging, offline synchronization, and product authorization remain planned work.
 
 ## Local path
 

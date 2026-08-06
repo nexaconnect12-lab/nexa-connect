@@ -85,6 +85,19 @@ public sealed class CsvImportPackageTests
     }
 
     [Fact]
+    public async Task Package_rejects_operational_tables()
+    {
+        using var fixture = new ImportPackageFixture();
+        fixture.WriteCsv("items.csv", "id,name\n1,First\n");
+        fixture.WriteManifest(1, "nexaconnect_schema_migrations");
+
+        DataGenerationException exception = await Assert.ThrowsAsync<DataGenerationException>(
+            () => CsvImportPackage.LoadAsync(fixture.Root, CancellationToken.None));
+
+        Assert.Contains("reserved", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Package_rejects_quotes_inside_unquoted_fields()
     {
         using var fixture = new ImportPackageFixture();
@@ -134,7 +147,7 @@ public sealed class CsvImportPackageTests
         public void WriteCsv(string file, string content) =>
             File.WriteAllText(Path.Combine(Root, file), content);
 
-        public void WriteManifest(int minimumRows)
+        public void WriteManifest(int minimumRows, string table = "items")
         {
             var manifest = new
             {
@@ -146,7 +159,7 @@ public sealed class CsvImportPackageTests
                 {
                     new
                     {
-                        table = "items",
+                        table,
                         file = "items.csv",
                         keyColumns = new[] { "id" },
                         minimumRows

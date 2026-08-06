@@ -2,6 +2,7 @@ using Npgsql;
 
 internal sealed class SeedDatabase(NpgsqlConnection connection)
 {
+    private const int CommandTimeoutSeconds = 60;
     public async Task<int> ReadSchemaVersionAsync(CancellationToken cancellationToken)
     {
         const string sql = """
@@ -54,7 +55,7 @@ internal sealed class SeedDatabase(NpgsqlConnection connection)
         {
             await using var command = new NpgsqlCommand(sql, connection, transaction)
             {
-                CommandTimeout = 0
+                CommandTimeout = CommandTimeoutSeconds
             };
             await command.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);

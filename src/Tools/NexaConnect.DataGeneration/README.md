@@ -31,9 +31,9 @@ dotnet run --project src/Tools/NexaConnect.DataGeneration -- --all --confirm --e
 
 `--plan` (or `--dry-run`) validates and displays the ordered scripts without connecting to PostgreSQL. `--confirm` processes databases in dependency order, acquires a service-specific advisory lock, verifies migration history and the required schema version, and executes each script in its own transaction. Use `--service <name>` instead of `--all` to target one database.
 
-Connection strings come from `NEXACONNECT_<SERVICE>_DB`. Existing process variables take precedence over `--environment-file` values. Use `--seeds-root <path>` to load another root.
+Seed connection strings come from `NEXACONNECT_<SERVICE>_DB` and use the migration role because repository seed scripts are trusted deployment artifacts. CSV import connection strings come from `NEXACONNECT_<SERVICE>_IMPORT_DB` and must use the owning service's restricted runtime role. Existing process variables take precedence over `--environment-file` values. Use `--seeds-root <path>` to load another root.
 
-The runner refuses to execute when `NEXACONNECT_ENVIRONMENT`, `DOTNET_ENVIRONMENT`, or `ASPNETCORE_ENVIRONMENT` is `Production`.
+The runner executes only when `NEXACONNECT_ENVIRONMENT`, `DOTNET_ENVIRONMENT`, or `ASPNETCORE_ENVIRONMENT` is explicitly `Development`, `Test`, or `Testing`. Missing, unknown, and production environment names are rejected before any database connection is opened.
 
 The repository helper plans by default and mutates only with `-Confirm`:
 
@@ -66,7 +66,7 @@ dotnet run --project src/Tools/NexaConnect.DataGeneration -- `
   --plan
 ```
 
-`--plan` validates the complete package without connecting to PostgreSQL. `--confirm` checks the destination schema version, creates typed temporary tables, uses PostgreSQL CSV loading, and upserts all declared tables in one transaction. Any invalid value, missing destination column, constraint failure, or import error rolls back the whole package.
+`--plan` validates the complete package without connecting to PostgreSQL. `--confirm` checks the destination schema version, creates typed temporary tables, uses PostgreSQL CSV loading, and upserts all declared tables in one transaction. Tables prefixed `nexaconnect_` are reserved operational tables and cannot be imported. Any invalid value, missing destination column, constraint failure, or import error rolls back the whole package.
 
 The manifest contract is:
 
