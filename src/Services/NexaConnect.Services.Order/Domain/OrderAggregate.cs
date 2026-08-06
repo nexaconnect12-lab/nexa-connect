@@ -1,0 +1,78 @@
+namespace NexaConnect.Services.Order.Domain;
+
+public enum OrderStatus
+{
+    Draft,
+    Submitted,
+    InventoryReserved,
+    KitchenAccepted,
+    Paid,
+    PaymentFailed,
+    Rejected
+}
+
+public sealed record OrderLine(
+    Guid ProductId,
+    string Name,
+    decimal UnitPrice,
+    int Quantity,
+    string PreparationStation)
+{
+    public decimal Total => UnitPrice * Quantity;
+}
+
+public sealed class OrderAggregate
+{
+    private readonly List<OrderLine> lines;
+
+    private OrderAggregate(
+        Guid id,
+        Guid organizationId,
+        Guid branchId,
+        IReadOnlyCollection<OrderLine> lines,
+        string currency)
+    {
+        Id = id;
+        OrganizationId = organizationId;
+        BranchId = branchId;
+        this.lines = lines.ToList();
+        Currency = currency;
+        Status = OrderStatus.Draft;
+    }
+
+    public Guid Id { get; }
+    public Guid OrganizationId { get; }
+    public Guid BranchId { get; }
+    public string Currency { get; }
+    public OrderStatus Status { get; private set; }
+    public IReadOnlyList<OrderLine> Lines => lines;
+    public decimal TotalAmount => lines.Sum(line => line.Total);
+
+    public static OrderAggregate Create(
+        Guid id,
+        Guid organizationId,
+        Guid branchId,
+        IReadOnlyCollection<OrderLine> lines,
+        string currency)
+    {
+        if (lines.Count == 0) throw new ArgumentException("An order requires at least one line.", nameof(lines));
+        if (lines.Any(line => line.Quantity <= 0 || line.UnitPrice < 0))
+            throw new ArgumentException("Order lines must have a positive quantity and non-negative price.", nameof(lines));
+        if (string.IsNullOrWhiteSpace(currency)) throw new ArgumentException("Currency is required.", nameof(currency));
+        return new OrderAggregate(id, organizationId, branchId, lines, currency);
+    }
+
+    public void Submit() => Transition(OrderStatus.Draft, OrderStatus.Submitted);
+    public void MarkInventoryReserved() => Transition(OrderStatus.Submitted, OrderStatus.InventoryReserved);
+    public void MarkKitchenAccepted() => Transition(OrderStatus.InventoryReserved, OrderStatus.KitchenAccepted);
+    public void MarkPaid() => Transition(OrderStatus.KitchenAccepted, OrderStatus.Paid);
+    public void MarkPaymentFailed() => Transition(OrderStatus.KitchenAccepted, OrderStatus.PaymentFailed);
+    public void Reject() => Status = OrderStatus.Rejected;
+
+    private void Transition(OrderStatus expected, OrderStatus next)
+    {
+        if (Status != expected)
+            throw new InvalidOperationException($"Order {Id} cannot transition from {Status} to {next}.");
+        Status = next;
+    }
+}

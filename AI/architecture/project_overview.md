@@ -4,7 +4,7 @@
 
 NexaConnect is a restaurant operating platform that supports staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, reporting, and external integrations. Restaurant branches must continue approved operations during internet or cloud outages and synchronize safely after recovery. The architecture separates business capabilities into independently maintainable services while keeping the initial implementation practical for a small team.
 
-Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first migrations, sample-data tooling, a PostgreSQL-backed Platform Directory organization-access API, a web BFF session flow, a WPF POS PKCE sign-in and shift open/close client slice, and a POS shift open/close service vertical slice. Remaining cash operations, terminal enrollment, hardware integration, durable offline synchronization, domain APIs, messaging, and broader product resource-level authorization are planned and are not yet implemented.
+Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first migrations, sample-data tooling, a PostgreSQL-backed Platform Directory organization-access API, a web BFF session flow, a WPF POS PKCE sign-in and shift open/close client slice, a POS shift open/close service vertical slice, and an executable Order application workflow that coordinates Catalog/Menu, Inventory, Kitchen, and Payment through bounded-context ports and versioned integration events. Production service adapters, RabbitMQ delivery, durable workflow persistence, durable offline synchronization, and broader product resource-level authorization remain planned.
 
 The detailed restaurant domains, branch-edge topology, offline failure model, kitchen flow, QR behavior, reporting architecture, and shared identity boundary are defined in [`docs/Architecture/Restaurant-POS-Architecture.md`](../../docs/Architecture/Restaurant-POS-Architecture.md). This document summarizes the supporting project architecture.
 
@@ -188,6 +188,8 @@ Owns warehouses, stock balances, stock movements, reservations, adjustments, and
 ### 5.5 Order Service
 
 Owns shopping carts, sales orders, order lines, returns, order status transitions, and order-level business rules.
+
+The first order workflow is implemented in `Application/Workflow/PlaceOrderWorkflow.cs`. It snapshots menu prices, submits the Order aggregate, reserves Inventory, creates a Kitchen ticket, authorizes Payment, and publishes versioned integration events after each accepted step. The workflow depends only on Application-owned ports; service-specific HTTP/database/broker adapters remain Infrastructure work.
 
 ### 5.6 Customer Service
 

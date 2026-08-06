@@ -186,7 +186,7 @@ Synchronization rules:
 
 ## 8. Primary restaurant workflow
 
-The first architectural workflow is:
+The first executable workflow is:
 
 ```text
 Open shift
@@ -202,7 +202,7 @@ Open shift
 → Produce a daily sales and kitchen-time report
 ```
 
-This is a design and test scenario before it becomes an implementation milestone.
+The Catalog/Menu → Order → Inventory → Kitchen → Payment portion is implemented by the Order application workflow. It uses bounded-context ports and publishes `OrderSubmittedV1`, `InventoryReservedV1` or `InventoryReservationRejectedV1`, `KitchenTicketCreatedV1`, and `PaymentCompletedV1` or `PaymentFailedV1`. Unit tests supply deterministic adapters to exercise the contract boundary; PostgreSQL repositories, RabbitMQ transport, transactional outbox delivery, production HTTP adapters, idempotency, and compensation for an inventory or kitchen operation when payment fails remain follow-up work. Event publication is sequential and non-transactional until the outbox is implemented.
 
 ## 9. Kitchen execution rules
 
