@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Collections.ObjectModel;
+using System.Text.Json;
 
 namespace NexaConnect.POS;
 
@@ -27,6 +29,7 @@ public partial class MainWindow : Window
         _localStore = localStore;
         _configuration = configuration;
         _activeShift = _localStore.LoadActiveShift();
+        cashSessionId = _localStore.LoadCashSession()?.CashSessionId;
         MenuList.ItemsSource = menu;
         CartList.ItemsSource = cart;
         _authentication.StatusChanged += OnStatusChanged;
@@ -121,7 +124,7 @@ public partial class MainWindow : Window
     {
         if (_authentication.CurrentToken is null || _activeShift is null) return;
         if (!decimal.TryParse(OpeningCashTextBox.Text, out var amount) || amount < 0) { StatusText.Text = "Enter a valid opening cash amount."; return; }
-        try { SetBusy("Opening cash session…"); var result = await _api.OpenCashSessionAsync(_authentication.CurrentToken, _activeShift.ShiftId, _configuration.StoreId, _configuration.Currency, amount); cashSessionId = result.CashSessionId; StatusText.Text = "Cash session is open."; }
+        try { SetBusy("Opening cash session…"); var result = await _api.OpenCashSessionAsync(_authentication.CurrentToken, _activeShift.ShiftId, _configuration.StoreId, _configuration.Currency, amount); cashSessionId = result.CashSessionId; _localStore.SaveCashSession(new LocalCashSessionState(result.CashSessionId, _activeShift.ShiftId, DateTimeOffset.UtcNow)); StatusText.Text = "Cash session is open."; }
         catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Cash session could not be opened."; }
         finally { UpdateOperationalState(); }
     }
@@ -130,8 +133,23 @@ public partial class MainWindow : Window
     {
         if (_authentication.CurrentToken is null || cashSessionId is null) return;
         if (!decimal.TryParse(ClosingCashTextBox.Text, out var amount) || amount < 0) { StatusText.Text = "Enter a valid closing cash amount."; return; }
-        try { SetBusy("Closing cash session…"); await _api.CloseCashSessionAsync(_authentication.CurrentToken, cashSessionId.Value, amount); cashSessionId = null; StatusText.Text = "Cash session is closed."; }
+        try { SetBusy("Closing cash session…"); await _api.CloseCashSessionAsync(_authentication.CurrentToken, cashSessionId.Value, amount); cashSessionId = null; _localStore.ClearCashSession(); StatusText.Text = "Cash session is closed."; }
         catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Cash session could not be closed."; }
+        finally { UpdateOperationalState(); }
+    }
+
+    private async void RecordMovement_Click(object sender, RoutedEventArgs e)
+    {
+        if (_authentication.CurrentToken is null || cashSessionId is null) return;
+        if (!decimal.TryParse(MovementAmountTextBox.Text, out var amount) || amount <= 0) { StatusText.Text = "Enter a positive movement amount."; return; }
+        var type = (MovementTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "sale";
+        var reason = MovementReasonTextBox.Text.Trim();
+        try { SetBusy("Recording cash movement…"); await _api.RecordCashMovementAsync(_authentication.CurrentToken, cashSessionId.Value, type, amount, reason); StatusText.Text = "Cash movement recorded."; }
+        catch (Exception exception)
+        {
+            outbox.Enqueue("cash-movement", $"api/pos/v1/cash-sessions/{cashSessionId.Value:D}/movements", "POST", JsonSerializer.Serialize(new { movementType = type, amount, reasonCode = reason }));
+            StatusText.Text = exception is PosApiException api ? $"{api.Message} Movement queued for replay." : "Cash movement queued for replay.";
+        }
         finally { UpdateOperationalState(); }
     }
 
@@ -218,9 +236,10 @@ public partial class MainWindow : Window
         OpenShiftButton.IsEnabled = signedIn && !hasActiveShift;
         CloseShiftButton.IsEnabled = signedIn && hasActiveShift;
         LoadMenuButton.IsEnabled = signedIn && hasActiveShift;
-        PlaceOrderButton.IsEnabled = signedIn && hasActiveShift && cart.Count > 0;
+        PlaceOrderButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is not null && cart.Count > 0;
         OpenCashButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is null;
         CloseCashButton.IsEnabled = signedIn && cashSessionId is not null;
+        RecordMovementButton.IsEnabled = signedIn && cashSessionId is not null;
         EnrollTerminalButton.IsEnabled = signedIn;
         ReplayOutboxButton.IsEnabled = signedIn && outbox.Load().Count > 0;
         OutboxStatusText.Text = $"Offline queue: {outbox.Load().Count}";
