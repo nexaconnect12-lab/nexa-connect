@@ -10,7 +10,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $generationProject = Join-Path $repositoryRoot 'src/Tools/NexaConnect.DataGeneration'
-$seedsRoot = Join-Path $generationProject 'Seeds'
+$importPackageRoot = Join-Path $generationProject 'ImportPackages'
 
 if ([string]::IsNullOrWhiteSpace($EnvironmentFile)) {
     $EnvironmentFile = Join-Path $repositoryRoot '.env'
@@ -24,7 +24,7 @@ if ($Service -eq 'All') {
     $dotnetArguments += @('--service', $Service)
 }
 $dotnetArguments += @(
-    '--seeds-root', $seedsRoot,
+    '--import-package', $importPackageRoot,
     '--environment-file', $EnvironmentFile,
     $command
 )

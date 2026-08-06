@@ -7,7 +7,6 @@ internal enum DataGenerationCommand
 internal sealed record DataGenerationOptions(
     string? Service,
     bool AllServices,
-    string SeedsRoot,
     string? EnvironmentFile,
     DataGenerationCommand Command,
     string? ImportPackage)
@@ -22,7 +21,6 @@ internal sealed record DataGenerationOptions(
 
         string? service = null;
         bool allServices = false;
-        string seedsRoot = Path.Combine(AppContext.BaseDirectory, "Seeds");
         string? environmentFile = null;
         string? importPackage = null;
         DataGenerationCommand? command = null;
@@ -36,9 +34,6 @@ internal sealed record DataGenerationOptions(
                     break;
                 case "--all":
                     allServices = true;
-                    break;
-                case "--seeds-root" when index + 1 < args.Length:
-                    seedsRoot = Path.GetFullPath(args[++index]);
                     break;
                 case "--environment-file" when index + 1 < args.Length:
                     environmentFile = Path.GetFullPath(args[++index]);
@@ -68,10 +63,15 @@ internal sealed record DataGenerationOptions(
             throw new ArgumentException("Specify exactly one of --plan or --confirm.");
         }
 
+        if (string.IsNullOrWhiteSpace(importPackage))
+        {
+            throw new ArgumentException(
+                "Specify --import-package <path>; repository SQL sample inserts are no longer supported.");
+        }
+
         return new DataGenerationOptions(
             service,
             allServices,
-            seedsRoot,
             environmentFile,
             command.Value,
             importPackage);

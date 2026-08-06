@@ -56,59 +56,7 @@ internal static class DataGenerationApplication
             }
 
             ValidateEnvironment();
-            if (options.ImportPackage is not null)
-            {
-                return await RunCsvImportAsync(options, cancellation.Token);
-            }
-
-            string[] services = options.AllServices
-                ? ServiceOrder
-                : [options.Service!];
-            var catalogs = new List<SeedCatalog>(services.Length);
-            foreach (string service in services)
-            {
-                catalogs.Add(await SeedCatalog.LoadAsync(
-                    options.SeedsRoot,
-                    service,
-                    cancellation.Token));
-            }
-
-            foreach (SeedCatalog catalog in catalogs)
-            {
-                PrintPlan(catalog);
-            }
-            if (options.Command == DataGenerationCommand.Plan)
-            {
-                return 0;
-            }
-
-            var connectionStrings = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (SeedCatalog catalog in catalogs)
-            {
-                string variable = ConnectionStringEnvironmentVariable(catalog.Service);
-                string? connectionString = Environment.GetEnvironmentVariable(variable);
-                if (string.IsNullOrWhiteSpace(connectionString))
-                {
-                    throw new DataGenerationException(
-                        $"Set {variable} to the owning service's PostgreSQL connection string.");
-                }
-
-                connectionStrings.Add(catalog.Service, connectionString);
-            }
-
-            foreach (SeedCatalog catalog in catalogs)
-            {
-                await GenerateServiceAsync(
-                    catalog,
-                    connectionStrings[catalog.Service],
-                    cancellation.Token);
-            }
-
-            Console.WriteLine(
-                options.AllServices
-                    ? $"Generated sample data for all {catalogs.Count} databases successfully."
-                    : $"Generated {catalogs[0].Service} sample data successfully.");
-            return 0;
+            return await RunCsvImportAsync(options, cancellation.Token);
         }
         catch (OperationCanceledException)
         {
@@ -217,13 +165,13 @@ internal static class DataGenerationApplication
         await using NpgsqlDataSource migrationDataSource = NpgsqlDataSource.Create(migrationConnectionString);
         await using NpgsqlConnection migrationConnection =
             await migrationDataSource.OpenConnectionAsync(cancellationToken);
-        var migrationDatabase = new SeedDatabase(migrationConnection);
+        var migrationDatabase = new ImportDatabaseSession(migrationConnection);
         int schemaVersion = await migrationDatabase.ReadSchemaVersionAsync(cancellationToken);
         await using NpgsqlDataSource dataSource = NpgsqlDataSource.Create(connectionString);
         await using NpgsqlConnection connection =
             await dataSource.OpenConnectionAsync(cancellationToken);
-        var seedDatabase = new SeedDatabase(connection);
-        await seedDatabase.AcquireLockAsync(package.Service, cancellationToken);
+        var importDatabase = new ImportDatabaseSession(connection);
+        await importDatabase.AcquireLockAsync(package.Service, cancellationToken);
         try
         {
             if (package.RequiredSchemaVersion > schemaVersion)
@@ -246,42 +194,9 @@ internal static class DataGenerationApplication
         }
         finally
         {
-            await seedDatabase.ReleaseLockAsync(package.Service, CancellationToken.None);
+            await importDatabase.ReleaseLockAsync(package.Service, CancellationToken.None);
         }
 
-    }
-
-    private static async Task GenerateServiceAsync(
-        SeedCatalog catalog,
-        string connectionString,
-        CancellationToken cancellationToken)
-    {
-        await using NpgsqlDataSource dataSource = NpgsqlDataSource.Create(connectionString);
-        await using NpgsqlConnection connection =
-            await dataSource.OpenConnectionAsync(cancellationToken);
-        var database = new SeedDatabase(connection);
-
-        await database.AcquireLockAsync(catalog.Service, cancellationToken);
-        try
-        {
-            int schemaVersion = await database.ReadSchemaVersionAsync(cancellationToken);
-            foreach (SeedDefinition seed in catalog.Seeds)
-            {
-                if (seed.RequiredSchemaVersion > schemaVersion)
-                {
-                    throw new DataGenerationException(
-                        $"Seed {seed.FileName} requires schema version " +
-                        $"{seed.RequiredSchemaVersion}, but the database is at version {schemaVersion}.");
-                }
-
-                await database.ExecuteAsync(seed, cancellationToken);
-                Console.WriteLine($"Applied {catalog.Service}/{seed.FileName}.");
-            }
-        }
-        finally
-        {
-            await database.ReleaseLockAsync(catalog.Service, CancellationToken.None);
-        }
     }
 
     internal static void ValidateEnvironment()
@@ -298,18 +213,6 @@ internal static class DataGenerationApplication
             throw new DataGenerationException(
                 "Data generation requires NEXACONNECT_ENVIRONMENT, DOTNET_ENVIRONMENT, or " +
                 "ASPNETCORE_ENVIRONMENT to be Development, Test, or Testing.");
-        }
-    }
-
-    private static void PrintPlan(SeedCatalog catalog)
-    {
-        Console.WriteLine($"Service: {catalog.Service}");
-        Console.WriteLine($"Seed scripts: {catalog.Seeds.Count}");
-        foreach (SeedDefinition seed in catalog.Seeds)
-        {
-            Console.WriteLine(
-                $"  {seed.FileName} schema>={seed.RequiredSchemaVersion} " +
-                $"sha256={seed.Checksum[..12]}");
         }
     }
 
@@ -336,10 +239,6 @@ internal static class DataGenerationApplication
     private static void PrintUsage()
     {
         Console.WriteLine("Usage:");
-        Console.WriteLine("  dotnet run -- --all --plan [--seeds-root <path>]");
-        Console.WriteLine("  dotnet run -- --all --confirm [--environment-file <path>]");
-        Console.WriteLine("  dotnet run -- --service <name> --plan [--seeds-root <path>]");
-        Console.WriteLine("  dotnet run -- --service <name> --confirm [--environment-file <path>]");
         Console.WriteLine("  dotnet run -- --service <name> --import-package <path> --plan");
         Console.WriteLine(
             "  dotnet run -- --service <name> --import-package <path> --confirm " +
@@ -349,7 +248,7 @@ internal static class DataGenerationApplication
             "  dotnet run -- --all --import-package <root> --confirm " +
             "[--environment-file <path>]");
         Console.WriteLine();
-        Console.WriteLine("Seeds use NEXACONNECT_<SERVICE>_DB; CSV imports use NEXACONNECT_<SERVICE>_IMPORT_DB.");
+        Console.WriteLine("CSV imports use NEXACONNECT_<SERVICE>_IMPORT_DB and the owning service's migration connection.");
         Console.WriteLine("The runner executes only in Development, Test, or Testing environments.");
     }
 }

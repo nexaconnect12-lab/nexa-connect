@@ -1,6 +1,6 @@
 using Npgsql;
 
-internal sealed class SeedDatabase(NpgsqlConnection connection)
+internal sealed class ImportDatabaseSession(NpgsqlConnection connection)
 {
     private const int CommandTimeoutSeconds = 60;
     public async Task<int> ReadSchemaVersionAsync(CancellationToken cancellationToken)
@@ -45,25 +45,4 @@ internal sealed class SeedDatabase(NpgsqlConnection connection)
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task ExecuteAsync(SeedDefinition seed, CancellationToken cancellationToken)
-    {
-        string sql = await File.ReadAllTextAsync(seed.Path, cancellationToken);
-        await using NpgsqlTransaction transaction =
-            await connection.BeginTransactionAsync(cancellationToken);
-
-        try
-        {
-            await using var command = new NpgsqlCommand(sql, connection, transaction)
-            {
-                CommandTimeout = CommandTimeoutSeconds
-            };
-            await command.ExecuteNonQueryAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(CancellationToken.None);
-            throw;
-        }
-    }
 }

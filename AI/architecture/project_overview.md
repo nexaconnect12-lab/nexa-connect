@@ -211,7 +211,7 @@ Consumes integration events and sends email, SMS, push, or in-application notifi
 
 ### 5.11 Data Generation Tool
 
-`NexaConnect.DataGeneration` is a .NET console tool that loads deterministic, repeatable sample data into one service-owned PostgreSQL database at a time. It executes only in explicitly named Development or test environments. Repository seeds use the migration role; CSV imports use restricted runtime credentials and cannot target reserved operational tables.
+`NexaConnect.DataGeneration` is a .NET console tool that imports deterministic, repeatable CSV sample-data packages into one service-owned PostgreSQL database at a time. It executes only in explicitly named Development or test environments. Repository SQL sample inserts are not supported; CSV imports use restricted runtime credentials and cannot target reserved operational tables.
 
 ## 6. Internal service layout
 
@@ -297,7 +297,7 @@ Rules:
 - Cross-service queries use APIs, read models, or replicated event-driven projections.
 - Distributed database transactions are avoided.
 - Schema migrations are owned and deployed by the corresponding service.
-- Migration and sample-data scripts are grouped by owning service under the operational data tools.
+- Migrations and CSV sample-data packages are grouped by owning service under the operational data tools.
 - Schema-first PostgreSQL scripts are the source of truth; each released version has paired, tested upgrade and downgrade scripts.
 - Application releases declare their required per-service schema versions, and expand-and-contract changes preserve a temporary rollback compatibility window.
 - Cross-product organization data is referenced by stable identifiers and consumed through Platform Directory APIs, events, or controlled local projections rather than shared tables.

@@ -405,17 +405,11 @@ Each application release should include a manifest mapping its application versi
 
 ## 11. Sample-data workflow
 
-Repeatable sample-data scripts are stored under [NexaConnect.DataGeneration](../../src/Tools/NexaConnect.DataGeneration/README.md):
+Repeatable sample-data CSV packages are stored under [NexaConnect.DataGeneration](../../src/Tools/NexaConnect.DataGeneration/README.md). Repository SQL sample inserts are not supported. CSV packages must:
 
-```text
-src/Tools/NexaConnect.DataGeneration/Seeds/<Service>/
-```
-
-Sample data must:
-
-- Use stable identifiers and idempotent `INSERT ... ON CONFLICT` behavior.
+- Use stable identifiers and declared conflict keys.
 - Contain fictional information only.
-- Be deterministic when automated tests depend on it.
+- Be deterministic when automated tests depend on them.
 - Respect service ownership and public application invariants.
 - Require explicit confirmation before changing a database.
 - Never be run against production unless a separately reviewed operational procedure explicitly allows it.

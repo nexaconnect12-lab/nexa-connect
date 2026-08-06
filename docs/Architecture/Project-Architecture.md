@@ -205,7 +205,7 @@ Consumes integration events and sends email, SMS, push, or in-application notifi
 
 ### 5.11 Data Generation Tool
 
-`NexaConnect.DataGeneration` loads deterministic sample data into one service-owned database at a time only when an explicitly named Development or test environment is configured. Repository SQL seeds use migration credentials; external CSV imports require the owning service's restricted runtime credentials and cannot target reserved operational tables.
+`NexaConnect.DataGeneration` imports deterministic CSV sample-data packages into one service-owned database at a time only when an explicitly named Development or test environment is configured. Repository SQL sample inserts are not supported; CSV imports require the owning service's restricted runtime credentials and cannot target reserved operational tables.
 
 ## 6. Internal service layout
 
