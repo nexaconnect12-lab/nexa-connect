@@ -42,6 +42,8 @@ if (usePostgres)
 if (builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
 {
     builder.Services.AddTransient<OutboundTokenHandler>();
+    builder.Services.AddSingleton<IOutboundAccessTokenProvider, KeycloakClientCredentialsTokenProvider>();
+    builder.Services.AddHttpClient("keycloak-token");
     builder.Services.AddHttpClient<IMenuCatalogPort, HttpMenuCatalogPort>(client =>
         client.BaseAddress = new Uri(builder.Configuration["Services:Catalog"] ?? throw new InvalidOperationException("Services:Catalog is required.")))
         .AddHttpMessageHandler<OutboundTokenHandler>();

@@ -6,6 +6,7 @@ namespace NexaConnect.Services.Inventory.Infrastructure;
 public sealed class InMemoryInventoryReservations : IInventoryReservations
 {
     private readonly ConcurrentDictionary<(Guid BranchId, Guid ProductId), decimal> stock = new();
+    private readonly ConcurrentDictionary<Guid, StockReservation> reservations = new();
 
     public IReadOnlyCollection<StockItem> GetStock(Guid branchId) => stock
         .Where(entry => entry.Key.BranchId == branchId)
@@ -36,6 +37,16 @@ public sealed class InMemoryInventoryReservations : IInventoryReservations
             foreach (ReservationLine line in command.Lines)
                 stock[(command.BranchId, line.ProductId)] -= line.Quantity;
         }
-        return new StockReservation(Guid.NewGuid(), command.OrderId, command.BranchId, command.Lines);
+        var reservation = new StockReservation(Guid.NewGuid(), command.OrderId, command.BranchId, command.Lines);
+        reservations[command.OrderId] = reservation;
+        return reservation;
+    }
+
+    public void Release(Guid orderId)
+    {
+        if (!reservations.TryRemove(orderId, out var reservation)) return;
+        lock (stock)
+            foreach (var line in reservation.Lines)
+                stock.AddOrUpdate((reservation.BranchId, line.ProductId), line.Quantity, (_, value) => value + line.Quantity);
     }
 }

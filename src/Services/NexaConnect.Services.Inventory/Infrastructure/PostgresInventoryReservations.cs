@@ -22,6 +22,16 @@ public sealed class PostgresInventoryReservations(NpgsqlDataSource dataSource) :
         {
             using var update = new NpgsqlCommand("UPDATE inventory_stock SET available_quantity=available_quantity-@quantity WHERE branch_id=@branch AND product_id=@product AND available_quantity>=@quantity", connection, transaction); update.Parameters.AddWithValue("quantity", line.Quantity); update.Parameters.AddWithValue("branch", command.BranchId); update.Parameters.AddWithValue("product", line.ProductId); if (update.ExecuteNonQuery() != 1) throw new InvalidOperationException($"Insufficient stock for product {line.ProductId}.");
         }
+        foreach (var line in command.Lines)
+        {
+            using var insert = new NpgsqlCommand("INSERT INTO inventory_reservation_lines (order_id,branch_id,product_id,quantity) VALUES (@order,@branch,@product,@quantity) ON CONFLICT (order_id,product_id) DO UPDATE SET quantity=EXCLUDED.quantity", connection, transaction); insert.Parameters.AddWithValue("order", command.OrderId); insert.Parameters.AddWithValue("branch", command.BranchId); insert.Parameters.AddWithValue("product", line.ProductId); insert.Parameters.AddWithValue("quantity", line.Quantity); insert.ExecuteNonQuery();
+        }
         transaction.Commit(); return new StockReservation(Guid.NewGuid(), command.OrderId, command.BranchId, command.Lines);
+    }
+    public void Release(Guid orderId)
+    {
+        using var command = dataSource.CreateCommand("UPDATE inventory_stock s SET available_quantity = s.available_quantity + r.quantity FROM inventory_reservation_lines r WHERE r.order_id=@order AND r.branch_id=s.branch_id AND r.product_id=s.product_id AND r.released_at_utc IS NULL; UPDATE inventory_reservation_lines SET released_at_utc=now() WHERE order_id=@order AND released_at_utc IS NULL");
+        command.Parameters.AddWithValue("order", orderId);
+        command.ExecuteNonQuery();
     }
 }

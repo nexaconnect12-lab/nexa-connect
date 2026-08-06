@@ -10,4 +10,5 @@ public interface IInventoryReservations
     IReadOnlyCollection<StockItem> GetStock(Guid branchId);
     StockItem SetStock(Guid branchId, Guid productId, decimal quantity);
     StockReservation Reserve(ReserveStock command);
+    void Release(Guid orderId) { }
 }

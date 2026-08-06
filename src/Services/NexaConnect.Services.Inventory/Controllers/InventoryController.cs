@@ -28,6 +28,13 @@ public sealed class InventoryController(IInventoryReservations inventory) : Cont
         catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
         catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
     }
+
+    [HttpPost("reservations/{orderId:guid}/release")]
+    public IActionResult Release(Guid orderId)
+    {
+        inventory.Release(orderId);
+        return NoContent();
+    }
 }
 
 public sealed record SetStockRequest(decimal Quantity);
