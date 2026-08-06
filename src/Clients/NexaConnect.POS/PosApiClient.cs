@@ -7,6 +7,8 @@ using System.Net.Http.Json;
 namespace NexaConnect.POS;
 
 public sealed record PosShift(Guid ShiftId, Guid AuthorizationDecisionId);
+public sealed record PosMenuItem(Guid ProductId, string Name, decimal UnitPrice, string Currency, string PreparationStation, bool Available);
+public sealed record PosOrderResult(Guid OrderId, string Status, decimal TotalAmount, string Currency);
 
 public sealed class PosApiClient : IDisposable
 {
@@ -55,6 +57,30 @@ public sealed class PosApiClient : IDisposable
             token);
         using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, "Shift close failed.");
+    }
+
+    public async Task<IReadOnlyCollection<PosMenuItem>> GetMenuAsync(PosTokenSet token, Guid branchId, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Get, $"api/catalog/v1/branches/{branchId:D}/menu-items", token);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "Menu could not be loaded.");
+        return await response.Content.ReadFromJsonAsync<IReadOnlyCollection<PosMenuItem>>(cancellationToken) ?? [];
+    }
+
+    public async Task<PosOrderResult> PlaceOrderAsync(PosTokenSet token, PosClientConfiguration configuration, IReadOnlyCollection<(Guid ProductId, int Quantity)> lines, CancellationToken cancellationToken = default)
+    {
+        using var client = new HttpClient { BaseAddress = new Uri(configuration.OrderApi) };
+        using var request = CreateRequest(HttpMethod.Post, "api/order/v1/workflows/place", token);
+        request.RequestUri = new Uri(client.BaseAddress!, request.RequestUri!.ToString());
+        request.Content = JsonContent.Create(new
+        {
+            restaurantId = configuration.RestaurantId, organizationId = configuration.OrganizationId, branchId = configuration.BranchId,
+            currency = configuration.Currency, paymentMethod = configuration.PaymentMethod, idempotencyKey = Guid.NewGuid().ToString("N"),
+            lines = lines.Select(line => new { productId = line.ProductId, quantity = line.Quantity }).ToArray()
+        });
+        using var response = await client.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "Order could not be placed.");
+        return await response.Content.ReadFromJsonAsync<PosOrderResult>(cancellationToken) ?? throw new InvalidDataException("The Order API returned an empty response.");
     }
 
     private static HttpRequestMessage CreateRequest(HttpMethod method, string path, PosTokenSet token)

@@ -9,6 +9,11 @@ public sealed record PosClientConfiguration(
     string RedirectUri,
     string Scopes,
     string PosApi,
+    string OrderApi,
+    Guid RestaurantId,
+    Guid OrganizationId,
+    string Currency,
+    string PaymentMethod,
     Guid BranchId,
     Guid StoreId,
     Guid TerminalId)
@@ -26,6 +31,11 @@ public sealed record PosClientConfiguration(
             identity.GetProperty("RedirectUri").GetString() ?? throw new InvalidDataException("Identity:RedirectUri is required."),
             identity.GetProperty("Scopes").GetString() ?? "openid profile email nexaconnect-api",
             services.GetProperty("PosApi").GetString() ?? throw new InvalidDataException("Services:PosApi is required."),
+            services.GetProperty("OrderApi").GetString() ?? throw new InvalidDataException("Services:OrderApi is required."),
+            ParseGuid(root, "Pos", "RestaurantId"),
+            ParseGuid(root, "Pos", "OrganizationId"),
+            root.GetProperty("Pos").GetProperty("Currency").GetString() ?? "USD",
+            root.GetProperty("Pos").GetProperty("PaymentMethod").GetString() ?? "cash",
             ParseGuid(root, "Pos", "BranchId"),
             ParseGuid(root, "Pos", "StoreId"),
             ParseGuid(root, "Pos", "TerminalId"));

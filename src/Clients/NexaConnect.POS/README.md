@@ -1,6 +1,6 @@
 # NexaConnect POS
 
-This project is the Windows WPF POS client scaffold. It opens Keycloak in the system browser, uses Authorization Code + PKCE S256, validates the callback state, redeems the code without a client secret, and stores the resulting token set with the Windows Data Protection API under the current user's profile. The current operational slice signs in, opens and closes a server-side shift through the POS API, and persists the active shift identifier locally so a terminal restart does not lose the session reference.
+This project is the Windows WPF POS client scaffold. It opens Keycloak in the system browser, uses Authorization Code + PKCE S256, validates the callback state, redeems the code without a client secret, and stores the resulting token set with the Windows Data Protection API under the current user's profile. The current operational slice signs in, opens and closes a server-side shift through the POS API, persists the active shift identifier locally, and provides a menu-driven order-entry screen that submits to the authenticated Order workflow endpoint.
 
 Keycloak client: `nexaconnect-pos`
 
@@ -26,7 +26,7 @@ dotnet run --project src/Clients/NexaConnect.POS/NexaConnect.POS.csproj
 
 The development configuration expects Keycloak at `http://localhost:8080/realms/nexa-dev` and the POS API at `http://localhost:5225/`. Do not log callback URIs, authorization codes, access tokens, or refresh tokens.
 
-Configure `Pos:BranchId`, `Pos:StoreId`, and `Pos:TerminalId` in `appsettings.json` (or the deployment configuration) before opening a shift. Cash-session and terminal-enrollment APIs now exist on the POS service. The client includes durable local outbox and hardware-adapter interfaces; production device implementations and operation-specific replay wiring remain deployment work. The local state file is only the active-shift recovery reference.
+Configure `Pos:RestaurantId`, `Pos:OrganizationId`, `Pos:BranchId`, `Pos:StoreId`, `Pos:TerminalId`, `Pos:Currency`, and `Pos:PaymentMethod`, plus `Services:OrderApi`, in `appsettings.json` (or deployment configuration) before opening a shift or placing orders. Cash-session and terminal-enrollment APIs now exist on the POS service. The client includes durable local outbox and hardware-adapter interfaces; production device implementations and operation-specific replay wiring remain deployment work. The local state file is only the active-shift recovery reference.
 
 Sign out from the POS window to clear the current access and refresh tokens from memory and Windows-protected storage. Do not sign out while a shift is active.
 

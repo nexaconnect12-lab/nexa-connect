@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Collections.ObjectModel;
 
 namespace NexaConnect.POS;
 
@@ -9,6 +10,8 @@ public partial class MainWindow : Window
     private readonly LocalPosStore _localStore;
     private readonly PosClientConfiguration _configuration;
     private LocalShiftState? _activeShift;
+    private readonly ObservableCollection<PosMenuItem> menu = new();
+    private readonly ObservableCollection<CartLine> cart = new();
 
     public MainWindow(
         PosAuthentication authentication,
@@ -22,6 +25,8 @@ public partial class MainWindow : Window
         _localStore = localStore;
         _configuration = configuration;
         _activeShift = _localStore.LoadActiveShift();
+        MenuList.ItemsSource = menu;
+        CartList.ItemsSource = cart;
         _authentication.StatusChanged += OnStatusChanged;
         StatusText.Text = "Ready to sign in.";
         UpdateOperationalState();
@@ -102,6 +107,35 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void LoadMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (_authentication.CurrentToken is null) return;
+        try { SetBusy("Loading menu…"); menu.Clear(); foreach (var item in await _api.GetMenuAsync(_authentication.CurrentToken, _configuration.BranchId)) menu.Add(item); StatusText.Text = $"Loaded {menu.Count} menu items."; }
+        catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Menu could not be loaded. Check the Catalog service."; }
+        finally { UpdateOperationalState(); }
+    }
+
+    private void MenuList_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (MenuList.SelectedItem is not PosMenuItem item || !item.Available) return;
+        var existing = cart.FirstOrDefault(line => line.ProductId == item.ProductId);
+        if (existing is null) cart.Add(new CartLine(item)); else existing.Quantity++;
+        CartList.Items.Refresh(); UpdateCartTotal();
+    }
+
+    private void RemoveCart_Click(object sender, RoutedEventArgs e)
+    {
+        if (CartList.SelectedItem is CartLine line) { if (line.Quantity > 1) line.Quantity--; else cart.Remove(line); CartList.Items.Refresh(); UpdateCartTotal(); }
+    }
+
+    private async void PlaceOrder_Click(object sender, RoutedEventArgs e)
+    {
+        if (_authentication.CurrentToken is null || cart.Count == 0) return;
+        try { SetBusy("Placing order…"); var result = await _api.PlaceOrderAsync(_authentication.CurrentToken, _configuration, cart.Select(line => (line.ProductId, line.Quantity)).ToArray()); cart.Clear(); UpdateCartTotal(); StatusText.Text = $"Order {result.OrderId:D} completed with status {result.Status}."; }
+        catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Order could not be placed. The cart was kept for retry."; }
+        finally { UpdateOperationalState(); }
+    }
+
     private void SignOut_Click(object sender, RoutedEventArgs e)
     {
         if (_activeShift is not null)
@@ -147,6 +181,9 @@ public partial class MainWindow : Window
         SignOutButton.IsEnabled = signedIn;
         OpenShiftButton.IsEnabled = signedIn && !hasActiveShift;
         CloseShiftButton.IsEnabled = signedIn && hasActiveShift;
+        LoadMenuButton.IsEnabled = signedIn && hasActiveShift;
+        PlaceOrderButton.IsEnabled = signedIn && hasActiveShift && cart.Count > 0;
+        SessionText.Text = signedIn ? (hasActiveShift ? "Signed in · Shift open" : "Signed in · Open a shift") : "Signed out";
         ActiveShiftText.Text = hasActiveShift
             ? $"Active shift: {_activeShift!.ShiftNumber} ({_activeShift.ShiftId:D})"
             : "No active shift on this terminal.";
@@ -160,5 +197,16 @@ public partial class MainWindow : Window
         _authentication.StatusChanged -= OnStatusChanged;
         _api.Dispose();
         base.OnClosed(e);
+    }
+
+    private void UpdateCartTotal() => TotalText.Text = cart.Sum(line => line.LineTotal).ToString("C2");
+
+    private sealed class CartLine(PosMenuItem item)
+    {
+        public Guid ProductId { get; } = item.ProductId;
+        public string Name { get; } = item.Name;
+        public decimal UnitPrice { get; } = item.UnitPrice;
+        public int Quantity { get; set; } = 1;
+        public decimal LineTotal => UnitPrice * Quantity;
     }
 }
