@@ -11,6 +11,8 @@ public sealed record PlaceOrderCommand(
     IReadOnlyCollection<PlaceOrderLine> Lines,
     string Currency,
     string PaymentMethod,
+    Guid? RestaurantId = null,
+    string? IdempotencyKey = null,
     Guid? OrderId = null,
     Guid? CorrelationId = null);
 
@@ -56,6 +58,16 @@ public interface IOrderRepository
     Task SaveAsync(OrderAggregate order, CancellationToken cancellationToken);
 }
 
+public interface ITransactionalOrderRepository
+{
+    Task SaveWithEventAsync(OrderAggregate order, IIntegrationEvent integrationEvent, CancellationToken cancellationToken);
+}
+
+public interface IIdempotentOrderRepository
+{
+    Task<OrderAggregate?> FindByIdempotencyKeyAsync(Guid restaurantId, string key, CancellationToken cancellationToken);
+}
+
 public interface IIntegrationEventPublisher
 {
     Task PublishAsync(IIntegrationEvent integrationEvent, CancellationToken cancellationToken);
@@ -77,6 +89,14 @@ public sealed class PlaceOrderWorkflow(
         CancellationToken cancellationToken)
     {
         Validate(command);
+        if (orders is IIdempotentOrderRepository && string.IsNullOrWhiteSpace(command.IdempotencyKey))
+            throw new ArgumentException("Idempotency key is required for durable order persistence.");
+        if (orders is IIdempotentOrderRepository idempotent && command.RestaurantId is { } restaurantId && !string.IsNullOrWhiteSpace(command.IdempotencyKey))
+        {
+            var existing = await idempotent.FindByIdempotencyKeyAsync(restaurantId, command.IdempotencyKey, cancellationToken);
+            if (existing is not null)
+                return new PlaceOrderResult(existing.Id, existing.Status, existing.TotalAmount, existing.Currency);
+        }
         Guid orderId = command.OrderId ?? Guid.NewGuid();
         Guid correlationId = command.CorrelationId ?? orderId;
         IReadOnlyDictionary<Guid, CatalogMenuItem> catalog = await menuCatalog.GetItemsAsync(
@@ -92,10 +112,9 @@ public sealed class PlaceOrderWorkflow(
                 throw new InvalidOperationException("Menu prices use a different currency than the order.");
             return new OrderLine(item.ProductId, item.Name, item.UnitPrice, line.Quantity, item.PreparationStation);
         }).ToArray();
-        var order = OrderAggregate.Create(orderId, command.OrganizationId, command.BranchId, orderLines, command.Currency);
+        var order = OrderAggregate.Create(orderId, command.OrganizationId, command.BranchId, orderLines, command.Currency, command.RestaurantId, idempotencyKey: command.IdempotencyKey);
         order.Submit();
-        await orders.SaveAsync(order, cancellationToken);
-        await events.PublishAsync(new OrderSubmittedV1(
+        await PersistAsync(order, new OrderSubmittedV1(
             Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, order.OrganizationId, order.BranchId,
             order.Lines.Select(ToSnapshot).ToArray(), order.TotalAmount, order.Currency), cancellationToken);
 
@@ -103,21 +122,18 @@ public sealed class PlaceOrderWorkflow(
         if (!reservation.Reserved || reservation.ReservationId is null)
         {
             order.Reject();
-            await orders.SaveAsync(order, cancellationToken);
-            await events.PublishAsync(new InventoryReservationRejectedV1(
+            await PersistAsync(order, new InventoryReservationRejectedV1(
                 Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id,
                 reservation.Reason ?? "Inventory could not be reserved."), cancellationToken);
             return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
         }
         order.MarkInventoryReserved();
-        await orders.SaveAsync(order, cancellationToken);
-        await events.PublishAsync(new InventoryReservedV1(
+        await PersistAsync(order, new InventoryReservedV1(
             Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, reservation.ReservationId.Value), cancellationToken);
 
         KitchenTicketResult ticket = await kitchen.CreateTicketAsync(order.Id, order.BranchId, order.Lines, cancellationToken);
         order.MarkKitchenAccepted();
-        await orders.SaveAsync(order, cancellationToken);
-        await events.PublishAsync(new KitchenTicketCreatedV1(
+        await PersistAsync(order, new KitchenTicketCreatedV1(
             Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, ticket.TicketId,
             order.Lines.Select(ToSnapshot).ToArray()), cancellationToken);
 
@@ -126,18 +142,27 @@ public sealed class PlaceOrderWorkflow(
         if (!paid.Completed || paid.PaymentId is null)
         {
             order.MarkPaymentFailed();
-            await orders.SaveAsync(order, cancellationToken);
-            await events.PublishAsync(new PaymentFailedV1(
+            await PersistAsync(order, new PaymentFailedV1(
                 Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id,
                 paid.Reason ?? "Payment was not completed."), cancellationToken);
             return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
         }
         order.MarkPaid();
-        await orders.SaveAsync(order, cancellationToken);
-        await events.PublishAsync(new PaymentCompletedV1(
+        await PersistAsync(order, new PaymentCompletedV1(
             Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, paid.PaymentId.Value,
             order.TotalAmount, order.Currency, command.PaymentMethod), cancellationToken);
         return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
+    }
+
+    private async Task PersistAsync(OrderAggregate order, IIntegrationEvent integrationEvent, CancellationToken cancellationToken)
+    {
+        if (orders is ITransactionalOrderRepository transactional)
+            await transactional.SaveWithEventAsync(order, integrationEvent, cancellationToken);
+        else
+        {
+            await orders.SaveAsync(order, cancellationToken);
+            await events.PublishAsync(integrationEvent, cancellationToken);
+        }
     }
 
     private static OrderLineSnapshot ToSnapshot(OrderLine line) =>
@@ -153,5 +178,7 @@ public sealed class PlaceOrderWorkflow(
             throw new ArgumentException("Order lines must have a product and positive quantity.");
         if (string.IsNullOrWhiteSpace(command.PaymentMethod))
             throw new ArgumentException("Payment method is required.");
+        if (command.IdempotencyKey is { Length: > 200 })
+            throw new ArgumentException("Idempotency key is too long.");
     }
 }
