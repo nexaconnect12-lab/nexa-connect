@@ -30,6 +30,14 @@ Preserve unrelated user changes in the worktree.
 - Do not update another service's database directly; use its versioned API or integration events.
 - Preserve schema-first, independently owned PostgreSQL migrations.
 - Keep business rules out of the gateway and shared infrastructure projects.
+- Keep API endpoints thin: they may validate transport input, read authenticated identity, invoke an Application use case, and map its result, but they must not contain SQL, database commands, or business workflow rules.
+- Keep Domain free of framework dependencies. Put use-case orchestration and external-capability interfaces in Application, and put PostgreSQL, HTTP, identity, messaging, and file-storage implementations in Infrastructure.
+- Route database access through service-owned Infrastructure persistence abstractions. Raw SQL is permitted only when justified inside Infrastructure or migration tooling. Parameterize every runtime data value, never concatenate untrusted input, and compose identifiers only from validated, allow-listed metadata with provider quoting. Security-sensitive persistence behavior requires integration tests.
+- Keep authorization, tenancy, financial limits, and other business decisions explicit in Domain or Application code; do not hide them exclusively in persistence queries.
+- Preserve bounded-context ownership and ubiquitous language. Do not share domain entities, persistence models, or internal DTOs between services.
+- Put invariants in aggregate roots, entities, value objects, or domain services; keep Application responsible for orchestration and use aggregate-oriented repository interfaces rather than generic CRUD repositories.
+- Keep domain events internal and publish separate versioned integration events across bounded contexts through reliable delivery such as the transactional outbox.
+- Apply tactical DDD according to business complexity; do not manufacture aggregates or domain services for simple reference-data CRUD.
 - Treat offline behavior, idempotency, tenancy, authorization, observability, and rollback compatibility as design concerns, not follow-up details.
 - Add an ADR when the implementation establishes or reverses a durable architectural decision.
 - Never invent implemented behavior in documentation. Clearly label planned work as planned.
@@ -39,4 +47,3 @@ Preserve unrelated user changes in the worktree.
 The task is done only when implementation, tests, relevant `docs/` content, component documentation, project overview, and project architecture have all been reviewed and are mutually consistent.
 
 The handoff must enumerate changed documentation and explicitly state whether each canonical overview document was updated or reviewed with no change required.
-

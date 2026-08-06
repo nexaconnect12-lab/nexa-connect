@@ -1,12 +1,16 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using NexaConnect.Services.POS.Application.Shifts;
+using NexaConnect.Services.POS.Infrastructure.Identity;
+
+namespace NexaConnect.Services.POS.Infrastructure.Restaurant;
 
 public sealed class RestaurantHierarchyClient(
     HttpClient client,
     PosWorkloadTokenProvider tokenProvider,
-    IConfiguration configuration)
+    IConfiguration configuration) : IRestaurantScopeReader
 {
-    public async Task<RestaurantAuthorizationScope> GetScopeAsync(
+    public async Task<RestaurantAuthorizationScope> GetAsync(
         Guid branchId,
         CancellationToken cancellationToken)
     {
@@ -19,5 +23,3 @@ public sealed class RestaurantHierarchyClient(
         return scope ?? throw new InvalidOperationException("Restaurant hierarchy response was empty.");
     }
 }
-
-public sealed record RestaurantAuthorizationScope(Guid OrganizationId, Guid RestaurantId, Guid BranchId);

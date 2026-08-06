@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using NexaConnect.Gateway;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -57,7 +58,7 @@ app.UseAuthorization();
 app.MapGet("/bff/login", (string? returnUrl) =>
     Results.Challenge(new AuthenticationProperties
     {
-        RedirectUri = string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl
+        RedirectUri = BffReturnUrl.Normalize(returnUrl)
     }, ["BffOidc"])).AllowAnonymous();
 app.MapGet("/bff/logout", () =>
     Results.SignOut(new AuthenticationProperties { RedirectUri = "/" }, ["BffCookie", "BffOidc"])).AllowAnonymous();

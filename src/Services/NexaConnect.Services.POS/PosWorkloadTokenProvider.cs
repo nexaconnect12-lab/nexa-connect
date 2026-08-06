@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 
+namespace NexaConnect.Services.POS.Infrastructure.Identity;
+
 public sealed class PosWorkloadTokenProvider(
     HttpClient client,
     IConfiguration configuration,

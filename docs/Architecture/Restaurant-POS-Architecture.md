@@ -55,7 +55,9 @@ flowchart LR
 
 Channel-specific request models may differ, but all accepted orders must enter one authoritative order lifecycle. Existing orders keep commercial snapshots of item names, modifiers, prices, discounts, service charges, and taxes. Kiosk is an ordering client and device type, not a separate owner of order business rules.
 
-## 4. Business capability boundaries
+## 4. Business capability boundaries and bounded contexts
+
+The capabilities below are the current NexaConnect bounded-context map. Each owns its ubiquitous language, domain model, persistence, and versioned integration contracts. They do not share domain entities or persistence models. Tactical Domain-Driven Design is applied according to the complexity of each capability, following [ADR-005](Decisions/ADR-005-domain-driven-design.md).
 
 ### 4.1 Restaurant Management
 

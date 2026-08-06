@@ -9,6 +9,10 @@ See [Database Design](Database-Design.md) for the PostgreSQL topology, service-o
 - Standard technical tables may share templates, but every service owns its own physical migration, outbox, inbox, idempotency, and audit records.
 - Keep migrations with the owning service.
 - Treat versioned PostgreSQL migration scripts as the schema source of truth.
+- Route runtime database access through the owning service's Infrastructure layer and a narrow persistence abstraction; controllers, API endpoints, Domain code, and Application use cases must not issue database commands directly.
+- Keep raw SQL inside Infrastructure or migration tooling. Parameterize every runtime data value and never concatenate untrusted input. When tooling must compose an identifier, accept it only from validated, allow-listed metadata and quote it with the database provider. Use least-privilege runtime credentials and make transaction boundaries explicit.
+- Test security-sensitive persistence behavior against PostgreSQL, including tenant and resource-scope isolation, authorization filters, concurrency behavior, and rollback on failure.
+- Keep business authorization and tenant rules explicit in Domain or Application behavior. SQL constraints and filters provide defense in depth but must not be the only undocumented expression of a business decision.
 - Treat documentation tables as summaries; migration SQL is authoritative for physical names, constraints, and indexes.
 - Provide paired, tested upgrade and downgrade scripts for every released schema version.
 - Classify downgrade paths as safe, transformative, destructive, or unsupported.

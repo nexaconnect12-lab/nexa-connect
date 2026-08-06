@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
+using NexaConnect.Gateway;
 
 namespace NexaConnect.IntegrationTests;
 
@@ -23,6 +24,17 @@ public sealed class GatewayAuthenticationTests : IClassFixture<GatewayAuthentica
     public GatewayAuthenticationTests(GatewayAuthenticationFactory factory)
     {
         _factory = factory;
+    }
+
+    [Theory]
+    [InlineData(null, "/")]
+    [InlineData("", "/")]
+    [InlineData("https://evil.example/", "/")]
+    [InlineData("//evil.example/", "/")]
+    [InlineData("/bff/pos", "/bff/pos")]
+    public void Bff_return_url_is_local_only(string? candidate, string expected)
+    {
+        Assert.Equal(expected, BffReturnUrl.Normalize(candidate));
     }
 
     [Fact]

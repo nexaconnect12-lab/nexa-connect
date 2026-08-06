@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\BuildingBlocks\NexaConnect.Infrastructure\NexaConnect.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.POS\NexaConnect.Services.POS.csproj" />
     <ProjectReference Include="..\..\..\src\Tools\NexaConnect.DataGeneration\NexaConnect.DataGeneration.csproj" />
     <ProjectReference Include="..\..\..\src\Tools\NexaConnect.DataMigration\NexaConnect.DataMigration.csproj" />
   </ItemGroup>

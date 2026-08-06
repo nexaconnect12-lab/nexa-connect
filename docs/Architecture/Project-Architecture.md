@@ -4,7 +4,7 @@
 
 NexaConnect is a restaurant operating platform that supports staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, reporting, and external integrations. Restaurant branches must continue approved operations during internet or cloud outages and synchronize safely after recovery. The architecture separates business capabilities into independently maintainable services while keeping the initial implementation practical for a small team.
 
-Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first migrations, sample-data tooling, and a PostgreSQL-backed Platform Directory organization-access API. Remaining domain APIs, messaging, offline synchronization, and product resource-level authorization are planned and are not yet implemented.
+Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first migrations, sample-data tooling, a PostgreSQL-backed Platform Directory organization-access API, a web BFF session flow, and a POS shift open/close vertical slice. Remaining domain APIs, messaging, offline synchronization, and broader product resource-level authorization are planned and are not yet implemented.
 
 The detailed restaurant domains, branch-edge topology, offline failure model, kitchen flow, QR behavior, reporting architecture, and shared identity boundary are defined in [Restaurant POS Architecture](Restaurant-POS-Architecture.md). This document defines the supporting technical architecture.
 
@@ -21,6 +21,7 @@ The detailed restaurant domains, branch-edge topology, offline failure model, ki
 9. **Branch resilience** — restaurant ordering, kitchen routing, cash payment, and receipt printing must not depend on continuous WAN connectivity.
 10. **One order lifecycle** — POS, waiter, kiosk, and customer QR channels converge into the same Ordering capability.
 11. **Reporting projections** — reporting consumes business events and never becomes a cross-service transactional query layer.
+12. **Domain-driven design** — bounded contexts own their language, models, persistence, and integration contracts; tactical patterns are applied where business complexity justifies them.
 
 ## 3. High-level architecture
 
@@ -208,7 +209,7 @@ Consumes integration events and sends email, SMS, push, or in-application notifi
 
 ## 6. Internal service layout
 
-Each service should follow a consistent structure. A Clean Architecture-inspired layout is recommended without excessive abstraction:
+Each new or materially changed business service follows Domain-Driven Design within a Clean Architecture-inspired layout, as accepted by [ADR-005](Decisions/ADR-005-domain-driven-design.md). A service normally represents one bounded context; when a deployable contains more than one module, each module keeps an explicit model and ownership boundary. Tactical DDD is applied according to business complexity rather than used to wrap simple CRUD in unnecessary abstractions. The restaurant bounded-context map is maintained in [Restaurant POS Architecture](Restaurant-POS-Architecture.md#4-business-capability-boundaries-and-bounded-contexts).
 
 ```text
 NexaConnect.Services.Order/
@@ -221,6 +222,10 @@ NexaConnect.Services.Order/
 ```
 
 For the first implementation, these can be folders inside one project. Split them into separate `.csproj` files only when compile-time boundaries provide clear value.
+
+The required dependency direction is API to Application to Domain. Infrastructure implements interfaces owned by Application or Domain and is composed at the application boundary. Domain must not depend on ASP.NET Core, PostgreSQL providers, HTTP clients, message brokers, or other frameworks.
+
+Bounded contexts do not share domain entities, persistence models, or internal DTOs. Aggregates enforce invariants and define transactional consistency boundaries. Repository interfaces express aggregate needs and do not expose generic table-level CRUD. Domain events remain internal; cross-context communication uses separately versioned integration events and an anti-corruption layer where external concepts differ from the local model.
 
 ### Domain
 
@@ -240,6 +245,7 @@ For the first implementation, these can be folders inside one project. Split the
 ### Infrastructure
 
 - Entity Framework Core
+- Service-owned persistence implementations and parameterized raw SQL when justified
 - Database migrations
 - Message broker integration
 - External provider clients
@@ -252,6 +258,10 @@ For the first implementation, these can be folders inside one project. Split the
 - Request/response mapping
 - OpenAPI configuration
 - Health checks
+
+API endpoints must remain thin and must not issue SQL or contain business workflow rules. Application use cases coordinate work through narrow interfaces. Database operations belong in Infrastructure. Raw SQL must parameterize every runtime data value and must never concatenate untrusted input; dynamic identifiers are limited to validated, allow-listed metadata and use provider quoting. PostgreSQL integration tests cover security-sensitive filtering and transaction behavior. Authorization, tenant boundaries, financial limits, and other business decisions remain explicit in Domain or Application behavior, with database constraints and queries used as defense in depth.
+
+This is a mandatory direction for new and materially changed code, not a claim that every existing service already conforms. `NexaConnect.Services.Restaurant/Controllers/AuthorizationScopeController.cs` still issues database commands from an API controller. The Platform Directory and Authorization persistence stores also predate the Application-interface and Infrastructure-implementation separation. The POS shift controller has been moved to an Application and Infrastructure flow; these remaining migration gaps must not be used as templates for new work.
 
 ## 7. Data architecture
 
@@ -287,6 +297,8 @@ Rules:
 - Application releases declare required per-service schema versions and prefer expand-and-contract compatibility for rollback.
 - Cross-product organization data is referenced by stable identifiers and consumed through the owning Platform Directory API, events, or local projections; it is not joined through shared tables.
 - Database credentials are issued only to the owning runtime and migration process; clients and other services must use the owning API or integration events.
+- Runtime database operations pass through the owning service's Infrastructure persistence implementations. API, Application, and Domain code do not issue database commands directly.
+- Raw SQL is limited to Infrastructure and schema migration tooling, parameterizes every runtime data value, never concatenates untrusted input, and runs with least-privilege credentials and explicit transaction boundaries. Dynamic identifiers come only from validated, allow-listed metadata and use provider quoting.
 - Local Compose infrastructure ports bind to loopback only; production infrastructure is not directly exposed to public networks.
 
 ## 8. Communication patterns
@@ -449,6 +461,8 @@ Enforce boundaries such as:
 - Domain must not depend on Infrastructure.
 - Services must not reference another service's implementation assembly.
 - API layers must not contain domain persistence logic.
+- Bounded contexts must not share domain entities or persistence models.
+- Domain events must remain separate from versioned integration events.
 
 ### End-to-end tests
 

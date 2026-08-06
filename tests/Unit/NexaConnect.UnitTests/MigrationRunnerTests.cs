@@ -6,23 +6,23 @@ public sealed class MigrationRunnerTests
     public async Task Repository_catalog_loads_every_owned_service()
     {
         string scriptsRoot = Path.Combine(AppContext.BaseDirectory, "Scripts");
-        string[] services =
-        [
-            "PlatformDirectory",
-            "Authorization",
-            "Restaurant",
-            "Catalog",
-            "Inventory",
-            "Order",
-            "Kitchen",
-            "Customer",
-            "Payment",
-            "POS",
-            "Media",
-            "Reporting"
-        ];
+        var services = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["PlatformDirectory"] = 1,
+            ["Authorization"] = 1,
+            ["Restaurant"] = 1,
+            ["Catalog"] = 1,
+            ["Inventory"] = 1,
+            ["Order"] = 1,
+            ["Kitchen"] = 1,
+            ["Customer"] = 1,
+            ["Payment"] = 1,
+            ["POS"] = 3,
+            ["Media"] = 1,
+            ["Reporting"] = 1
+        };
 
-        foreach (string service in services)
+        foreach ((string service, int expectedVersion) in services)
         {
             MigrationCatalog catalog = await MigrationCatalog.LoadAsync(
                 scriptsRoot,
@@ -30,7 +30,7 @@ public sealed class MigrationRunnerTests
                 CancellationToken.None);
 
             Assert.Equal(service, catalog.Service);
-            Assert.Equal(1, catalog.LatestVersion);
+            Assert.Equal(expectedVersion, catalog.LatestVersion);
         }
     }
 
