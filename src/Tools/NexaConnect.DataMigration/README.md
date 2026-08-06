@@ -6,7 +6,7 @@ The agreed migration contract is defined by [ADR-001](../../../docs/Architecture
 
 ## Implementation status
 
-The version-1 schema baseline has been authored for 11 independently owned databases. It currently contains 83 tables and 99 explicit indexes across:
+The version-1 schema baseline has been authored for 12 independently owned databases, including the Authorization database.
 
 - `PlatformDirectory`
 - `Restaurant`

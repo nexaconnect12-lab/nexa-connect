@@ -14,6 +14,7 @@ required_variables=(
     POS_DB_PASSWORD
     MEDIA_DB_PASSWORD
     REPORTING_DB_PASSWORD
+    AUTHORIZATION_DB_PASSWORD
 )
 
 for variable_name in "${required_variables[@]}"; do
@@ -97,5 +98,6 @@ provision_service_database "NexaConnect_Payment" "nexaconnect_payment_app" "$PAY
 provision_service_database "NexaConnect_POS" "nexaconnect_pos_app" "$POS_DB_PASSWORD"
 provision_service_database "NexaConnect_Media" "nexaconnect_media_app" "$MEDIA_DB_PASSWORD"
 provision_service_database "NexaConnect_Reporting" "nexaconnect_reporting_app" "$REPORTING_DB_PASSWORD"
+provision_service_database "NexaConnect_Authorization" "nexaconnect_authorization_app" "$AUTHORIZATION_DB_PASSWORD"
 
 echo "NexaConnect PostgreSQL databases and runtime roles provisioned."

@@ -169,6 +169,7 @@ internal static class DataGenerationApplication
         }
 
         var connectionStrings = new Dictionary<string, string>(StringComparer.Ordinal);
+        var migrationConnectionStrings = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (CsvImportPackage package in packages)
         {
             string variable = ImportConnectionStringEnvironmentVariable(package.Service);
@@ -180,6 +181,15 @@ internal static class DataGenerationApplication
             }
 
             connectionStrings.Add(package.Service, connectionString);
+            string migrationVariable = ConnectionStringEnvironmentVariable(package.Service);
+            string? migrationConnectionString = Environment.GetEnvironmentVariable(migrationVariable);
+            if (string.IsNullOrWhiteSpace(migrationConnectionString))
+            {
+                throw new DataGenerationException(
+                    $"Set {migrationVariable} to the owning service's migration connection string.");
+            }
+
+            migrationConnectionStrings.Add(package.Service, migrationConnectionString);
         }
 
         foreach (CsvImportPackage package in packages)
@@ -187,6 +197,7 @@ internal static class DataGenerationApplication
             await ImportCsvPackageAsync(
                 package,
                 connectionStrings[package.Service],
+                migrationConnectionStrings[package.Service],
                 cancellationToken);
         }
 
@@ -200,8 +211,14 @@ internal static class DataGenerationApplication
     private static async Task ImportCsvPackageAsync(
         CsvImportPackage package,
         string connectionString,
+        string migrationConnectionString,
         CancellationToken cancellationToken)
     {
+        await using NpgsqlDataSource migrationDataSource = NpgsqlDataSource.Create(migrationConnectionString);
+        await using NpgsqlConnection migrationConnection =
+            await migrationDataSource.OpenConnectionAsync(cancellationToken);
+        var migrationDatabase = new SeedDatabase(migrationConnection);
+        int schemaVersion = await migrationDatabase.ReadSchemaVersionAsync(cancellationToken);
         await using NpgsqlDataSource dataSource = NpgsqlDataSource.Create(connectionString);
         await using NpgsqlConnection connection =
             await dataSource.OpenConnectionAsync(cancellationToken);
@@ -209,7 +226,6 @@ internal static class DataGenerationApplication
         await seedDatabase.AcquireLockAsync(package.Service, cancellationToken);
         try
         {
-            int schemaVersion = await seedDatabase.ReadSchemaVersionAsync(cancellationToken);
             if (package.RequiredSchemaVersion > schemaVersion)
             {
                 throw new DataGenerationException(

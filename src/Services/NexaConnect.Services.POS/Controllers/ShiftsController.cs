@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using NexaConnect.Infrastructure.Authentication;
 using Npgsql;
@@ -12,14 +13,21 @@ public sealed class ShiftsController(
     NpgsqlDataSource dataSource,
     RestaurantHierarchyClient hierarchy,
     IHttpClientFactory clients,
-    IConfiguration configuration) : ControllerBase
+    IConfiguration configuration,
+    ILogger<ShiftsController> logger,
+    IWebHostEnvironment environment) : ControllerBase
 {
     [HttpPost("{shiftId:guid}/close")]
     public async Task<IActionResult> CloseAsync(Guid shiftId, CancellationToken cancellationToken)
     {
-        string? subject = User.FindFirst(NexaAuthenticationDefaults.SubjectClaim)?.Value;
+        string? subject = User.FindFirst(NexaAuthenticationDefaults.SubjectClaim)?.Value
+            ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         string token = Request.Headers.Authorization.ToString().Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
-        if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(token)) return Forbid();
+        if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(token))
+        {
+            logger.LogWarning("POS shift open denied: missing authenticated subject.");
+            return Deny("missing-subject");
+        }
         await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
         const string scopeSql = """
             SELECT store.branch_id, store.restaurant_id
@@ -43,21 +51,30 @@ public sealed class ShiftsController(
         response.EnsureSuccessStatusCode();
         AuthorizationDecisionResponse decision = (await response.Content.ReadFromJsonAsync<AuthorizationDecisionResponse>(cancellationToken))!;
         if (!decision.Granted) return Forbid();
-        const string closeSql = "UPDATE shifts SET status = 'closed', closed_at_utc = now(), closed_by = $2, updated_at_utc = now(), concurrency_version = concurrency_version + 1 WHERE id = $1 AND status = 'open';";
+        const string closeSql = "UPDATE shifts SET status = 'closed', closed_at_utc = now(), closed_by = $2, close_authorization_decision_id = $3, updated_at_utc = now(), concurrency_version = concurrency_version + 1 WHERE id = $1 AND status = 'open';";
         await using var close = new NpgsqlCommand(closeSql, connection);
         close.Parameters.AddWithValue(shiftId);
         close.Parameters.AddWithValue(subject);
+        close.Parameters.AddWithValue(decision.DecisionId);
         return await close.ExecuteNonQueryAsync(cancellationToken) == 1 ? NoContent() : Conflict();
     }
 
     [HttpPost("open")]
-    public async Task<ActionResult<OpenShiftResponse>> OpenAsync(
+    public async Task<IActionResult> OpenAsync(
         OpenShiftRequest request, CancellationToken cancellationToken)
     {
-        string? subject = User.FindFirst(NexaAuthenticationDefaults.SubjectClaim)?.Value;
+        string? subject = User.FindFirst(NexaAuthenticationDefaults.SubjectClaim)?.Value
+            ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         string token = Request.Headers.Authorization.ToString().Replace("Bearer ", "", StringComparison.OrdinalIgnoreCase);
-        if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(token)) return Forbid();
+        if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(token))
+        {
+            logger.LogWarning("POS shift open denied: missing authenticated subject.");
+            return Deny("missing-subject");
+        }
         RestaurantAuthorizationScope scope = await hierarchy.GetScopeAsync(request.BranchId, cancellationToken);
+        logger.LogInformation(
+            "POS shift open scope resolved for subject {Subject}: organization {OrganizationId}, restaurant {RestaurantId}, branch {BranchId}, store {StoreId}, terminal {TerminalId}.",
+            subject, scope.OrganizationId, scope.RestaurantId, scope.BranchId, request.StoreId, request.TerminalId);
         await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
         const string terminalSql = """
             SELECT EXISTS
@@ -75,7 +92,15 @@ public sealed class ShiftsController(
             terminal.Parameters.AddWithValue(scope.RestaurantId);
             terminal.Parameters.AddWithValue(scope.BranchId);
             terminal.Parameters.AddWithValue(request.TerminalId);
-            if (!(bool)(await terminal.ExecuteScalarAsync(cancellationToken) ?? false)) return Forbid();
+            bool terminalMatches = (bool)(await terminal.ExecuteScalarAsync(cancellationToken) ?? false);
+            logger.LogInformation(
+                "POS shift open store-terminal validation for store {StoreId}, terminal {TerminalId}: {TerminalMatches}.",
+                request.StoreId, request.TerminalId, terminalMatches);
+            if (!terminalMatches)
+            {
+                logger.LogWarning("POS shift open denied: invalid store or terminal scope for subject {Subject}, branch {BranchId}, store {StoreId}, terminal {TerminalId}.", subject, scope.BranchId, request.StoreId, request.TerminalId);
+                return Deny("store-terminal-scope");
+            }
         }
         var authorization = clients.CreateClient();
         authorization.BaseAddress = new Uri(configuration["Services:Authorization"]!);
@@ -84,14 +109,38 @@ public sealed class ShiftsController(
             new { scope.OrganizationId, scope.RestaurantId, scope.BranchId, Permission = "pos.shift.open", Amount = (decimal?)null, Currency = (string?)null }, cancellationToken);
         decisionResponse.EnsureSuccessStatusCode();
         AuthorizationDecisionResponse decision = (await decisionResponse.Content.ReadFromJsonAsync<AuthorizationDecisionResponse>(cancellationToken))!;
-        if (!decision.Granted) return Forbid();
+        if (!decision.Granted)
+        {
+            logger.LogWarning("POS shift open denied by Authorization for subject {Subject}, branch {BranchId}, decision {DecisionId}.", subject, scope.BranchId, decision.DecisionId);
+            return Deny("authorization-decision");
+        }
         Guid shiftId = Guid.NewGuid();
         const string sql = """INSERT INTO shifts (id, store_id, terminal_id, employee_identity_subject_id, shift_number, status, opened_at_utc, opened_by, created_at_utc, updated_at_utc, authorization_decision_id) VALUES ($1,$2,$3,$4,$5,'open',now(),$4,now(),now(),$6);""";
         await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue(shiftId); command.Parameters.AddWithValue(request.StoreId); command.Parameters.AddWithValue(request.TerminalId); command.Parameters.AddWithValue(subject); command.Parameters.AddWithValue(request.ShiftNumber); command.Parameters.AddWithValue(decision.DecisionId);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        try
+        {
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+        catch (PostgresException exception) when (
+            exception.SqlState == PostgresErrorCodes.UniqueViolation &&
+            exception.ConstraintName == "uq_shifts_terminal_open")
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Terminal already has an open shift",
+                Status = StatusCodes.Status409Conflict
+            });
+        }
         return Ok(new OpenShiftResponse(shiftId, decision.DecisionId));
     }
+
+    private IActionResult Deny(string stage) => environment.IsDevelopment()
+        ? Problem(
+            statusCode: StatusCodes.Status403Forbidden,
+            title: "POS shift authorization denied",
+            extensions: new Dictionary<string, object?> { ["stage"] = stage })
+        : Forbid();
 }
 
 public sealed record OpenShiftRequest(Guid BranchId, Guid StoreId, Guid TerminalId, string ShiftNumber);
