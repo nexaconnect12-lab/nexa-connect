@@ -1,6 +1,8 @@
 using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.Payment.Application.Intents;
 using NexaConnect.Services.Payment.Infrastructure;
+using NexaConnect.Services.Payment.Infrastructure.Providers;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,7 +12,22 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
-builder.Services.AddSingleton<IPaymentIntents, InMemoryPaymentIntents>();
+builder.Services.Configure<PaymentProviderOptions>(builder.Configuration.GetSection("PaymentProvider"));
+builder.Services.AddHttpClient<IPaymentProvider, HttpPaymentProvider>((services, client) =>
+{
+    PaymentProviderOptions options = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentProviderOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl);
+});
+if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
+{
+    builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Payment")
+        ?? throw new InvalidOperationException("ConnectionStrings:Payment is required.")));
+    builder.Services.AddSingleton<IPaymentIntents, PostgresPaymentIntents>();
+}
+else
+{
+    builder.Services.AddSingleton<IPaymentIntents, InMemoryPaymentIntents>();
+}
 
 var app = builder.Build();
 

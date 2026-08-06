@@ -1,4 +1,6 @@
 using NexaConnect.Contracts.IntegrationEvents;
+using NexaConnect.Infrastructure.Messaging;
+using NexaConnect.Services.Order.Infrastructure.Messaging;
 using NexaConnect.Services.Order.Application.Workflow;
 using NexaConnect.Services.Order.Domain;
 
@@ -6,6 +8,19 @@ namespace NexaConnect.UnitTests;
 
 public sealed class RestaurantWorkflowTests
 {
+    [Fact]
+    public async Task Postgres_event_publisher_writes_versioned_event_to_outbox_port()
+    {
+        var store = new RecordingOutboxStore();
+        var publisher = new PostgresIntegrationEventPublisher(store);
+        Guid orderId = Guid.NewGuid();
+        await publisher.PublishAsync(new PaymentCompletedV1(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow,
+            orderId, Guid.NewGuid(), 12m, "USD", "cash"), CancellationToken.None);
+
+        Assert.Equal("PaymentCompletedV1", store.Message!.EventType);
+        Assert.Equal(1, store.Message.ContractVersion);
+        Assert.Equal(orderId, store.Message.AggregateId);
+    }
     [Fact]
     public async Task PlaceOrder_runs_catalog_inventory_kitchen_payment_and_publishes_versioned_events()
     {
@@ -149,5 +164,21 @@ public sealed class RestaurantWorkflowTests
             Events.Add(integrationEvent);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class RecordingOutboxStore : IOutboxStore
+    {
+        public OutboxMessage? Message { get; private set; }
+
+        public Task EnqueueAsync(OutboxMessage message, CancellationToken cancellationToken)
+        {
+            Message = message;
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<OutboxMessage>> ClaimBatchAsync(int batchSize, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<OutboxMessage>>([]);
+        public Task MarkPublishedAsync(Guid messageId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task MarkFailedAsync(Guid messageId, string category, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

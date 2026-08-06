@@ -1,6 +1,7 @@
 using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.Customer.Application.Customers;
 using NexaConnect.Services.Customer.Infrastructure;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,7 +11,16 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
-builder.Services.AddSingleton<ICustomers, InMemoryCustomers>();
+if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
+{
+    builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Customer")
+        ?? throw new InvalidOperationException("ConnectionStrings:Customer is required.")));
+    builder.Services.AddSingleton<ICustomers, PostgresCustomers>();
+}
+else
+{
+    builder.Services.AddSingleton<ICustomers, InMemoryCustomers>();
+}
 
 var app = builder.Build();
 

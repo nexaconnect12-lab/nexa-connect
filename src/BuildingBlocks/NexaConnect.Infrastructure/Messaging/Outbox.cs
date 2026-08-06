@@ -1,0 +1,183 @@
+using System.Text;
+using System.Text.Json;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Npgsql;
+using RabbitMQ.Client;
+
+namespace NexaConnect.Infrastructure.Messaging;
+
+public sealed record OutboxMessage(
+    Guid Id,
+    string EventType,
+    int ContractVersion,
+    string AggregateType,
+    Guid AggregateId,
+    string Payload,
+    string? CorrelationId,
+    DateTimeOffset OccurredAtUtc);
+
+public interface IOutboxStore
+{
+    Task EnqueueAsync(OutboxMessage message, CancellationToken cancellationToken);
+    Task<IReadOnlyList<OutboxMessage>> ClaimBatchAsync(int batchSize, CancellationToken cancellationToken);
+    Task MarkPublishedAsync(Guid messageId, CancellationToken cancellationToken);
+    Task MarkFailedAsync(Guid messageId, string category, CancellationToken cancellationToken);
+}
+
+public sealed class PostgresOutboxStore(NpgsqlDataSource dataSource) : IOutboxStore
+{
+    public async Task EnqueueAsync(OutboxMessage message, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            INSERT INTO outbox_messages
+                (id, event_type, contract_version, aggregate_type, aggregate_id, payload, correlation_id, occurred_at_utc)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
+            ON CONFLICT (id) DO NOTHING;
+            """;
+        await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue(message.Id);
+        command.Parameters.AddWithValue(message.EventType);
+        command.Parameters.AddWithValue(message.ContractVersion);
+        command.Parameters.AddWithValue(message.AggregateType);
+        command.Parameters.AddWithValue(message.AggregateId);
+        command.Parameters.AddWithValue(message.Payload);
+        command.Parameters.AddWithValue((object?)message.CorrelationId ?? DBNull.Value);
+        command.Parameters.AddWithValue(message.OccurredAtUtc);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<OutboxMessage>> ClaimBatchAsync(int batchSize, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            WITH claimed AS
+            (
+                SELECT id
+                FROM outbox_messages
+                WHERE published_at_utc IS NULL
+                  AND (next_attempt_at_utc IS NULL OR next_attempt_at_utc <= now())
+                ORDER BY occurred_at_utc, id
+                FOR UPDATE SKIP LOCKED
+                LIMIT $1
+            )
+            UPDATE outbox_messages message
+            SET retry_count = message.retry_count + 1,
+                next_attempt_at_utc = now() + interval '30 seconds'
+            FROM claimed
+            WHERE message.id = claimed.id
+            RETURNING message.id, message.event_type, message.contract_version, message.aggregate_type,
+                      message.aggregate_id, message.payload::text, message.correlation_id, message.occurred_at_utc;
+            """;
+        await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue(batchSize);
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+        var messages = new List<OutboxMessage>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            messages.Add(new OutboxMessage(reader.GetGuid(0), reader.GetString(1), reader.GetInt32(2), reader.GetString(3),
+                reader.GetGuid(4), reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetString(6), reader.GetFieldValue<DateTimeOffset>(7)));
+        }
+        return messages;
+    }
+
+    public Task MarkPublishedAsync(Guid messageId, CancellationToken cancellationToken) => ExecuteAsync(
+        "UPDATE outbox_messages SET published_at_utc = now(), next_attempt_at_utc = NULL, last_error_category = NULL WHERE id = $1;",
+        messageId, null, cancellationToken);
+
+    public Task MarkFailedAsync(Guid messageId, string category, CancellationToken cancellationToken) => ExecuteAsync(
+        "UPDATE outbox_messages SET last_error_category = $2 WHERE id = $1;", messageId, category, cancellationToken);
+
+    private async Task ExecuteAsync(string sql, Guid messageId, string? category, CancellationToken cancellationToken)
+    {
+        await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue(messageId);
+        if (category is not null) command.Parameters.AddWithValue(category);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+}
+
+public interface IOutboxTransport
+{
+    Task PublishAsync(OutboxMessage message, CancellationToken cancellationToken);
+}
+
+public sealed class RabbitMqOutboxTransport(IConnection connection, IOptions<OutboxOptions> options) : IOutboxTransport
+{
+    public async Task PublishAsync(OutboxMessage message, CancellationToken cancellationToken)
+    {
+        await using IChannel channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
+        await channel.ExchangeDeclareAsync(options.Value.Exchange, ExchangeType.Topic, durable: true, cancellationToken: cancellationToken);
+        var properties = new BasicProperties { Persistent = true, ContentType = "application/json", Type = message.EventType };
+        byte[] body = Encoding.UTF8.GetBytes(message.Payload);
+        await channel.BasicPublishAsync(options.Value.Exchange, message.EventType, false, properties, body, cancellationToken);
+    }
+}
+
+public sealed class OutboxDispatcher(
+    IOutboxStore store,
+    IOutboxTransport transport,
+    IOptions<OutboxOptions> options,
+    ILogger<OutboxDispatcher> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            IReadOnlyList<OutboxMessage> messages = await store.ClaimBatchAsync(options.Value.BatchSize, stoppingToken);
+            foreach (OutboxMessage message in messages)
+            {
+                try
+                {
+                    await transport.PublishAsync(message, stoppingToken);
+                    await store.MarkPublishedAsync(message.Id, stoppingToken);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    logger.LogError(exception, "Failed to publish outbox message {MessageId} of type {EventType}.", message.Id, message.EventType);
+                    await store.MarkFailedAsync(message.Id, exception.GetType().Name, stoppingToken);
+                }
+            }
+            await Task.Delay(options.Value.PollInterval, stoppingToken);
+        }
+    }
+}
+
+public sealed class OutboxOptions
+{
+    public string Exchange { get; set; } = "nexaconnect.events";
+    public int BatchSize { get; set; } = 50;
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
+    public string ConnectionString { get; set; } = "amqp://guest:guest@localhost:5672/";
+}
+
+public static class OutboxServiceCollectionExtensions
+{
+    public static IServiceCollection AddPostgresOutbox(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        string connectionStringName)
+    {
+        string databaseConnection = configuration.GetConnectionString(connectionStringName)
+            ?? throw new InvalidOperationException($"ConnectionStrings:{connectionStringName} is required for PostgreSQL outbox persistence.");
+        services.AddSingleton(_ => NpgsqlDataSource.Create(databaseConnection));
+        services.AddSingleton<IOutboxStore, PostgresOutboxStore>();
+        services.Configure<OutboxOptions>(configuration.GetSection("Outbox"));
+        string? configuredConnection = configuration["Outbox:ConnectionString"];
+        string environment = configuration["ASPNETCORE_ENVIRONMENT"] ?? configuration["DOTNET_ENVIRONMENT"] ?? "Production";
+        if (string.IsNullOrWhiteSpace(configuredConnection) && !environment.Equals("Development", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Outbox:ConnectionString must be explicitly configured outside Development.");
+        services.AddSingleton<IConnection>(_ => new ConnectionFactory
+        {
+            Uri = new Uri(configuredConnection ?? "amqp://guest:guest@localhost:5672/")
+        }.CreateConnectionAsync().GetAwaiter().GetResult());
+        services.AddSingleton<IOutboxTransport, RabbitMqOutboxTransport>();
+        services.AddHostedService<OutboxDispatcher>();
+        return services;
+    }
+}

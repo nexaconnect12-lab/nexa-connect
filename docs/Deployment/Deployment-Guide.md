@@ -80,3 +80,9 @@ Follow the complete [Keycloak Production Runbook](../Identity/Production-Runbook
 - Test every pinned Keycloak upgrade in a restored non-production environment before production rollout.
 
 The local Docker initializer is a development convenience, not the production provisioning mechanism.
+
+## Runtime persistence and event delivery
+
+The Catalog, Inventory, Order, Payment, Customer, and Notification services default to in-memory adapters for local scaffolding. The `Persistence__Provider=PostgreSQL` switch is currently honored by Customer and Payment repositories and by the Order outbox; Catalog, Inventory, Notification, and Order aggregate persistence remain migration work. Provide only the owning service's runtime connection string, for example `ConnectionStrings__Customer` or `ConnectionStrings__Payment`.
+
+The Order service can persist integration events through the service-owned `outbox_messages` table and publish them through RabbitMQ when `Persistence__Provider=PostgreSQL` and an explicit `Outbox__ConnectionString` are configured. Outside Development, startup fails if the outbox connection is missing. The dispatcher claims rows with `SKIP LOCKED`, retries failed publications, and marks rows published only after the broker accepts the message. RabbitMQ credentials and TLS settings must come from the deployment secret store; do not use the local guest account in production.
