@@ -1,6 +1,7 @@
 using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.Notification.Application.Messages;
 using NexaConnect.Services.Notification.Infrastructure;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,7 +11,13 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
-builder.Services.AddSingleton<INotificationSender, InMemoryNotificationSender>();
+if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
+{
+    var dataSource = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("Notification") ?? throw new InvalidOperationException("ConnectionStrings:Notification is required.")).Build();
+    builder.Services.AddSingleton(dataSource);
+    builder.Services.AddSingleton<INotificationSender, PostgresNotificationSender>();
+}
+else builder.Services.AddSingleton<INotificationSender, InMemoryNotificationSender>();
 
 var app = builder.Build();
 

@@ -39,12 +39,14 @@ public interface IInventoryReservationPort
 {
     Task<InventoryReservationResult> ReserveAsync(
         Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken);
+    Task ReleaseAsync(Guid orderId, Guid branchId, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 public interface IKitchenPort
 {
     Task<KitchenTicketResult> CreateTicketAsync(
         Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken);
+    Task CancelTicketAsync(Guid orderId, Guid branchId, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 public interface IPaymentPort
@@ -141,6 +143,8 @@ public sealed class PlaceOrderWorkflow(
             order.Id, order.TotalAmount, order.Currency, command.PaymentMethod, cancellationToken);
         if (!paid.Completed || paid.PaymentId is null)
         {
+            await inventory.ReleaseAsync(order.Id, order.BranchId, cancellationToken);
+            await kitchen.CancelTicketAsync(order.Id, order.BranchId, cancellationToken);
             order.MarkPaymentFailed();
             await PersistAsync(order, new PaymentFailedV1(
                 Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id,

@@ -4,12 +4,12 @@ The former weather scaffold endpoints have been replaced with initial bounded-co
 
 | Service | Routes | Current persistence |
 | --- | --- | --- |
-| Catalog | `GET` and `POST /api/catalog/v1/branches/{branchId}/menu-items` | In-memory Infrastructure adapter |
-| Inventory | `GET /api/inventory/v1/branches/{branchId}/stock`, `PUT .../stock/{productId}`, `POST .../reservations` | In-memory Infrastructure adapter |
+| Catalog | `GET` and `POST /api/catalog/v1/branches/{branchId}/menu-items` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory |
+| Inventory | `GET /api/inventory/v1/branches/{branchId}/stock`, `PUT .../stock/{productId}`, `POST .../reservations` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory |
 | Order | `POST` and `GET /api/order/v1/orders`; `POST /api/order/v1/workflows/place` | PostgreSQL aggregate, idempotency, and transactional outbox when `Persistence:Provider=PostgreSQL`; otherwise in-memory |
 | Payment | `POST` and `GET /api/payment/v1/intents` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory, with restaurant/idempotency-key deduplication |
 | Customer | `POST` and `GET /api/customer/v1/organizations/{organizationId}/customers` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory, with organization boundary checks |
-| Notification | `POST` and `GET /api/notification/v1/notifications` | In-memory queued-message adapter |
+| Notification | `POST` and `GET /api/notification/v1/notifications` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory |
 
 Catalog, Inventory, and Notification still use in-memory adapters; their PostgreSQL/provider implementations remain next work. Order has a PostgreSQL aggregate repository, idempotency store, transactional outbox, and optional HTTP workflow adapters. No controller contains SQL or direct persistence access.
 

@@ -21,6 +21,12 @@ public sealed class HttpMenuCatalogPort(HttpClient client) : IMenuCatalogPort
 
 public sealed class HttpInventoryReservationPort(HttpClient client) : IInventoryReservationPort
 {
+    public async Task ReleaseAsync(Guid orderId, Guid branchId, CancellationToken cancellationToken)
+    {
+        using var response = await client.PostAsync($"api/inventory/v1/branches/{branchId:D}/reservations/{orderId:D}/release", null, cancellationToken);
+        if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
+            throw new InvalidOperationException($"Inventory release failed with {(int)response.StatusCode}.");
+    }
     public async Task<InventoryReservationResult> ReserveAsync(
         Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
     {
@@ -46,6 +52,12 @@ public sealed class HttpInventoryReservationPort(HttpClient client) : IInventory
 
 public sealed class HttpKitchenPort(HttpClient client) : IKitchenPort
 {
+    public async Task CancelTicketAsync(Guid orderId, Guid branchId, CancellationToken cancellationToken)
+    {
+        using var response = await client.PostAsync($"api/kitchen/v1/tickets/{orderId:D}/cancel", null, cancellationToken);
+        if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
+            throw new InvalidOperationException($"Kitchen cancellation failed with {(int)response.StatusCode}.");
+    }
     public async Task<KitchenTicketResult> CreateTicketAsync(
         Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
     {

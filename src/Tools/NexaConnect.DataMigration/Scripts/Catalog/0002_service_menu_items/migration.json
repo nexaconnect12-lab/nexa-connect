@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "name": "service_menu_items",
+  "transactional": true,
+  "downgradeSafety": "destructive",
+  "minimumApplicationVersion": "0.1.0"
+}

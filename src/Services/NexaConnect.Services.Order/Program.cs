@@ -41,14 +41,19 @@ if (usePostgres)
 }
 if (builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
 {
+    builder.Services.AddTransient<OutboundTokenHandler>();
     builder.Services.AddHttpClient<IMenuCatalogPort, HttpMenuCatalogPort>(client =>
-        client.BaseAddress = new Uri(builder.Configuration["Services:Catalog"] ?? throw new InvalidOperationException("Services:Catalog is required.")));
+        client.BaseAddress = new Uri(builder.Configuration["Services:Catalog"] ?? throw new InvalidOperationException("Services:Catalog is required.")))
+        .AddHttpMessageHandler<OutboundTokenHandler>();
     builder.Services.AddHttpClient<IInventoryReservationPort, HttpInventoryReservationPort>(client =>
-        client.BaseAddress = new Uri(builder.Configuration["Services:Inventory"] ?? throw new InvalidOperationException("Services:Inventory is required.")));
+        client.BaseAddress = new Uri(builder.Configuration["Services:Inventory"] ?? throw new InvalidOperationException("Services:Inventory is required.")))
+        .AddHttpMessageHandler<OutboundTokenHandler>();
     builder.Services.AddHttpClient<IKitchenPort, HttpKitchenPort>(client =>
-        client.BaseAddress = new Uri(builder.Configuration["Services:Kitchen"] ?? throw new InvalidOperationException("Services:Kitchen is required.")));
+        client.BaseAddress = new Uri(builder.Configuration["Services:Kitchen"] ?? throw new InvalidOperationException("Services:Kitchen is required.")))
+        .AddHttpMessageHandler<OutboundTokenHandler>();
     builder.Services.AddHttpClient<IPaymentPort, HttpPaymentPort>(client =>
-        client.BaseAddress = new Uri(builder.Configuration["Services:Payment"] ?? throw new InvalidOperationException("Services:Payment is required.")));
+        client.BaseAddress = new Uri(builder.Configuration["Services:Payment"] ?? throw new InvalidOperationException("Services:Payment is required.")))
+        .AddHttpMessageHandler<OutboundTokenHandler>();
 }
 
 var app = builder.Build();
