@@ -1,5 +1,7 @@
 # NexaConnect POS
 
+This project is the Windows WPF POS client scaffold. It opens Keycloak in the system browser, uses Authorization Code + PKCE S256, validates the callback state, redeems the code without a client secret, and stores the resulting token set with the Windows Data Protection API under the current user's profile.
+
 Keycloak client: `nexaconnect-pos`
 
 - Public installed client
@@ -7,5 +9,21 @@ Keycloak client: `nexaconnect-pos`
 - Redirect URI: `nexaconnect-pos://oauth/callback`
 - No embedded client secret
 - Tokens stored with Windows data protection or an approved hardware-backed credential store
+
+The custom callback URI is handled by the single-instance app. Windows launches a second process for `nexaconnect-pos://oauth/callback`; that process forwards the URI to the primary instance through a named pipe and exits. The installer must register the `nexaconnect-pos` protocol for the deployed executable.
+
+For a local build, register the protocol for the executable with:
+
+```powershell
+./scripts/register-pos-protocol.ps1 -ExecutablePath ./src/Clients/NexaConnect.POS/bin/Debug/net10.0-windows/NexaConnect.POS.exe
+```
+
+Run locally after Keycloak is available:
+
+```powershell
+dotnet run --project src/Clients/NexaConnect.POS/NexaConnect.POS.csproj
+```
+
+The development configuration expects Keycloak at `http://localhost:8080/realms/nexa-dev` and the POS API at `http://localhost:5225/`. Do not log callback URIs, authorization codes, access tokens, or refresh tokens.
 
 Online Keycloak authentication enrolls the employee and device. Offline unlock, cached permissions, expiration, manager overrides, and audit records remain NexaConnect responsibilities and must not be represented as indefinitely valid Keycloak tokens. The POS must clear online credentials when a device is revoked or deregistered and must never treat a locally entered PIN as a Keycloak password.

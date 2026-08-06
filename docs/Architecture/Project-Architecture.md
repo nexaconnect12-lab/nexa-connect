@@ -4,7 +4,7 @@
 
 NexaConnect is a restaurant operating platform that supports staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, reporting, and external integrations. Restaurant branches must continue approved operations during internet or cloud outages and synchronize safely after recovery. The architecture separates business capabilities into independently maintainable services while keeping the initial implementation practical for a small team.
 
-Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first migrations, sample-data tooling, a PostgreSQL-backed Platform Directory organization-access API, a web BFF session flow, and a POS shift open/close vertical slice. Remaining domain APIs, messaging, offline synchronization, and broader product resource-level authorization are planned and are not yet implemented.
+Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first migrations, sample-data tooling, a PostgreSQL-backed Platform Directory organization-access API, a web BFF session flow, a WPF POS PKCE sign-in scaffold, and a POS shift open/close vertical slice. Remaining domain APIs, messaging, offline synchronization, and broader product resource-level authorization are planned and are not yet implemented.
 
 The detailed restaurant domains, branch-edge topology, offline failure model, kitchen flow, QR behavior, reporting architecture, and shared identity boundary are defined in [Restaurant POS Architecture](Restaurant-POS-Architecture.md). This document defines the supporting technical architecture.
 
@@ -391,6 +391,8 @@ Use .NET MAUI or React Native. Native clients use Authorization Code with PKCE a
 ### Windows POS
 
 Use WPF or WinUI 3 when deep Windows hardware integration is required. Hardware adapters should be isolated behind interfaces for receipt printers, barcode scanners, cash drawers, customer displays, and payment terminals.
+
+The current WPF scaffold uses the system browser for Keycloak Authorization Code + PKCE S256, validates state on the `nexaconnect-pos://oauth/callback` custom-scheme callback, forwards callbacks to the primary instance through a named pipe, and protects the token set with Windows Data Protection. The installer must register the custom URI protocol; offline operations, hardware adapters, and shift UI remain planned.
 
 ### Self-service kiosk
 
