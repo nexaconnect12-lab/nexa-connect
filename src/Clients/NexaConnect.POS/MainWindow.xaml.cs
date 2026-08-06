@@ -12,6 +12,8 @@ public partial class MainWindow : Window
     private LocalShiftState? _activeShift;
     private readonly ObservableCollection<PosMenuItem> menu = new();
     private readonly ObservableCollection<CartLine> cart = new();
+    private readonly LocalOutboxStore outbox = new();
+    private Guid? cashSessionId;
 
     public MainWindow(
         PosAuthentication authentication,
@@ -115,6 +117,40 @@ public partial class MainWindow : Window
         finally { UpdateOperationalState(); }
     }
 
+    private async void OpenCash_Click(object sender, RoutedEventArgs e)
+    {
+        if (_authentication.CurrentToken is null || _activeShift is null) return;
+        if (!decimal.TryParse(OpeningCashTextBox.Text, out var amount) || amount < 0) { StatusText.Text = "Enter a valid opening cash amount."; return; }
+        try { SetBusy("Opening cash session…"); var result = await _api.OpenCashSessionAsync(_authentication.CurrentToken, _activeShift.ShiftId, _configuration.StoreId, _configuration.Currency, amount); cashSessionId = result.CashSessionId; StatusText.Text = "Cash session is open."; }
+        catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Cash session could not be opened."; }
+        finally { UpdateOperationalState(); }
+    }
+
+    private async void CloseCash_Click(object sender, RoutedEventArgs e)
+    {
+        if (_authentication.CurrentToken is null || cashSessionId is null) return;
+        if (!decimal.TryParse(ClosingCashTextBox.Text, out var amount) || amount < 0) { StatusText.Text = "Enter a valid closing cash amount."; return; }
+        try { SetBusy("Closing cash session…"); await _api.CloseCashSessionAsync(_authentication.CurrentToken, cashSessionId.Value, amount); cashSessionId = null; StatusText.Text = "Cash session is closed."; }
+        catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Cash session could not be closed."; }
+        finally { UpdateOperationalState(); }
+    }
+
+    private async void EnrollTerminal_Click(object sender, RoutedEventArgs e)
+    {
+        if (_authentication.CurrentToken is null) return;
+        try { SetBusy("Enrolling terminal…"); await _api.EnrollTerminalAsync(_authentication.CurrentToken, _configuration, TerminalCodeTextBox.Text.Trim(), "pos"); StatusText.Text = "Terminal enrolled."; }
+        catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Terminal enrollment failed."; }
+        finally { UpdateOperationalState(); }
+    }
+
+    private async void ReplayOutbox_Click(object sender, RoutedEventArgs e)
+    {
+        if (_authentication.CurrentToken is null) return;
+        try { SetBusy("Replaying offline operations…"); var replayed = await new PosOutboxReplayer(_configuration, outbox).ReplayAsync(_authentication.CurrentToken); StatusText.Text = $"Replayed {replayed} offline operation(s)."; }
+        catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Offline replay stopped; operations remain queued."; }
+        finally { UpdateOperationalState(); }
+    }
+
     private void MenuList_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (MenuList.SelectedItem is not PosMenuItem item || !item.Available) return;
@@ -138,9 +174,9 @@ public partial class MainWindow : Window
 
     private void SignOut_Click(object sender, RoutedEventArgs e)
     {
-        if (_activeShift is not null)
+        if (_activeShift is not null || cashSessionId is not null)
         {
-            StatusText.Text = "Close the active shift before signing out.";
+            StatusText.Text = "Close the active shift and cash session before signing out.";
             return;
         }
 
@@ -183,6 +219,11 @@ public partial class MainWindow : Window
         CloseShiftButton.IsEnabled = signedIn && hasActiveShift;
         LoadMenuButton.IsEnabled = signedIn && hasActiveShift;
         PlaceOrderButton.IsEnabled = signedIn && hasActiveShift && cart.Count > 0;
+        OpenCashButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is null;
+        CloseCashButton.IsEnabled = signedIn && cashSessionId is not null;
+        EnrollTerminalButton.IsEnabled = signedIn;
+        ReplayOutboxButton.IsEnabled = signedIn && outbox.Load().Count > 0;
+        OutboxStatusText.Text = $"Offline queue: {outbox.Load().Count}";
         SessionText.Text = signedIn ? (hasActiveShift ? "Signed in · Shift open" : "Signed in · Open a shift") : "Signed out";
         ActiveShiftText.Text = hasActiveShift
             ? $"Active shift: {_activeShift!.ShiftNumber} ({_activeShift.ShiftId:D})"

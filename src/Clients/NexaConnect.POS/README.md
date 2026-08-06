@@ -2,6 +2,8 @@
 
 This project is the Windows WPF POS client scaffold. It opens Keycloak in the system browser, uses Authorization Code + PKCE S256, validates the callback state, redeems the code without a client secret, and stores the resulting token set with the Windows Data Protection API under the current user's profile. The current operational slice signs in, opens and closes a server-side shift through the POS API, persists the active shift identifier locally, and provides a menu-driven order-entry screen that submits to the authenticated Order workflow endpoint.
 
+The operational UI also provides cash-session open/close, terminal enrollment, and offline outbox replay controls.
+
 Keycloak client: `nexaconnect-pos`
 
 - Public installed client

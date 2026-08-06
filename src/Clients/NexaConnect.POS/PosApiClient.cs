@@ -9,6 +9,7 @@ namespace NexaConnect.POS;
 public sealed record PosShift(Guid ShiftId, Guid AuthorizationDecisionId);
 public sealed record PosMenuItem(Guid ProductId, string Name, decimal UnitPrice, string Currency, string PreparationStation, bool Available);
 public sealed record PosOrderResult(Guid OrderId, string Status, decimal TotalAmount, string Currency);
+public sealed record CashSessionResult(Guid CashSessionId, string OpenedBy);
 
 public sealed class PosApiClient : IDisposable
 {
@@ -81,6 +82,31 @@ public sealed class PosApiClient : IDisposable
         using var response = await client.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, "Order could not be placed.");
         return await response.Content.ReadFromJsonAsync<PosOrderResult>(cancellationToken) ?? throw new InvalidDataException("The Order API returned an empty response.");
+    }
+
+    public async Task<CashSessionResult> OpenCashSessionAsync(PosTokenSet token, Guid shiftId, Guid storeId, string currency, decimal openingAmount, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Post, "api/pos/v1/cash-sessions/open", token); request.Content = JsonContent.Create(new { shiftId, storeId, currency, openingAmount });
+        using var response = await _httpClient.SendAsync(request, cancellationToken); await EnsureSuccessAsync(response, "Cash session could not be opened.");
+        return await response.Content.ReadFromJsonAsync<CashSessionResult>(cancellationToken) ?? throw new InvalidDataException("Empty cash-session response.");
+    }
+
+    public async Task RecordCashMovementAsync(PosTokenSet token, Guid cashSessionId, string movementType, decimal amount, string? reasonCode, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Post, $"api/pos/v1/cash-sessions/{cashSessionId:D}/movements", token); request.Content = JsonContent.Create(new { movementType, amount, reasonCode });
+        using var response = await _httpClient.SendAsync(request, cancellationToken); await EnsureSuccessAsync(response, "Cash movement could not be recorded.");
+    }
+
+    public async Task CloseCashSessionAsync(PosTokenSet token, Guid cashSessionId, decimal actualClosingAmount, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Post, $"api/pos/v1/cash-sessions/{cashSessionId:D}/close", token); request.Content = JsonContent.Create(new { actualClosingAmount });
+        using var response = await _httpClient.SendAsync(request, cancellationToken); await EnsureSuccessAsync(response, "Cash session could not be closed.");
+    }
+
+    public async Task EnrollTerminalAsync(PosTokenSet token, PosClientConfiguration configuration, string code, string deviceType, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Post, "api/pos/v1/terminals/enroll", token); request.Content = JsonContent.Create(new { branchId = configuration.BranchId, storeId = configuration.StoreId, terminalId = configuration.TerminalId, code, deviceType });
+        using var response = await _httpClient.SendAsync(request, cancellationToken); await EnsureSuccessAsync(response, "Terminal enrollment failed.");
     }
 
     private static HttpRequestMessage CreateRequest(HttpMethod method, string path, PosTokenSet token)
