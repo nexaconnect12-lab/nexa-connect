@@ -61,13 +61,24 @@ public partial class App : Application
                     PipeDirection.In,
                     1,
                     PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous);
+                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                 await server.WaitForConnectionAsync(cancellationToken);
                 using var reader = new StreamReader(server, Encoding.UTF8);
-                string? callback = await reader.ReadLineAsync(cancellationToken);
-                if (!string.IsNullOrWhiteSpace(callback))
+                var callback = new StringBuilder(capacity: 256);
+                while (callback.Length <= 4096)
                 {
-                    await authentication.HandleCallbackAsync(callback);
+                    int value = reader.Read();
+                    if (value < 0 || value == '\n')
+                    {
+                        break;
+                    }
+
+                    callback.Append((char)value);
+                }
+
+                if (callback.Length <= 4096 && callback.Length > 0)
+                {
+                    await authentication.HandleCallbackAsync(callback.ToString().TrimEnd('\r'));
                 }
             }
             catch (OperationCanceledException)

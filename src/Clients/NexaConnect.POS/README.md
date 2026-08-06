@@ -10,7 +10,7 @@ Keycloak client: `nexaconnect-pos`
 - No embedded client secret
 - Tokens stored with Windows data protection or an approved hardware-backed credential store
 
-The custom callback URI is handled by the single-instance app. Windows launches a second process for `nexaconnect-pos://oauth/callback`; that process forwards the URI to the primary instance through a named pipe and exits. The installer must register the `nexaconnect-pos` protocol for the deployed executable.
+The custom callback URI is handled by the single-instance app. Windows launches a second process for `nexaconnect-pos://oauth/callback`; that process forwards the bounded callback payload to the primary instance through a current-user-only named pipe and exits. The callback state is validated and accepted only once per sign-in attempt. The installer must register the `nexaconnect-pos` protocol for the deployed executable.
 
 For a local build, register the protocol for the executable with:
 

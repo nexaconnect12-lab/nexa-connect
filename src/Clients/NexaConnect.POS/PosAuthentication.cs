@@ -15,12 +15,14 @@ public sealed record PosTokenSet(
 
 public sealed class PosAuthentication : IDisposable
 {
+    private const int MaxCallbackLength = 4096;
     private readonly PosClientConfiguration _configuration;
     private readonly HttpClient _httpClient = new();
     private readonly WindowsTokenStore _tokenStore = new();
     private readonly object _sync = new();
     private TaskCompletionSource<PosTokenSet>? _pending;
     private PkceRequest? _pkce;
+    private int _callbackConsumed;
 
     public PosAuthentication(PosClientConfiguration configuration)
     {
@@ -46,6 +48,7 @@ public sealed class PosAuthentication : IDisposable
 
             _pkce = pkce;
             _pending = completion;
+            _callbackConsumed = 0;
         }
 
         try
@@ -70,7 +73,8 @@ public sealed class PosAuthentication : IDisposable
 
     public async Task HandleCallbackAsync(string callbackUri)
     {
-        if (!Uri.TryCreate(callbackUri, UriKind.Absolute, out Uri? callback) ||
+        if (callbackUri.Length > MaxCallbackLength ||
+            !Uri.TryCreate(callbackUri, UriKind.Absolute, out Uri? callback) ||
             !string.Equals(callback.Scheme, "nexaconnect-pos", StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(callback.Host, "oauth", StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(callback.AbsolutePath, "/callback", StringComparison.OrdinalIgnoreCase))
@@ -105,6 +109,11 @@ public sealed class PosAuthentication : IDisposable
             if (values.TryGetValue("error", out string? error))
             {
                 throw new OperationCanceledException($"Identity provider returned {error}.");
+            }
+
+            if (Interlocked.Exchange(ref _callbackConsumed, 1) != 0)
+            {
+                throw new InvalidOperationException("The sign-in response was already processed.");
             }
 
             if (!values.TryGetValue("code", out string? code) || string.IsNullOrWhiteSpace(code))

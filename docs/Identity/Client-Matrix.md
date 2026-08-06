@@ -21,4 +21,4 @@
 
 The checked-in development realm implements the four NexaConnect interactive clients and the `nexaconnect-api` bearer-only audience. Workload clients are added only when a concrete caller and least-privilege scope have been defined.
 
-The WPF POS client opens Keycloak in the system browser and receives the authorization response through the exact `nexaconnect-pos://oauth/callback` custom scheme. Its installer or device-enrollment procedure must register that scheme for the deployed executable; do not use a wildcard or a second redirect URI.
+The WPF POS client opens Keycloak in the system browser and receives the authorization response through the exact `nexaconnect-pos://oauth/callback` custom scheme. Its installer or device-enrollment procedure must register that scheme for the deployed executable; do not use a wildcard or a second redirect URI. Callback forwarding is restricted to the current Windows user, bounded in size, and state-validated for a single sign-in attempt.
