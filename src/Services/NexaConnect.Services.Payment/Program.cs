@@ -3,6 +3,7 @@ using NexaConnect.Services.Payment.Application.Intents;
 using NexaConnect.Services.Payment.Infrastructure;
 using NexaConnect.Services.Payment.Infrastructure.Providers;
 using Npgsql;
+using NexaConnect.Infrastructure.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,11 +14,12 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
 builder.Services.Configure<PaymentProviderOptions>(builder.Configuration.GetSection("PaymentProvider"));
+builder.Services.AddTransient<RetryingHttpMessageHandler>();
 builder.Services.AddHttpClient<IPaymentProvider, HttpPaymentProvider>((services, client) =>
 {
     PaymentProviderOptions options = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentProviderOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl);
-});
+}).AddHttpMessageHandler<RetryingHttpMessageHandler>();
 if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
 {
     builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Payment")

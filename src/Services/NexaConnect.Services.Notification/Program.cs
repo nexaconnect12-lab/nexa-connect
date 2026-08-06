@@ -11,6 +11,12 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
+builder.Services.Configure<NotificationProviderOptions>(builder.Configuration.GetSection("NotificationProvider"));
+if (Uri.TryCreate(builder.Configuration["NotificationProvider:BaseUrl"], UriKind.Absolute, out var notificationBaseUrl))
+{
+    builder.Services.AddHttpClient<INotificationSender, HttpNotificationSender>(client => client.BaseAddress = notificationBaseUrl);
+}
+else
 if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
 {
     var dataSource = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("Notification") ?? throw new InvalidOperationException("ConnectionStrings:Notification is required.")).Build();
