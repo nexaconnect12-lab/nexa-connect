@@ -8,7 +8,10 @@ public sealed record PosClientConfiguration(
     string ClientId,
     string RedirectUri,
     string Scopes,
-    string PosApi)
+    string PosApi,
+    Guid BranchId,
+    Guid StoreId,
+    Guid TerminalId)
 {
     public static PosClientConfiguration Load()
     {
@@ -22,6 +25,14 @@ public sealed record PosClientConfiguration(
             identity.GetProperty("ClientId").GetString() ?? throw new InvalidDataException("Identity:ClientId is required."),
             identity.GetProperty("RedirectUri").GetString() ?? throw new InvalidDataException("Identity:RedirectUri is required."),
             identity.GetProperty("Scopes").GetString() ?? "openid profile email nexaconnect-api",
-            services.GetProperty("PosApi").GetString() ?? throw new InvalidDataException("Services:PosApi is required."));
+            services.GetProperty("PosApi").GetString() ?? throw new InvalidDataException("Services:PosApi is required."),
+            ParseGuid(root, "Pos", "BranchId"),
+            ParseGuid(root, "Pos", "StoreId"),
+            ParseGuid(root, "Pos", "TerminalId"));
     }
+
+    private static Guid ParseGuid(JsonElement root, string section, string name) =>
+        Guid.TryParse(root.GetProperty(section).GetProperty(name).GetString(), out Guid value)
+            ? value
+            : Guid.Empty;
 }

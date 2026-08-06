@@ -1,21 +1,32 @@
 <Window x:Class="NexaConnect.POS.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="NexaConnect POS" Height="260" Width="520"
+        Title="NexaConnect POS" Height="420" Width="620"
         WindowStartupLocation="CenterScreen">
     <Grid Margin="24">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <TextBlock Text="NexaConnect POS" FontSize="24" FontWeight="SemiBold" />
         <TextBlock Grid.Row="1" Margin="0,12,0,18" TextWrapping="Wrap"
-                   Text="Sign in with your NexaConnect account to open a secure POS session." />
-        <StackPanel Grid.Row="2">
-            <Button Width="140" HorizontalAlignment="Left" Content="Sign in"
+                   Text="Sign in, open a terminal shift, and close it safely when service ends." />
+        <StackPanel Grid.Row="2" Orientation="Horizontal">
+            <Button x:Name="SignInButton" Width="140" Content="Sign in"
                     Click="SignIn_Click" />
-            <TextBlock x:Name="StatusText" Margin="0,14,0,0" TextWrapping="Wrap" />
+            <Button x:Name="OpenShiftButton" Width="140" Margin="12,0,0,0" Content="Open shift"
+                    Click="OpenShift_Click" IsEnabled="False" />
+            <Button x:Name="CloseShiftButton" Width="140" Margin="12,0,0,0" Content="Close shift"
+                    Click="CloseShift_Click" IsEnabled="False" />
         </StackPanel>
+        <StackPanel Grid.Row="3" Margin="0,18,0,0">
+            <TextBlock Text="Shift number" />
+            <TextBox x:Name="ShiftNumberTextBox" Width="260" HorizontalAlignment="Left" Text="SHIFT-001" />
+            <TextBlock x:Name="ActiveShiftText" Margin="0,8,0,0" />
+        </StackPanel>
+        <TextBlock Grid.Row="4" x:Name="StatusText" Margin="0,14,0,0" TextWrapping="Wrap" />
     </Grid>
 </Window>

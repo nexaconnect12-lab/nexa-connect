@@ -1,6 +1,6 @@
 # NexaConnect POS
 
-This project is the Windows WPF POS client scaffold. It opens Keycloak in the system browser, uses Authorization Code + PKCE S256, validates the callback state, redeems the code without a client secret, and stores the resulting token set with the Windows Data Protection API under the current user's profile.
+This project is the Windows WPF POS client scaffold. It opens Keycloak in the system browser, uses Authorization Code + PKCE S256, validates the callback state, redeems the code without a client secret, and stores the resulting token set with the Windows Data Protection API under the current user's profile. The current operational slice signs in, opens and closes a server-side shift through the POS API, and persists the active shift identifier locally so a terminal restart does not lose the session reference.
 
 Keycloak client: `nexaconnect-pos`
 
@@ -25,5 +25,7 @@ dotnet run --project src/Clients/NexaConnect.POS/NexaConnect.POS.csproj
 ```
 
 The development configuration expects Keycloak at `http://localhost:8080/realms/nexa-dev` and the POS API at `http://localhost:5225/`. Do not log callback URIs, authorization codes, access tokens, or refresh tokens.
+
+Configure `Pos:BranchId`, `Pos:StoreId`, and `Pos:TerminalId` in `appsettings.json` (or the deployment configuration) before opening a shift. Cash sessions, cash movements, terminal enrollment, hardware adapters, and durable offline outbox replay require the corresponding service APIs and remain follow-up work; the current local state file is only the active-shift recovery reference.
 
 Online Keycloak authentication enrolls the employee and device. Offline unlock, cached permissions, expiration, manager overrides, and audit records remain NexaConnect responsibilities and must not be represented as indefinitely valid Keycloak tokens. The POS must clear online credentials when a device is revoked or deregistered and must never treat a locally entered PIN as a Keycloak password.

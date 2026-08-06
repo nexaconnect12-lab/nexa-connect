@@ -31,7 +31,11 @@ public partial class App : Application
         _authentication = new PosAuthentication(configuration);
         _ = ListenForCallbacksAsync(_authentication, CancellationToken.None);
 
-        var window = new MainWindow(_authentication);
+        var window = new MainWindow(
+            _authentication,
+            new PosApiClient(configuration),
+            new LocalPosStore(),
+            configuration);
         MainWindow = window;
         window.Show();
         if (e.Args.Length > 0)
