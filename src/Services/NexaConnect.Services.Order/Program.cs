@@ -1,4 +1,6 @@
 using NexaConnect.Infrastructure.Authentication;
+using NexaConnect.Services.Order.Application.Orders;
+using NexaConnect.Services.Order.Application.Workflow;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,6 +10,9 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
+builder.Services.AddSingleton<InMemoryOrderApplicationService>();
+builder.Services.AddSingleton<IOrderApplicationService>(services => services.GetRequiredService<InMemoryOrderApplicationService>());
+builder.Services.AddSingleton<IOrderRepository>(services => services.GetRequiredService<InMemoryOrderApplicationService>());
 
 var app = builder.Build();
 

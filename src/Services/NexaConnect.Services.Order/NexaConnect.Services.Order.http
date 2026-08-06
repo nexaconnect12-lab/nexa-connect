@@ -1,6 +1,6 @@
 @NexaConnect.Services.Order_HostAddress = http://localhost:5052
 
-GET {{NexaConnect.Services.Order_HostAddress}}/weatherforecast/
+GET {{NexaConnect.Services.Order_HostAddress}}/api/order/v1/orders/00000000-0000-0000-0000-000000000001
 Accept: application/json
 
 ###

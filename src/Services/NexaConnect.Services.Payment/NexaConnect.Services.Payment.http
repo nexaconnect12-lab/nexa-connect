@@ -1,6 +1,6 @@
 @NexaConnect.Services.Payment_HostAddress = http://localhost:5088
 
-GET {{NexaConnect.Services.Payment_HostAddress}}/weatherforecast/
+GET {{NexaConnect.Services.Payment_HostAddress}}/api/payment/v1/intents/00000000-0000-0000-0000-000000000001
 Accept: application/json
 
 ###

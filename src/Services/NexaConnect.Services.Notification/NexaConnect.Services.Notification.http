@@ -1,6 +1,6 @@
 @NexaConnect.Services.Notification_HostAddress = http://localhost:5020
 
-GET {{NexaConnect.Services.Notification_HostAddress}}/weatherforecast/
+GET {{NexaConnect.Services.Notification_HostAddress}}/api/notification/v1/notifications/00000000-0000-0000-0000-000000000001
 Accept: application/json
 
 ###

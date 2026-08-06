@@ -1,6 +1,6 @@
 @NexaConnect.Services.Catalog_HostAddress = http://localhost:5268
 
-GET {{NexaConnect.Services.Catalog_HostAddress}}/weatherforecast/
+GET {{NexaConnect.Services.Catalog_HostAddress}}/api/catalog/v1/branches/00000000-0000-0000-0000-000000000001/menu-items
 Accept: application/json
 
 ###

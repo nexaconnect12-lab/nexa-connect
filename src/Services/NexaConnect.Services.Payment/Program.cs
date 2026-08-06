@@ -1,4 +1,6 @@
 using NexaConnect.Infrastructure.Authentication;
+using NexaConnect.Services.Payment.Application.Intents;
+using NexaConnect.Services.Payment.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,6 +10,7 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
+builder.Services.AddSingleton<IPaymentIntents, InMemoryPaymentIntents>();
 
 var app = builder.Build();
 
