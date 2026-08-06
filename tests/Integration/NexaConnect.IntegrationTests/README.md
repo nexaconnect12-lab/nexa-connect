@@ -10,3 +10,13 @@ Run the suite with:
 ```powershell
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj
 ```
+
+The PostgreSQL persistence tests are enabled explicitly with a dedicated POS database connection string:
+
+```powershell
+$env:NEXACONNECT_POS_INTEGRATION_DB = 'Host=localhost;Port=5432;Database=NexaConnect_POS;Username=nexaconnect_migration;Password=<migration-password>'
+$env:DOTNET_ENVIRONMENT = 'Testing'
+dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj
+```
+
+They run only in `Development`, `Test`, or `Testing` environments and create/remove a uniquely named schema, so they do not modify the service's normal tables. Without the connection string or a safe environment name, the API integration tests still run and the database-specific tests return without opening a connection.
