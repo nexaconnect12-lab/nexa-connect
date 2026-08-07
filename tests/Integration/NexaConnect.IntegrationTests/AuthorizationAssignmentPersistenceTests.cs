@@ -49,7 +49,10 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        if (!DatabaseConfigured()) return;
+        if (string.IsNullOrWhiteSpace(_configuredConnectionString) || !IsSafeEnvironment())
+        {
+            return;
+        }
 
         _schema = $"authorization_it_{Guid.NewGuid():N}";
         var builder = new NpgsqlConnectionStringBuilder(_configuredConnectionString)
@@ -94,7 +97,7 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
             SELECT count(*)
             FROM authorization_user_permission_overrides o
             JOIN authorization_resource_scopes s ON s.id = o.scope_id
-            WHERE o.subject_id = $1 AND o.permission_code = 'pos.shift.open'
+            WHERE o.subject_id = $1 AND o.permission_code IN ('pos.shift.open', 'pos.shift.close')
               AND o.effect = 'allow' AND o.status = 'active'
               AND s.organization_id = $2 AND s.restaurant_id = $3 AND s.branch_id = $4
               AND s.status = 'active';
