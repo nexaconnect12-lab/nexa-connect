@@ -86,6 +86,35 @@ public sealed class PosShiftApiTests : IClassFixture<PosShiftApiFactory>
     }
 
     [Fact]
+    public async Task Sign_in_open_and_close_shift_end_to_end()
+    {
+        _factory.Reset();
+        using var client = _factory.CreateClient();
+
+        HttpResponseMessage beforeSignIn = await client.PostAsJsonAsync(
+            "/api/pos/v1/shifts/open",
+            Request("SHIFT-E2E-001"));
+        Assert.Equal(HttpStatusCode.Unauthorized, beforeSignIn.StatusCode);
+
+        // The factory's signed test token represents the successful identity-provider sign-in.
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", _factory.SignIn());
+
+        HttpResponseMessage open = await client.PostAsJsonAsync(
+            "/api/pos/v1/shifts/open",
+            Request("SHIFT-E2E-001"));
+        Assert.Equal(HttpStatusCode.OK, open.StatusCode);
+        var opened = await open.Content.ReadFromJsonAsync<OpenResponse>();
+        Assert.NotNull(opened);
+
+        HttpResponseMessage close = await client.PostAsync(
+            $"/api/pos/v1/shifts/{opened!.ShiftId:D}/close",
+            content: null);
+        Assert.Equal(HttpStatusCode.NoContent, close.StatusCode);
+        Assert.True(_factory.Store.WasClosed(opened.ShiftId));
+    }
+
+    [Fact]
     public async Task Open_maps_unavailable_restaurant_to_service_unavailable()
     {
         _factory.Reset();
@@ -108,12 +137,12 @@ public sealed class PosShiftApiTests : IClassFixture<PosShiftApiFactory>
         return client;
     }
 
-    private static object Request() => new
+    private static object Request(string shiftNumber = "SHIFT-001") => new
     {
         branchId = PosShiftApiFactory.BranchId,
         storeId = PosShiftApiFactory.StoreId,
         terminalId = PosShiftApiFactory.TerminalId,
-        shiftNumber = "SHIFT-001"
+        shiftNumber
     };
 
     private sealed record OpenResponse(Guid ShiftId, Guid AuthorizationDecisionId);
@@ -196,6 +225,8 @@ public sealed class PosShiftApiFactory : WebApplicationFactory<PosProgram>
                 SecurityAlgorithms.RsaSha256));
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    public string SignIn() => CreateToken();
 
     public void Reset()
     {
