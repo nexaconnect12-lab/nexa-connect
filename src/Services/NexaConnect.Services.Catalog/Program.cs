@@ -37,3 +37,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public sealed class CatalogProgram;

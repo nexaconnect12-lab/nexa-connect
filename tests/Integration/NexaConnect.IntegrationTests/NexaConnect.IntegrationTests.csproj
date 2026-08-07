@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Npgsql" />
     <PackageReference Include="xunit" />
@@ -21,6 +22,10 @@
     <ProjectReference Include="..\..\..\src\Gateway\NexaConnect.Gateway\NexaConnect.Gateway.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.POS\NexaConnect.Services.POS.csproj" Aliases="POS" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Authorization\NexaConnect.Services.Authorization.csproj" Aliases="AUTH" />
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Catalog\NexaConnect.Services.Catalog.csproj" Aliases="CATALOG" />
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Inventory\NexaConnect.Services.Inventory.csproj" Aliases="INVENTORY" />
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Order\NexaConnect.Services.Order.csproj" Aliases="ORDER" />
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Payment\NexaConnect.Services.Payment.csproj" Aliases="PAYMENT" />
   </ItemGroup>
 
   <ItemGroup>
