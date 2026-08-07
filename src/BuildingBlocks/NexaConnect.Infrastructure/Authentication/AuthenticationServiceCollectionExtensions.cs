@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -10,6 +12,23 @@ namespace NexaConnect.Infrastructure.Authentication;
 
 public static class AuthenticationServiceCollectionExtensions
 {
+    public static IServiceCollection AddNexaConnectDevelopmentDataProtection(
+        this IServiceCollection services, IHostEnvironment environment, string applicationName)
+    {
+        if (!environment.IsDevelopment())
+        {
+            return services;
+        }
+
+        string keyDirectory = Path.Combine(
+            environment.ContentRootPath, ".runstate", "data-protection-keys", applicationName);
+        Directory.CreateDirectory(keyDirectory);
+        services.AddDataProtection()
+            .PersistKeysToFileSystem(new DirectoryInfo(keyDirectory))
+            .SetApplicationName(applicationName);
+        return services;
+    }
+
     public static IServiceCollection AddNexaConnectApiAuthentication(
         this IServiceCollection services,
         IConfiguration configuration)

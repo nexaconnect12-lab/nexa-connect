@@ -12,6 +12,6 @@
 
 **Fix:** Infrastructure provisioning now reads back the persisted active scope from the assignment and inserts/reactivates the scoped `allow` override in the same database connection. The direct decision request returned `granted: true` for `nexa_pos` and `pos.shift.open` after reapplying the assignment.
 
-**Operational note:** The attached log also contains ASP.NET Data Protection DPAPI/key-folder warnings. They do not affect the bearer-token decision, but should be cleaned up before production by giving the service account ownership of its key directory or configuring a service-owned key store.
+**Operational note:** Development services now use per-service writable Data Protection key directories under `.runstate/data-protection-keys`. Production still requires a durable, service-owned key store with explicit access control.
 
 **Database lifecycle note:** The scoped assignment is business data. Recreating PostgreSQL with a volume reset (for example, `docker compose down -v`) removes it. After any database reset, provision the cashier assignment again through the authenticated assignment endpoint before testing POS shifts; do not add a controller-level bypass or seed a permanent administrator grant.

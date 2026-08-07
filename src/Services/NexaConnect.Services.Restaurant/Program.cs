@@ -9,6 +9,7 @@ builder.Logging.AddConsole();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
+builder.Services.AddNexaConnectDevelopmentDataProtection(builder.Environment, "restaurant");
 builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(
     builder.Configuration.GetConnectionString("Restaurant")
     ?? throw new InvalidOperationException("ConnectionStrings:Restaurant is required.")));

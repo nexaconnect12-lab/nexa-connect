@@ -33,3 +33,6 @@ appsettings.Local.json
 
 # Docker volumes
 docker-data/
+
+# Local development runtime state, including per-service Data Protection keys
+.runstate/

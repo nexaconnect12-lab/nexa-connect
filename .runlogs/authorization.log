@@ -1,5 +1,9 @@
-info: Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager[63]
-      User profile is available. Using 'C:\Users\Thet Lwin Oo\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+info: Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager[58]
+      Creating key {d359e021-35ec-48e2-a2f4-2eaaab81258b} with creation date 2026-08-07 09:05:53Z, activation date 2026-08-07 09:05:53Z, and expiration date 2026-11-05 09:05:53Z.
+warn: Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager[35]
+      No XML encryptor configured. Key {d359e021-35ec-48e2-a2f4-2eaaab81258b} may be persisted to storage in unencrypted form.
+info: Microsoft.AspNetCore.DataProtection.Repositories.FileSystemXmlRepository[39]
+      Writing data to file 'D:\DevOps\nexa-connect\src\Services\NexaConnect.Services.Authorization\.runstate\data-protection-keys\authorization\key-d359e021-35ec-48e2-a2f4-2eaaab81258b.xml'.
 info: Microsoft.Hosting.Lifetime[14]
       Now listening on: http://localhost:51223
 info: Microsoft.Hosting.Lifetime[0]
@@ -7,4 +11,4 @@ info: Microsoft.Hosting.Lifetime[0]
 info: Microsoft.Hosting.Lifetime[0]
       Hosting environment: Development
 info: Microsoft.Hosting.Lifetime[0]
-      Content root path: D:\devops\nexa-connect\src\Services\NexaConnect.Services.Authorization
+      Content root path: D:\DevOps\nexa-connect\src\Services\NexaConnect.Services.Authorization

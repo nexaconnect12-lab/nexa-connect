@@ -1,3 +1,5 @@
+warn: Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager[35]
+      No XML encryptor configured. Key {b0327d91-60be-436a-99bc-e4984ad8481e} may be persisted to storage in unencrypted form.
 info: Microsoft.Hosting.Lifetime[14]
       Now listening on: http://localhost:5225
 info: Microsoft.Hosting.Lifetime[0]
@@ -5,4 +7,4 @@ info: Microsoft.Hosting.Lifetime[0]
 info: Microsoft.Hosting.Lifetime[0]
       Hosting environment: Development
 info: Microsoft.Hosting.Lifetime[0]
-      Content root path: D:\devops\nexa-connect\src\Services\NexaConnect.Services.POS
+      Content root path: D:\DevOps\nexa-connect\src\Services\NexaConnect.Services.POS
