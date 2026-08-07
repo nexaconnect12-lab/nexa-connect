@@ -10,7 +10,7 @@ namespace NexaConnect.Services.POS.Controllers;
 [ApiController]
 [Route("api/pos/v1/terminals")]
 public sealed class TerminalsController(
-    PostgresTerminalStore terminals,
+    ITerminalStore terminals,
     IRestaurantScopeReader scopeReader,
     IAuthorizationDecisionClient authorization) : ControllerBase
 {

@@ -2,7 +2,12 @@ using Npgsql;
 
 namespace NexaConnect.Services.POS.Infrastructure.Persistence;
 
-public sealed class PostgresTerminalStore(NpgsqlDataSource dataSource)
+public interface ITerminalStore
+{
+    Task<bool> EnrollAsync(Guid organizationId, Guid restaurantId, Guid branchId, Guid storeId, Guid terminalId, string code, string deviceType, CancellationToken cancellationToken);
+}
+
+public sealed class PostgresTerminalStore(NpgsqlDataSource dataSource) : ITerminalStore
 {
     public async Task<bool> EnrollAsync(
         Guid organizationId,

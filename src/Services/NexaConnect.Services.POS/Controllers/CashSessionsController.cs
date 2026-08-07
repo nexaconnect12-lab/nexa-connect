@@ -7,7 +7,7 @@ namespace NexaConnect.Services.POS.Controllers;
 
 [ApiController]
 [Route("api/pos/v1/cash-sessions")]
-public sealed class CashSessionsController(PostgresCashSessionStore store) : ControllerBase
+public sealed class CashSessionsController(ICashSessionStore store) : ControllerBase
 {
     [HttpPost("open")]
     public async Task<IActionResult> OpenAsync(OpenCashSessionRequest request, CancellationToken cancellationToken)

@@ -19,6 +19,8 @@ using Microsoft.IdentityModel.Tokens;
 using IAuthorizationDecisionClient = POS::NexaConnect.Services.POS.Application.Shifts.IAuthorizationDecisionClient;
 using IRestaurantScopeReader = POS::NexaConnect.Services.POS.Application.Shifts.IRestaurantScopeReader;
 using IShiftStore = POS::NexaConnect.Services.POS.Application.Shifts.IShiftStore;
+using ICashSessionStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.ICashSessionStore;
+using ITerminalStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.ITerminalStore;
 using PosUserContext = POS::NexaConnect.Services.POS.Application.Shifts.PosUserContext;
 using RestaurantAuthorizationScope = POS::NexaConnect.Services.POS.Application.Shifts.RestaurantAuthorizationScope;
 using AuthorizationDecision = POS::NexaConnect.Services.POS.Application.Shifts.AuthorizationDecision;
@@ -115,6 +117,45 @@ public sealed class PosShiftApiTests : IClassFixture<PosShiftApiFactory>
     }
 
     [Fact]
+    public async Task Sign_in_enrolls_terminal_and_manages_cash_session_lifecycle()
+    {
+        _factory.Reset();
+        using var client = AuthenticatedClient();
+
+        HttpResponseMessage enroll = await client.PostAsJsonAsync(
+            "/api/pos/v1/terminals/enroll",
+            new
+            {
+                branchId = PosShiftApiFactory.BranchId,
+                storeId = PosShiftApiFactory.StoreId,
+                terminalId = PosShiftApiFactory.TerminalId,
+                code = "POS-001",
+                deviceType = "pos"
+            });
+        Assert.Equal(HttpStatusCode.Created, enroll.StatusCode);
+        Assert.True(_factory.Terminals.WasEnrolled(PosShiftApiFactory.TerminalId));
+
+        Guid shiftId = Guid.NewGuid();
+        HttpResponseMessage open = await client.PostAsJsonAsync(
+            "/api/pos/v1/cash-sessions/open",
+            new { shiftId, storeId = PosShiftApiFactory.StoreId, currency = "USD", openingAmount = 100m });
+        Assert.Equal(HttpStatusCode.OK, open.StatusCode);
+        var opened = await open.Content.ReadFromJsonAsync<CashSessionResponse>();
+        Assert.NotNull(opened);
+
+        HttpResponseMessage movement = await client.PostAsJsonAsync(
+            $"/api/pos/v1/cash-sessions/{opened!.CashSessionId:D}/movements",
+            new { movementType = "pay_in", amount = 25m, reasonCode = "FLOAT" });
+        Assert.Equal(HttpStatusCode.Accepted, movement.StatusCode);
+
+        HttpResponseMessage close = await client.PostAsJsonAsync(
+            $"/api/pos/v1/cash-sessions/{opened.CashSessionId:D}/close",
+            new { actualClosingAmount = 125m });
+        Assert.Equal(HttpStatusCode.NoContent, close.StatusCode);
+        Assert.True(_factory.CashSessions.WasClosed(opened.CashSessionId));
+    }
+
+    [Fact]
     public async Task Open_maps_unavailable_restaurant_to_service_unavailable()
     {
         _factory.Reset();
@@ -146,6 +187,7 @@ public sealed class PosShiftApiTests : IClassFixture<PosShiftApiFactory>
     };
 
     private sealed record OpenResponse(Guid ShiftId, Guid AuthorizationDecisionId);
+    private sealed record CashSessionResponse(Guid CashSessionId, string OpenedBy);
 }
 
 public sealed class PosShiftApiFactory : WebApplicationFactory<PosProgram>
@@ -161,6 +203,8 @@ public sealed class PosShiftApiFactory : WebApplicationFactory<PosProgram>
 
     private readonly RSA _signingKey = RSA.Create(2048);
     internal InMemoryShiftStore Store { get; } = new();
+    internal InMemoryCashSessionStore CashSessions { get; } = new();
+    internal InMemoryTerminalStore Terminals { get; } = new();
     internal TestScopeReader ScopeReader { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -198,9 +242,13 @@ public sealed class PosShiftApiFactory : WebApplicationFactory<PosProgram>
                 };
             });
             services.RemoveAll<IShiftStore>();
+            services.RemoveAll<ICashSessionStore>();
+            services.RemoveAll<ITerminalStore>();
             services.RemoveAll<IRestaurantScopeReader>();
             services.RemoveAll<IAuthorizationDecisionClient>();
             services.AddSingleton<IShiftStore>(Store);
+            services.AddSingleton<ICashSessionStore>(CashSessions);
+            services.AddSingleton<ITerminalStore>(Terminals);
             services.AddSingleton<IRestaurantScopeReader>(ScopeReader);
             services.AddSingleton<IAuthorizationDecisionClient, TestAuthorizationClient>();
         });
@@ -231,6 +279,8 @@ public sealed class PosShiftApiFactory : WebApplicationFactory<PosProgram>
     public void Reset()
     {
         Store.Reset();
+        CashSessions.Reset();
+        Terminals.Reset();
         ScopeReader.Fail = false;
     }
 
@@ -270,6 +320,87 @@ internal sealed class TestAuthorizationClient : IAuthorizationDecisionClient
         string permission,
         CancellationToken cancellationToken) =>
         Task.FromResult(new AuthorizationDecision(Guid.NewGuid(), true, null));
+}
+
+internal sealed class InMemoryTerminalStore : ITerminalStore
+{
+    private readonly HashSet<Guid> _enrolled = [];
+
+    public Task<bool> EnrollAsync(
+        Guid organizationId,
+        Guid restaurantId,
+        Guid branchId,
+        Guid storeId,
+        Guid terminalId,
+        string code,
+        string deviceType,
+        CancellationToken cancellationToken)
+    {
+        _enrolled.Add(terminalId);
+        return Task.FromResult(true);
+    }
+
+    public bool WasEnrolled(Guid terminalId) => _enrolled.Contains(terminalId);
+
+    public void Reset() => _enrolled.Clear();
+}
+
+internal sealed class InMemoryCashSessionStore : ICashSessionStore
+{
+    private readonly Dictionary<Guid, CashSessionState> _sessions = [];
+
+    public Task<Guid> OpenAsync(
+        Guid shiftId,
+        Guid storeId,
+        string currency,
+        decimal openingAmount,
+        CancellationToken cancellationToken)
+    {
+        Guid id = Guid.NewGuid();
+        _sessions[id] = new CashSessionState(shiftId, storeId, openingAmount, openingAmount, false);
+        return Task.FromResult(id);
+    }
+
+    public Task RecordMovementAsync(
+        Guid cashSessionId,
+        string movementType,
+        decimal amount,
+        string recordedBy,
+        string? reasonCode,
+        CancellationToken cancellationToken)
+    {
+        if (!_sessions.TryGetValue(cashSessionId, out CashSessionState? session) || session.Closed)
+        {
+            throw new InvalidOperationException("The cash session is not open.");
+        }
+
+        decimal signedAmount = movementType is "sale" or "pay_in" or "float_adjustment" ? amount : -amount;
+        _sessions[cashSessionId] = session with { ExpectedAmount = session.ExpectedAmount + signedAmount };
+        return Task.CompletedTask;
+    }
+
+    public Task CloseAsync(Guid cashSessionId, decimal actualClosingAmount, CancellationToken cancellationToken)
+    {
+        if (!_sessions.TryGetValue(cashSessionId, out CashSessionState? session) || session.Closed)
+        {
+            throw new InvalidOperationException("The cash session is missing or already closed.");
+        }
+
+        _sessions[cashSessionId] = session with { Closed = true };
+        return Task.CompletedTask;
+    }
+
+    public bool WasClosed(Guid cashSessionId) =>
+        _sessions.TryGetValue(cashSessionId, out CashSessionState? session) && session.Closed;
+
+    public void Reset() => _sessions.Clear();
+
+    private sealed record CashSessionState(
+        Guid ShiftId,
+        Guid StoreId,
+        decimal OpeningAmount,
+        decimal ExpectedAmount,
+        bool Closed);
 }
 
 internal sealed class InMemoryShiftStore : IShiftStore
