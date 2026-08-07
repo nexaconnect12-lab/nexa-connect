@@ -5,6 +5,7 @@ using NexaConnect.Services.Authorization.Infrastructure.Persistence;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
+NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Services.AddControllers();

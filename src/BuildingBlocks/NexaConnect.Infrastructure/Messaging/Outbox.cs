@@ -153,7 +153,7 @@ public sealed class OutboxOptions
     public string Exchange { get; set; } = "nexaconnect.events";
     public int BatchSize { get; set; } = 50;
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
-    public string ConnectionString { get; set; } = "amqp://guest:guest@localhost:5672/";
+    public string ConnectionString { get; set; } = string.Empty;
 }
 
 public static class OutboxServiceCollectionExtensions
@@ -168,13 +168,11 @@ public static class OutboxServiceCollectionExtensions
         services.AddSingleton(_ => NpgsqlDataSource.Create(databaseConnection));
         services.AddSingleton<IOutboxStore, PostgresOutboxStore>();
         services.Configure<OutboxOptions>(configuration.GetSection("Outbox"));
-        string? configuredConnection = configuration["Outbox:ConnectionString"];
-        string environment = configuration["ASPNETCORE_ENVIRONMENT"] ?? configuration["DOTNET_ENVIRONMENT"] ?? "Production";
-        if (string.IsNullOrWhiteSpace(configuredConnection) && !environment.Equals("Development", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Outbox:ConnectionString must be explicitly configured outside Development.");
+        string configuredConnection = configuration["Outbox:ConnectionString"]
+            ?? throw new InvalidOperationException("Outbox:ConnectionString is required when PostgreSQL outbox persistence is enabled.");
         services.AddSingleton<IConnection>(_ => new ConnectionFactory
         {
-            Uri = new Uri(configuredConnection ?? "amqp://guest:guest@localhost:5672/")
+            Uri = new Uri(configuredConnection)
         }.CreateConnectionAsync().GetAwaiter().GetResult());
         services.AddSingleton<IOutboxTransport, RabbitMqOutboxTransport>();
         services.AddHostedService<OutboxDispatcher>();

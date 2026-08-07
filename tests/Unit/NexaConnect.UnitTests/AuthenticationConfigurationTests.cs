@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using NexaConnect.Infrastructure.Authentication;
 
 namespace NexaConnect.UnitTests;
@@ -87,6 +89,32 @@ public sealed class AuthenticationConfigurationTests
         Assert.True(authorizationOptions.GetPolicy(NexaAuthorizationPolicies.ReportViewer) is not null);
     }
 
+    [Fact]
+    public void Production_rejects_missing_or_http_only_listener_configuration()
+    {
+        var environment = new TestHostEnvironment("Production");
+        var missing = new ConfigurationBuilder().Build();
+        Assert.Throws<InvalidOperationException>(
+            () => NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(missing, environment));
+
+        var httpOnly = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["ASPNETCORE_URLS"] = "http://*:8080" })
+            .Build();
+        Assert.Throws<InvalidOperationException>(
+            () => NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(httpOnly, environment));
+    }
+
+    [Fact]
+    public void Production_accepts_https_listener_configuration()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["ASPNETCORE_URLS"] = "https://*:8443" })
+            .Build();
+
+        NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(
+            configuration, new TestHostEnvironment("Production"));
+    }
+
     private static IConfiguration CreateConfiguration(string authority, bool requireHttpsMetadata)
     {
         return new ConfigurationBuilder()
@@ -98,5 +126,13 @@ public sealed class AuthenticationConfigurationTests
                 ["Authentication:ClockSkewSeconds"] = "30"
             })
             .Build();
+    }
+
+    private sealed class TestHostEnvironment(string environmentName) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = environmentName;
+        public string ApplicationName { get; set; } = "NexaConnect.Tests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

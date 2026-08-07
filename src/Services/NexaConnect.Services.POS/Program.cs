@@ -7,6 +7,7 @@ using NexaConnect.Services.POS.Infrastructure.Restaurant;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
+NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 

@@ -4,6 +4,7 @@ using NexaConnect.Services.Inventory.Infrastructure;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
+NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 
 // Add services to the container.
 

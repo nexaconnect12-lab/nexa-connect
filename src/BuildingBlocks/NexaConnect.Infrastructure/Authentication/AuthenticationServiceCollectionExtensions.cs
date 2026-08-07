@@ -12,6 +12,34 @@ namespace NexaConnect.Infrastructure.Authentication;
 
 public static class AuthenticationServiceCollectionExtensions
 {
+    public static void EnsureProductionHttps(IConfiguration configuration, IHostEnvironment environment)
+    {
+        if (environment.IsDevelopment() || environment.IsEnvironment("Testing") || environment.IsEnvironment("Test"))
+        {
+            return;
+        }
+
+        var addresses = new List<string>();
+        string? urls = configuration["ASPNETCORE_URLS"] ?? configuration["DOTNET_URLS"] ?? configuration["urls"];
+        if (!string.IsNullOrWhiteSpace(urls))
+        {
+            addresses.AddRange(urls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        }
+
+        addresses.AddRange(configuration.GetSection("Kestrel:Endpoints").GetChildren()
+            .Select(endpoint => endpoint["Url"])
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Cast<string>());
+
+        if (addresses.Count == 0 || addresses.Any(address =>
+            !Uri.TryCreate(address.Replace("*", "localhost").Replace("+", "localhost"), UriKind.Absolute, out Uri? uri)
+            || uri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new InvalidOperationException(
+                "Production services must expose HTTPS endpoints only. Configure ASPNETCORE_URLS or Kestrel:Endpoints with https:// addresses.");
+        }
+    }
+
     public static IServiceCollection AddNexaConnectDevelopmentDataProtection(
         this IServiceCollection services, IHostEnvironment environment, string applicationName)
     {
