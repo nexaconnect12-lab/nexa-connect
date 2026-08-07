@@ -11,6 +11,14 @@ Run the suite with:
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj
 ```
 
+On Windows, stop the local service processes before rebuilding to avoid executable and assembly locks:
+
+```powershell
+.\scripts\build-development.ps1
+```
+
+Use `-Test` to build and run the solution tests. Start services again afterward with `scripts/run-pos-development.ps1`.
+
 The PostgreSQL persistence tests are enabled explicitly with a dedicated POS database connection string:
 
 ```powershell
