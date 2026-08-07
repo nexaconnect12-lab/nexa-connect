@@ -38,3 +38,13 @@ dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.Integrati
 ```
 
 It verifies that assigning the `cashier` role creates the scoped `pos.shift.open` override and that a fresh authorization decision service still grants the permission. Never run these database tests against a production database.
+
+The durable Order outbox replay test uses an isolated schema in the Order database:
+
+```powershell
+$env:NEXACONNECT_ORDER_INTEGRATION_DB = 'Host=localhost;Port=5432;Database=NexaConnect_Order;Username=nexaconnect_migration;Password=<migration-password>'
+$env:DOTNET_ENVIRONMENT = 'Testing'
+dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~OrderOutboxReplayPersistenceTests
+```
+
+It verifies that a failed event is eligible for a later claim and is removed from the replay queue only after publication is marked successful.

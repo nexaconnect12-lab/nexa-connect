@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\NexaConnect.Infrastructure\NexaConnect.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\src\Gateway\NexaConnect.Gateway\NexaConnect.Gateway.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.POS\NexaConnect.Services.POS.csproj" Aliases="POS" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Authorization\NexaConnect.Services.Authorization.csproj" Aliases="AUTH" />
