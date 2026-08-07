@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using NexaConnect.Gateway;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
 
 // Add services to the container.
 

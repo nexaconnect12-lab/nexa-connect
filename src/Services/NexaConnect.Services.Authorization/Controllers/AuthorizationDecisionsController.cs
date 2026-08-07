@@ -13,7 +13,8 @@ public sealed class AuthorizationDecisionsController(
     public async Task<ActionResult<AuthorizationDecisionResponse>> DecideAsync(
         AuthorizationDecisionRequest request, CancellationToken cancellationToken)
     {
-        string? subjectId = User.FindFirst(NexaAuthenticationDefaults.SubjectClaim)?.Value;
+        string? subjectId = User.FindFirst(NexaAuthenticationDefaults.SubjectClaim)?.Value
+            ?? User.FindFirst(NexaAuthenticationDefaults.UsernameClaim)?.Value;
         if (string.IsNullOrWhiteSpace(subjectId)) return Forbid();
         ApplicationDecision decision = await decisionService.DecideAsync(subjectId, request.OrganizationId, request.RestaurantId,
             request.BranchId, request.Permission, request.Amount, request.Currency, cancellationToken);

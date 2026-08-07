@@ -1,0 +1,16 @@
+info: Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager[63]
+      User profile is available. Using 'C:\Users\Thet Lwin Oo\AppData\Local\ASP.NET\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest.
+fail: Microsoft.Extensions.Hosting.Internal.Host[11]
+      Hosting failed to start
+      Microsoft.Extensions.Options.OptionsValidationException: Authentication:Authority still contains an invalid deployment value.
+         at Microsoft.Extensions.Options.OptionsFactory`1.Create(String name)
+         at System.Lazy`1.ViaFactory(LazyThreadSafetyMode mode)
+         at System.Lazy`1.ExecutionAndPublication(LazyHelper executionAndPublication, Boolean useDefaultConstructor)
+         at System.Lazy`1.CreateValue()
+         at Microsoft.Extensions.Options.OptionsCache`1.GetOrAdd[TArg](String name, Func`3 createOptions, TArg factoryArgument)
+         at Microsoft.Extensions.Options.OptionsMonitor`1.Get(String name)
+         at Microsoft.Extensions.DependencyInjection.OptionsBuilderExtensions.<>c__DisplayClass0_1`1.<ValidateOnStart>b__1()
+         at Microsoft.Extensions.Options.StartupValidator.Validate()
+      --- End of stack trace from previous location ---
+         at Microsoft.Extensions.Options.StartupValidator.Validate()
+         at Microsoft.Extensions.Hosting.Internal.Host.StartAsync(CancellationToken cancellationToken)

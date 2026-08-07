@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Net.Http;
 using System.Collections.ObjectModel;
 using System.Text.Json;
 
@@ -39,6 +40,7 @@ public partial class MainWindow : Window
 
     private async void SignIn_Click(object sender, RoutedEventArgs e)
     {
+        SignInButton.IsEnabled = false;
         try
         {
             StatusText.Text = "Opening secure sign-in…";
@@ -50,9 +52,15 @@ public partial class MainWindow : Window
         {
             StatusText.Text = "Sign-in was cancelled.";
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            StatusText.Text = "Sign-in failed. Check the identity service and try again.";
+            StatusText.Text = exception is HttpRequestException
+                ? "Sign-in failed: Keycloak is unreachable. Check that http://localhost:8080 is running."
+                : $"Sign-in failed: {exception.Message}";
+        }
+        finally
+        {
+            UpdateOperationalState();
         }
     }
 
@@ -76,6 +84,8 @@ public partial class MainWindow : Window
         {
             StatusText.Text = exception is PosApiException apiException
                 ? apiException.Message
+                : exception is InvalidOperationException configurationException
+                    ? configurationException.Message
                 : "Shift could not be opened. Check the POS service and configuration.";
         }
         finally

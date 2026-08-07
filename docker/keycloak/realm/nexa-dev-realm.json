@@ -399,7 +399,20 @@
       "fullScopeAllowed": false,
       "redirectUris": ["${NEXACONNECT_POS_REDIRECT_URI}"],
       "attributes": { "pkce.code.challenge.method": "S256" },
-      "defaultClientScopes": ["profile", "email", "nexaconnect-api"]
+      "defaultClientScopes": ["profile", "email", "nexaconnect-api"],
+      "protocolMappers": [
+        {
+          "name": "nexaconnect-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "nexaconnect-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
     },
     {
       "clientId": "nexaconnect-pos-service",

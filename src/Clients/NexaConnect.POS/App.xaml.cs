@@ -2,6 +2,7 @@ using System.IO.Pipes;
 using System.IO;
 using System.Text;
 using System.Windows;
+using Microsoft.Win32;
 
 namespace NexaConnect.POS;
 
@@ -14,6 +15,7 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        EnsureProtocolRegistration();
         _mutex = new Mutex(true, MutexName, out bool ownsMutex);
         if (!ownsMutex)
         {
@@ -42,6 +44,22 @@ public partial class App : Application
         {
             _ = _authentication.HandleCallbackAsync(e.Args[0]);
         }
+    }
+
+    private static void EnsureProtocolRegistration()
+    {
+        string? executablePath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executablePath))
+        {
+            return;
+        }
+
+        using RegistryKey protocol = Registry.CurrentUser.CreateSubKey(
+            @"Software\Classes\nexaconnect-pos\shell\open\command");
+        protocol.SetValue(string.Empty, $"\"{executablePath}\" \"%1\"");
+        using RegistryKey root = Registry.CurrentUser.CreateSubKey(@"Software\Classes\nexaconnect-pos");
+        root.SetValue(string.Empty, "URL:NexaConnect POS callback");
+        root.SetValue("URL Protocol", string.Empty);
     }
 
     protected override void OnExit(ExitEventArgs e)

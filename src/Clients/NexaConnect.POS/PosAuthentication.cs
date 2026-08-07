@@ -69,7 +69,16 @@ public sealed class PosAuthentication : IDisposable
         try
         {
             string authorizeUri = BuildAuthorizeUri(pkce);
-            Process.Start(new ProcessStartInfo(authorizeUri) { UseShellExecute = true });
+            ProcessStartInfo browser = new()
+            {
+                FileName = authorizeUri,
+                UseShellExecute = true,
+                Verb = "open"
+            };
+            if (Process.Start(browser) is null)
+            {
+                throw new InvalidOperationException("Windows could not open the Keycloak sign-in browser.");
+            }
             StatusChanged?.Invoke(this, "Complete sign-in in your browser…");
             using (cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken)))
             {

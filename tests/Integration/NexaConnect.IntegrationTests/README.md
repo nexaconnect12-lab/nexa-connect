@@ -20,3 +20,13 @@ dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.Integrati
 ```
 
 They run only in `Development`, `Test`, or `Testing` environments and create/remove a uniquely named schema, so they do not modify the service's normal tables. Without the connection string or a safe environment name, the API integration tests still run and the database-specific tests return without opening a connection.
+
+The authorization provisioning regression test uses the same isolated-schema pattern:
+
+```powershell
+$env:NEXACONNECT_AUTHORIZATION_INTEGRATION_DB = 'Host=localhost;Port=5432;Database=NexaConnect_Authorization;Username=nexaconnect_migration;Password=<migration-password>'
+$env:DOTNET_ENVIRONMENT = 'Testing'
+dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~AuthorizationAssignmentPersistenceTests
+```
+
+It verifies that assigning the `cashier` role creates the scoped `pos.shift.open` override and that a fresh authorization decision service still grants the permission. Never run these database tests against a production database.

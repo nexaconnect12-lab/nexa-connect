@@ -6,9 +6,12 @@ The operational UI also provides cash-session open/close, terminal enrollment, a
 
 Keycloak client: `nexaconnect-pos`
 
+For a consistent local startup, run `scripts/run-pos-development.ps1` from the repository root. It stops duplicate API processes and starts Authorization, Restaurant, and POS with the Development PostgreSQL settings.
+
 - Public installed client
 - Authorization Code flow with mandatory PKCE S256
 - Redirect URI: `nexaconnect-pos://oauth/callback`
+- Access tokens must include the `nexaconnect-api` audience. The development realm configures this as a client-level audience mapper so POS tokens remain valid even when the optional client-scope claim is not expanded.
 - No embedded client secret
 - Tokens stored with Windows data protection or an approved hardware-backed credential store
 

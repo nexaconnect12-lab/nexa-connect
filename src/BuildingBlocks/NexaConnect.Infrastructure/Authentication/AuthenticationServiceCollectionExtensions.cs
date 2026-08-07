@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -44,12 +45,29 @@ public static class AuthenticationServiceCollectionExtensions
                 {
                     ValidateIssuer = true,
                     ValidateAudience = true,
+                    ValidAudience = settings.Audience,
+                    ValidAudiences = new[] { settings.Audience },
                     ValidateLifetime = true,
                     RequireExpirationTime = true,
                     ValidateIssuerSigningKey = true,
                     NameClaimType = NexaAuthenticationDefaults.UsernameClaim,
                     RoleClaimType = NexaAuthenticationDefaults.RealmRolesClaim,
                     ClockSkew = TimeSpan.FromSeconds(settings.ClockSkewSeconds)
+                };
+                options.Events = new JwtBearerEvents
+                {
+                    OnAuthenticationFailed = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("NexaConnect.JwtBearer");
+                        logger.LogError(context.Exception, "JWT authentication failed for {Method} {Path}", context.Request.Method, context.Request.Path);
+                        return Task.CompletedTask;
+                    },
+                    OnChallenge = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("NexaConnect.JwtBearer");
+                        logger.LogWarning("JWT challenge for {Method} {Path}: {Error} {Description}", context.Request.Method, context.Request.Path, context.Error, context.ErrorDescription);
+                        return Task.CompletedTask;
+                    }
                 };
             });
 

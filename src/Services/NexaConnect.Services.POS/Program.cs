@@ -7,6 +7,8 @@ using NexaConnect.Services.POS.Infrastructure.Restaurant;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
 
 // Add services to the container.
 

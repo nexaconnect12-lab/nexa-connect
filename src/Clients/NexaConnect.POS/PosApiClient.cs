@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace NexaConnect.POS;
 
@@ -128,13 +129,36 @@ public sealed class PosApiClient : IDisposable
             return;
         }
 
-        string detail = response.StatusCode switch
+        string? stage = null;
+        if (response.StatusCode == HttpStatusCode.Forbidden)
         {
-            HttpStatusCode.Unauthorized => "Sign in again to continue.",
-            HttpStatusCode.Forbidden => "Your account is not authorized for this terminal.",
-            HttpStatusCode.Conflict => "The shift changed or is already open.",
-            HttpStatusCode.ServiceUnavailable => "A POS dependency is temporarily unavailable.",
-            _ => fallback
+            try
+            {
+                using JsonDocument problem = await response.Content.ReadFromJsonAsync<JsonDocument>()
+                    ?? throw new InvalidDataException();
+                if (problem.RootElement.TryGetProperty("extensions", out JsonElement extensions) &&
+                    extensions.TryGetProperty("stage", out JsonElement stageElement))
+                {
+                    stage = stageElement.GetString();
+                }
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        string detail = stage switch
+        {
+            "store-terminal-scope" => "This terminal is not enrolled for the configured store. Use Enroll terminal first.",
+            "authorization-decision" => "Your account has no POS permission for this branch. Ask an authorization administrator to assign cashier access.",
+            _ => response.StatusCode switch
+            {
+                HttpStatusCode.Unauthorized => "Sign in again to continue.",
+                HttpStatusCode.Forbidden => "Your account is not authorized for this terminal.",
+                HttpStatusCode.Conflict => "The shift changed or is already open.",
+                HttpStatusCode.ServiceUnavailable => "A POS dependency is temporarily unavailable.",
+                _ => fallback
+            }
         };
         throw new PosApiException((int)response.StatusCode, detail);
     }

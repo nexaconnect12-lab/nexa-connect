@@ -103,7 +103,8 @@ public sealed class ShiftsController(
     private PosUserContext? GetUserContext()
     {
         string? subject = User.FindFirst(NexaAuthenticationDefaults.SubjectClaim)?.Value
-            ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst(NexaAuthenticationDefaults.UsernameClaim)?.Value;
         string authorization = Request.Headers.Authorization.ToString();
         const string bearerPrefix = "Bearer ";
         string? token = authorization.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase)

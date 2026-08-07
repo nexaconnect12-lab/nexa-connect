@@ -1,0 +1,34 @@
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5225
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: D:\devops\nexa-connect\src\Services\NexaConnect.Services.POS
+warn: Microsoft.AspNetCore.HttpsPolicy.HttpsRedirectionMiddleware[3]
+      Failed to determine the https port for redirect.
+info: System.Net.Http.HttpClient.PosWorkloadTokenProvider.LogicalHandler[100]
+      Start processing HTTP request POST http://localhost:8080/realms/nexa-dev/protocol/openid-connect/token
+info: System.Net.Http.HttpClient.PosWorkloadTokenProvider.ClientHandler[100]
+      Sending HTTP request POST http://localhost:8080/realms/nexa-dev/protocol/openid-connect/token
+info: System.Net.Http.HttpClient.PosWorkloadTokenProvider.ClientHandler[101]
+      Received HTTP response headers after 2059.9811ms - 200
+info: System.Net.Http.HttpClient.PosWorkloadTokenProvider.LogicalHandler[101]
+      End processing HTTP request after 2065.3123ms - 200
+info: System.Net.Http.HttpClient.Default.LogicalHandler[100]
+      Start processing HTTP request GET http://localhost:51225/api/restaurant/v1/branches/042f9a90-c603-52f8-9683-6dd865bd3467/authorization-scope
+info: System.Net.Http.HttpClient.Default.ClientHandler[100]
+      Sending HTTP request GET http://localhost:51225/api/restaurant/v1/branches/042f9a90-c603-52f8-9683-6dd865bd3467/authorization-scope
+info: System.Net.Http.HttpClient.Default.ClientHandler[101]
+      Received HTTP response headers after 2316.8971ms - 200
+info: System.Net.Http.HttpClient.Default.LogicalHandler[101]
+      End processing HTTP request after 2316.984ms - 200
+info: System.Net.Http.HttpClient.Authorization.LogicalHandler[100]
+      Start processing HTTP request POST http://localhost:51223/api/authorization/v1/decisions
+info: System.Net.Http.HttpClient.Authorization.ClientHandler[100]
+      Sending HTTP request POST http://localhost:51223/api/authorization/v1/decisions
+info: System.Net.Http.HttpClient.Authorization.ClientHandler[101]
+      Received HTTP response headers after 2303.0569ms - 200
+info: System.Net.Http.HttpClient.Authorization.LogicalHandler[101]
+      End processing HTTP request after 2303.1638ms - 200
