@@ -83,7 +83,9 @@ The local Docker initializer is a development convenience, not the production pr
 
 ## Runtime persistence and event delivery
 
-The Catalog, Inventory, Order, Payment, Customer, and Notification services default to in-memory adapters for local scaffolding. The `Persistence__Provider=PostgreSQL` switch is honored by Customer and Payment repositories, the Order aggregate/idempotency/outbox, and the Catalog, Inventory, and Notification adapters. Provide only the owning service's runtime connection string. When Order uses HTTP workflow adapters, configure `Authentication__OutboundToken` with a short-lived workload token; adapters attach it as a bearer token.
+The Catalog, Inventory, Order, Kitchen, Payment, Customer, and Notification services default to in-memory adapters for local scaffolding. The `Persistence__Provider=PostgreSQL` switch is honored by Customer and Payment repositories, the Order aggregate/idempotency/outbox, the Kitchen ticket store, and the Catalog, Inventory, and Notification adapters. Provide only the owning service's runtime connection string. When Order uses HTTP workflow adapters, configure `Authentication__OutboundToken` with a short-lived workload token; adapters attach it as a bearer token.
+
+The Kitchen API is exposed at `/api/kitchen/v1/tickets` for authenticated Order workloads. Configure `ConnectionStrings__Kitchen`, `Persistence__Provider=PostgreSQL`, and `Kitchen__RestaurantId` when deploying it with the service-owned Kitchen database. Its HTTPS endpoint must be the value of Order's `Services__Kitchen` setting.
 
 The Order service can persist integration events through the service-owned `outbox_messages` table and publish them through RabbitMQ when `Persistence__Provider=PostgreSQL` and an explicit `Outbox__ConnectionString` are configured. Outside Development, startup fails if the outbox connection is missing. The dispatcher claims rows with `SKIP LOCKED`, retries failed publications, and marks rows published only after the broker accepts the message. RabbitMQ credentials and TLS settings must come from the deployment secret store; do not use the local guest account in production.
 

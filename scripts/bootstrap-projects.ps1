@@ -9,7 +9,7 @@ dotnet new classlib -n NexaConnect.Contracts -o src/BuildingBlocks/NexaConnect.C
 dotnet new classlib -n NexaConnect.Infrastructure -o src/BuildingBlocks/NexaConnect.Infrastructure
 dotnet new classlib -n NexaConnect.Shared -o src/BuildingBlocks/NexaConnect.Shared
 
-$services = @('Catalog', 'Inventory', 'Order', 'Customer', 'Payment', 'Notification', 'POS')
+$services = @('Catalog', 'Inventory', 'Order', 'Kitchen', 'Customer', 'Payment', 'Notification', 'POS')
 foreach ($service in $services) {
     dotnet new webapi -n "NexaConnect.Services.$service" -o "src/Services/NexaConnect.Services.$service" --use-controllers
 }

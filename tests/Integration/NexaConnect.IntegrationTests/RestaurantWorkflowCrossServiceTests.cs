@@ -2,6 +2,7 @@ extern alias CATALOG;
 extern alias INVENTORY;
 extern alias ORDER;
 extern alias PAYMENT;
+extern alias KITCHEN;
 
 using System.Collections.Concurrent;
 using System.Net;
@@ -12,7 +13,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -34,6 +34,11 @@ using PaymentProgram = PAYMENT::PaymentProgram;
 using PaymentIntents = PAYMENT::NexaConnect.Services.Payment.Application.Intents.IPaymentIntents;
 using PaymentIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentIntent;
 using CreatePaymentIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.CreatePaymentIntent;
+using KitchenProgram = KITCHEN::KitchenProgram;
+using KitchenStore = KITCHEN::NexaConnect.Services.Kitchen.Application.IKitchenTicketStore;
+using KitchenTicket = KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenTicket;
+using CreateKitchenTicket = KITCHEN::NexaConnect.Services.Kitchen.Application.CreateKitchenTicket;
+using KitchenTicketStatus = KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenTicketStatus;
 
 namespace NexaConnect.IntegrationTests;
 
@@ -114,7 +119,7 @@ public sealed class RestaurantWorkflowServiceFixture : IDisposable
 
     public CatalogFactory Catalog { get; } = new();
     public InventoryFactory Inventory { get; } = new();
-    public KitchenContractHost Kitchen { get; } = new();
+    public KitchenFactory Kitchen { get; } = new();
     public PaymentFactory Payments { get; } = new();
     public OrderFactory Order { get; }
 
@@ -174,10 +179,10 @@ public sealed class OrderFactory : WebApplicationFactory<OrderProgram>
 {
     private readonly CatalogFactory catalog;
     private readonly InventoryFactory inventory;
-    private readonly KitchenContractHost kitchen;
+    private readonly KitchenFactory kitchen;
     private readonly PaymentFactory payment;
 
-    public OrderFactory(CatalogFactory catalog, InventoryFactory inventory, KitchenContractHost kitchen, PaymentFactory payment)
+    public OrderFactory(CatalogFactory catalog, InventoryFactory inventory, KitchenFactory kitchen, PaymentFactory payment)
     {
         this.catalog = catalog;
         this.inventory = inventory;
@@ -283,54 +288,55 @@ internal sealed class ForwardingHandler(Func<HttpClient> clientFactory) : HttpMe
     }
 }
 
-#pragma warning disable ASPDEPR004, ASPDEPR008
-public sealed class KitchenContractHost : IDisposable
+public sealed class KitchenFactory : WebApplicationFactory<KitchenProgram>
 {
-    private readonly TestServer server;
-    private readonly ConcurrentDictionary<Guid, Guid> tickets = new();
+    internal RecordingKitchenStore Store { get; } = new();
 
-    public KitchenContractHost()
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        var builder = new WebHostBuilder().UseEnvironment("Testing").Configure(app =>
+        TestServiceConfiguration.Configure(builder, "kitchen");
+        builder.ConfigureServices(services =>
         {
-            app.Run(async context =>
-            {
-                if (context.Request.Method == "POST" && context.Request.Path == "/api/kitchen/v1/tickets")
-                {
-                    var request = await context.Request.ReadFromJsonAsync<KitchenTicketRequest>(context.RequestAborted)
-                        ?? throw new InvalidOperationException("Kitchen ticket request was empty.");
-                    Guid ticketId = Guid.NewGuid();
-                    tickets[request.OrderId] = ticketId;
-                    await context.Response.WriteAsJsonAsync(new { ticketId }, context.RequestAborted);
-                    return;
-                }
-
-                const string prefix = "/api/kitchen/v1/tickets/";
-                string path = context.Request.Path.Value ?? string.Empty;
-                if (context.Request.Method == "POST" && path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
-                    path.EndsWith("/cancel", StringComparison.OrdinalIgnoreCase) &&
-                    Guid.TryParse(path[prefix.Length..^7], out Guid orderId))
-                {
-                    tickets.TryRemove(orderId, out _);
-                    context.Response.StatusCode = StatusCodes.Status204NoContent;
-                    return;
-                }
-
-                context.Response.StatusCode = StatusCodes.Status404NotFound;
-            });
+            services.RemoveAll<KitchenStore>();
+            services.AddSingleton<KitchenStore>(Store);
         });
-        server = new TestServer(builder);
     }
 
-    public HttpClient CreateClient() => server.CreateClient();
-    public bool WasCreated(Guid orderId) => tickets.ContainsKey(orderId);
+    public bool WasCreated(Guid orderId) => Store.WasCreated(orderId);
+    public int CreatedCount => Store.CreatedCount;
+    public void Reset() => Store.Reset();
+}
+
+internal sealed class RecordingKitchenStore : KitchenStore
+{
+    private readonly ConcurrentDictionary<Guid, KitchenTicket> tickets = new();
+
+    public Task<KitchenTicket> CreateAsync(CreateKitchenTicket command, CancellationToken cancellationToken)
+    {
+        KitchenTicket ticket = new(Guid.NewGuid(), command.OrderId, command.BranchId,
+            KitchenTicketStatus.Queued, DateTimeOffset.UtcNow, []);
+        tickets[ticket.TicketId] = ticket;
+        return Task.FromResult(ticket);
+    }
+
+    public Task<KitchenTicket?> GetAsync(Guid ticketId, CancellationToken cancellationToken) =>
+        Task.FromResult(tickets.TryGetValue(ticketId, out KitchenTicket? ticket) ? ticket : null);
+
+    public Task<bool> CancelAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        foreach ((Guid ticketId, KitchenTicket ticket) in tickets)
+        {
+            if (ticket.OrderId != orderId) continue;
+            tickets[ticketId] = ticket with { Status = KitchenTicketStatus.Cancelled };
+            return Task.FromResult(true);
+        }
+        return Task.FromResult(false);
+    }
+
+    public bool WasCreated(Guid orderId) => tickets.Values.Any(ticket => ticket.OrderId == orderId);
     public int CreatedCount => tickets.Count;
     public void Reset() => tickets.Clear();
-    public void Dispose() => server.Dispose();
-
-    private sealed record KitchenTicketRequest(Guid OrderId, Guid BranchId, IReadOnlyCollection<object> Lines);
 }
-#pragma warning restore ASPDEPR004, ASPDEPR008
 
 internal sealed class RecordingPaymentIntents : PaymentIntents
 {

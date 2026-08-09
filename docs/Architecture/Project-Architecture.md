@@ -4,7 +4,7 @@
 
 NexaConnect is a restaurant operating platform that supports staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, reporting, and external integrations. Restaurant branches must continue approved operations during internet or cloud outages and synchronize safely after recovery. The architecture separates business capabilities into independently maintainable services while keeping the initial implementation practical for a small team.
 
-Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first PostgreSQL tooling, PostgreSQL-backed Platform Directory and POS slices, PostgreSQL adapters for Catalog, Inventory, Customer, Payment, and Notification, migration-managed service projections, a durable PostgreSQL/RabbitMQ outbox and PostgreSQL aggregate/idempotency repository for Order, Keycloak client-credentials outbound authentication with retries, payment-failure compensation hooks, provider retry boundaries, a public place-order workflow endpoint, executable bounded-context API slices, and cross-service HTTP coverage for the Catalog -> Order -> Inventory -> Kitchen -> Payment workflow. Production provider credentials, deployed Kitchen cancellation, offline synchronization, and broader product resource authorization remain planned.
+Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first PostgreSQL tooling, PostgreSQL-backed Platform Directory and POS slices, PostgreSQL adapters for Catalog, Inventory, Customer, Payment, and Notification, migration-managed service projections, a durable PostgreSQL/RabbitMQ outbox and PostgreSQL aggregate/idempotency repository for Order, Keycloak client-credentials outbound authentication with retries, payment-failure compensation hooks, provider retry boundaries, a public place-order workflow endpoint, executable bounded-context API slices, and cross-service HTTP coverage for the Catalog -> Order -> Inventory -> Kitchen -> Payment workflow. Production provider credentials, offline synchronization, and broader product resource authorization remain planned.
 
 The detailed restaurant domains, branch-edge topology, offline failure model, kitchen flow, QR behavior, reporting architecture, and shared identity boundary are defined in [Restaurant POS Architecture](Restaurant-POS-Architecture.md). This document defines the supporting technical architecture.
 
@@ -53,10 +53,12 @@ flowchart TB
     GW --> ORDER[Order Service]
     GW --> CUSTOMER[Customer Service]
     GW --> PAYMENT[Payment Service]
+    GW --> KITCHEN[Kitchen Service]
     GW --> POSSVC[POS Service]
     GW --> DIRECTORY[Platform Directory]
 
     ORDER --> BUS[(RabbitMQ)]
+    ORDER --> KITCHEN
     INVENTORY --> BUS
     PAYMENT --> BUS
     POSSVC --> BUS
@@ -67,6 +69,7 @@ flowchart TB
     ORDER --> ORDERDB[(Order DB)]
     CUSTOMER --> CUSTOMERDB[(Customer DB)]
     PAYMENT --> PAYMENTDB[(Payment DB)]
+    KITCHEN --> KITCHENDB[(Kitchen DB)]
     POSSVC --> POSDB[(POS DB)]
     DIRECTORY --> DIRECTORYDB[(Platform Directory DB)]
 
@@ -193,7 +196,11 @@ Owns customer profiles, addresses, contact preferences, loyalty identifiers, and
 
 Owns payment intents, provider transactions, payment status, refunds, and reconciliation references. It must not store sensitive card data unless the deployment is designed and certified for that purpose.
 
-### 5.8 POS Service
+### 5.8 Kitchen Service
+
+Owns preparation tickets, station-specific preparation snapshots, ticket status transitions, and payment-failure cancellation. It receives order-line snapshots through its authenticated HTTP API and never recalculates commercial totals or reads the Order database directly.
+
+### 5.9 POS Service
 
 Owns terminals, stores, shifts, cash sessions, device registration, synchronization state, and server-side processing of offline POS operations.
 

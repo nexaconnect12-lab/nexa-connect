@@ -61,14 +61,20 @@ public sealed class HttpKitchenPort(HttpClient client) : IKitchenPort
     public async Task<KitchenTicketResult> CreateTicketAsync(
         Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
     {
-        using HttpResponseMessage response = await client.PostAsJsonAsync(
-            "api/kitchen/v1/tickets",
-            new TicketRequest(orderId, branchId, lines.Select(line => new TicketLine(line.ProductId, line.Name, line.Quantity, line.PreparationStation)).ToArray()),
-            cancellationToken);
-        response.EnsureSuccessStatusCode();
-        TicketResponse ticket = await response.Content.ReadFromJsonAsync<TicketResponse>(cancellationToken)
-            ?? throw new InvalidOperationException("Kitchen returned an empty ticket response.");
-        return new KitchenTicketResult(ticket.TicketId);
+        KitchenTicketResult? firstTicket = null;
+        foreach (IGrouping<string, OrderLine> group in lines.GroupBy(line => line.PreparationStation, StringComparer.OrdinalIgnoreCase))
+        {
+            using HttpResponseMessage response = await client.PostAsJsonAsync(
+                "api/kitchen/v1/tickets",
+                new TicketRequest(orderId, branchId, group.Select(line => new TicketLine(line.ProductId, line.Name, line.Quantity, line.PreparationStation)).ToArray()),
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+            TicketResponse ticket = await response.Content.ReadFromJsonAsync<TicketResponse>(cancellationToken)
+                ?? throw new InvalidOperationException("Kitchen returned an empty ticket response.");
+            firstTicket ??= new KitchenTicketResult(ticket.TicketId);
+        }
+
+        return firstTicket ?? throw new InvalidOperationException("Kitchen requires at least one order line.");
     }
 
     private sealed record TicketRequest(Guid OrderId, Guid BranchId, IReadOnlyCollection<TicketLine> Lines);

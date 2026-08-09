@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Inventory\NexaConnect.Services.Inventory.csproj" Aliases="INVENTORY" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Order\NexaConnect.Services.Order.csproj" Aliases="ORDER" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Payment\NexaConnect.Services.Payment.csproj" Aliases="PAYMENT" />
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Kitchen\NexaConnect.Services.Kitchen.csproj" Aliases="KITCHEN" />
   </ItemGroup>
 
   <ItemGroup>
