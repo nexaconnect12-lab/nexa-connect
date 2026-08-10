@@ -437,6 +437,18 @@
       "serviceAccountsEnabled": true,
       "fullScopeAllowed": false,
       "defaultClientScopes": ["nexaconnect-api"]
+    },
+    {
+      "clientId": "nexaconnect-order-service",
+      "name": "NexaConnect Order Workload",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${NEXACONNECT_ORDER_SERVICE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["nexaconnect-api"]
     }
   ]
 }

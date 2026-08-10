@@ -7,6 +7,8 @@ using NexaConnect.Services.Order.Infrastructure.Clients;
 using NexaConnect.Services.Order.Infrastructure.Persistence;
 using Npgsql;
 using NexaConnect.Infrastructure.Http;
+using NexaConnect.Services.Order.Application.Tenant;
+using NexaConnect.Services.Order.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
@@ -14,6 +16,12 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("keycloak-token");
+builder.Services.AddHttpClient<OrderWorkloadTokenProvider>();
+builder.Services.AddHttpClient("OrderPlatformDirectory", client => client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required.")));
+builder.Services.AddHttpClient("OrderRestaurant", client => client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")));
+builder.Services.AddScoped<IOrderTenantAuthorizer, HttpOrderTenantAuthorizer>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);

@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using NexaConnect.Services.Order.Application.Orders;
 using NexaConnect.Services.Order.Domain;
 using NexaConnect.Services.Order.Application.Workflow;
+using NexaConnect.Services.Order.Application.Tenant;
+using NexaConnect.Contracts.Platform;
 
 namespace NexaConnect.Services.Order.Controllers;
 
@@ -34,13 +36,23 @@ public sealed class OrdersController(IOrderApplicationService orders) : Controll
 
 [ApiController]
 [Route("api/order/v1/workflows")]
-public sealed class OrderWorkflowController(PlaceOrderWorkflow workflow) : ControllerBase
+public sealed class OrderWorkflowController(PlaceOrderWorkflow workflow, IOrderTenantAuthorizer tenantAuthorizer) : ControllerBase
 {
     [HttpPost("place")]
     public async Task<ActionResult<PlaceOrderResult>> Place(PlaceOrderRequest request, CancellationToken cancellationToken)
     {
         try
         {
+            if (Request.Headers.TryGetValue(TenantContextHeaders.PortalRequest, out var portal)
+                && string.Equals(portal.ToString(), "customer", StringComparison.Ordinal))
+            {
+                if (!Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out Guid contextOrganization)
+                    || contextOrganization != request.OrganizationId
+                    || !string.Equals(Request.Headers[TenantContextHeaders.ApplicationCode], "nexa_connect", StringComparison.Ordinal)
+                    || !Request.Headers.TryGetValue("Authorization", out var authorization)
+                    || !await tenantAuthorizer.HasBranchAccessAsync(contextOrganization, request.BranchId, authorization.ToString(), cancellationToken))
+                    return Forbid();
+            }
             if (string.IsNullOrWhiteSpace(request.IdempotencyKey))
                 return BadRequest(new { error = "IdempotencyKey is required." });
             var result = await workflow.ExecuteAsync(new PlaceOrderCommand(request.OrganizationId, request.BranchId,
