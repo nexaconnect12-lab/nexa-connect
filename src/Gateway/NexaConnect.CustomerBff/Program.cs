@@ -6,8 +6,10 @@ using NexaConnect.Contracts.Platform;
 using NexaConnect.CustomerBff;
 using NexaConnect.CustomerBff.Application.Catalog;
 using NexaConnect.CustomerBff.Application.Inventory;
+using NexaConnect.CustomerBff.Application.Orders;
 using NexaConnect.CustomerBff.Infrastructure.Catalog;
 using NexaConnect.CustomerBff.Infrastructure.Inventory;
+using NexaConnect.CustomerBff.Infrastructure.Orders;
 using NexaConnect.Infrastructure.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,6 +36,11 @@ builder.Services.AddHttpClient<ICustomerInventoryPort, HttpCustomerInventoryPort
 {
     client.BaseAddress = new Uri(builder.Configuration["Services:Inventory"]
         ?? throw new InvalidOperationException("Services:Inventory is required."));
+});
+builder.Services.AddHttpClient<ICustomerOrderPort, HttpCustomerOrderPort>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Services:Order"]
+        ?? throw new InvalidOperationException("Services:Order is required."));
 });
 builder.Services.AddAuthentication(options =>
     {
@@ -187,6 +194,32 @@ app.MapGet("/bff/customer/inventory/branches/{branchId:guid}/stock", async (
     if (!stillGranted) return Results.Forbid();
 
     using HttpResponseMessage response = await inventory.GetStockAsync(tenant, branchId, accessToken, cancellationToken);
+    return await ForwardJsonAsync(response, cancellationToken);
+}).RequireAuthorization("CustomerSession");
+
+app.MapPost("/bff/customer/orders/branches/{branchId:guid}/place", async (
+    Guid branchId,
+    CustomerPlaceOrderRequest request,
+    HttpContext context,
+    IHttpClientFactory clients,
+    ICustomerOrderPort orders,
+    TenantSelectionCookie selectionCookie,
+    CancellationToken cancellationToken) =>
+{
+    TenantContext? tenant = selectionCookie.Unprotect(context.Request.Cookies["__Host-nexa-customer-tenant"]);
+    string? subjectId = context.User.FindFirstValue("sub");
+    string? accessToken = await context.GetTokenAsync("CustomerCookie", "access_token");
+    if (tenant is null || string.IsNullOrWhiteSpace(subjectId) || subjectId != tenant.SubjectId || string.IsNullOrWhiteSpace(accessToken))
+        return Results.Unauthorized();
+
+    HttpResponseMessage accessResponse = await CallPlatformDirectoryAsync(context, clients, "api/platform-directory/v1/me/access", cancellationToken);
+    if (!accessResponse.IsSuccessStatusCode) return await ForwardJsonAsync(accessResponse, cancellationToken);
+    CurrentPlatformAccessResponse? access = await accessResponse.Content.ReadFromJsonAsync<CurrentPlatformAccessResponse>(cancellationToken: cancellationToken);
+    bool stillGranted = access?.SubjectId == tenant.SubjectId && access.Organizations.Any(item =>
+        item.OrganizationId == tenant.OrganizationId && item.ApplicationCode == tenant.ApplicationCode);
+    if (!stillGranted) return Results.Forbid();
+
+    using HttpResponseMessage response = await orders.PlaceAsync(tenant, branchId, request, accessToken, cancellationToken);
     return await ForwardJsonAsync(response, cancellationToken);
 }).RequireAuthorization("CustomerSession");
 

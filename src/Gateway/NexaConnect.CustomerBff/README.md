@@ -12,6 +12,7 @@ Endpoints:
 - `GET /bff/customer/tenant` revalidates the protected tenant selection on every read.
 - `GET /bff/customer/catalog/branches/{branchId}/menu-items` forwards the current bearer token and validated tenant headers through the Catalog adapter.
 - `GET /bff/customer/inventory/branches/{branchId}/stock` forwards the current bearer token and validated tenant headers through the Inventory adapter.
+- `POST /bff/customer/orders/branches/{branchId}/place` submits the tenant-bound order workflow through the Order adapter; organization and branch IDs come from the protected tenant context and route, not the browser payload.
 
 The selected tenant is stored in an encrypted, HTTP-only cookie. Product APIs must still enforce organization and product authorization; the BFF selection is context, not a permission grant. The browser never receives an access token and never calls Platform Directory or product databases directly.
 
