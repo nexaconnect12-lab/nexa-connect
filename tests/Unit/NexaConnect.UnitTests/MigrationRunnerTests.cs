@@ -12,15 +12,15 @@ public sealed class MigrationRunnerTests
             ["Authorization"] = 1,
             ["Restaurant"] = 1,
             ["Catalog"] = 2,
-            ["Inventory"] = 2,
+            ["Inventory"] = 3,
             ["Order"] = 1,
-            ["Kitchen"] = 1,
+            ["Kitchen"] = 2,
             ["Customer"] = 1,
             ["Payment"] = 1,
             ["Notification"] = 1,
             ["POS"] = 3,
             ["Media"] = 1,
-            ["Reporting"] = 1
+            ["Reporting"] = 2
         };
 
         foreach ((string service, int expectedVersion) in services)

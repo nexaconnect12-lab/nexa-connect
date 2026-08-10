@@ -1,4 +1,5 @@
 using NexaConnect.Infrastructure.Authentication;
+using NexaConnect.Infrastructure.Messaging;
 using NexaConnect.Services.Inventory.Application.Reservations;
 using NexaConnect.Services.Inventory.Infrastructure;
 using Npgsql;
@@ -18,6 +19,7 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     var dataSource = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("Inventory") ?? throw new InvalidOperationException("ConnectionStrings:Inventory is required.")).Build();
     builder.Services.AddSingleton(dataSource);
     builder.Services.AddSingleton<IInventoryReservations, PostgresInventoryReservations>();
+    builder.Services.AddPostgresInbox(builder.Configuration, "Inventory");
 }
 else builder.Services.AddSingleton<IInventoryReservations, InMemoryInventoryReservations>();
 

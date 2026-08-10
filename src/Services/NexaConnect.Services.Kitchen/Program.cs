@@ -1,4 +1,5 @@
 using NexaConnect.Infrastructure.Authentication;
+using NexaConnect.Infrastructure.Messaging;
 using NexaConnect.Services.Kitchen.Application;
 using NexaConnect.Services.Kitchen.Infrastructure;
 using Npgsql;
@@ -18,6 +19,7 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
         ?? throw new InvalidOperationException("ConnectionStrings:Kitchen is required.");
     builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
     builder.Services.AddSingleton<IKitchenTicketStore, PostgresKitchenTicketStore>();
+    builder.Services.AddPostgresInbox(builder.Configuration, "Kitchen");
 }
 else
 {

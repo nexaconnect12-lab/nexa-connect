@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "name": "durable_inbox",
+  "transactional": true,
+  "downgradeSafety": "destructive",
+  "minimumApplicationVersion": "0.1.0"
+}

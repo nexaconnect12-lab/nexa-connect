@@ -16,7 +16,7 @@ ConnectionStrings__Kitchen=Host=127.0.0.1;Port=5432;Database=NexaConnect_Kitchen
 Kitchen__RestaurantId=<restaurant-guid>
 ```
 
-Apply the service-owned Kitchen migration before enabling PostgreSQL persistence. Order calls the authenticated endpoints using its configured `Services__Kitchen` URL and workload bearer token.
+Apply the service-owned Kitchen migration before enabling PostgreSQL persistence. PostgreSQL mode also registers the service-owned durable inbox store for idempotent event consumers. Order calls the authenticated endpoints using its configured `Services__Kitchen` URL and workload bearer token.
 
 ## API
 
