@@ -6,11 +6,11 @@
 
 ## Context
 
-The product ecosystem requires one dashboard for the owner or operator of all products and websites. Each individual product also requires a separate dashboard for its own product owners and administrators. Combining these responsibilities would expose excessive privileges, couple deployments, and encourage cross-product database access.
+The product ecosystem requires one Product Owner Portal for the owner or operator of all products and websites, separate product administration dashboards, and a tenant-scoped Customer Portal. Combining these responsibilities would expose excessive privileges, couple deployments, and encourage cross-product database access.
 
 ## Decision
 
-The shared platform will own a separately deployed Platform Admin Dashboard. Every product will own a separately deployed product-specific administration dashboard.
+The shared platform will own a separately deployed Product Owner/Platform Admin Dashboard. Every product will own a separately deployed product-specific administration dashboard, while customer-facing product access is provided through a separate tenant-scoped Customer Portal.
 
 The Platform Admin Dashboard manages the cross-product control plane:
 
@@ -29,6 +29,8 @@ The Platform Admin Dashboard does not own or directly manage restaurant menus, o
 NexaConnect owns `NexaConnect.Admin`, which manages restaurant-specific configuration and operations. Future products, such as a property-listing platform, own independent dashboards and APIs for their domains.
 
 Every dashboard uses a separate OpenID Connect client, BFF, session-cookie boundary, scopes, audiences, redirect URLs, and deployment lifecycle.
+
+The detailed two-portal and tenant-isolation decision is recorded in [ADR-006](ADR-006-portal-separation-and-tenant-isolation.md).
 
 Dashboards access APIs only. They do not connect directly to PostgreSQL databases. The Platform Admin Dashboard uses Platform Control Plane APIs. Product dashboards use their product gateway/BFF and product-owned APIs.
 

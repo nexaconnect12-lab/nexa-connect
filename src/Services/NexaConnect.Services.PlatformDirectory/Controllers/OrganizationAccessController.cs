@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NexaConnect.Infrastructure.Authentication;
+using NexaConnect.Contracts.Platform;
 using NexaConnect.Services.PlatformDirectory.Application.Access;
 
 namespace NexaConnect.Services.PlatformDirectory.Controllers;
@@ -10,6 +11,21 @@ namespace NexaConnect.Services.PlatformDirectory.Controllers;
 [Route("api/platform-directory/v1/organizations")]
 public sealed class OrganizationAccessController(IOrganizationAccessReader accessReader) : ControllerBase
 {
+    [HttpGet("/api/platform-directory/v1/me/access")]
+    public async Task<ActionResult<CurrentPlatformAccessResponse>> GetCurrentAccessAsync(
+        CancellationToken cancellationToken)
+    {
+        string? subjectId = User.FindFirst(NexaAuthenticationDefaults.SubjectClaim)?.Value;
+        if (string.IsNullOrWhiteSpace(subjectId))
+        {
+            return Forbid();
+        }
+
+        IReadOnlyList<OrganizationApplicationAccess> organizations =
+            await accessReader.GetCurrentAccessAsync(subjectId, cancellationToken);
+        return Ok(new CurrentPlatformAccessResponse(subjectId, organizations));
+    }
+
     [HttpGet("{organizationId:guid}/access")]
     public async Task<ActionResult<OrganizationAccessResponse>> GetAccessAsync(
         Guid organizationId,

@@ -25,7 +25,9 @@ Realm roles may grant coarse access such as `report-viewer` or `tenant-admin`. T
 
 Organization membership is resolved through the Platform Directory API or an approved local projection. It is not inferred from email domains, usernames, client roles, or direct Keycloak database access.
 
-The initial current-access API is `GET /api/platform-directory/v1/organizations/{organizationId}/access`. It evaluates the caller's `sub`, active membership, active organization, and enabled `nexa_connect` application access. It is an organization-level boundary, not a substitute for product resource authorization.
+The initial current-access API is `GET /api/platform-directory/v1/me/access`. It evaluates the caller's `sub`, active memberships, active organizations, and enabled `nexa_connect` application access, returning the organizations available to the current subject. The organization-specific `GET /api/platform-directory/v1/organizations/{organizationId}/access` endpoint remains available for a single access decision. Both are organization-level boundaries, not substitutes for product resource authorization.
+
+The Product Owner Portal and Customer Portal are separate trust boundaries. Platform roles such as `platform-owner`, `platform-admin`, `platform-support`, and `platform-auditor` are not customer membership roles. Customer roles such as `customer-owner`, `customer-admin`, `customer-manager`, `customer-user`, and `customer-viewer` are evaluated within an organization and enabled product. A platform role does not automatically authorize restaurant or other product operations.
 
 ## Validation rules
 

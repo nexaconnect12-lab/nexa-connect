@@ -1,8 +1,8 @@
-# NexaConnect Web
+# NexaConnect Customer Portal
 
 The browser application authenticates through its ASP.NET Core BFF; it does not handle OAuth tokens directly.
 
-Keycloak client: `nexaconnect-web-bff`
+Keycloak client: `nexaconnect-web-bff` (current Customer Portal client; a future rename to `nexaconnect-customer-bff` requires an explicit client migration)
 
 - Confidential client using Authorization Code flow
 - Exact callback: `<web-origin>/signin-oidc`

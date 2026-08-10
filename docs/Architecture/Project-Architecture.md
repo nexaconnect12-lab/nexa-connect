@@ -4,7 +4,7 @@
 
 NexaConnect is a restaurant operating platform that supports staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, reporting, and external integrations. Restaurant branches must continue approved operations during internet or cloud outages and synchronize safely after recovery. The architecture separates business capabilities into independently maintainable services while keeping the initial implementation practical for a small team.
 
-Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first PostgreSQL tooling, PostgreSQL-backed Platform Directory and POS slices, PostgreSQL adapters for Catalog, Inventory, Customer, Payment, and Notification, migration-managed service projections, durable PostgreSQL/RabbitMQ outbox and inbox primitives, PostgreSQL aggregate/idempotency persistence for Order, Keycloak client-credentials outbound authentication with retries, payment-failure compensation hooks, provider retry boundaries, a public place-order workflow endpoint, executable bounded-context API slices, and cross-service HTTP coverage for the Catalog -> Order -> Inventory -> Kitchen -> Payment workflow. Production provider credentials, offline synchronization, and broader product resource authorization remain planned.
+Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first PostgreSQL tooling, Platform Directory organization-access and current-tenant access contracts, PostgreSQL-backed Platform Directory and POS slices, PostgreSQL adapters for Catalog, Inventory, Customer, Payment, and Notification, migration-managed service projections, durable PostgreSQL/RabbitMQ outbox and inbox primitives, PostgreSQL aggregate/idempotency persistence for Order, Keycloak client-credentials outbound authentication with retries, payment-failure compensation hooks, provider retry boundaries, a public place-order workflow endpoint, executable bounded-context API slices, and cross-service HTTP coverage for the Catalog -> Order -> Inventory -> Kitchen -> Payment workflow. Production provider credentials, offline synchronization, and broader product resource authorization remain planned.
 
 The detailed restaurant domains, branch-edge topology, offline failure model, kitchen flow, QR behavior, reporting architecture, and shared identity boundary are defined in [Restaurant POS Architecture](Restaurant-POS-Architecture.md). This document defines the supporting technical architecture.
 
@@ -393,7 +393,9 @@ src/
 
 The browser should preferably authenticate through an ASP.NET Core BFF using secure HTTP-only cookies. Avoid storing long-lived refresh tokens in browser local storage.
 
-Administration follows [ADR-003](Decisions/ADR-003-platform-and-product-dashboard-separation.md). The shared platform owns a separately deployed Platform Admin Dashboard for cross-product control-plane functions. NexaConnect owns `NexaConnect.Admin` for restaurant-specific administration. Each uses a separate OIDC client, BFF, cookie, scope, audience, API, and deployment boundary. Neither dashboard accesses PostgreSQL directly.
+Administration follows [ADR-003](Decisions/ADR-003-platform-and-product-dashboard-separation.md) and [ADR-006](Decisions/ADR-006-portal-separation-and-tenant-isolation.md). The shared platform owns a separately deployed Product Owner Portal for cross-product control-plane functions. NexaConnect owns `NexaConnect.Admin` for product-specific administration and `NexaConnect.Web` is the starting point for the tenant-scoped Customer Portal. The Product Owner Portal, product administration portal, and Customer Portal each use separate BFF/session boundaries, OIDC clients, cookies, scopes, audiences, APIs, and deployment lifecycles. None accesses PostgreSQL directly.
+
+The Customer Portal resolves the authenticated `sub`, organization membership, and enabled product access through `GET /api/platform-directory/v1/me/access`, then applies product-specific authorization before invoking a tenant-aware application use case. Platform roles do not automatically grant customer product permissions, and customer-supplied tenant identifiers are never treated as authorization proof.
 
 ### Mobile
 
@@ -448,6 +450,7 @@ Never log passwords, access tokens, refresh tokens, payment secrets, or sensitiv
 ## 13. Security
 
 - TLS is required outside local development.
+- Product Owner and Customer Portals are separate trust and deployment boundaries; customer sessions and platform-admin sessions must never share cookies, audiences, scopes, or secrets.
 - Production hosts require a password-protected TLS certificate and a separate password-protected Data Protection certificate; durable key rings live in service-owned, access-controlled directories and are backed up securely.
 - Access tokens should be short-lived.
 - Authorization policies must validate tenant and store boundaries.

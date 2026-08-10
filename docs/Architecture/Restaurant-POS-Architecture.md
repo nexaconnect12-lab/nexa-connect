@@ -340,7 +340,7 @@ NexaConnect owns `NexaConnect.Admin`. It manages restaurant-specific configurati
 
 Future products own separate administration dashboards and product APIs. A property-listing dashboard, for example, owns property listings, agents, media, approvals, inquiries, and property reporting without depending on NexaConnect.
 
-Each dashboard has a separate OIDC client and BFF session boundary. Initial clients include `platform-admin-bff` and `nexaconnect-admin-bff`. Platform roles do not automatically grant restaurant operational permissions; audited, time-limited support elevation is required when cross-boundary access is necessary.
+The ecosystem uses separate portal trust boundaries. `platform-admin-bff` serves the shared Product Owner Portal, `nexaconnect-admin-bff` serves NexaConnect product administration, and the current `nexaconnect-web-bff` serves the tenant-scoped Customer Portal. Each has a separate OIDC client and BFF session boundary. Platform roles do not automatically grant restaurant operational permissions; audited, time-limited support elevation is required when cross-boundary access is necessary.
 
 Platform reporting contains approved ecosystem summaries. Detailed restaurant reporting remains inside NexaConnect. The accepted dashboard separation is recorded in [ADR-003](Decisions/ADR-003-platform-and-product-dashboard-separation.md).
 

@@ -1,4 +1,4 @@
-# NexaConnect Admin
+# NexaConnect Product Administration Portal
 
 The administration browser application uses an independently deployed ASP.NET Core BFF and session boundary.
 
@@ -12,3 +12,5 @@ Keycloak client: `nexaconnect-admin-bff`
 - Anti-forgery protection on state-changing BFF endpoints
 
 Platform administration is not implemented by this client. `platform-admin-bff` belongs to the shared-platform repository and must use separate scopes, audiences, cookies, secrets, APIs, and deployment controls.
+
+This portal is product-scoped. It must not be used as the ecosystem-wide Product Owner Portal or as the Customer Portal. Customer access remains tenant-scoped through `NexaConnect.Web` and its BFF boundary.

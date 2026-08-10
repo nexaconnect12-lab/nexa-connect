@@ -65,6 +65,8 @@ To change passwords in an existing environment, use an approved credential-rotat
 
 Follow the complete [Keycloak Production Runbook](../Identity/Production-Runbook.md) for identity deployment and go-live evidence.
 
+Deploy the Product Owner Portal, NexaConnect product administration portal, and Customer Portal as separate web/BFF units. Use separate OIDC clients, session cookies, secrets, scopes, audiences, health checks, and rollback controls. The Customer Portal is tenant-scoped; the Product Owner Portal is restricted to platform control-plane APIs and must not receive broad customer data access through direct database connectivity.
+
 - Provision databases and roles through the selected infrastructure-as-code and secret-management system.
 - Do not expose the PostgreSQL port publicly.
 - Use TLS, encrypted backups, tested restoration, and environment-specific recovery objectives.
