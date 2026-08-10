@@ -1,6 +1,7 @@
 using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.PlatformDirectory;
 using NexaConnect.Services.PlatformDirectory.Application.Access;
+using NexaConnect.Services.PlatformDirectory.Application.ControlPlane;
 using NexaConnect.Services.PlatformDirectory.Infrastructure.Persistence;
 using Npgsql;
 
@@ -17,6 +18,8 @@ builder.Services.AddSingleton<NpgsqlDataSource>(_ =>
     return NpgsqlDataSource.Create(connectionString);
 });
 builder.Services.AddScoped<IOrganizationAccessReader, PostgresOrganizationAccessReader>();
+builder.Services.AddScoped<IPlatformDirectoryManagement, PlatformDirectoryManagementService>();
+builder.Services.AddScoped<IPlatformDirectoryManagementRepository, PostgresPlatformDirectoryManagementRepository>();
 
 var app = builder.Build();
 if (app.Environment.IsDevelopment())

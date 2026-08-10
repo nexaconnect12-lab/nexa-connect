@@ -8,4 +8,6 @@ This service owns cross-product organization membership and organization-level a
 
 `GET /api/platform-directory/v1/organizations/{organizationId}/members/{subjectId}/access` is restricted to the `system-admin` realm role for platform administration.
 
+The initial control-plane management endpoints are protected by the same `system-admin` policy: organization create/update, membership status changes, product registration, and organization-product access changes. They use the authenticated `sub` as the audit actor and persist through the Application-owned management interface and Infrastructure PostgreSQL repository.
+
 Configure the service database through `ConnectionStrings__PlatformDirectory` using the restricted `platform_directory_app` runtime role.

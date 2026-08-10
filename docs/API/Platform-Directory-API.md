@@ -31,9 +31,22 @@ These are organization-level checks only. Restaurant, branch, shift, refund, and
 The shared contracts package defines the versioned boundary records for the next Platform Directory APIs:
 
 - `OrganizationSummary` and `CreateOrganizationRequest` for organization lifecycle.
+- `UpdateOrganizationRequest` for organization status, name, and time-zone changes.
 - `OrganizationMembershipSummary` and `ChangeOrganizationMembershipRequest` for membership lifecycle.
 - `ProductRegistration` and `RegisterProductRequest` for the ecosystem product registry.
 - `OrganizationProductAccess` and `ChangeOrganizationProductAccessRequest` for enabling or suspending a product for an organization.
 - `TenantContext` and `TenantContextResponse` for the server-derived context a BFF passes to a product application use case.
 
 These contracts do not grant access by themselves. The platform resolves identity subject and organization membership; each product still evaluates its own resource authorization. `PlatformAuditEventV1` is the versioned event shape for recording administrative actions and outcomes.
+
+## Platform control-plane operations
+
+The authenticated `system-admin` policy protects the initial management endpoints:
+
+- `POST /api/platform-directory/v1/organizations` creates an organization.
+- `PATCH /api/platform-directory/v1/organizations/{organizationId}` changes organization name, status, or time zone.
+- `PUT /api/platform-directory/v1/organizations/{organizationId}/members/{subjectId}` invites, activates, suspends, or removes a membership.
+- `POST /api/platform-directory/v1/products` registers a product application.
+- `PUT /api/platform-directory/v1/organizations/{organizationId}/products` enables, suspends, or disables product access.
+
+These operations use the authenticated `sub` as the audit actor. Product registration and organization access are platform control-plane decisions; they do not grant product-specific operational permissions.

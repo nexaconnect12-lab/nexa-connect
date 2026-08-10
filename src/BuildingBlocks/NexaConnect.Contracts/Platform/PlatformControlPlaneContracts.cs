@@ -31,6 +31,11 @@ public sealed record CreateOrganizationRequest(
     string Name,
     string DefaultTimeZone);
 
+public sealed record UpdateOrganizationRequest(
+    string Name,
+    string Status,
+    string DefaultTimeZone);
+
 public sealed record ChangeOrganizationMembershipRequest(
     string SubjectId,
     string Status);
