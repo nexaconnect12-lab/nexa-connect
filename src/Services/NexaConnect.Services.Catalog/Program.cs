@@ -10,6 +10,7 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
@@ -26,6 +27,8 @@ builder.Services.AddHttpClient<ICatalogTenantAuthorizer, HttpOrganizationAccessC
     client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"]
         ?? throw new InvalidOperationException("Services:PlatformDirectory is required."));
 });
+builder.Services.AddHttpClient<CatalogWorkloadTokenProvider>();
+builder.Services.AddHttpClient<IRestaurantBranchScopeReader, RestaurantBranchScopeClient>();
 
 var app = builder.Build();
 

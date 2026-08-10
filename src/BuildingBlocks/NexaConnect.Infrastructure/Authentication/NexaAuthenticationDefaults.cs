@@ -14,4 +14,5 @@ public static class NexaAuthorizationPolicies
     public const string SystemAdministrator = "SystemAdministrator";
     public const string ReportViewer = "ReportViewer";
     public const string PosWorkload = "PosWorkload";
+    public const string ServiceWorkload = "ServiceWorkload";
 }

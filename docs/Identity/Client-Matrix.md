@@ -19,7 +19,7 @@
 - Create one service-account client per concrete workload rather than sharing a machine credential.
 - Do not register `platform-admin-bff` in NexaConnect-managed configuration.
 
-The checked-in development realm implements the four NexaConnect interactive clients and the `nexaconnect-api` bearer-only audience. Workload clients are added only when a concrete caller and least-privilege scope have been defined.
+The checked-in development realm implements the four NexaConnect interactive clients, the `nexaconnect-api` bearer-only audience, and the concrete `nexaconnect-pos-service` and `nexaconnect-catalog-service` workload clients. Each workload client is used only for its owning service's authenticated internal calls and must have a separately managed secret.
 
 Portal boundary: `nexaconnect-web-bff` is the current Customer Portal session boundary, while `nexaconnect-admin-bff` is the NexaConnect product administration boundary. The ecosystem-wide Product Owner Portal uses `platform-admin-bff`, owned by the shared platform. Do not reuse customer cookies, audiences, scopes, or secrets for Product Owner sessions. A future rename from `nexaconnect-web-bff` to `nexaconnect-customer-bff` must be deployed as an explicit client migration with overlapping redirect URIs only for the approved transition window.
 

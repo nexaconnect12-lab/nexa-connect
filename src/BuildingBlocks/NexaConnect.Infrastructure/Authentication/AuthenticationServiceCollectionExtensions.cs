@@ -202,6 +202,9 @@ public static class AuthenticationServiceCollectionExtensions
             options.AddPolicy(
                 NexaAuthorizationPolicies.PosWorkload,
                 policy => policy.RequireClaim("azp", "nexaconnect-pos-service"));
+            options.AddPolicy(
+                NexaAuthorizationPolicies.ServiceWorkload,
+                policy => policy.RequireClaim("azp", "nexaconnect-pos-service", "nexaconnect-catalog-service"));
         });
 
         return services;

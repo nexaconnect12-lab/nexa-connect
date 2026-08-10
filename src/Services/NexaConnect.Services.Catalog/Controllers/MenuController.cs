@@ -19,7 +19,7 @@ public sealed class MenuController(IMenuCatalog catalog, ICatalogTenantAuthorize
                 || !string.Equals(Request.Headers[TenantContextHeaders.ApplicationCode], "nexa_connect", StringComparison.Ordinal))
                 return BadRequest(new { error = "A valid customer tenant context is required." });
             if (!Request.Headers.TryGetValue("Authorization", out var authorization)
-                || !await tenantAuthorizer.HasAccessAsync(organizationId, authorization.ToString(), HttpContext.RequestAborted))
+                || !await tenantAuthorizer.HasBranchAccessAsync(organizationId, branchId, authorization.ToString(), HttpContext.RequestAborted))
                 return Forbid();
         }
 

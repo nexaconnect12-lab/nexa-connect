@@ -434,7 +434,7 @@ Administration follows [`ADR-003`](../../docs/Architecture/Decisions/ADR-003-pla
 
 The current Customer Portal BFF is `NexaConnect.CustomerBff`. It keeps the authentication ticket and OIDC tokens in a server-side distributed ticket store, calls Platform Directory for current organization/product access, and stores only an encrypted HTTP-only tenant selection cookie in the browser; product APIs retain final authorization responsibility.
 
-The first authenticated product adapter forwards Customer Portal requests to Catalog with the server-held bearer token and validated tenant context. Catalog verifies organization access through Platform Directory; product services remain responsible for final resource authorization.
+The first authenticated product adapter forwards Customer Portal requests to Catalog with the server-held bearer token and validated tenant context. Catalog verifies organization access through Platform Directory and validates that the selected branch belongs to that organization by calling Restaurant with the Catalog workload identity; product services remain responsible for final resource authorization.
 
 Customer requests resolve the stable identity subject, organization membership, and enabled product access through the Platform Directory current-access API, then apply product-specific authorization before application use cases execute. The Product Owner control plane has Application-owned organization, membership, product-registration, and product-access use cases backed by Infrastructure PostgreSQL persistence. Platform roles do not automatically grant customer product permissions, and browser-supplied tenant identifiers are never authorization proof.
 

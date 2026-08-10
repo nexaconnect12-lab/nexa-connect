@@ -425,6 +425,18 @@
       "serviceAccountsEnabled": true,
       "fullScopeAllowed": false,
       "defaultClientScopes": ["nexaconnect-api"]
+    },
+    {
+      "clientId": "nexaconnect-catalog-service",
+      "name": "NexaConnect Catalog Workload",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${NEXACONNECT_CATALOG_SERVICE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["nexaconnect-api"]
     }
   ]
 }

@@ -9,7 +9,7 @@ namespace NexaConnect.Services.Restaurant.Controllers;
 [Route("api/restaurant/v1/branches")]
 public sealed class AuthorizationScopeController(IAuthorizationScopeReader scopeReader) : ControllerBase
 {
-    [Authorize(Policy = NexaAuthorizationPolicies.PosWorkload)]
+    [Authorize(Policy = NexaAuthorizationPolicies.ServiceWorkload)]
     [HttpGet("{branchId:guid}/authorization-scope")]
     public async Task<ActionResult<AuthorizationScopeResponse>> GetAsync(
         Guid branchId, CancellationToken cancellationToken)
