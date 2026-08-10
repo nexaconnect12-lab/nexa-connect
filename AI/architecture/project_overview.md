@@ -432,6 +432,8 @@ The browser should preferably authenticate through an ASP.NET Core BFF using sec
 
 Administration follows [`ADR-003`](../../docs/Architecture/Decisions/ADR-003-platform-and-product-dashboard-separation.md) and [`ADR-006`](../../docs/Architecture/Decisions/ADR-006-portal-separation-and-tenant-isolation.md). The shared platform owns a separately deployed Product Owner Portal for cross-product control-plane functions. NexaConnect owns `NexaConnect.Admin` for product-specific administration, and `NexaConnect.Web` is the starting point for the tenant-scoped Customer Portal. Each portal uses a separate OIDC client, BFF, cookie, scope, audience, API, and deployment boundary. None accesses PostgreSQL directly.
 
+The current Customer Portal BFF is `NexaConnect.CustomerBff`. It keeps the authentication ticket and OIDC tokens in a server-side distributed ticket store, calls Platform Directory for current organization/product access, and stores only an encrypted HTTP-only tenant selection cookie in the browser; product APIs retain final authorization responsibility.
+
 Customer requests resolve the stable identity subject, organization membership, and enabled product access through the Platform Directory current-access API, then apply product-specific authorization before application use cases execute. The Product Owner control plane has Application-owned organization, membership, product-registration, and product-access use cases backed by Infrastructure PostgreSQL persistence. Platform roles do not automatically grant customer product permissions, and browser-supplied tenant identifiers are never authorization proof.
 
 ### Mobile
