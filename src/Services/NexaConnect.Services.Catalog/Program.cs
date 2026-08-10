@@ -1,5 +1,6 @@
 using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.Catalog.Application.Menu;
+using NexaConnect.Services.Catalog.Application.Tenant;
 using NexaConnect.Services.Catalog.Infrastructure;
 using Npgsql;
 
@@ -20,6 +21,11 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     builder.Services.AddSingleton<IMenuCatalog, PostgresMenuCatalog>();
 }
 else builder.Services.AddSingleton<IMenuCatalog, InMemoryMenuCatalog>();
+builder.Services.AddHttpClient<ICatalogTenantAuthorizer, HttpOrganizationAccessChecker>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"]
+        ?? throw new InvalidOperationException("Services:PlatformDirectory is required."));
+});
 
 var app = builder.Build();
 

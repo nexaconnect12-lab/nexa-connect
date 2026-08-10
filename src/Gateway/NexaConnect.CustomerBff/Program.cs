@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using NexaConnect.Contracts.Platform;
 using NexaConnect.CustomerBff;
+using NexaConnect.CustomerBff.Application.Catalog;
+using NexaConnect.CustomerBff.Infrastructure.Catalog;
 using NexaConnect.Infrastructure.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +22,11 @@ builder.Services.AddHttpClient("PlatformDirectory", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"]
         ?? throw new InvalidOperationException("Services:PlatformDirectory is required."));
+});
+builder.Services.AddHttpClient<ICustomerCatalogPort, HttpCustomerCatalogPort>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Services:Catalog"]
+        ?? throw new InvalidOperationException("Services:Catalog is required."));
 });
 builder.Services.AddAuthentication(options =>
     {
@@ -124,6 +131,31 @@ app.MapGet("/bff/customer/tenant", async (
     bool stillGranted = access?.SubjectId == tenant.SubjectId && access.Organizations.Any(item =>
         item.OrganizationId == tenant.OrganizationId && item.ApplicationCode == tenant.ApplicationCode);
     return stillGranted ? Results.Ok(tenant) : Results.Forbid();
+}).RequireAuthorization("CustomerSession");
+
+app.MapGet("/bff/customer/catalog/branches/{branchId:guid}/menu-items", async (
+    Guid branchId,
+    HttpContext context,
+    IHttpClientFactory clients,
+    ICustomerCatalogPort catalog,
+    TenantSelectionCookie selectionCookie,
+    CancellationToken cancellationToken) =>
+{
+    TenantContext? tenant = selectionCookie.Unprotect(context.Request.Cookies["__Host-nexa-customer-tenant"]);
+    string? subjectId = context.User.FindFirstValue("sub");
+    string? accessToken = await context.GetTokenAsync("CustomerCookie", "access_token");
+    if (tenant is null || string.IsNullOrWhiteSpace(subjectId) || subjectId != tenant.SubjectId || string.IsNullOrWhiteSpace(accessToken))
+        return Results.Unauthorized();
+
+    HttpResponseMessage accessResponse = await CallPlatformDirectoryAsync(context, clients, "api/platform-directory/v1/me/access", cancellationToken);
+    if (!accessResponse.IsSuccessStatusCode) return await ForwardJsonAsync(accessResponse, cancellationToken);
+    CurrentPlatformAccessResponse? access = await accessResponse.Content.ReadFromJsonAsync<CurrentPlatformAccessResponse>(cancellationToken: cancellationToken);
+    bool stillGranted = access?.SubjectId == tenant.SubjectId && access.Organizations.Any(item =>
+        item.OrganizationId == tenant.OrganizationId && item.ApplicationCode == tenant.ApplicationCode);
+    if (!stillGranted) return Results.Forbid();
+
+    using HttpResponseMessage response = await catalog.GetMenuAsync(tenant, branchId, accessToken, cancellationToken);
+    return await ForwardJsonAsync(response, cancellationToken);
 }).RequireAuthorization("CustomerSession");
 
 app.MapControllers();
