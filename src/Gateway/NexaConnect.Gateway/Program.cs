@@ -17,7 +17,7 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
-builder.Services.AddNexaConnectDevelopmentDataProtection(builder.Environment, "gateway");
+builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "gateway");
 builder.Services.AddAuthentication()
     .AddCookie("BffCookie", options =>
     {

@@ -12,7 +12,7 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
-builder.Services.AddNexaConnectDevelopmentDataProtection(builder.Environment, "notification");
+builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "notification");
 builder.Services.Configure<NotificationProviderOptions>(builder.Configuration.GetSection("NotificationProvider"));
 if (Uri.TryCreate(builder.Configuration["NotificationProvider:BaseUrl"], UriKind.Absolute, out var notificationBaseUrl))
 {

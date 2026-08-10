@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.Extensions.Configuration;
@@ -7,6 +8,8 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using NexaConnect.Infrastructure.Authentication;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 
 namespace NexaConnect.UnitTests;
 
@@ -107,12 +110,82 @@ public sealed class AuthenticationConfigurationTests
     [Fact]
     public void Production_accepts_https_listener_configuration()
     {
+        string certificatePath = Path.Combine(Path.GetTempPath(), $"nexaconnect-{Guid.NewGuid():N}.pfx");
+        using (RSA key = RSA.Create(2048))
+        {
+            var request = new CertificateRequest("CN=localhost", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(1));
+            File.WriteAllBytes(certificatePath, certificate.Export(X509ContentType.Pfx, "test-password"));
+        }
+
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["ASPNETCORE_URLS"] = "https://*:8443" })
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ASPNETCORE_URLS"] = "https://*:8443",
+                ["Tls:CertificatePath"] = certificatePath,
+                ["Tls:CertificatePassword"] = "test-password"
+            })
             .Build();
 
-        NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(
-            configuration, new TestHostEnvironment("Production"));
+        try
+        {
+            NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(
+                configuration, new TestHostEnvironment("Production"));
+            Assert.Equal(certificatePath, configuration["Kestrel:Certificates:Default:Path"]);
+            Assert.Equal("test-password", configuration["Kestrel:Certificates:Default:Password"]);
+        }
+        finally
+        {
+            File.Delete(certificatePath);
+        }
+    }
+
+    [Fact]
+    public void Production_data_protection_requires_a_persistent_key_store_and_certificate()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder().Build();
+
+        Assert.Throws<InvalidOperationException>(() => services.AddNexaConnectDataProtection(
+            configuration, new TestHostEnvironment("Production"), "test"));
+    }
+
+    [Fact]
+    public void Production_data_protection_uses_the_configured_store_and_certificate()
+    {
+        string keyDirectory = Path.Combine(Path.GetTempPath(), $"nexaconnect-keys-{Guid.NewGuid():N}");
+        string certificatePath = Path.Combine(Path.GetTempPath(), $"nexaconnect-dp-{Guid.NewGuid():N}.pfx");
+        Directory.CreateDirectory(keyDirectory);
+        using (RSA key = RSA.Create(2048))
+        {
+            var request = new CertificateRequest("CN=nexaconnect-data-protection", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(1));
+            File.WriteAllBytes(certificatePath, certificate.Export(X509ContentType.Pfx, "test-password"));
+        }
+
+        try
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["DataProtection:KeyDirectory"] = keyDirectory,
+                    ["DataProtection:CertificatePath"] = certificatePath,
+                    ["DataProtection:CertificatePassword"] = "test-password",
+                    ["DataProtection:ApplicationName"] = "test-service"
+                })
+                .Build();
+            var services = new ServiceCollection();
+
+            services.AddNexaConnectDataProtection(configuration, new TestHostEnvironment("Production"), "test");
+            using var provider = services.BuildServiceProvider();
+            IDataProtector protector = provider.GetRequiredService<IDataProtectionProvider>().CreateProtector("test");
+            Assert.Equal("payload", protector.Unprotect(protector.Protect("payload")));
+        }
+        finally
+        {
+            Directory.Delete(keyDirectory, recursive: true);
+            File.Delete(certificatePath);
+        }
     }
 
     private static IConfiguration CreateConfiguration(string authority, bool requireHttpsMetadata)

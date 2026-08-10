@@ -11,7 +11,7 @@ builder.Logging.AddConsole();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
-builder.Services.AddNexaConnectDevelopmentDataProtection(builder.Environment, "authorization");
+builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "authorization");
 builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(
     builder.Configuration.GetConnectionString("Authorization")
     ?? throw new InvalidOperationException("ConnectionStrings:Authorization is required.")));

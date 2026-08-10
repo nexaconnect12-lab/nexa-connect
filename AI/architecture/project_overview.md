@@ -483,6 +483,7 @@ Never log passwords, access tokens, refresh tokens, payment secrets, or sensitiv
 ## 13. Security
 
 - TLS is required outside local development.
+- Production services use password-protected TLS certificates and service-owned encrypted ASP.NET Data Protection key rings; certificate passwords and key paths come from deployment secret/configuration management.
 - Access tokens should be short-lived.
 - Authorization policies must validate tenant and store boundaries.
 - Public clients must not contain client secrets.

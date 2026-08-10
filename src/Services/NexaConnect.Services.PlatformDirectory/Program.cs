@@ -9,7 +9,7 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
-builder.Services.AddNexaConnectDevelopmentDataProtection(builder.Environment, "platform-directory");
+builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "platform-directory");
 builder.Services.AddSingleton<NpgsqlDataSource>(_ =>
 {
     string connectionString = builder.Configuration.GetConnectionString("PlatformDirectory")

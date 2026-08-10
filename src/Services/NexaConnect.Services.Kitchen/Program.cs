@@ -10,7 +10,7 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
-builder.Services.AddNexaConnectDevelopmentDataProtection(builder.Environment, "kitchen");
+builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "kitchen");
 builder.Services.Configure<KitchenOptions>(builder.Configuration.GetSection("Kitchen"));
 
 if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)

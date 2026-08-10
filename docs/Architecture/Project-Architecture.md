@@ -448,6 +448,7 @@ Never log passwords, access tokens, refresh tokens, payment secrets, or sensitiv
 ## 13. Security
 
 - TLS is required outside local development.
+- Production hosts require a password-protected TLS certificate and a separate password-protected Data Protection certificate; durable key rings live in service-owned, access-controlled directories and are backed up securely.
 - Access tokens should be short-lived.
 - Authorization policies must validate tenant and store boundaries.
 - Public clients must not contain client secrets.

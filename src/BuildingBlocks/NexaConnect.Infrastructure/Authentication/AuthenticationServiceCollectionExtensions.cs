@@ -7,6 +7,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Cryptography.X509Certificates;
+using System.Security.Cryptography;
 
 namespace NexaConnect.Infrastructure.Authentication;
 
@@ -38,12 +40,53 @@ public static class AuthenticationServiceCollectionExtensions
             throw new InvalidOperationException(
                 "Production services must expose HTTPS endpoints only. Configure ASPNETCORE_URLS or Kestrel:Endpoints with https:// addresses.");
         }
+
+        string? certificatePath = configuration["Tls:CertificatePath"];
+        string? certificatePassword = configuration["Tls:CertificatePassword"];
+        ValidateCertificate(certificatePath, certificatePassword, "Tls");
+
+        // Map the NexaConnect deployment contract to Kestrel's native certificate settings.
+        // This keeps certificate paths/passwords out of application code while ensuring the
+        // validated certificate is also the one Kestrel uses for the HTTPS listener.
+        configuration["Kestrel:Certificates:Default:Path"] = certificatePath;
+        configuration["Kestrel:Certificates:Default:Password"] = certificatePassword;
+    }
+
+    public static IServiceCollection AddNexaConnectDataProtection(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment,
+        string applicationName)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        if (environment.IsDevelopment() || environment.IsEnvironment("Testing") || environment.IsEnvironment("Test"))
+        {
+            return services.AddNexaConnectDevelopmentDataProtection(environment, applicationName);
+        }
+
+        string keyDirectory = configuration["DataProtection:KeyDirectory"]
+            ?? throw new InvalidOperationException("DataProtection:KeyDirectory is required outside Development.");
+        if (!Directory.Exists(keyDirectory))
+        {
+            throw new InvalidOperationException($"DataProtection key directory does not exist: {keyDirectory}");
+        }
+
+        string? certificatePath = configuration["DataProtection:CertificatePath"];
+        string? certificatePassword = configuration["DataProtection:CertificatePassword"];
+        X509Certificate2 certificate = LoadCertificate(certificatePath, certificatePassword, "DataProtection");
+
+        services.AddDataProtection()
+            .PersistKeysToFileSystem(new DirectoryInfo(keyDirectory))
+            .ProtectKeysWithCertificate(certificate)
+            .SetApplicationName(configuration["DataProtection:ApplicationName"] ?? applicationName);
+        return services;
     }
 
     public static IServiceCollection AddNexaConnectDevelopmentDataProtection(
         this IServiceCollection services, IHostEnvironment environment, string applicationName)
     {
-        if (!environment.IsDevelopment())
+        if (!environment.IsDevelopment() && !environment.IsEnvironment("Testing") && !environment.IsEnvironment("Test"))
         {
             return services;
         }
@@ -55,6 +98,33 @@ public static class AuthenticationServiceCollectionExtensions
             .PersistKeysToFileSystem(new DirectoryInfo(keyDirectory))
             .SetApplicationName(applicationName);
         return services;
+    }
+
+    private static void ValidateCertificate(string? path, string? password, string section)
+    {
+        _ = LoadCertificate(path, password, section);
+    }
+
+    private static X509Certificate2 LoadCertificate(string? path, string? password, string section)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            throw new InvalidOperationException($"{section}:CertificatePath is required outside Development.");
+        if (!File.Exists(path))
+            throw new InvalidOperationException($"{section} certificate file does not exist: {path}");
+        if (string.IsNullOrWhiteSpace(password))
+            throw new InvalidOperationException($"{section}:CertificatePassword is required outside Development.");
+
+        try
+        {
+            var certificate = X509CertificateLoader.LoadPkcs12FromFile(path, password, X509KeyStorageFlags.EphemeralKeySet);
+            if (!certificate.HasPrivateKey)
+                throw new InvalidOperationException($"{section} certificate must contain a private key: {path}");
+            return certificate;
+        }
+        catch (CryptographicException exception)
+        {
+            throw new InvalidOperationException($"{section} certificate could not be loaded: {path}", exception);
+        }
     }
 
     public static IServiceCollection AddNexaConnectApiAuthentication(

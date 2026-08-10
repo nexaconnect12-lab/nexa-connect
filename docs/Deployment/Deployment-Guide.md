@@ -81,6 +81,14 @@ Follow the complete [Keycloak Production Runbook](../Identity/Production-Runbook
 
 The local Docker initializer is a development convenience, not the production provisioning mechanism.
 
+### Production Data Protection and TLS
+
+Every production API must have its own writable, durable Data Protection key directory and a certificate containing a private key to encrypt that key ring. Configure `DataProtection__KeyDirectory`, `DataProtection__CertificatePath`, `DataProtection__CertificatePassword`, and (optionally) `DataProtection__ApplicationName` through the deployment secret/configuration store. Provision the directory before startup, restrict it to the service identity, include it in encrypted backups, and do not share it between unrelated applications.
+
+Every production API must also expose an HTTPS listener and load a PFX certificate containing a private key. Set `ASPNETCORE_URLS` (or `Kestrel:Endpoints`) to an `https://` address and provide `Tls__CertificatePath` and `Tls__CertificatePassword`. Startup rejects missing, unreadable, passwordless, or private-key-less certificates, and rejects cleartext-only listeners outside Development and Test. Terminate TLS in the service process unless an explicitly configured trusted proxy boundary is deployed.
+
+Use [`production.env.example`](production.env.example) as the configuration template; keep these settings out of the local development `.env` file.
+
 ## Runtime persistence and event delivery
 
 The Catalog, Inventory, Order, Kitchen, Payment, Customer, and Notification services default to in-memory adapters for local scaffolding. The `Persistence__Provider=PostgreSQL` switch is honored by Customer and Payment repositories, the Order aggregate/idempotency/outbox, the Kitchen ticket store, and the Catalog, Inventory, and Notification adapters. Provide only the owning service's runtime connection string. When Order uses HTTP workflow adapters, configure `Authentication__OutboundToken` with a short-lived workload token; adapters attach it as a bearer token.
