@@ -10,4 +10,4 @@ The workflow publishes versioned contracts from `NexaConnect.Contracts.Integrati
 
 The service also exposes `POST` and `GET /api/order/v1/orders` for the aggregate slice, plus the public place-order workflow endpoint. Production provider credentials and migration execution remain operational follow-up work; the deployed Kitchen ticket create/cancel API is now part of the workflow boundary.
 
-Customer Portal workflow requests are revalidated inside Order: Platform Directory confirms organization access using the customer bearer token, and Restaurant confirms that the requested branch belongs to that organization using the Order service workload identity. The BFF's tenant context is not treated as the final authorization decision.
+Customer Portal workflow requests are revalidated inside Order: Platform Directory confirms organization access using the customer bearer token, and Restaurant confirms that the requested branch belongs to that organization using the Order service workload identity. The BFF's tenant context is not treated as the final authorization decision. `OrderTenantAuthorizationTests` protects the deny-before-workflow behavior.

@@ -26,6 +26,7 @@ using OrderMenuPort = ORDER::NexaConnect.Services.Order.Application.Workflow.IMe
 using OrderInventoryPort = ORDER::NexaConnect.Services.Order.Application.Workflow.IInventoryReservationPort;
 using OrderKitchenPort = ORDER::NexaConnect.Services.Order.Application.Workflow.IKitchenPort;
 using OrderPaymentPort = ORDER::NexaConnect.Services.Order.Application.Workflow.IPaymentPort;
+using OrderTenantAuthorizer = ORDER::NexaConnect.Services.Order.Application.Tenant.IOrderTenantAuthorizer;
 using OrderMenuAdapter = ORDER::NexaConnect.Services.Order.Infrastructure.Clients.HttpMenuCatalogPort;
 using OrderInventoryAdapter = ORDER::NexaConnect.Services.Order.Infrastructure.Clients.HttpInventoryReservationPort;
 using OrderKitchenAdapter = ORDER::NexaConnect.Services.Order.Infrastructure.Clients.HttpKitchenPort;
@@ -209,6 +210,8 @@ public sealed class OrderFactory : WebApplicationFactory<OrderProgram>
             services.RemoveAll<OrderInventoryPort>();
             services.RemoveAll<OrderKitchenPort>();
             services.RemoveAll<OrderPaymentPort>();
+            services.RemoveAll<OrderTenantAuthorizer>();
+            services.AddSingleton<OrderTenantAuthorizer, DenyOrderTenantAuthorizer>();
             services.AddHttpClient<OrderMenuPort, OrderMenuAdapter>(client => client.BaseAddress = new Uri("http://catalog.test/"))
                 .ConfigurePrimaryHttpMessageHandler(_ => new ForwardingHandler(catalog.CreateClient));
             services.AddHttpClient<OrderInventoryPort, OrderInventoryAdapter>(client => client.BaseAddress = new Uri("http://inventory.test/"))
