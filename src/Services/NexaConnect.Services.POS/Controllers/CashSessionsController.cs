@@ -1,31 +1,32 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using NexaConnect.Infrastructure.Authentication;
-using NexaConnect.Services.POS.Infrastructure.Persistence;
+using NexaConnect.Services.POS.Application.CashSessions;
 
 namespace NexaConnect.Services.POS.Controllers;
 
 [ApiController]
 [Route("api/pos/v1/cash-sessions")]
-public sealed class CashSessionsController(ICashSessionStore store) : ControllerBase
+public sealed class CashSessionsController(CashSessionApplicationService cashSessions) : ControllerBase
 {
     [HttpPost("open")]
     public async Task<IActionResult> OpenAsync(OpenCashSessionRequest request, CancellationToken cancellationToken)
     {
         if (!TryGetSubject(out string subject)) return Unauthorized();
-        if (request.ShiftId == Guid.Empty || request.StoreId == Guid.Empty || request.OpeningAmount < 0 ||
-            !System.Text.RegularExpressions.Regex.IsMatch(request.Currency ?? "", "^[A-Za-z]{3}$"))
-        {
-            return BadRequest();
-        }
 
         try
         {
-            Guid id = await store.OpenAsync(
-                request.ShiftId, request.StoreId, request.Currency!, request.OpeningAmount, cancellationToken);
+            Guid id = await cashSessions.OpenAsync(
+                new OpenCashSessionCommand(request.ShiftId, request.StoreId, request.Currency, request.OpeningAmount),
+                subject,
+                cancellationToken);
             return Ok(new { cashSessionId = id, openedBy = subject });
         }
-        catch (InvalidOperationException exception)
+        catch (CashSessionValidationException exception)
+        {
+            return BadRequest(new ProblemDetails { Title = exception.Message, Status = StatusCodes.Status400BadRequest });
+        }
+        catch (CashSessionConflictException exception)
         {
             return Conflict(new ProblemDetails { Title = exception.Message, Status = StatusCodes.Status409Conflict });
         }
@@ -38,19 +39,20 @@ public sealed class CashSessionsController(ICashSessionStore store) : Controller
         CancellationToken cancellationToken)
     {
         if (!TryGetSubject(out string subject)) return Unauthorized();
-        if (cashSessionId == Guid.Empty || request.Amount <= 0 || request.MovementType is not
-            ("sale" or "refund" or "pay_in" or "pay_out" or "float_adjustment"))
-        {
-            return BadRequest();
-        }
 
         try
         {
-            await store.RecordMovementAsync(
-                cashSessionId, request.MovementType, request.Amount, subject, request.ReasonCode, cancellationToken);
+            await cashSessions.RecordMovementAsync(
+                new RecordCashMovementCommand(cashSessionId, request.MovementType, request.Amount, request.ReasonCode),
+                subject,
+                cancellationToken);
             return Accepted();
         }
-        catch (InvalidOperationException exception)
+        catch (CashSessionValidationException exception)
+        {
+            return BadRequest(new ProblemDetails { Title = exception.Message, Status = StatusCodes.Status400BadRequest });
+        }
+        catch (CashSessionConflictException exception)
         {
             return Conflict(new ProblemDetails { Title = exception.Message, Status = StatusCodes.Status409Conflict });
         }
@@ -62,15 +64,18 @@ public sealed class CashSessionsController(ICashSessionStore store) : Controller
         CloseCashSessionRequest request,
         CancellationToken cancellationToken)
     {
-        if (!TryGetSubject(out _)) return Unauthorized();
-        if (cashSessionId == Guid.Empty || request.ActualClosingAmount < 0) return BadRequest();
+        if (!TryGetSubject(out string subject)) return Unauthorized();
 
         try
         {
-            await store.CloseAsync(cashSessionId, request.ActualClosingAmount, cancellationToken);
+            await cashSessions.CloseAsync(cashSessionId, request.ActualClosingAmount, subject, cancellationToken);
             return NoContent();
         }
-        catch (InvalidOperationException exception)
+        catch (CashSessionValidationException exception)
+        {
+            return BadRequest(new ProblemDetails { Title = exception.Message, Status = StatusCodes.Status400BadRequest });
+        }
+        catch (CashSessionConflictException exception)
         {
             return Conflict(new ProblemDetails { Title = exception.Message, Status = StatusCodes.Status409Conflict });
         }

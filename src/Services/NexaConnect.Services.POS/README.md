@@ -11,7 +11,7 @@ The POS service owns terminals, stores, shifts, and server-side POS operations. 
 - `POST /api/pos/v1/cash-sessions/{cashSessionId}/close` closes a cash session and calculates the variance.
 - `POST /api/pos/v1/terminals/enroll` enrolls or reactivates a terminal after the `pos.terminal.enroll` authorization decision.
 
-All listed endpoints require an authenticated bearer token; shift operations require the `nexaconnect-api` audience. Missing authentication context, invalid branch/store/terminal scope, and denied authorization are rejected. Concurrent terminal or shift-number conflicts return `409`; a stale close returns `409` rather than overwriting another change. If Restaurant or Authorization is unavailable, the shift API returns `503` without exposing provider details.
+All listed endpoints require an authenticated bearer token with the `nexaconnect-api` audience. Missing authentication context is rejected. Shift and terminal-enrollment operations reject invalid branch/store/terminal scope and denied authorization. Concurrent terminal or shift-number conflicts return `409`; a stale close returns `409` rather than overwriting another change. If Restaurant or Authorization is unavailable, shift and terminal-enrollment operations return `503` without exposing provider details.
 
 ## Configuration
 
@@ -21,7 +21,7 @@ All listed endpoints require an authenticated bearer token; shift operations req
 - `Services:Restaurant` — the Restaurant API used to resolve branch scope.
 - `Services:Authorization` — the Authorization API used to evaluate product permissions.
 
-Runtime database access is implemented behind the POS Infrastructure persistence adapter. Domain invariants and workflow orchestration live outside the controller; raw SQL remains parameterized and isolated to Infrastructure.
+Runtime database access is implemented behind POS Application-owned persistence ports and Infrastructure adapters. Shift, cash-session, and terminal-enrollment validation and workflow orchestration live in Application services; controllers retain transport authentication context and HTTP mapping, while raw SQL remains parameterized and isolated to Infrastructure.
 
 Production requests must use HTTPS. The service rejects cleartext HTTP requests outside Development and Testing; until an allow-listed forwarded-header configuration is deployed, TLS must terminate at the POS process itself.
 

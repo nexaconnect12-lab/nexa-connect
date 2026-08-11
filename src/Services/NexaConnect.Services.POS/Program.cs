@@ -1,5 +1,7 @@
 using NexaConnect.Infrastructure.Authentication;
+using NexaConnect.Services.POS.Application.CashSessions;
 using NexaConnect.Services.POS.Application.Shifts;
+using NexaConnect.Services.POS.Application.Terminals;
 using NexaConnect.Services.POS.Infrastructure.Authorization;
 using NexaConnect.Services.POS.Infrastructure.Identity;
 using NexaConnect.Services.POS.Infrastructure.Persistence;
@@ -30,6 +32,8 @@ builder.Services.AddScoped<ITerminalStore, PostgresTerminalStore>();
 builder.Services.AddScoped<IRestaurantScopeReader, RestaurantHierarchyClient>();
 builder.Services.AddScoped<IAuthorizationDecisionClient, AuthorizationDecisionClient>();
 builder.Services.AddScoped<ShiftApplicationService>();
+builder.Services.AddScoped<CashSessionApplicationService>();
+builder.Services.AddScoped<TerminalEnrollmentApplicationService>();
 builder.Services.AddSingleton(TimeProvider.System);
 
 var app = builder.Build();

@@ -1,13 +1,7 @@
 using Npgsql;
+using NexaConnect.Services.POS.Application.CashSessions;
 
 namespace NexaConnect.Services.POS.Infrastructure.Persistence;
-
-public interface ICashSessionStore
-{
-    Task<Guid> OpenAsync(Guid shiftId, Guid storeId, string currency, decimal openingAmount, CancellationToken cancellationToken);
-    Task RecordMovementAsync(Guid cashSessionId, string movementType, decimal amount, string recordedBy, string? reasonCode, CancellationToken cancellationToken);
-    Task CloseAsync(Guid cashSessionId, decimal actualClosingAmount, CancellationToken cancellationToken);
-}
 
 public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICashSessionStore
 {

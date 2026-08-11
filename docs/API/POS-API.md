@@ -36,12 +36,41 @@ The API does not redirect to Keycloak. Interactive login is owned by the BFF or 
 
 ## Cash sessions
 
-- `POST /api/pos/v1/cash-sessions/open` opens a cash session for an open shift with a currency and opening amount.
-- `POST /api/pos/v1/cash-sessions/{cashSessionId}/movements` records a positive sale, refund, pay-in, pay-out, or float-adjustment movement.
-- `POST /api/pos/v1/cash-sessions/{cashSessionId}/close` closes the session and calculates the variance from the opening amount and movements.
+`POST /api/pos/v1/cash-sessions/open` opens a cash session for an open shift:
+
+```json
+{ "shiftId": "00000000-0000-0000-0000-000000000000", "storeId": "00000000-0000-0000-0000-000000000000", "currency": "USD", "openingAmount": 100.00 }
+```
+
+A successful open returns `200 OK` with `{ "cashSessionId": "...", "openedBy": "<subject>" }`.
+
+`POST /api/pos/v1/cash-sessions/{cashSessionId}/movements` records a positive sale, refund, pay-in, pay-out, or float-adjustment movement:
+
+```json
+{ "movementType": "pay_in", "amount": 25.00, "reasonCode": "FLOAT" }
+```
+
+Supported movement types are `sale`, `refund`, `pay_in`, `pay_out`, and `float_adjustment`. A successful record returns `202 Accepted`.
+
+`POST /api/pos/v1/cash-sessions/{cashSessionId}/close` closes the session and calculates the variance from the opening amount and movements:
+
+```json
+{ "actualClosingAmount": 125.00 }
+```
+
+A successful close returns `204 No Content`.
 
 All cash endpoints require an authenticated bearer token. Cash-session state is owned by the POS database; the client must not infer a successful close until the API returns `204`.
+Invalid identifiers, amounts, currencies, or movement types return `400`. A shift/session state conflict returns `409`.
 
 ## Terminal enrollment
 
-`POST /api/pos/v1/terminals/enroll` enrolls or reactivates a terminal after Restaurant scope validation and the `pos.terminal.enroll` Authorization decision. The request includes branch, store, terminal, code, and device type. Enrollment is an online administrative operation and is not performed from an offline client.
+`POST /api/pos/v1/terminals/enroll` enrolls or reactivates a terminal after Restaurant scope validation and the `pos.terminal.enroll` Authorization decision:
+
+```json
+{ "branchId": "00000000-0000-0000-0000-000000000000", "storeId": "00000000-0000-0000-0000-000000000000", "terminalId": "00000000-0000-0000-0000-000000000000", "code": "POS-001", "deviceType": "pos" }
+```
+
+Supported device types are `pos`, `kiosk`, `kds`, and `edge`. A successful enrollment returns `201 Created`, sets `Location` to `api/pos/v1/terminals/{terminalId}`, and returns `{ "terminalId": "..." }`. Enrollment is an online administrative operation and is not performed from an offline client.
+
+Invalid enrollment input returns `400`, denied branch scope or authorization returns `403`, an active matching store that cannot be found returns `404`, and unavailable Restaurant or Authorization dependencies return `503` without exposing provider details.

@@ -2,17 +2,15 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.POS.Application.Shifts;
-using NexaConnect.Services.POS.Infrastructure.Persistence;
-using NexaConnect.Services.POS.Infrastructure.Restaurant;
+using NexaConnect.Services.POS.Application.Terminals;
 
 namespace NexaConnect.Services.POS.Controllers;
 
 [ApiController]
 [Route("api/pos/v1/terminals")]
 public sealed class TerminalsController(
-    ITerminalStore terminals,
-    IRestaurantScopeReader scopeReader,
-    IAuthorizationDecisionClient authorization) : ControllerBase
+    TerminalEnrollmentApplicationService terminals,
+    ILogger<TerminalsController> logger) : ControllerBase
 {
     [HttpPost("enroll")]
     public async Task<IActionResult> EnrollAsync(
@@ -26,35 +24,42 @@ public sealed class TerminalsController(
             return Unauthorized();
         }
 
-        if (request.BranchId == Guid.Empty || request.StoreId == Guid.Empty || request.TerminalId == Guid.Empty ||
-            string.IsNullOrWhiteSpace(request.Code) || request.DeviceType is not ("pos" or "kiosk" or "kds" or "edge"))
-        {
-            return BadRequest();
-        }
-
         string authorizationHeader = Request.Headers.Authorization.ToString();
         if (!authorizationHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) return Unauthorized();
-        RestaurantAuthorizationScope scope = await scopeReader.GetAsync(request.BranchId, cancellationToken);
-        AuthorizationDecision decision = await authorization.DecideAsync(
-            new PosUserContext(subject, authorizationHeader[7..].Trim()),
-            scope,
-            "pos.terminal.enroll",
-            cancellationToken);
-        if (!decision.Granted)
+        try
         {
+            bool enrolled = await terminals.EnrollAsync(
+                new EnrollTerminalCommand(
+                    request.BranchId,
+                    request.StoreId,
+                    request.TerminalId,
+                    request.Code,
+                    request.DeviceType),
+                new PosUserContext(subject, authorizationHeader[7..].Trim()),
+                cancellationToken);
+            return enrolled
+                ? Created($"api/pos/v1/terminals/{request.TerminalId:D}", new { request.TerminalId })
+                : NotFound();
+        }
+        catch (TerminalEnrollmentValidationException exception)
+        {
+            return BadRequest(new ProblemDetails { Title = exception.Message, Status = StatusCodes.Status400BadRequest });
+        }
+        catch (TerminalEnrollmentAuthorizationException exception)
+        {
+            logger.LogWarning(
+                "POS terminal enrollment denied at {Stage} for subject {Subject}.",
+                exception.Stage,
+                subject);
             return Forbid();
         }
-
-        bool enrolled = await terminals.EnrollAsync(
-            scope.OrganizationId,
-            scope.RestaurantId,
-            scope.BranchId,
-            request.StoreId,
-            request.TerminalId,
-            request.Code.Trim(),
-            request.DeviceType,
-            cancellationToken);
-        return enrolled ? Created($"api/pos/v1/terminals/{request.TerminalId:D}", new { request.TerminalId }) : NotFound();
+        catch (TerminalEnrollmentDependencyException exception)
+        {
+            logger.LogError(exception, "POS terminal enrollment dependency {Dependency} is unavailable.", exception.Dependency);
+            return Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "A required POS dependency is temporarily unavailable.");
+        }
     }
 }
 
