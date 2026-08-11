@@ -3,6 +3,7 @@ extern alias PLATFORMADMIN;
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 
@@ -10,6 +11,23 @@ namespace NexaConnect.IntegrationTests;
 
 public sealed class PlatformAdminBffAuthorizationTests
 {
+    [Fact]
+    public async Task Proxy_content_is_replayable()
+    {
+        const string json = """{"code":"phase2-test","name":"Phase 2 Test"}""";
+        var context = new DefaultHttpContext();
+        context.Request.ContentType = "application/json; charset=utf-8";
+        context.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
+
+        using HttpContent content = await PLATFORMADMIN::ReplayableProxyContent.CreateAsync(context.Request);
+        string firstSend = await content.ReadAsStringAsync();
+        string secondSend = await content.ReadAsStringAsync();
+
+        Assert.Equal(json, firstSend);
+        Assert.Equal(json, secondSend);
+        Assert.Equal("application/json; charset=utf-8", content.Headers.ContentType?.ToString());
+    }
+
     [Theory]
     [InlineData("POST", "/bff/platform-admin/organizations")]
     [InlineData("POST", "/bff/platform-admin/products")]

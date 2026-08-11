@@ -75,11 +75,7 @@ RequestDelegate Proxy(string path) => async context =>
     using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method), target);
     request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
     if (context.Request.ContentLength is > 0)
-    {
-        request.Content = new StreamContent(context.Request.Body);
-        if (!string.IsNullOrWhiteSpace(context.Request.ContentType))
-            request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse(context.Request.ContentType);
-    }
+        request.Content = await ReplayableProxyContent.CreateAsync(context.Request, context.RequestAborted);
     HttpClient client = context.RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient("PlatformDirectory");
     using HttpResponseMessage response = await client.SendAsync(request, context.RequestAborted);
     context.Response.StatusCode = (int)response.StatusCode;
@@ -88,3 +84,16 @@ RequestDelegate Proxy(string path) => async context =>
     await response.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
 };
 public partial class Program;
+
+public static class ReplayableProxyContent
+{
+    public static async Task<HttpContent> CreateAsync(HttpRequest request, CancellationToken cancellationToken = default)
+    {
+        using var buffer = new MemoryStream();
+        await request.Body.CopyToAsync(buffer, cancellationToken);
+        var content = new ByteArrayContent(buffer.ToArray());
+        if (!string.IsNullOrWhiteSpace(request.ContentType))
+            content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse(request.ContentType);
+        return content;
+    }
+}
