@@ -8,7 +8,7 @@ public sealed class MigrationRunnerTests
         string scriptsRoot = Path.Combine(AppContext.BaseDirectory, "Scripts");
         var services = new Dictionary<string, int>(StringComparer.Ordinal)
         {
-            ["PlatformDirectory"] = 1,
+            ["PlatformDirectory"] = 2,
             ["Authorization"] = 1,
             ["Restaurant"] = 1,
             ["Catalog"] = 2,

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$Confirm,
-    [string]$ApplicationVersion = '0.1.0',
+    [string]$ApplicationVersion = '0.2.0',
     [string]$EnvironmentFile
 )
 
@@ -24,6 +24,7 @@ if (Test-Path -LiteralPath $EnvironmentFile) {
 
 $services = @(
     'PlatformDirectory',
+    'Authorization',
     'Restaurant',
     'Catalog',
     'Inventory',
@@ -31,6 +32,7 @@ $services = @(
     'Kitchen',
     'Customer',
     'Payment',
+    'Notification',
     'POS',
     'Media',
     'Reporting'

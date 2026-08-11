@@ -4,6 +4,8 @@ The checked-in realm is a reproducible environment-driven baseline. It contains 
 
 The realm defines separate service-account clients for POS, Catalog, Order, Inventory, and Payment, plus separate confidential browser clients including the Platform Admin BFF. Supply every secret and redirect/origin placeholder listed in `.env.example`; workload credentials must not be shared between services.
 
+The Phase 2 role fixture separates platform roles (`platform-owner`, `platform-admin`, `platform-support`, `platform-auditor`), customer roles (`customer-owner`, `customer-admin`, `customer-manager`, `customer-user`, `customer-viewer`), and product roles such as `store-manager` or `cashier`. These roles are mapped into the API `roles` claim. The legacy `system-admin` role remains only for compatibility with older endpoints; new Product Owner Portal assignments use the platform roles.
+
 ## Local use
 
 1. Set all Keycloak values from `.env.example` in the ignored `.env` file.

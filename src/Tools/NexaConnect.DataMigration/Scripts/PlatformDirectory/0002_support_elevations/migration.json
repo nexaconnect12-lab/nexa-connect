@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "name": "support_elevations",
+  "transactional": true,
+  "downgradeSafety": "destructive",
+  "minimumApplicationVersion": "0.2.0"
+}

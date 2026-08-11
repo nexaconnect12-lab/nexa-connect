@@ -12,6 +12,9 @@ public static class NexaAuthenticationDefaults
 public static class NexaAuthorizationPolicies
 {
     public const string SystemAdministrator = "SystemAdministrator";
+    public const string PlatformAdministrator = "PlatformAdministrator";
+    public const string PlatformSupport = "PlatformSupport";
+    public const string PlatformAuditReader = "PlatformAuditReader";
     public const string ReportViewer = "ReportViewer";
     public const string PosWorkload = "PosWorkload";
     public const string ServiceWorkload = "ServiceWorkload";

@@ -44,7 +44,7 @@ public sealed class OrganizationAccessController(IOrganizationAccessReader acces
         return granted ? Ok(new OrganizationAccessResponse(organizationId, granted)) : Forbid();
     }
 
-    [Authorize(Policy = NexaAuthorizationPolicies.SystemAdministrator)]
+    [Authorize(Policy = NexaAuthorizationPolicies.PlatformAdministrator)]
     [HttpGet("{organizationId:guid}/members/{subjectId}/access")]
     public async Task<ActionResult<OrganizationAccessResponse>> GetMemberAccessAsync(
         Guid organizationId,

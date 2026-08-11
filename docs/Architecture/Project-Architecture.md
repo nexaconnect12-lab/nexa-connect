@@ -4,7 +4,7 @@
 
 NexaConnect is a restaurant operating platform that supports staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, reporting, and external integrations. Restaurant branches must continue approved operations during internet or cloud outages and synchronize safely after recovery. The architecture separates business capabilities into independently maintainable services while keeping the initial implementation practical for a small team.
 
-Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first PostgreSQL tooling, Platform Directory organization-access and current-tenant access contracts, separate Customer and Platform Admin BFF session boundaries with required production Redis ticket storage, PostgreSQL-backed Platform Directory and POS slices, PostgreSQL adapters for Catalog, Inventory, Customer, Payment, and Notification, migration-managed service projections, durable PostgreSQL/RabbitMQ outbox and inbox primitives, PostgreSQL aggregate/idempotency persistence for Order, Keycloak client-credentials outbound authentication with retries, payment-failure compensation hooks, provider retry boundaries, a public place-order workflow endpoint, executable bounded-context API slices, and cross-service HTTP coverage for the Catalog -> Order -> Inventory -> Kitchen -> Payment workflow. Catalog, Order, Inventory, and Payment enforce the implemented customer-facing organization/branch/order authorization paths at their owning service boundaries. Production provider credentials, offline synchronization, and authorization for remaining product resources remain planned.
+Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first PostgreSQL tooling, Platform Directory organization-access and current-tenant access contracts, separate Customer and Platform Admin BFF session boundaries with required production Redis ticket storage, distinct platform/customer/product role sets, independently approved and time-limited support elevation with append-only audit history, PostgreSQL-backed Platform Directory and POS slices, PostgreSQL adapters for Catalog, Inventory, Customer, Payment, and Notification, migration-managed service projections, durable PostgreSQL/RabbitMQ outbox and inbox primitives, PostgreSQL aggregate/idempotency persistence for Order, Keycloak client-credentials outbound authentication with retries, payment-failure compensation hooks, provider retry boundaries, a public place-order workflow endpoint, executable bounded-context API slices, and cross-service HTTP coverage for the Catalog -> Order -> Inventory -> Kitchen -> Payment workflow. Catalog, Order, Inventory, and Payment enforce the implemented customer-facing organization/branch/order authorization paths at their owning service boundaries. Production provider credentials, offline synchronization, and authorization for remaining product resources remain planned.
 
 The detailed restaurant domains, branch-edge topology, offline failure model, kitchen flow, QR behavior, reporting architecture, and shared identity boundary are defined in [Restaurant POS Architecture](Restaurant-POS-Architecture.md). This document defines the supporting technical architecture.
 
@@ -159,16 +159,31 @@ Recommended clients:
 - `nexaconnect-pos` — public client using Authorization Code with PKCE.
 - One confidential service account per machine-to-machine workload.
 
-Suggested realm roles:
+Implemented platform roles:
 
-- `system-admin`
+- `platform-owner`
+- `platform-admin`
+- `platform-support`
+- `platform-auditor`
+
+Implemented customer roles:
+
+- `customer-owner`
+- `customer-admin`
+- `customer-manager`
+- `customer-user`
+- `customer-viewer`
+
+Product-specific realm roles remain separate:
+
 - `tenant-admin`
 - `store-manager`
 - `cashier`
 - `inventory-controller`
 - `accountant`
 - `report-viewer`
-- `support-agent`
+
+`system-admin` and `support-agent` are legacy compatibility roles; new portal authorization uses the explicit platform role set.
 
 ### 5.3 Catalog Service
 
@@ -292,9 +307,9 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Version-1 schema migrations exist for all eleven databases. The migration catalog currently defines 83 tables and 99 explicit indexes, and the runner supports their versioned directories. The scripts remain pre-production until clean-install, downgrade, and re-upgrade tests pass against PostgreSQL 17.
+Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 99 tables and 109 explicit indexes; Platform Directory version 2 owns support-elevation state and database-enforced append-only audit history. The scripts remain pre-production until clean-install, downgrade, and re-upgrade tests pass against PostgreSQL 17.
 
-Database creation is a provisioning concern, not a service migration. Local Docker initialization creates the eleven databases, one migration owner, and separate restricted runtime roles before service migrations are applied. Production uses the equivalent infrastructure-as-code and secret-management workflow.
+Database creation is a provisioning concern, not a service migration. Local Docker initialization creates the 13 catalog databases, one migration owner, and separate restricted runtime roles before service migrations are applied. Production uses the equivalent infrastructure-as-code and secret-management workflow.
 
 Rules:
 
@@ -395,7 +410,7 @@ The browser should preferably authenticate through an ASP.NET Core BFF using sec
 
 Administration follows [ADR-003](Decisions/ADR-003-platform-and-product-dashboard-separation.md) and [ADR-006](Decisions/ADR-006-portal-separation-and-tenant-isolation.md). The shared platform owns a separately deployed Product Owner Portal for cross-product control-plane functions. NexaConnect owns `NexaConnect.Admin` for product-specific administration and `NexaConnect.Web` is the starting point for the tenant-scoped Customer Portal. The Product Owner Portal, product administration portal, and Customer Portal each use separate BFF/session boundaries, OIDC clients, cookies, scopes, audiences, APIs, and deployment lifecycles. None accesses PostgreSQL directly.
 
-The current Customer Portal BFF is `NexaConnect.CustomerBff`. It validates the authenticated session, keeps the authentication ticket and OIDC tokens in a server-side distributed ticket store, calls Platform Directory's current-access API, and protects the selected tenant context in an encrypted HTTP-only cookie. The browser receives only opaque cookie keys. This selection is context only; product Application use cases must perform final tenant and resource authorization.
+The current Customer Portal BFF is `NexaConnect.CustomerBff`. It validates the authenticated session, keeps the authentication ticket and OIDC tokens in a server-side distributed ticket store, calls Platform Directory's current-access API, and protects the selected tenant context in an encrypted HTTP-only cookie. The browser receives only opaque cookie keys. This selection is context only; product Application use cases must perform final tenant and resource authorization. Platform Directory separately owns support-elevation request, independent approval, expiry, effective-access lookup, revocation, and append-only lifecycle audit behavior; an elevation never becomes a customer role or bypasses product authorization by itself.
 
 Its first authenticated product adapters are Catalog menu, Inventory stock, and the Order place-workflow. They forward the server-held bearer token and validated tenant headers; the BFF derives organization and branch IDs from the protected tenant selection and route rather than trusting duplicate browser payload fields. Catalog, Inventory, and Order independently verify organization access through Platform Directory and read Restaurant-owned branch scope with dedicated workload identities. Payment validates organization access, referenced Order organization/branch ownership, and Restaurant scope for customer-tagged payment-intent creation and reads. Refund, capture, and resource authorization beyond these slices remain product-owned follow-up work.
 
@@ -543,6 +558,6 @@ Create Architecture Decision Records for major choices, including:
 - Reporting consistency, retention, and replay strategy
 - Kiosk application platform, device enrollment, and locked-down deployment
 - Kiosk payment, printer, scanner, cash hardware, accessibility, and outage behavior
-- Platform dashboard hosting, navigation, support elevation, and summary contracts
+- Platform dashboard hosting, navigation, and summary contracts
 - Restaurant-owner versus internal product-operator dashboard views
-`NexaConnect.PlatformAdminBff` is the separate Product Owner control-plane BFF foundation. It uses an independent OIDC client and cookie, requires the `system-admin` role on every management proxy, and calls Platform Directory without direct database access. Both BFFs store tickets and tokens server-side; Development/Test use memory, while every other environment requires a Redis connection.
+`NexaConnect.PlatformAdminBff` is the separate Product Owner control-plane BFF foundation. It uses an independent OIDC client and cookie, enforces endpoint-specific `platform-owner`, `platform-admin`, `platform-support`, and `platform-auditor` policies, and calls Platform Directory without direct database access. Both BFFs store tickets and tokens server-side; Development/Test use memory, while every other environment requires a Redis connection.

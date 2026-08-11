@@ -2,23 +2,25 @@
 
 Create one directory per owning service and one subdirectory per sequential migration version. Each migration contains `migration.json`, `up.sql`, and `down.sql`.
 
-## Initial schema catalog
+## Current schema catalog
 
 | Service | Version | Owned tables |
 | --- | ---: | ---: |
-| PlatformDirectory | 1 | 5 |
+| PlatformDirectory | 2 | 7 |
+| Authorization | 1 | 7 |
 | Restaurant | 1 | 7 |
-| Catalog | 1 | 20 |
-| Inventory | 1 | 7 |
+| Catalog | 2 | 21 |
+| Inventory | 3 | 10 |
 | Order | 1 | 9 |
-| Kitchen | 1 | 6 |
+| Kitchen | 2 | 7 |
 | Customer | 1 | 5 |
 | Payment | 1 | 5 |
-| POS | 1 | 8 |
+| Notification | 1 | 1 |
+| POS | 3 | 8 |
 | Media | 1 | 4 |
-| Reporting | 1 | 7 |
+| Reporting | 2 | 8 |
 
-The initial catalog contains 83 tables. Counts include service-owned technical tables such as outboxes, processed-message stores, idempotency records, and projection checkpoints.
+The current 13-service catalog contains 99 tables and 109 explicit indexes. Counts include service-owned technical tables such as outboxes, inboxes, idempotency records, audit history, and projection checkpoints.
 
 Versions must be linear, sortable, immutable, independently owned by one service, and transactional. Non-transactional migrations are not supported because schema mutation and migration-history recording must remain atomic.
 

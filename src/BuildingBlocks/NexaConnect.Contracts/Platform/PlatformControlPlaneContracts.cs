@@ -47,3 +47,23 @@ public sealed record RegisterProductRequest(
 public sealed record ChangeOrganizationProductAccessRequest(
     string ApplicationCode,
     string Status);
+
+public sealed record RequestSupportElevationRequest(
+    Guid OrganizationId,
+    string ApplicationCode,
+    string Reason,
+    int DurationMinutes);
+
+public sealed record SupportElevationSummary(
+    Guid ElevationId,
+    Guid OrganizationId,
+    string ApplicationCode,
+    string SupportSubjectId,
+    string Reason,
+    string Status,
+    DateTimeOffset RequestedAtUtc,
+    DateTimeOffset? ApprovedAtUtc,
+    DateTimeOffset? ExpiresAtUtc,
+    DateTimeOffset? RevokedAtUtc,
+    string? ApprovedBySubjectId,
+    string? RevokedBySubjectId);

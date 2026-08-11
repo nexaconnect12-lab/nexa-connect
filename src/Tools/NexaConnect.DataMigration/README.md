@@ -6,9 +6,10 @@ The agreed migration contract is defined by [ADR-001](../../../docs/Architecture
 
 ## Implementation status
 
-The version-1 schema baseline has been authored for 12 independently owned databases, including the Authorization database.
+Schema-first catalogs have been authored for 13 independently owned databases. Platform Directory version 2 adds support-elevation state and database-enforced append-only audit history; other services retain their independently versioned catalogs.
 
 - `PlatformDirectory`
+- `Authorization`
 - `Restaurant`
 - `Catalog`
 - `Inventory`
@@ -16,6 +17,7 @@ The version-1 schema baseline has been authored for 12 independently owned datab
 - `Kitchen`
 - `Customer`
 - `Payment`
+- `Notification`
 - `POS`
 - `Media`
 - `Reporting`
@@ -110,7 +112,7 @@ The wrapper stops on the first failed service. Each service retains its own hist
 
 Database and role creation is deliberately separate from service schema migration. For local development, Docker Compose mounts [`docker/postgres/init/001_create_nexaconnect_databases.sh`](../../../docker/postgres/init/001_create_nexaconnect_databases.sh) into PostgreSQL's first-start initialization directory.
 
-On an empty PostgreSQL volume, the initializer creates all eleven databases, the `nexaconnect_migration` DDL owner, and one restricted runtime login per database. It also configures default table and sequence privileges for objects later created by the migration owner. The migration history table is explicitly removed from runtime-role access by the runner.
+On an empty PostgreSQL volume, the initializer creates all 13 catalog databases, the `nexaconnect_migration` DDL owner, and one restricted runtime login per database. It also configures default table and sequence privileges for objects later created by the migration owner. The migration history table is explicitly removed from runtime-role access by the runner.
 
 Initialization scripts run only when the PostgreSQL data directory is empty. They do not apply service migrations, rerun on ordinary container restarts, or rotate passwords in an existing cluster.
 

@@ -89,6 +89,13 @@ public sealed class AuthenticationConfigurationTests
             authorizationOptions.FallbackPolicy.Requirements,
             requirement => requirement is DenyAnonymousAuthorizationRequirement);
         Assert.True(authorizationOptions.GetPolicy(NexaAuthorizationPolicies.SystemAdministrator) is not null);
+        AuthorizationPolicy platformAdmin = Assert.IsType<AuthorizationPolicy>(
+            authorizationOptions.GetPolicy(NexaAuthorizationPolicies.PlatformAdministrator));
+        RolesAuthorizationRequirement platformRoles = Assert.Single(
+            platformAdmin.Requirements.OfType<RolesAuthorizationRequirement>());
+        Assert.Equal(["platform-owner", "platform-admin"], platformRoles.AllowedRoles);
+        Assert.NotNull(authorizationOptions.GetPolicy(NexaAuthorizationPolicies.PlatformSupport));
+        Assert.NotNull(authorizationOptions.GetPolicy(NexaAuthorizationPolicies.PlatformAuditReader));
         Assert.True(authorizationOptions.GetPolicy(NexaAuthorizationPolicies.ReportViewer) is not null);
     }
 

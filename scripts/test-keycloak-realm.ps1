@@ -79,6 +79,23 @@ if ($missingClients.Count -gt 0) {
     throw "Missing required clients: $($missingClients -join ', ')"
 }
 
+$requiredRoles = @(
+    'platform-owner', 'platform-admin', 'platform-support', 'platform-auditor',
+    'customer-owner', 'customer-admin', 'customer-manager', 'customer-user', 'customer-viewer'
+)
+$realmRoles = @($realm.roles.realm.name)
+$missingRoles = @($requiredRoles | Where-Object { $_ -notin $realmRoles })
+if ($missingRoles.Count -gt 0) {
+    throw "Missing required Phase 2 roles: $($missingRoles -join ', ')"
+}
+
+$apiScope = @($realm.clientScopes | Where-Object name -eq 'nexaconnect-api')
+$roleMapper = @($apiScope.protocolMappers | Where-Object name -eq 'realm-roles')
+if ($roleMapper.Count -ne 1 -or $roleMapper[0].config.'access.token.claim' -ne 'true' -or
+    $roleMapper[0].config.'id.token.claim' -ne 'true' -or $roleMapper[0].config.multivalued -ne 'true') {
+    throw 'The API realm-role mapper must emit a multi-valued roles claim in access and ID tokens.'
+}
+
 $publicClients = @($realm.clients | Where-Object publicClient)
 foreach ($client in $publicClients) {
     if ($client.attributes.'pkce.code.challenge.method' -ne 'S256') {

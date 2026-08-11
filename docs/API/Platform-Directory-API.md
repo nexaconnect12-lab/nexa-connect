@@ -22,7 +22,7 @@ Only active memberships, organizations, applications, and enabled organization a
 
 `GET /api/platform-directory/v1/organizations/{organizationId}/access` requires a valid `nexaconnect-api` bearer token. It uses the token `sub` claim and returns `200 OK` with `{ "organizationId": "<uuid>", "granted": true }` only when the caller has an active organization membership and the organization has enabled access to the active `nexa_connect` application. All other authenticated callers receive `403 Forbidden`; the endpoint does not disclose membership or organization state. Missing or invalid tokens receive the standard `401 Unauthorized` bearer challenge.
 
-`GET /api/platform-directory/v1/organizations/{organizationId}/members/{subjectId}/access` provides the same check for platform administration and requires the `system-admin` realm role. Authorized administrators receive `200 OK` with `granted` set to either `true` or `false`; unauthenticated callers receive `401` and callers without `system-admin` receive `403`.
+`GET /api/platform-directory/v1/organizations/{organizationId}/members/{subjectId}/access` provides the same check for platform administration and requires `platform-owner` or `platform-admin`. Authorized administrators receive `200 OK` with `granted` set to either `true` or `false`; unauthenticated callers receive `401` and callers without a permitted platform role receive `403`.
 
 These are organization-level checks only. Restaurant, branch, shift, refund, and other product resource authorization remains product-owned and must not be inferred from realm roles.
 
@@ -41,7 +41,7 @@ These contracts do not grant access by themselves. The platform resolves identit
 
 ## Platform control-plane operations
 
-The authenticated `system-admin` policy protects the initial management endpoints:
+The `platform-owner` or `platform-admin` role protects the management endpoints:
 
 - `POST /api/platform-directory/v1/organizations` creates an organization.
 - `PATCH /api/platform-directory/v1/organizations/{organizationId}` changes organization name, status, or time zone.
@@ -50,3 +50,15 @@ The authenticated `system-admin` policy protects the initial management endpoint
 - `PUT /api/platform-directory/v1/organizations/{organizationId}/products` enables, suspends, or disables product access.
 
 These operations use the authenticated `sub` as the audit actor. Product registration and organization access are platform control-plane decisions; they do not grant product-specific operational permissions.
+
+## Support elevation
+
+Support elevation is scoped to one support subject, organization, and registered application. It never grants product access by realm role alone.
+
+- `POST /api/platform-directory/v1/support-elevations` accepts `{ "organizationId": "<uuid>", "applicationCode": "nexa_connect", "reason": "Investigate failed synchronization", "durationMinutes": 60 }`. A `platform-support`, `platform-admin`, or `platform-owner` caller creates a pending request and receives `201 Created`.
+- `POST /api/platform-directory/v1/support-elevations/{elevationId}/approve` requires `platform-admin` or `platform-owner`. The approver must differ from the support subject. Approval returns `200` with active status and an absolute expiry.
+- `POST /api/platform-directory/v1/support-elevations/{elevationId}/revoke` requires `platform-admin` or `platform-owner` and makes pending or active elevation ineffective.
+- `GET /api/platform-directory/v1/support-elevations/{elevationId}` allows `platform-owner`, `platform-admin`, or `platform-auditor` to inspect the audit-facing state.
+- `GET /api/platform-directory/v1/support-elevations/effective?organizationId=<uuid>&applicationCode=<code>` lets an authenticated platform support subject resolve only its own currently active, unexpired elevation. Missing or expired elevation returns `404`.
+
+Durations must be between 5 and 240 minutes and reasons must contain at least 10 non-whitespace characters. Invalid requests return `400`; invalid state transitions, self-approval, and concurrent transitions return `409`. Request, approval, and revocation are persisted transactionally with append-only audit rows.

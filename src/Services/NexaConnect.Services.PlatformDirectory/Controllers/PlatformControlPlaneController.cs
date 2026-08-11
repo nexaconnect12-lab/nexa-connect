@@ -8,7 +8,7 @@ using NexaConnect.Services.PlatformDirectory.Application.ControlPlane;
 namespace NexaConnect.Services.PlatformDirectory.Controllers;
 
 [ApiController]
-[Authorize(Policy = NexaAuthorizationPolicies.SystemAdministrator)]
+[Authorize(Policy = NexaAuthorizationPolicies.PlatformAdministrator)]
 [Route("api/platform-directory/v1")]
 public sealed class PlatformControlPlaneController(IPlatformDirectoryManagement management) : ControllerBase
 {

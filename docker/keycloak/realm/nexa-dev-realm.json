@@ -169,7 +169,16 @@
   ],
   "roles": {
     "realm": [
-      { "name": "system-admin", "description": "Shared-platform administrator" },
+      { "name": "system-admin", "description": "Legacy shared-platform administrator; migrate assignments to platform roles" },
+      { "name": "platform-owner", "description": "Shared-platform owner" },
+      { "name": "platform-admin", "description": "Shared-platform administrator" },
+      { "name": "platform-support", "description": "Shared-platform support operator" },
+      { "name": "platform-auditor", "description": "Read-only shared-platform auditor" },
+      { "name": "customer-owner", "description": "Organization-scoped customer owner" },
+      { "name": "customer-admin", "description": "Organization-scoped customer administrator" },
+      { "name": "customer-manager", "description": "Organization-scoped customer manager" },
+      { "name": "customer-user", "description": "Organization-scoped customer user" },
+      { "name": "customer-viewer", "description": "Organization-scoped customer viewer" },
       { "name": "tenant-admin", "description": "Organization administrator" },
       { "name": "store-manager", "description": "Restaurant store manager" },
       { "name": "cashier", "description": "Restaurant cashier" },
@@ -184,6 +193,15 @@
       "clientScope": "nexaconnect-api",
       "roles": [
         "system-admin",
+        "platform-owner",
+        "platform-admin",
+        "platform-support",
+        "platform-auditor",
+        "customer-owner",
+        "customer-admin",
+        "customer-manager",
+        "customer-user",
+        "customer-viewer",
         "tenant-admin",
         "store-manager",
         "cashier",
@@ -328,7 +346,7 @@
             "jsonType.label": "String",
             "multivalued": "true",
             "access.token.claim": "true",
-            "id.token.claim": "false",
+            "id.token.claim": "true",
             "userinfo.token.claim": "false"
           }
         }

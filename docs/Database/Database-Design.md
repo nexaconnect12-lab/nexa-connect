@@ -8,7 +8,7 @@ The design will evolve with the domain model. Every schema change must remain ow
 
 ### 1.1 Baseline status
 
-Version-1 migrations now exist for Platform Directory, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, POS, Media, and Reporting. Together they define 83 tables and 99 explicit indexes. Each migration has metadata and paired upgrade and downgrade scripts.
+Versioned migrations exist for 13 independently owned databases: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, Notification, POS, Media, and Reporting. Across every implemented catalog they currently define 99 tables and 109 explicit indexes. Each migration has metadata and paired upgrade and downgrade scripts.
 
 Static validation has confirmed metadata parsing, create/drop parity, PostgreSQL identifier lengths, output packaging, and a clean migration-project build. The migration executable now understands versioned directories and explicit target versions. Live PostgreSQL clean-install, downgrade, and re-upgrade tests are still required before these scripts are production-executable.
 
@@ -73,7 +73,7 @@ The accepted ownership boundary is defined by [ADR-002](../Architecture/Decision
 
 Cluster-level provisioning is separate from service schema migration. Provisioning creates databases, login roles, ownership, connection permissions, and default runtime privileges. Versioned service migrations create tables, constraints, indexes, comments, and migration history inside an existing database.
 
-Local Docker provisioning is implemented by [`docker/postgres/init/001_create_nexaconnect_databases.sh`](../../docker/postgres/init/001_create_nexaconnect_databases.sh). On the first start of an empty PostgreSQL volume it creates all eleven databases, a `nexaconnect_migration` DDL owner, and a restricted runtime login for each database.
+Local Docker provisioning is implemented by [`docker/postgres/init/001_create_nexaconnect_databases.sh`](../../docker/postgres/init/001_create_nexaconnect_databases.sh). On the first start of an empty PostgreSQL volume it creates all 13 catalog databases, a `nexaconnect_migration` DDL owner, and a restricted runtime login for each database.
 
 Initialization does not apply schema migrations and does not rerun for an existing data volume. Production environments must implement the same ownership boundary through infrastructure as code and managed secrets rather than relying on the local initializer.
 
@@ -82,6 +82,7 @@ Initialization does not apply schema migrations and does not rerun for an existi
 | Business capability | Database | Owning runtime | Suggested role |
 | --- | --- | --- | --- |
 | Shared organization directory | `PlatformDirectory` | Platform Directory Service | `platform_directory_app` |
+| Product authorization | `NexaConnect_Authorization` | Authorization Service | `nexaconnect_authorization_app` |
 | Restaurant Management | `NexaConnect_Restaurant` | Restaurant Management Service | `nexaconnect_restaurant_app` |
 | Menu | `NexaConnect_Catalog` | Catalog Service, provisionally | `nexaconnect_catalog_app` |
 | Inventory | `NexaConnect_Inventory` | Inventory Service | `nexaconnect_inventory_app` |
@@ -89,11 +90,12 @@ Initialization does not apply schema migrations and does not rerun for an existi
 | Kitchen Execution | `NexaConnect_Kitchen` | Kitchen Service | `nexaconnect_kitchen_app` |
 | Customer | `NexaConnect_Customer` | Customer Service | `nexaconnect_customer_app` |
 | Payment | `NexaConnect_Payment` | Payment Service | `nexaconnect_payment_app` |
+| Notification | `NexaConnect_Notification` | Notification Service | `nexaconnect_notification_app` |
 | POS | `NexaConnect_POS` | POS Service | `nexaconnect_pos_app` |
 | Media | `NexaConnect_Media` | Media API and Worker | `nexaconnect_media_app` |
 | Reporting | `NexaConnect_Reporting` | Reporting Projectors and API | `nexaconnect_reporting_app` |
 
-Notification persistence should be added only when durable delivery state, templates, or retry history require it. If added, it must use a separately owned `NexaConnect_Notification` database.
+Notification durable delivery state is owned by the separately provisioned `NexaConnect_Notification` database; other services do not access it directly.
 
 Application roles must not own the databases. Use a separate migration role for DDL operations and grant application roles only the permissions needed at runtime.
 
@@ -135,6 +137,18 @@ The combination of `organization_id` and `identity_subject_id` must be unique fo
 - `enabled_at_utc timestamptz` and `disabled_at_utc timestamptz`.
 
 The version-1 baseline creates this table to support platform-level product enablement. Product-specific roles and permissions do not belong here.
+
+#### `support_elevations`
+
+- Scoped to one support subject, organization, and registered application.
+- Stores the required reason, requested duration, independent approver, absolute expiry, revocation state, and lifecycle timestamps.
+- Effective access requires active status, no revocation, and `expires_at_utc` later than the current time.
+
+#### `support_elevation_audit`
+
+- Append-only request, approval, and revocation actions.
+- Stores the elevation identifier, action, actor subject, and occurrence timestamp.
+- A database trigger rejects row updates and deletes, including accidental mutation through the normal runtime credential.
 
 ### 3.2 Dashboard data access
 
@@ -374,7 +388,7 @@ Schema versions are independent and linear for each service. The migration runne
 
 Applied migrations are recorded in `nexaconnect_schema_migrations` with the version, name, metadata and SQL checksums, downgrade-safety classification, application timestamp, application version, and execution identifier.
 
-The executable implements this contract and discovers the versioned migration directories. Before production release, verify every service through clean install, downgrade to version 0 in a disposable database, and re-upgrade to version 1. Do not flatten, manually concatenate, or reorder migrations.
+The executable implements this contract and discovers the versioned migration directories. Before production release, verify every service through clean install, downgrade to each supported preceding version in a disposable database, and re-upgrade to its latest catalog version. Do not flatten, manually concatenate, or reorder migrations.
 
 Downgrade classifications:
 

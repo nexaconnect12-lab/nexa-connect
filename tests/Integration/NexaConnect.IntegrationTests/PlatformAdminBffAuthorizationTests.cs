@@ -16,6 +16,11 @@ public sealed class PlatformAdminBffAuthorizationTests
     [InlineData("PATCH", "/bff/platform-admin/organizations/11111111-1111-1111-1111-111111111111")]
     [InlineData("PUT", "/bff/platform-admin/organizations/11111111-1111-1111-1111-111111111111/members/customer-sub")]
     [InlineData("PUT", "/bff/platform-admin/organizations/11111111-1111-1111-1111-111111111111/products")]
+    [InlineData("POST", "/bff/platform-admin/support-elevations")]
+    [InlineData("GET", "/bff/platform-admin/support-elevations/effective?organizationId=11111111-1111-1111-1111-111111111111&applicationCode=nexa_connect")]
+    [InlineData("GET", "/bff/platform-admin/support-elevations/22222222-2222-2222-2222-222222222222")]
+    [InlineData("POST", "/bff/platform-admin/support-elevations/22222222-2222-2222-2222-222222222222/approve")]
+    [InlineData("POST", "/bff/platform-admin/support-elevations/22222222-2222-2222-2222-222222222222/revoke")]
     public async Task Mutation_proxies_require_platform_admin_session(string method, string path)
     {
         await using var factory = new PlatformAdminFactory();

@@ -29,6 +29,10 @@ The initial current-access API is `GET /api/platform-directory/v1/me/access`. It
 
 The Product Owner Portal and Customer Portal are separate trust boundaries. Platform roles such as `platform-owner`, `platform-admin`, `platform-support`, and `platform-auditor` are not customer membership roles. Customer roles such as `customer-owner`, `customer-admin`, `customer-manager`, `customer-user`, and `customer-viewer` are evaluated within an organization and enabled product. A platform role does not automatically authorize restaurant or other product operations.
 
+The development realm defines these platform and customer role names and maps them into the `roles` claim for the API scope. `platform-owner` and `platform-admin` may change platform control-plane data and approve or revoke support elevation. `platform-support` may request elevation but cannot approve its own request. `platform-auditor` may inspect elevation records without mutation. Customer roles remain organization context and never substitute for product-owned authorization.
+
+Support elevation is resolved from Platform Directory data, not minted as a long-lived Keycloak role. It is limited to one support subject, organization, and application; requires a reason and independent approval; lasts 5–240 minutes; and becomes ineffective at expiry or revocation. Every request, approval, and revocation is recorded in append-only audit history.
+
 ## Validation rules
 
 - Validate signature, issuer, audience, lifetime, and signing-key rollover.

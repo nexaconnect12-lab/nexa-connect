@@ -21,7 +21,7 @@ Invoke-RestMethod http://localhost:9000/health/ready
 
 Startup import skips an existing realm. Apply subsequent realm changes through an explicit reviewed configuration migration; do not delete the identity database volume unless losing all local identity data is intended.
 
-The checked-in realm contains no users. Create local users in the Admin Console and assign only the coarse roles needed for development. See [Client Matrix](../Identity/Client-Matrix.md) and [Claims Contract](../Identity/Claims-Contract.md).
+The checked-in realm contains no users. Create local users in the Admin Console and assign only the coarse roles needed for development. Product Owner Portal users receive one of `platform-owner`, `platform-admin`, `platform-support`, or `platform-auditor`; customer and product roles remain separate. See [Client Matrix](../Identity/Client-Matrix.md) and [Claims Contract](../Identity/Claims-Contract.md).
 
 To run the WPF POS client locally, build it and register its custom callback protocol for the current Windows user:
 
@@ -39,6 +39,7 @@ The local PostgreSQL initializer creates these databases on the first start of a
 
 ```text
 PlatformDirectory
+NexaConnect_Authorization
 NexaConnect_Restaurant
 NexaConnect_Catalog
 NexaConnect_Inventory
@@ -46,6 +47,7 @@ NexaConnect_Order
 NexaConnect_Kitchen
 NexaConnect_Customer
 NexaConnect_Payment
+NexaConnect_Notification
 NexaConnect_POS
 NexaConnect_Media
 NexaConnect_Reporting
@@ -106,4 +108,4 @@ Local service launch scripts do not contain database passwords or workload secre
 Operational provider settings: Order outbound calls use `Authentication__TokenEndpoint`, `Authentication__ClientId`, and `Authentication__ClientSecret` to obtain short-lived Keycloak client-credentials tokens (a static `Authentication__OutboundToken` is for development only). Payment and Notification HTTP providers use bounded retries for transient 5xx/timeout responses. Notification provider delivery is enabled by setting `NotificationProvider__BaseUrl`; otherwise the configured PostgreSQL or in-memory queue remains authoritative.
 
 Inventory and Kitchen expose the shared durable inbox store when PostgreSQL persistence is enabled. A message is claimed with a lease, marked completed only after the handler succeeds, and returned to the retryable queue after handler failure or lease expiry. The Reporting database migration includes the same inbox schema for its future projection host, but no Reporting service is currently deployed. Apply the latest service migrations before enabling durable consumers; do not treat RabbitMQ acknowledgement alone as idempotency.
-The `src/Gateway/NexaConnect.PlatformAdminBff` project is the NexaConnect-side foundation for Product Owner control-plane operations. Deploy it separately from the Customer and product-admin BFFs with a dedicated `platform-admin-bff` OIDC client, `Services__PlatformDirectory`, secret-managed `Bff__ClientSecret`, and `ConnectionStrings__BffSessionCache`. Every management proxy requires the `system-admin` role and the BFF never accesses PostgreSQL directly.
+The `src/Gateway/NexaConnect.PlatformAdminBff` project is the NexaConnect-side foundation for Product Owner control-plane operations. Deploy it separately from the Customer and product-admin BFFs with a dedicated `platform-admin-bff` OIDC client, `Services__PlatformDirectory`, secret-managed `Bff__ClientSecret`, and `ConnectionStrings__BffSessionCache`. Assign the least-privileged platform role for each operator. The BFF enforces endpoint-specific platform roles and never accesses PostgreSQL directly. Apply Platform Directory migration version 2 before enabling support-elevation routes; alert on unusual request, approval, or revocation activity and retain the append-only audit history according to the platform audit policy.

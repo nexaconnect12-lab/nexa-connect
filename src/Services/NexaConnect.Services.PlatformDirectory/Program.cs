@@ -2,6 +2,7 @@ using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.PlatformDirectory;
 using NexaConnect.Services.PlatformDirectory.Application.Access;
 using NexaConnect.Services.PlatformDirectory.Application.ControlPlane;
+using NexaConnect.Services.PlatformDirectory.Application.Support;
 using NexaConnect.Services.PlatformDirectory.Infrastructure.Persistence;
 using Npgsql;
 
@@ -20,6 +21,9 @@ builder.Services.AddSingleton<NpgsqlDataSource>(_ =>
 builder.Services.AddScoped<IOrganizationAccessReader, PostgresOrganizationAccessReader>();
 builder.Services.AddScoped<IPlatformDirectoryManagement, PlatformDirectoryManagementService>();
 builder.Services.AddScoped<IPlatformDirectoryManagementRepository, PostgresPlatformDirectoryManagementRepository>();
+builder.Services.AddScoped<ISupportElevationRepository, PostgresSupportElevationRepository>();
+builder.Services.AddScoped<SupportElevationApplicationService>();
+builder.Services.AddSingleton(TimeProvider.System);
 
 var app = builder.Build();
 if (app.Environment.IsDevelopment())

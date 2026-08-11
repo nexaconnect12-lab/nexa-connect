@@ -340,7 +340,7 @@ NexaConnect owns `NexaConnect.Admin`. It manages restaurant-specific configurati
 
 Future products own separate administration dashboards and product APIs. A property-listing dashboard, for example, owns property listings, agents, media, approvals, inquiries, and property reporting without depending on NexaConnect.
 
-The ecosystem uses separate portal trust boundaries. `platform-admin-bff` serves the shared Product Owner Portal, `nexaconnect-admin-bff` serves NexaConnect product administration, and the current `nexaconnect-web-bff` serves the tenant-scoped Customer Portal. Each has a separate OIDC client and BFF session boundary. Platform roles do not automatically grant restaurant operational permissions; audited, time-limited support elevation is required when cross-boundary access is necessary.
+The ecosystem uses separate portal trust boundaries. `platform-admin-bff` serves the shared Product Owner Portal, `nexaconnect-admin-bff` serves NexaConnect product administration, and the current `nexaconnect-web-bff` serves the tenant-scoped Customer Portal. Each has a separate OIDC client and BFF session boundary. Platform roles do not automatically grant restaurant operational permissions. Platform Directory now implements reasoned, independently approved, time-limited, revocable, and audited support elevation for controlled cross-boundary access; product services still perform their own resource authorization.
 
 Platform reporting contains approved ecosystem summaries. Detailed restaurant reporting remains inside NexaConnect. The accepted dashboard separation is recorded in [ADR-003](Decisions/ADR-003-platform-and-product-dashboard-separation.md).
 
@@ -399,7 +399,7 @@ The system requires tests beyond ordinary API coverage:
 11. Kiosk operating system and native application versus browser/PWA delivery.
 12. Kiosk payment methods, payment-terminal model, printer, scanner, and cash hardware.
 13. Kiosk dine-in, takeaway, table-selection, collection-number, accessibility, and language requirements.
-14. Platform Dashboard hosting domain, navigation, support elevation, and cross-product summary contracts.
+14. Platform Dashboard hosting domain, navigation, and cross-product summary contracts.
 15. Whether restaurant owners and internal NexaConnect product operators use role-specific views in one product dashboard or separately deployed portals.
 
 No implementation decision should silently resolve these items. Each material decision should be recorded as an Architecture Decision Record.
