@@ -353,6 +353,16 @@
       ]
     }
   ],
+  "users": [
+    {
+      "username": "service-account-platform-directory-admin",
+      "enabled": true,
+      "serviceAccountClientId": "platform-directory-admin",
+      "clientRoles": {
+        "realm-management": ["view-users", "manage-users", "view-realm"]
+      }
+    }
+  ],
   "clients": [
     {
       "clientId": "nexaconnect-api",
@@ -457,6 +467,17 @@
       "redirectUris": ["${PLATFORM_ADMIN_BFF_REDIRECT_URI}"],
       "webOrigins": ["${PLATFORM_ADMIN_BFF_ORIGIN}"],
       "defaultClientScopes": ["profile", "email", "nexaconnect-api"]
+    },
+    {
+      "clientId": "platform-directory-admin",
+      "name": "Platform Directory Identity Administration",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${PLATFORM_DIRECTORY_ADMIN_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false
     },
     {
       "clientId": "nexaconnect-catalog-service",

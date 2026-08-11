@@ -1,6 +1,8 @@
 # NexaConnect Keycloak
 
-The checked-in realm is a reproducible environment-driven baseline. It contains no users or literal secrets. Local Docker Compose supplies development values and imports it into the `nexa-dev` realm on first startup. Production bootstrap supplies production realm, URI, SMTP, MFA, and secret values. If the realm already exists, Keycloak intentionally skips the import.
+The local realm includes the confidential `platform-directory-admin` service account used by Platform Directory's Infrastructure identity adapter. Its realm-management assignments are limited to `view-users`, `manage-users`, and `view-realm`. Configure `PLATFORM_DIRECTORY_ADMIN_CLIENT_SECRET`; changing the JSON does not update an already-persisted realm, so recreate only disposable local identity state or apply an explicit reviewed realm migration.
+
+The checked-in realm is a reproducible environment-driven baseline. It contains no human users or literal secrets; its only user entry is the generated `platform-directory-admin` service account. Local Docker Compose supplies development values and imports it into the `nexa-dev` realm on first startup. Production bootstrap supplies production realm, URI, SMTP, MFA, and secret values. If the realm already exists, Keycloak intentionally skips the import.
 
 The realm defines separate service-account clients for POS, Catalog, Order, Inventory, and Payment, plus separate confidential browser clients including the Platform Admin BFF. Supply every secret and redirect/origin placeholder listed in `.env.example`; workload credentials must not be shared between services.
 

@@ -1,5 +1,7 @@
 # NexaConnect Project Architecture
 
+Phase 3 control-plane status: Platform Directory owns Application orchestration for organization, membership, product access, platform user administration, role/permission discovery, audit queries, and directory summaries. Infrastructure owns PostgreSQL and the Keycloak Admin API adapter; portals remain database-free. Summary contracts currently cover Platform Directory-owned data only.
+
 ## 1. Purpose
 
 NexaConnect is a restaurant operating platform that supports staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, reporting, and external integrations. Restaurant branches must continue approved operations during internet or cloud outages and synchronize safely after recovery. The architecture separates business capabilities into independently maintainable services while keeping the initial implementation practical for a small team.

@@ -39,6 +39,13 @@ public sealed class PlatformAdminBffAuthorizationTests
     [InlineData("GET", "/bff/platform-admin/support-elevations/22222222-2222-2222-2222-222222222222")]
     [InlineData("POST", "/bff/platform-admin/support-elevations/22222222-2222-2222-2222-222222222222/approve")]
     [InlineData("POST", "/bff/platform-admin/support-elevations/22222222-2222-2222-2222-222222222222/revoke")]
+    [InlineData("GET", "/bff/platform-admin/platform/users")]
+    [InlineData("POST", "/bff/platform-admin/platform/users")]
+    [InlineData("PATCH", "/bff/platform-admin/platform/users/platform-subject")]
+    [InlineData("PUT", "/bff/platform-admin/platform/users/platform-subject/roles")]
+    [InlineData("GET", "/bff/platform-admin/platform/roles")]
+    [InlineData("GET", "/bff/platform-admin/platform/audit")]
+    [InlineData("GET", "/bff/platform-admin/platform/summary")]
     public async Task Mutation_proxies_require_platform_admin_session(string method, string path)
     {
         await using var factory = new PlatformAdminFactory();

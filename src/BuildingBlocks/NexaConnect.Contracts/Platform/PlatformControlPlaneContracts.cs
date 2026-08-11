@@ -67,3 +67,54 @@ public sealed record SupportElevationSummary(
     DateTimeOffset? RevokedAtUtc,
     string? ApprovedBySubjectId,
     string? RevokedBySubjectId);
+
+public sealed record PlatformUserSummary(
+    string SubjectId,
+    string Username,
+    string? Email,
+    bool Enabled,
+    IReadOnlyCollection<string> Roles);
+
+public sealed record CreatePlatformUserRequest(
+    string Username,
+    string? Email,
+    bool Enabled,
+    IReadOnlyCollection<string> Roles);
+
+public sealed record UpdatePlatformUserRequest(
+    string? Email,
+    bool Enabled);
+
+public sealed record ChangePlatformUserRolesRequest(IReadOnlyCollection<string> Roles);
+
+public sealed record PlatformPermissionSummary(string Code, string Description);
+
+public sealed record PlatformRoleSummary(
+    string Code,
+    string Description,
+    IReadOnlyCollection<string> Permissions);
+
+public sealed record PlatformAuditRecord(
+    Guid AuditId,
+    string Action,
+    string ResourceType,
+    string ResourceId,
+    string ActorSubjectId,
+    string Outcome,
+    DateTimeOffset OccurredAtUtc);
+
+public sealed record PlatformAuditQuery(
+    DateTimeOffset? FromUtc,
+    DateTimeOffset? ToUtc,
+    string? ActorSubjectId,
+    string? Action,
+    int Limit = 100);
+
+public sealed record PlatformSummary(
+    long OrganizationCount,
+    long ActiveOrganizationCount,
+    long ActiveMembershipCount,
+    long RegisteredProductCount,
+    long EnabledProductAccessCount,
+    long ActiveSupportElevationCount,
+    DateTimeOffset AsOfUtc);

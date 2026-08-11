@@ -53,6 +53,12 @@ app.MapMethods("/bff/platform-admin/support-elevations/effective", ["GET"], Prox
 app.MapMethods("/bff/platform-admin/support-elevations/{elevationId:guid}", ["GET"], Proxy("api/platform-directory/v1/support-elevations/{elevationId}")).RequireAuthorization("PlatformAudit");
 app.MapMethods("/bff/platform-admin/support-elevations/{elevationId:guid}/approve", ["POST"], Proxy("api/platform-directory/v1/support-elevations/{elevationId}/approve")).RequireAuthorization("PlatformAdmin");
 app.MapMethods("/bff/platform-admin/support-elevations/{elevationId:guid}/revoke", ["POST"], Proxy("api/platform-directory/v1/support-elevations/{elevationId}/revoke")).RequireAuthorization("PlatformAdmin");
+app.MapMethods("/bff/platform-admin/platform/users", ["GET", "POST"], Proxy("api/platform-directory/v1/platform/users")).RequireAuthorization("PlatformAdmin");
+app.MapMethods("/bff/platform-admin/platform/users/{subjectId}", ["PATCH"], Proxy("api/platform-directory/v1/platform/users/{subjectId}")).RequireAuthorization("PlatformAdmin");
+app.MapMethods("/bff/platform-admin/platform/users/{subjectId}/roles", ["PUT"], Proxy("api/platform-directory/v1/platform/users/{subjectId}/roles")).RequireAuthorization("PlatformAdmin");
+app.MapMethods("/bff/platform-admin/platform/roles", ["GET"], Proxy("api/platform-directory/v1/platform/roles")).RequireAuthorization("PlatformUser");
+app.MapMethods("/bff/platform-admin/platform/audit", ["GET"], Proxy("api/platform-directory/v1/platform/audit")).RequireAuthorization("PlatformAudit");
+app.MapMethods("/bff/platform-admin/platform/summary", ["GET"], Proxy("api/platform-directory/v1/platform/summary")).RequireAuthorization("PlatformUser");
 app.MapControllers(); app.Run();
 
 static string NormalizeReturnUrl(string? returnUrl) =>

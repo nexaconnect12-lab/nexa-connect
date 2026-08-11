@@ -9,6 +9,7 @@ Endpoints:
 - `PUT /bff/platform-admin/organizations/{organizationId}/members/{subjectId}` assigns organization membership.
 - `POST /bff/platform-admin/products` registers a product, and `PUT /bff/platform-admin/organizations/{organizationId}/products` changes organization product access.
 - `/bff/platform-admin/support-elevations` proxies request, effective lookup, audit read, approval, and revocation operations with endpoint-specific platform-role policies.
+- `/bff/platform-admin/platform/users`, `/roles`, `/audit`, and `/summary` proxy Phase 3 user administration, permission-catalog, audit-query, and directory-summary operations. The BFF forwards its server-held token and never holds Keycloak administration credentials.
 
 `GET /health` is an anonymous process-liveness endpoint. It does not currently assert Platform Directory or Redis readiness.
 

@@ -96,6 +96,7 @@ public sealed class AuthenticationConfigurationTests
         Assert.Equal(["platform-owner", "platform-admin"], platformRoles.AllowedRoles);
         Assert.NotNull(authorizationOptions.GetPolicy(NexaAuthorizationPolicies.PlatformSupport));
         Assert.NotNull(authorizationOptions.GetPolicy(NexaAuthorizationPolicies.PlatformAuditReader));
+        Assert.NotNull(authorizationOptions.GetPolicy(NexaAuthorizationPolicies.PlatformUser));
         Assert.True(authorizationOptions.GetPolicy(NexaAuthorizationPolicies.ReportViewer) is not null);
     }
 

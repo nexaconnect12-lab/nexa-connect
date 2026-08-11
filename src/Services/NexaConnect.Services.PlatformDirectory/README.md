@@ -14,6 +14,12 @@ The support-elevation endpoints implement request, independent approval, effecti
 
 Configure the service database through `ConnectionStrings__PlatformDirectory` using the restricted `platform_directory_app` runtime role. Apply Platform Directory migration version 2 before enabling support elevation.
 
+Phase 3 platform administration is exposed under `/api/platform-directory/v1/platform`. It lists, creates, enables/disables, and assigns allow-listed platform roles to Keycloak users through an Application port and Infrastructure Keycloak Admin API adapter. Configure `KeycloakAdmin__BaseUrl`, `KeycloakAdmin__Realm`, `KeycloakAdmin__ClientId`, and the secret-only `KeycloakAdmin__ClientSecret`; the confidential client requires only the Keycloak service-account permissions needed to view/manage users and realm-role mappings.
+
+`GET /platform/roles` returns the fixed platform role/permission catalog, `GET /platform/audit` queries bounded append-only administrative records, and `GET /platform/summary` returns Platform Directory-owned ecosystem counts. Apply Platform Directory migration version 3 before enabling these endpoints. Detailed product business metrics are not queried from product databases and are intentionally absent.
+
+The audit table currently records successful platform-user create, update, and role-change operations only; it is not a unified audit of every control-plane route. Keycloak mutation, role mapping, and PostgreSQL audit insertion are not atomic across systems. If role mapping or audit persistence fails after a Keycloak mutation, the API returns an error and operators must reconcile the identity state before retrying.
+
 `GET /health` is an anonymous process-liveness endpoint. It does not currently assert database readiness.
 
 Operational telemetry uses `NexaConnect.Observability`: structured JSON remains on stdout and OTLP export is optional through `Observability__OtlpEnabled` and `Observability__OtlpEndpoint`. Request logs include method, path, status, duration, trace ID, and a validated `X-Correlation-ID`; they exclude bodies, query strings, credentials, cookies, and arbitrary headers. These logs do not replace the append-only support-elevation audit history.

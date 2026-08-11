@@ -7,6 +7,7 @@
 | `nexaconnect-mobile` | NexaConnect | Public | Authorization Code + PKCE S256 | `nexaconnect://oauth/callback` |
 | `nexaconnect-pos` | NexaConnect | Public | Authorization Code + PKCE S256 | `nexaconnect-pos://oauth/callback` |
 | `platform-admin-bff` | Shared platform | Confidential | Authorization Code | Shared-platform value; local fixture uses `https://localhost:7300/signin-oidc` |
+| `platform-directory-admin` | Shared platform directory | Confidential service account | Client Credentials | None |
 | Workload clients | Owning workload | Confidential | Client Credentials | None |
 
 ## Rules
@@ -19,7 +20,7 @@
 - Create one service-account client per concrete workload rather than sharing a machine credential.
 - Do not use NexaConnect-managed configuration as the production source of truth for `platform-admin-bff`; the checked-in realm entry is a local integration fixture only.
 
-The checked-in development realm implements the four NexaConnect interactive clients, the `nexaconnect-api` bearer-only audience, dedicated POS, Catalog, Order, Inventory, and Payment workload clients, and a local `platform-admin-bff` client with the `roles` scope enabled for role-claim testing. Each workload client is used only for its owning service's authenticated internal calls and must have a separately managed secret. Production registration and ownership of `platform-admin-bff` remain with the shared platform.
+The checked-in development realm implements the four NexaConnect interactive clients, the `nexaconnect-api` bearer-only audience, dedicated POS, Catalog, Order, Inventory, and Payment workload clients, a local `platform-admin-bff` client with the `roles` scope enabled for role-claim testing, and the `platform-directory-admin` service account. The administration account has only `view-users`, `manage-users`, and `view-realm` from Keycloak `realm-management`. Each workload client uses a separately managed secret. Production registration and ownership of the platform clients remain with the shared platform.
 
 The local realm also defines the Phase 2 platform roles (`platform-owner`, `platform-admin`, `platform-support`, `platform-auditor`) and customer roles (`customer-owner`, `customer-admin`, `customer-manager`, `customer-user`, `customer-viewer`). Product roles such as cashier or store manager remain separate. The legacy `system-admin` role is retained only for compatibility with older non-portal administration paths and must not be assigned as a substitute for the platform role model.
 

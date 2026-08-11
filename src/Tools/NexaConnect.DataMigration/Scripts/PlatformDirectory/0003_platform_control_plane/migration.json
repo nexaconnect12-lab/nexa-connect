@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "name": "platform_control_plane",
+  "transactional": true,
+  "downgradeSafety": "destructive",
+  "minimumApplicationVersion": "0.3.0"
+}

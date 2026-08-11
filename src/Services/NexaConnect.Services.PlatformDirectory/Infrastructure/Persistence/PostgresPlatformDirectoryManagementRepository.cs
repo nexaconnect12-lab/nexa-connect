@@ -54,8 +54,8 @@ public sealed class PostgresPlatformDirectoryManagementRepository(NpgsqlDataSour
     public async Task<bool> ChangeMembershipAsync(Guid organizationId, string subjectId, ChangeOrganizationMembershipRequest request, string actorSubjectId, CancellationToken cancellationToken)
     {
         const string sql = """
-            INSERT INTO organization_memberships (id, organization_id, identity_subject_id, status, invited_at_utc, joined_at_utc, created_at_utc, created_by, updated_at_utc, updated_by)
-            VALUES ($1, $2, $3, $4, CASE WHEN $4 = 'invited' THEN now() ELSE NULL END, CASE WHEN $4 = 'active' THEN now() ELSE NULL END, now(), $5, now(), $5)
+            INSERT INTO organization_memberships (id, organization_id, identity_subject_id, status, invited_at_utc, joined_at_utc, suspended_at_utc, removed_at_utc, created_at_utc, created_by, updated_at_utc, updated_by)
+            VALUES ($1, $2, $3, $4, CASE WHEN $4 = 'invited' THEN now() ELSE NULL END, CASE WHEN $4 = 'active' THEN now() ELSE NULL END, CASE WHEN $4 = 'suspended' THEN now() ELSE NULL END, CASE WHEN $4 = 'removed' THEN now() ELSE NULL END, now(), $5, now(), $5)
             ON CONFLICT (organization_id, identity_subject_id) DO UPDATE
             SET status = EXCLUDED.status,
                 joined_at_utc = CASE WHEN EXCLUDED.status = 'active' THEN COALESCE(organization_memberships.joined_at_utc, now()) ELSE organization_memberships.joined_at_utc END,
@@ -111,10 +111,13 @@ public sealed class PostgresPlatformDirectoryManagementRepository(NpgsqlDataSour
         if (applicationId is null) return false;
 
         const string accessSql = """
-            INSERT INTO organization_application_access (organization_id, application_id, status, enabled_at_utc, created_at_utc, created_by, updated_at_utc, updated_by)
-            VALUES ($1, $2, $3, now(), now(), $4, now(), $4)
+            INSERT INTO organization_application_access (organization_id, application_id, status, enabled_at_utc, suspended_at_utc, disabled_at_utc, created_at_utc, created_by, updated_at_utc, updated_by)
+            VALUES ($1, $2, $3, now(), CASE WHEN $3 = 'suspended' THEN now() ELSE NULL END, CASE WHEN $3 = 'disabled' THEN now() ELSE NULL END, now(), $4, now(), $4)
             ON CONFLICT (organization_id, application_id) DO UPDATE
-            SET status = EXCLUDED.status, updated_at_utc = now(), updated_by = EXCLUDED.updated_by,
+            SET status = EXCLUDED.status,
+                suspended_at_utc = CASE WHEN EXCLUDED.status = 'suspended' THEN now() ELSE NULL END,
+                disabled_at_utc = CASE WHEN EXCLUDED.status = 'disabled' THEN now() ELSE NULL END,
+                updated_at_utc = now(), updated_by = EXCLUDED.updated_by,
                 concurrency_version = organization_application_access.concurrency_version + 1;
             """;
         await using var accessCommand = new NpgsqlCommand(accessSql, connection, transaction);

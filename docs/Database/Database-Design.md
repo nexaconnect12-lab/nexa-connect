@@ -209,7 +209,7 @@ The following summaries describe the implemented version-1 ownership model. The 
 
 | Database | Version-1 tables | Notes |
 | --- | ---: | --- |
-| PlatformDirectory | 5 | Organizations, memberships, applications, access, and outbox |
+| PlatformDirectory | 8 | Organizations, memberships, applications, access, outbox, support elevation/audit, and append-only platform administration audit |
 | Restaurant | 7 | Restaurant structure, operating configuration, and outbox |
 | Catalog | 20 | Menu, modifiers, pricing, availability, routing, media links, and outbox |
 | Inventory | 7 | Stock locations, balances, ledger, reservations, replenishment, inbox, and outbox |

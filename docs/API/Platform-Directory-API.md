@@ -62,3 +62,14 @@ Support elevation is scoped to one support subject, organization, and registered
 - `GET /api/platform-directory/v1/support-elevations/effective?organizationId=<uuid>&applicationCode=<code>` lets an authenticated platform support subject resolve only its own currently active, unexpired elevation. Missing or expired elevation returns `404`.
 
 Durations must be between 5 and 240 minutes and reasons must contain at least 10 non-whitespace characters. Invalid requests return `400`; invalid state transitions, self-approval, and concurrent transitions return `409`. Request, approval, and revocation are persisted transactionally with append-only audit rows.
+
+## Phase 3 platform administration
+
+The following routes use the `/api/platform-directory/v1/platform` prefix:
+
+- `GET /users`, `POST /users`, `PATCH /users/{subjectId}`, and `PUT /users/{subjectId}/roles` require `platform-owner` or `platform-admin`. Creation accepts `{ "username": "operator", "email": "operator@example.test", "enabled": true, "roles": ["platform-auditor"] }` and returns `201`; updates and role replacement return `200`, while an unknown subject returns `404`. Keycloak remains the identity and credential owner, and listing follows all Keycloak pages.
+- `GET /roles` allows any of the four platform roles and returns the fixed role code, description, and permission-code collection. Product roles such as `tenant-admin` are rejected.
+- `GET /audit?fromUtc=&toUtc=&actorSubjectId=&action=&limit=` requires `platform-owner`, `platform-admin`, or `platform-auditor`. It returns newest-first successful platform-user create/update/role-change records only. `limit` is 1–500 and defaults to 100; organization, membership, product-access, support, read, and failed-attempt history is outside this table.
+- `GET /summary` allows any of the four platform roles and returns `{ "organizationCount": 0, "activeOrganizationCount": 0, "activeMembershipCount": 0, "registeredProductCount": 0, "enabledProductAccessCount": 0, "activeSupportElevationCount": 0, "asOfUtc": "..." }`.
+
+Invalid roles, usernames, audit ranges, or limits return `400`. Missing users return `404`, and Keycloak authentication/network failures return `502`. Keycloak mutation, role assignment, and PostgreSQL audit insertion are not a distributed transaction; a late failure can require operator reconciliation before retry. User mutations record successful outcomes in `platform_audit_records`, whose trigger rejects update and delete operations. The summary reads only Platform Directory-owned tables; detailed product reporting remains behind product-owned APIs or future approved summary events.
