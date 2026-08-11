@@ -26,7 +26,7 @@ Each portal has its own BFF, OIDC client, session cookie, scopes, audiences, dep
 
 The Product Owner Portal does not access product databases directly. It uses Platform Control Plane APIs and explicitly approved product administration APIs. The Customer Portal uses tenant-aware BFF endpoints and product-owned APIs.
 
-The existing `NexaConnect.Web` is the starting point for the Customer Portal and retains `nexaconnect-web-bff` during migration. `NexaConnect.Admin` remains the NexaConnect product administration dashboard. The ecosystem-wide `platform-admin-bff` and Product Owner Portal belong to the shared platform boundary and are not implemented inside NexaConnect's product services.
+The existing `NexaConnect.Web` is the starting point for the Customer Portal and retains `nexaconnect-web-bff` during migration. `NexaConnect.Admin` remains the NexaConnect product administration dashboard. The ecosystem-wide `platform-admin-bff` and Product Owner Portal belong to the shared platform boundary; NexaConnect's `NexaConnect.PlatformAdminBff` is only a temporary compatibility foundation and does not own platform data or APIs.
 
 ## Authorization and tenancy
 

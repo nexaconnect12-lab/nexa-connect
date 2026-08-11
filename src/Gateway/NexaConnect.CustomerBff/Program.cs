@@ -17,7 +17,7 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "customer-bff");
-builder.Services.AddDistributedMemoryCache();
+builder.Services.AddNexaConnectBffSessionCache(builder.Configuration, builder.Environment);
 builder.Services.AddSingleton<ITicketStore, DistributedCacheTicketStore>();
 builder.Services.AddOptions<CookieAuthenticationOptions>("CustomerCookie")
     .Configure<ITicketStore>((options, ticketStore) => options.SessionStore = ticketStore);
@@ -55,6 +55,8 @@ builder.Services.AddAuthentication(options =>
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.SlidingExpiration = true;
+        options.LoginPath = "/bff/customer/login";
+        options.LogoutPath = "/bff/customer/logout";
     })
     .AddOpenIdConnect("CustomerOidc", options =>
     {
@@ -68,6 +70,11 @@ builder.Services.AddAuthentication(options =>
         options.ResponseType = "code";
         options.UsePkce = true;
         options.SaveTokens = true;
+        // The local Keycloak realm does not advertise a usable PAR client configuration.
+        // Keep PAR available for production providers, but use the normal authorization
+        // request for the Development realm.
+        if (builder.Environment.IsDevelopment())
+            options.PushedAuthorizationBehavior = PushedAuthorizationBehavior.Disable;
         options.SignInScheme = "CustomerCookie";
         options.Scope.Add("nexaconnect-api");
         options.MapInboundClaims = false;

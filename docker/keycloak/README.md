@@ -2,6 +2,8 @@
 
 The checked-in realm is a reproducible environment-driven baseline. It contains no users or literal secrets. Local Docker Compose supplies development values and imports it into the `nexa-dev` realm on first startup. Production bootstrap supplies production realm, URI, SMTP, MFA, and secret values. If the realm already exists, Keycloak intentionally skips the import.
 
+The realm defines separate service-account clients for POS, Catalog, Order, Inventory, and Payment, plus separate confidential browser clients including the Platform Admin BFF. Supply every secret and redirect/origin placeholder listed in `.env.example`; workload credentials must not be shared between services.
+
 ## Local use
 
 1. Set all Keycloak values from `.env.example` in the ignored `.env` file.

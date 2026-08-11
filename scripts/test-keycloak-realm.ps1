@@ -25,6 +25,14 @@ $values = [ordered]@{
     NEXA_SMTP_SSL = 'false'
     NEXACONNECT_WEB_BFF_CLIENT_SECRET = 'validation-web-secret'
     NEXACONNECT_ADMIN_BFF_CLIENT_SECRET = 'validation-admin-secret'
+    NEXACONNECT_POS_SERVICE_CLIENT_SECRET = 'validation-pos-workload-secret'
+    NEXACONNECT_CATALOG_SERVICE_CLIENT_SECRET = 'validation-catalog-workload-secret'
+    NEXACONNECT_ORDER_SERVICE_CLIENT_SECRET = 'validation-order-workload-secret'
+    NEXACONNECT_INVENTORY_SERVICE_CLIENT_SECRET = 'validation-inventory-workload-secret'
+    NEXACONNECT_PAYMENT_SERVICE_CLIENT_SECRET = 'validation-payment-workload-secret'
+    PLATFORM_ADMIN_BFF_CLIENT_SECRET = 'validation-platform-admin-secret'
+    PLATFORM_ADMIN_BFF_REDIRECT_URI = 'https://platform.example.test/signin-oidc'
+    PLATFORM_ADMIN_BFF_ORIGIN = 'https://platform.example.test'
     NEXACONNECT_WEB_BFF_REDIRECT_URI = 'https://app.example.test/signin-oidc'
     NEXACONNECT_WEB_BFF_POST_LOGOUT_REDIRECT_URI = 'https://app.example.test/signout-callback-oidc'
     NEXACONNECT_WEB_ORIGIN = 'https://app.example.test'
@@ -58,6 +66,12 @@ $requiredClients = @(
     'nexaconnect-admin-bff',
     'nexaconnect-mobile',
     'nexaconnect-pos'
+    'platform-admin-bff'
+    'nexaconnect-pos-service'
+    'nexaconnect-catalog-service'
+    'nexaconnect-order-service'
+    'nexaconnect-inventory-service'
+    'nexaconnect-payment-service'
 )
 
 $missingClients = @($requiredClients | Where-Object { $_ -notin $clientIds })

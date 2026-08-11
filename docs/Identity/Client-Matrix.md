@@ -6,7 +6,7 @@
 | `nexaconnect-admin-bff` | NexaConnect | Confidential | Authorization Code | `https://localhost:7200/signin-oidc` |
 | `nexaconnect-mobile` | NexaConnect | Public | Authorization Code + PKCE S256 | `nexaconnect://oauth/callback` |
 | `nexaconnect-pos` | NexaConnect | Public | Authorization Code + PKCE S256 | `nexaconnect-pos://oauth/callback` |
-| `platform-admin-bff` | Shared platform | Confidential | Authorization Code | Defined and deployed by the platform repository |
+| `platform-admin-bff` | Shared platform | Confidential | Authorization Code | Shared-platform value; local fixture uses `https://localhost:7300/signin-oidc` |
 | Workload clients | Owning workload | Confidential | Client Credentials | None |
 
 ## Rules
@@ -17,10 +17,10 @@
 - Password/direct-access grants and implicit flow remain disabled.
 - Full scope is disabled. Assign only explicit client scopes and role scope mappings.
 - Create one service-account client per concrete workload rather than sharing a machine credential.
-- Do not register `platform-admin-bff` in NexaConnect-managed configuration.
+- Do not use NexaConnect-managed configuration as the production source of truth for `platform-admin-bff`; the checked-in realm entry is a local integration fixture only.
 
-The checked-in development realm implements the four NexaConnect interactive clients, the `nexaconnect-api` bearer-only audience, and the concrete `nexaconnect-pos-service` and `nexaconnect-catalog-service` workload clients. Each workload client is used only for its owning service's authenticated internal calls and must have a separately managed secret.
+The checked-in development realm implements the four NexaConnect interactive clients, the `nexaconnect-api` bearer-only audience, dedicated POS, Catalog, Order, Inventory, and Payment workload clients, and a local `platform-admin-bff` client with the `roles` scope enabled for role-claim testing. Each workload client is used only for its owning service's authenticated internal calls and must have a separately managed secret. Production registration and ownership of `platform-admin-bff` remain with the shared platform.
 
-Portal boundary: `nexaconnect-web-bff` is the current Customer Portal session boundary, while `nexaconnect-admin-bff` is the NexaConnect product administration boundary. The ecosystem-wide Product Owner Portal uses `platform-admin-bff`, owned by the shared platform. Do not reuse customer cookies, audiences, scopes, or secrets for Product Owner sessions. A future rename from `nexaconnect-web-bff` to `nexaconnect-customer-bff` must be deployed as an explicit client migration with overlapping redirect URIs only for the approved transition window.
+Portal boundary: `nexaconnect-web-bff` is the current Customer Portal session boundary, while `nexaconnect-admin-bff` is the NexaConnect product administration boundary. The ecosystem-wide Product Owner Portal uses `platform-admin-bff`, owned by the shared platform; the checked-in development client is only a local integration fixture. Do not reuse customer cookies, audiences, scopes, or secrets for Product Owner sessions. A future rename from `nexaconnect-web-bff` to `nexaconnect-customer-bff` must be deployed as an explicit client migration with overlapping redirect URIs only for the approved transition window.
 
 The WPF POS client opens Keycloak in the system browser and receives the authorization response through the exact `nexaconnect-pos://oauth/callback` custom scheme. Its installer or device-enrollment procedure must register that scheme for the deployed executable; do not use a wildcard or a second redirect URI. Callback forwarding is restricted to the current Windows user, bounded in size, and state-validated for a single sign-in attempt.

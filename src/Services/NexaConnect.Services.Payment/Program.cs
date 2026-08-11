@@ -4,6 +4,7 @@ using NexaConnect.Services.Payment.Infrastructure;
 using NexaConnect.Services.Payment.Infrastructure.Providers;
 using Npgsql;
 using NexaConnect.Infrastructure.Http;
+using NexaConnect.Services.Payment.Application.Tenant;
 
 var builder = WebApplication.CreateBuilder(args);
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
@@ -11,6 +12,15 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<IServiceWorkloadTokenProvider, ServiceWorkloadTokenProvider>();
+builder.Services.AddHttpClient("PaymentPlatformDirectory", client => client.BaseAddress = new Uri(
+    builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required.")));
+builder.Services.AddHttpClient("PaymentRestaurant", client => client.BaseAddress = new Uri(
+    builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")));
+builder.Services.AddHttpClient("PaymentOrder", client => client.BaseAddress = new Uri(
+    builder.Configuration["Services:Order"] ?? throw new InvalidOperationException("Services:Order is required.")));
+builder.Services.AddScoped<IPaymentTenantAuthorizer, HttpPaymentTenantAuthorizer>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);

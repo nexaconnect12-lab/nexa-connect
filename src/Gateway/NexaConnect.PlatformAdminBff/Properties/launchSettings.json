@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "NexaConnect.PlatformAdminBff": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:58527;http://localhost:58528"
+    }
+  }
+}

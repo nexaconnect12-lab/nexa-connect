@@ -51,7 +51,8 @@ public sealed class PlatformControlPlaneController(IPlatformDirectoryManagement 
 
     private bool TryActor(out string? actor)
     {
-        actor = User.FindFirstValue(NexaAuthenticationDefaults.SubjectClaim);
+        actor = User.FindFirstValue(NexaAuthenticationDefaults.SubjectClaim)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         return !string.IsNullOrWhiteSpace(actor);
     }
 }

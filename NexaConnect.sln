@@ -69,6 +69,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaConnect.Services.Kitche
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaConnect.CustomerBff", "src\Gateway\NexaConnect.CustomerBff\NexaConnect.CustomerBff.csproj", "{680FDCE5-99C7-4EB2-9A60-6507D94040AB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaConnect.PlatformAdminBff", "src\Gateway\NexaConnect.PlatformAdminBff\NexaConnect.PlatformAdminBff.csproj", "{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -355,6 +357,18 @@ Global
 		{680FDCE5-99C7-4EB2-9A60-6507D94040AB}.Release|x64.Build.0 = Release|Any CPU
 		{680FDCE5-99C7-4EB2-9A60-6507D94040AB}.Release|x86.ActiveCfg = Release|Any CPU
 		{680FDCE5-99C7-4EB2-9A60-6507D94040AB}.Release|x86.Build.0 = Release|Any CPU
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}.Debug|x64.Build.0 = Debug|Any CPU
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}.Debug|x86.Build.0 = Debug|Any CPU
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}.Release|x64.ActiveCfg = Release|Any CPU
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}.Release|x64.Build.0 = Release|Any CPU
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}.Release|x86.ActiveCfg = Release|Any CPU
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -391,5 +405,6 @@ Global
 		{CBAF943C-8093-423D-A69B-FDEF75F1C677} = {00B920E4-100F-D869-D8B1-04B3A2ED45DA}
 		{2715C983-AA77-4BEB-96C1-459A99F8A3F5} = {984BB9B3-3FA3-BE33-9484-CAC21695A33C}
 		{680FDCE5-99C7-4EB2-9A60-6507D94040AB} = {6306A8FB-679E-111F-6585-8F70E0EE6013}
+		{7F4384A0-843C-4630-B6D1-3DA6BD5C93F1} = {6306A8FB-679E-111F-6585-8F70E0EE6013}
 	EndGlobalSection
 EndGlobal

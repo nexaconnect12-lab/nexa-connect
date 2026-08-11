@@ -427,6 +427,20 @@
       "defaultClientScopes": ["nexaconnect-api"]
     },
     {
+      "clientId": "platform-admin-bff",
+      "name": "NexaConnect Platform Admin BFF",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${PLATFORM_ADMIN_BFF_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": ["${PLATFORM_ADMIN_BFF_REDIRECT_URI}"],
+      "webOrigins": ["${PLATFORM_ADMIN_BFF_ORIGIN}"],
+      "defaultClientScopes": ["profile", "email", "nexaconnect-api"]
+    },
+    {
       "clientId": "nexaconnect-catalog-service",
       "name": "NexaConnect Catalog Workload",
       "enabled": true,
@@ -444,6 +458,30 @@
       "enabled": true,
       "publicClient": false,
       "secret": "${NEXACONNECT_ORDER_SERVICE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["nexaconnect-api"]
+    },
+    {
+      "clientId": "nexaconnect-inventory-service",
+      "name": "NexaConnect Inventory Workload",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${NEXACONNECT_INVENTORY_SERVICE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["nexaconnect-api"]
+    },
+    {
+      "clientId": "nexaconnect-payment-service",
+      "name": "NexaConnect Payment Workload",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${NEXACONNECT_PAYMENT_SERVICE_CLIENT_SECRET}",
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,

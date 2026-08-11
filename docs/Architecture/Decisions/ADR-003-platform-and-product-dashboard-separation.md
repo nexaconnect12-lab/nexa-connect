@@ -46,7 +46,7 @@ Platform reporting contains ecosystem-level summaries. Detailed business reporti
 
 ## Repository ownership
 
-The Platform Admin Dashboard belongs in the shared platform repository when that platform is created. It will not be implemented inside NexaConnect.
+The Platform Admin Dashboard belongs in the shared platform repository when that platform is created. NexaConnect may contain a temporary `NexaConnect.PlatformAdminBff` compatibility foundation for local integration and migration work, but that project does not change ownership of the control plane or product data.
 
 `NexaConnect.Admin` remains inside the NexaConnect repository and is independently buildable, configurable, deployable, and rollback-capable.
 
