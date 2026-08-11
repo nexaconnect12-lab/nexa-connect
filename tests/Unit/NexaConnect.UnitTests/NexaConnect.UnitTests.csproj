@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.POS\NexaConnect.Services.POS.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Order\NexaConnect.Services.Order.csproj" />
     <ProjectReference Include="..\..\..\src\BuildingBlocks\NexaConnect.Contracts\NexaConnect.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\NexaConnect.Observability\NexaConnect.Observability.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Catalog\NexaConnect.Services.Catalog.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Inventory\NexaConnect.Services.Inventory.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Payment\NexaConnect.Services.Payment.csproj" />

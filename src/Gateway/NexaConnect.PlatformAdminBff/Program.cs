@@ -5,12 +5,15 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Caching.Distributed;
 using NexaConnect.Infrastructure.Authentication;
+using NexaConnect.Observability;
 using NexaConnect.PlatformAdminBff;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddNexaConnectObservability("nexaconnect-platform-admin-bff");
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks();
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "platform-admin-bff");
 builder.Services.AddNexaConnectBffSessionCache(builder.Configuration, builder.Environment);
 builder.Services.AddSingleton<ITicketStore, AdminTicketStore>();
@@ -33,9 +36,11 @@ builder.Services.AddAuthorization(o =>
     o.AddPolicy("PlatformAudit", p => Configure(p, "platform-owner", "platform-admin", "platform-auditor"));
 });
 var app = builder.Build();
+app.UseNexaConnectRequestLogging();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection(); app.UseAuthentication(); app.UseAuthorization();
 app.MapGet("/", () => Results.Text("NexaConnect Platform Admin BFF is running."));
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapGet("/bff/platform-admin/login", (string? returnUrl) => Results.Challenge(new AuthenticationProperties { RedirectUri = NormalizeReturnUrl(returnUrl) }, ["AdminOidc"])).AllowAnonymous();
 app.MapGet("/bff/platform-admin/logout", () => Results.SignOut(new AuthenticationProperties { RedirectUri = "/" }, ["AdminCookie", "AdminOidc"])).AllowAnonymous();
 app.MapGet("/bff/platform-admin/me", (HttpContext c) => Results.Ok(new { SubjectId = c.User.FindFirstValue("sub"), Username = c.User.FindFirstValue("preferred_username") })).RequireAuthorization("PlatformUser");

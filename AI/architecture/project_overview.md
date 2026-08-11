@@ -6,6 +6,8 @@ NexaConnect is a restaurant operating platform that supports staff POS terminals
 
 Current implementation status: the repository provides solution scaffolding, JWT validation, local identity/infrastructure configuration, schema-first PostgreSQL tooling, Platform Directory organization-access and current-tenant access contracts, separate Customer and Platform Admin BFF session boundaries with required production Redis ticket storage, distinct platform/customer/product role sets, independently approved and time-limited support elevation with append-only audit history, PostgreSQL-backed Platform Directory and POS slices, PostgreSQL adapters for Catalog, Inventory, Customer, Payment, and Notification, migration-managed service projections, durable PostgreSQL/RabbitMQ outbox and inbox primitives, PostgreSQL aggregate/idempotency persistence for Order, Keycloak client-credentials outbound authentication with retries, payment-failure compensation hooks, provider retry boundaries, a public place-order workflow endpoint, executable bounded-context API slices, and cross-service HTTP coverage for the Catalog -> Order -> Inventory -> Kitchen -> Payment workflow. Catalog, Order, Inventory, and Payment now enforce the implemented customer-facing organization/branch/order authorization paths at their owning service boundaries. Production provider credentials, offline synchronization, and authorization for remaining product resources remain planned.
 
+The centralized observability foundation supplies structured JSON console logs, validated correlation identifiers, health endpoints, and optional OTLP logs, traces, and metrics. Platform Directory and Platform Admin BFF are the first adopters. Locally, logs are retained in Loki and queried in Grafana; traces and metrics reach only the Collector debug exporter. Production ingestion security, durable storage, retention, access hardening, and trace/metric backends remain required. See [ADR-007](../../docs/Architecture/Decisions/ADR-007-centralized-observability-foundation.md).
+
 The detailed restaurant domains, branch-edge topology, offline failure model, kitchen flow, QR behavior, reporting architecture, and shared identity boundary are defined in [`docs/Architecture/Restaurant-POS-Architecture.md`](../../docs/Architecture/Restaurant-POS-Architecture.md). This document summarizes the supporting project architecture.
 
 ## 2. Architectural principles
@@ -497,7 +499,7 @@ Every backend component should provide:
 - Liveness and readiness health checks
 - Correlation IDs
 
-Use OpenTelemetry for instrumentation. Local development can use Aspire dashboards. Production exporters can target an OpenTelemetry Collector, Prometheus, Grafana, or the selected cloud platform.
+Use `NexaConnect.Observability` for structured JSON console logging, correlation propagation, and OpenTelemetry instrumentation. Platform Directory and Platform Admin BFF export optional OTLP signals through the local Collector. Only logs are stored in Loki and queryable in Grafana; traces and metrics are emitted to the Collector debug exporter for pipeline verification. Operational telemetry never replaces durable business audit records. Production deployments require authenticated TLS ingestion, durable storage, retention and access policies, and selected trace/metric backends.
 
 Never log passwords, access tokens, refresh tokens, payment secrets, or sensitive personal data.
 

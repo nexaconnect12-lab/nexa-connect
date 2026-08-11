@@ -4,6 +4,7 @@
 
 1. Copy `.env.example` to `.env` and replace every placeholder password.
 2. Start infrastructure with `docker compose up -d`.
+   This includes the local OpenTelemetry Collector, Loki, and Grafana logging stack. Set `GRAFANA_ADMIN_PASSWORD` before startup.
 3. Wait for the `postgres`, `keycloak-db`, and `keycloak` health checks.
 4. Preview every service migration with `.\scripts\migrate-databases.ps1`.
 5. After reviewing the plans, apply them with `.\scripts\migrate-databases.ps1 -Confirm`.

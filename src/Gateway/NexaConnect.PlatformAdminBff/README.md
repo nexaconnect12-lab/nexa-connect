@@ -10,8 +10,12 @@ Endpoints:
 - `POST /bff/platform-admin/products` registers a product, and `PUT /bff/platform-admin/organizations/{organizationId}/products` changes organization product access.
 - `/bff/platform-admin/support-elevations` proxies request, effective lookup, audit read, approval, and revocation operations with endpoint-specific platform-role policies.
 
+`GET /health` is an anonymous process-liveness endpoint. It does not currently assert Platform Directory or Redis readiness.
+
 Unauthenticated management requests are challenged through the Platform Admin login flow. Authenticated users without the endpoint's platform role receive `403 Forbidden`. If the server-held access token is missing, the proxy returns `401 Unauthorized`; otherwise it preserves the Platform Directory response status and body.
 
 Request bodies are buffered before forwarding so mutation payloads are replayable. Configure `Services:PlatformDirectory` with the final internal HTTPS address; authenticated redirects are unsupported because HTTP clients can remove the bearer token while following them. Development uses `https://localhost:53356/` to avoid redirecting from Platform Directory's HTTP launch URL.
 
 The OIDC client requests the `nexaconnect-api` scope. Its realm-role mapper must also add the multi-valued `roles` claim to the ID token; the BFF additionally normalizes a nested `realm_access.roles` claim when present. Assign only the appropriate `platform-owner`, `platform-admin`, `platform-support`, or `platform-auditor` role; sign out and sign in again after changing the mapper or role.
+
+Operational telemetry uses the shared observability foundation. JSON console output is always available; set `Observability__OtlpEnabled=true` and `Observability__OtlpEndpoint=http://localhost:4317` for the local collector. Correlation logging intentionally excludes bodies, query strings, authorization headers, cookies, and tokens.

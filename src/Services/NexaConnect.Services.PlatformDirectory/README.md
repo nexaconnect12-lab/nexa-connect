@@ -13,3 +13,7 @@ Control-plane management endpoints require `platform-owner` or `platform-admin`:
 The support-elevation endpoints implement request, independent approval, effective-access lookup, audit inspection, and revocation. An elevation is scoped to one support subject, organization, and application; it lasts 5–240 minutes, cannot be self-approved, and is ineffective after expiry or revocation. Platform Directory stores elevation state and append-only request/approval/revocation audit rows through an Application-owned repository port and Infrastructure PostgreSQL adapter.
 
 Configure the service database through `ConnectionStrings__PlatformDirectory` using the restricted `platform_directory_app` runtime role. Apply Platform Directory migration version 2 before enabling support elevation.
+
+`GET /health` is an anonymous process-liveness endpoint. It does not currently assert database readiness.
+
+Operational telemetry uses `NexaConnect.Observability`: structured JSON remains on stdout and OTLP export is optional through `Observability__OtlpEnabled` and `Observability__OtlpEndpoint`. Request logs include method, path, status, duration, trace ID, and a validated `X-Correlation-ID`; they exclude bodies, query strings, credentials, cookies, and arbitrary headers. These logs do not replace the append-only support-elevation audit history.
