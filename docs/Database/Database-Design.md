@@ -8,7 +8,9 @@ The design will evolve with the domain model. Every schema change must remain ow
 
 ### 1.1 Baseline status
 
-Versioned migrations exist for 13 independently owned databases: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, Notification, POS, Media, and Reporting. Across every implemented catalog they currently define 99 tables and 109 explicit indexes. Each migration has metadata and paired upgrade and downgrade scripts.
+Versioned migrations exist for 13 independently owned databases: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, Notification, POS, Media, and Reporting. Catalog version 3 and Inventory version 4 add explicit organization columns, composite tenant keys, and tenant-leading indexes to the simplified service tables used by customer APIs. Each migration has metadata and paired upgrade and downgrade scripts.
+
+Catalog version 3 and Inventory version 4 temporarily assign the empty UUID to pre-existing simplified-service rows because those legacy tables did not retain an organization identifier. Before enabling customer traffic, operators must backfill each row from the authoritative Restaurant branch scope and verify that no two organizations would collapse to the same legacy key. Downgrade is permitted only after the same collision check; otherwise the former branch/product or order/product primary key cannot be restored safely.
 
 Static validation has confirmed metadata parsing, create/drop parity, PostgreSQL identifier lengths, output packaging, and a clean migration-project build. The migration executable now understands versioned directories and explicit target versions. Live PostgreSQL clean-install, downgrade, and re-upgrade tests are still required before these scripts are production-executable.
 

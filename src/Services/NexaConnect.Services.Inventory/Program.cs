@@ -4,6 +4,7 @@ using NexaConnect.Services.Inventory.Application.Reservations;
 using NexaConnect.Services.Inventory.Infrastructure;
 using NexaConnect.Services.Inventory.Application.Tenant;
 using Npgsql;
+using NexaConnect.Infrastructure.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
@@ -17,6 +18,8 @@ builder.Services.AddHttpClient("InventoryPlatformDirectory", client => client.Ba
     builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required.")));
 builder.Services.AddHttpClient("InventoryRestaurant", client => client.BaseAddress = new Uri(
     builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")));
+builder.Services.AddHttpClient<ProductAuthorizationClient>(client => client.BaseAddress = new Uri(
+    builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required.")));
 builder.Services.AddScoped<IInventoryTenantAuthorizer, HttpInventoryTenantAuthorizer>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();

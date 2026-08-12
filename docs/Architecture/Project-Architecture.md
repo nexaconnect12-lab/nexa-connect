@@ -1,6 +1,6 @@
 # NexaConnect Project Architecture
 
-Phase 3 control-plane status: Platform Directory owns Application orchestration for organization, membership, product access, platform user administration, role/permission discovery, audit queries, and directory summaries. Infrastructure owns PostgreSQL and the Keycloak Admin API adapter; portals remain database-free. Summary contracts currently cover Platform Directory-owned data only.
+Phase 4 tenant-API status: Platform Directory resolves authenticated membership and enabled product access; Catalog, Inventory, Order, Payment, and Customer enforce product-owned permissions and resource ownership. Customer persistence paths are organization-scoped, and conflicting browser tenant identifiers fail closed. Portals remain database-free.
 
 ## 1. Purpose
 
@@ -418,7 +418,7 @@ The current Customer Portal BFF is `NexaConnect.CustomerBff`. It validates the a
 
 Its first authenticated product adapters are Catalog menu, Inventory stock, and the Order place-workflow. They forward the server-held bearer token and validated tenant headers; the BFF derives organization and branch IDs from the protected tenant selection and route rather than trusting duplicate browser payload fields. Catalog, Inventory, and Order independently verify organization access through Platform Directory and read Restaurant-owned branch scope with dedicated workload identities. Payment validates organization access, referenced Order organization/branch ownership, and Restaurant scope for customer-tagged payment-intent creation and reads. Refund, capture, and resource authorization beyond these slices remain product-owned follow-up work.
 
-The Customer Portal resolves the authenticated `sub`, organization membership, and enabled product access through `GET /api/platform-directory/v1/me/access`, then applies product-specific authorization before invoking a tenant-aware application use case. The Product Owner control plane now has Application-owned organization, membership, product-registration, and product-access use cases backed by Infrastructure PostgreSQL persistence. Platform roles do not automatically grant customer product permissions, and customer-supplied tenant identifiers are never treated as authorization proof.
+The Customer Portal resolves the authenticated `sub`, organization membership, and enabled product access through `GET /api/platform-directory/v1/me/access`. Product services then validate the protected organization against routes and payloads, resolve resource hierarchy, and request an operation-specific Authorization decision before invoking tenant-aware use cases. Catalog and Inventory use organization-leading composite keys for their customer data; Customer reads require organization plus profile ID, while Order and Payment validate stored ownership. Platform roles do not grant customer permissions, and customer-supplied tenant identifiers are never authorization proof.
 
 ### Mobile
 

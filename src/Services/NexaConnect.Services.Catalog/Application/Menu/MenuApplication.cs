@@ -6,5 +6,7 @@ public sealed record CreateMenuItem(Guid ProductId, string Name, decimal UnitPri
 public interface IMenuCatalog
 {
     IReadOnlyCollection<MenuItem> GetForBranch(Guid branchId);
+    IReadOnlyCollection<MenuItem> GetForOrganizationBranch(Guid organizationId, Guid branchId);
     MenuItem Add(Guid branchId, CreateMenuItem command);
+    MenuItem AddForOrganizationBranch(Guid organizationId, Guid branchId, CreateMenuItem command);
 }

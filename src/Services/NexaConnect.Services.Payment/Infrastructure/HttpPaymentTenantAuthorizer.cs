@@ -2,14 +2,16 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.Payment.Application.Tenant;
+using NexaConnect.Infrastructure.Authorization;
 
 namespace NexaConnect.Services.Payment.Infrastructure;
 
 public sealed class HttpPaymentTenantAuthorizer(
     IHttpClientFactory clients,
-    IServiceWorkloadTokenProvider tokens) : IPaymentTenantAuthorizer
+    IServiceWorkloadTokenProvider tokens,
+    ProductAuthorizationClient authorization) : IPaymentTenantAuthorizer
 {
-    public async Task<bool> CanAccessAsync(Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId,
+    public async Task<bool> CanAccessAsync(Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, string permission,
         string authorizationHeader, CancellationToken cancellationToken)
     {
         if (organizationId == Guid.Empty || restaurantId == Guid.Empty || branchId == Guid.Empty || orderId == Guid.Empty
@@ -39,7 +41,9 @@ public sealed class HttpPaymentTenantAuthorizer(
         if (!branchResponse.IsSuccessStatusCode) return false;
         BranchScope? branch = await branchResponse.Content.ReadFromJsonAsync<BranchScope>(cancellationToken: cancellationToken);
         return branch is not null && branch.OrganizationId == organizationId && branch.RestaurantId == restaurantId
-            && branch.BranchId == branchId;
+            && branch.BranchId == branchId
+            && await authorization.IsGrantedAsync(organizationId, restaurantId, branchId, permission,
+                authorizationHeader, cancellationToken);
     }
 
     private sealed record OrderScope(Guid OrganizationId, Guid BranchId);

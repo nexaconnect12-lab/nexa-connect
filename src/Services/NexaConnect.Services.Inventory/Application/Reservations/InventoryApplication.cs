@@ -8,7 +8,11 @@ public sealed record StockReservation(Guid ReservationId, Guid OrderId, Guid Bra
 public interface IInventoryReservations
 {
     IReadOnlyCollection<StockItem> GetStock(Guid branchId);
+    IReadOnlyCollection<StockItem> GetStock(Guid organizationId, Guid branchId) => GetStock(branchId);
     StockItem SetStock(Guid branchId, Guid productId, decimal quantity);
+    StockItem SetStock(Guid organizationId, Guid branchId, Guid productId, decimal quantity) => SetStock(branchId, productId, quantity);
     StockReservation Reserve(ReserveStock command);
+    StockReservation Reserve(Guid organizationId, ReserveStock command) => Reserve(command);
     void Release(Guid orderId) { }
+    void Release(Guid organizationId, Guid orderId) => Release(orderId);
 }

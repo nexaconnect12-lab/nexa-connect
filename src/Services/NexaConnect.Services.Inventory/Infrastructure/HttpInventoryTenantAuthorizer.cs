@@ -2,14 +2,16 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.Inventory.Application.Tenant;
+using NexaConnect.Infrastructure.Authorization;
 
 namespace NexaConnect.Services.Inventory.Infrastructure;
 
 public sealed class HttpInventoryTenantAuthorizer(
     IHttpClientFactory clients,
-    IServiceWorkloadTokenProvider tokens) : IInventoryTenantAuthorizer
+    IServiceWorkloadTokenProvider tokens,
+    ProductAuthorizationClient authorization) : IInventoryTenantAuthorizer
 {
-    public async Task<bool> HasBranchAccessAsync(Guid organizationId, Guid branchId, string authorizationHeader,
+    public async Task<bool> HasBranchAccessAsync(Guid organizationId, Guid branchId, string permission, string authorizationHeader,
         CancellationToken cancellationToken)
     {
         if (organizationId == Guid.Empty || branchId == Guid.Empty
@@ -30,7 +32,9 @@ public sealed class HttpInventoryTenantAuthorizer(
             .SendAsync(scopeRequest, cancellationToken);
         if (!scopeResponse.IsSuccessStatusCode) return false;
         BranchScope? scope = await scopeResponse.Content.ReadFromJsonAsync<BranchScope>(cancellationToken: cancellationToken);
-        return scope is not null && scope.OrganizationId == organizationId && scope.BranchId == branchId;
+        return scope is not null && scope.OrganizationId == organizationId && scope.BranchId == branchId
+            && await authorization.IsGrantedAsync(organizationId, scope.RestaurantId, branchId, permission,
+                authorizationHeader, cancellationToken);
     }
 
     private sealed record BranchScope(Guid OrganizationId, Guid RestaurantId, Guid BranchId);

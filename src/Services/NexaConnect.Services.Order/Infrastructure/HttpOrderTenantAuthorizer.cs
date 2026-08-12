@@ -1,12 +1,16 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using NexaConnect.Services.Order.Application.Tenant;
+using NexaConnect.Infrastructure.Authorization;
 
 namespace NexaConnect.Services.Order.Infrastructure;
 
-public sealed class HttpOrderTenantAuthorizer(IHttpClientFactory clients, OrderWorkloadTokenProvider tokens) : IOrderTenantAuthorizer
+public sealed class HttpOrderTenantAuthorizer(
+    IHttpClientFactory clients,
+    OrderWorkloadTokenProvider tokens,
+    ProductAuthorizationClient authorization) : IOrderTenantAuthorizer
 {
-    public async Task<bool> HasBranchAccessAsync(Guid organizationId, Guid branchId, string authorizationHeader, CancellationToken cancellationToken)
+    public async Task<bool> HasBranchAccessAsync(Guid organizationId, Guid branchId, string permission, string authorizationHeader, CancellationToken cancellationToken)
     {
         if (organizationId == Guid.Empty || branchId == Guid.Empty || string.IsNullOrWhiteSpace(authorizationHeader)
             || !AuthenticationHeaderValue.TryParse(authorizationHeader, out AuthenticationHeaderValue? customerAuthorization)) return false;
@@ -22,7 +26,9 @@ public sealed class HttpOrderTenantAuthorizer(IHttpClientFactory clients, OrderW
         using HttpResponseMessage scopeResponse = await restaurant.SendAsync(scopeRequest, cancellationToken);
         if (!scopeResponse.IsSuccessStatusCode) return false;
         OrderBranchScope? scope = await scopeResponse.Content.ReadFromJsonAsync<OrderBranchScope>(cancellationToken: cancellationToken);
-        return scope is not null && scope.OrganizationId == organizationId && scope.BranchId == branchId;
+        return scope is not null && scope.OrganizationId == organizationId && scope.BranchId == branchId
+            && await authorization.IsGrantedAsync(organizationId, scope.RestaurantId, branchId, permission,
+                authorizationHeader, cancellationToken);
     }
 
     private sealed record OrderBranchScope(Guid OrganizationId, Guid RestaurantId, Guid BranchId);

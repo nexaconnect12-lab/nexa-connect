@@ -42,6 +42,6 @@ public sealed class OrderTenantAuthorizationTests : IClassFixture<RestaurantWork
 
 public sealed class DenyOrderTenantAuthorizer : OrderTenantAuthorizer
 {
-    public Task<bool> HasBranchAccessAsync(Guid organizationId, Guid branchId, string authorizationHeader, CancellationToken cancellationToken) =>
+    public Task<bool> HasBranchAccessAsync(Guid organizationId, Guid branchId, string permission, string authorizationHeader, CancellationToken cancellationToken) =>
         Task.FromResult(false);
 }

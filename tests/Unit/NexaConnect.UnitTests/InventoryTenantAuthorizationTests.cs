@@ -2,6 +2,8 @@ using System.Net;
 using System.Text.Json;
 using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.Inventory.Infrastructure;
+using NexaConnect.Infrastructure.Authorization;
+using NexaConnect.Contracts.Platform;
 
 namespace NexaConnect.UnitTests;
 
@@ -19,16 +21,20 @@ public sealed class InventoryTenantAuthorizationTests
             _ => new HttpResponseMessage(HttpStatusCode.NotFound)
         });
         var authorizer = new HttpInventoryTenantAuthorizer(
-            new StubClientFactory(handler), new StubTokenProvider());
+            new StubClientFactory(handler), new StubTokenProvider(), GrantedAuthorizationClient());
 
-        Assert.True(await authorizer.HasBranchAccessAsync(organizationId, branchId, "Bearer customer", CancellationToken.None));
-        Assert.False(await authorizer.HasBranchAccessAsync(Guid.NewGuid(), branchId, "Bearer customer", CancellationToken.None));
+        Assert.True(await authorizer.HasBranchAccessAsync(organizationId, branchId, ProductPermissions.InventoryStockRead, "Bearer customer", CancellationToken.None));
+        Assert.False(await authorizer.HasBranchAccessAsync(Guid.NewGuid(), branchId, ProductPermissions.InventoryStockRead, "Bearer customer", CancellationToken.None));
     }
 
     private static HttpResponseMessage Json(object value) => new(HttpStatusCode.OK)
     {
         Content = new StringContent(JsonSerializer.Serialize(value), System.Text.Encoding.UTF8, "application/json")
     };
+
+    private static ProductAuthorizationClient GrantedAuthorizationClient() => new(new HttpClient(
+        new RoutingHandler(_ => Json(new { DecisionId = Guid.NewGuid(), Granted = true })))
+        { BaseAddress = new Uri("https://authorization.test/") });
 }
 
 internal sealed class StubTokenProvider : IServiceWorkloadTokenProvider

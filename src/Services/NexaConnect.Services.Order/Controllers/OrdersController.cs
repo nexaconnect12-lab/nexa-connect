@@ -4,16 +4,19 @@ using NexaConnect.Services.Order.Domain;
 using NexaConnect.Services.Order.Application.Workflow;
 using NexaConnect.Services.Order.Application.Tenant;
 using NexaConnect.Contracts.Platform;
+using NexaConnect.Infrastructure.Authorization;
 
 namespace NexaConnect.Services.Order.Controllers;
 
 [ApiController]
 [Route("api/order/v1/orders")]
-public sealed class OrdersController(IOrderApplicationService orders) : ControllerBase
+public sealed class OrdersController(IOrderApplicationService orders, IOrderTenantAuthorizer tenantAuthorizer) : ControllerBase
 {
     [HttpPost]
-    public ActionResult<OrderResponse> Create(CreateOrderRequest request)
+    public async Task<ActionResult<OrderResponse>> Create(CreateOrderRequest request, CancellationToken cancellationToken)
     {
+        if (!await HasCustomerAccessAsync(request.OrganizationId, request.BranchId, ProductPermissions.OrderCreate, cancellationToken))
+            return Forbid();
         try
         {
             OrderAggregate order = orders.Create(request);
@@ -23,10 +26,23 @@ public sealed class OrdersController(IOrderApplicationService orders) : Controll
     }
 
     [HttpGet("{orderId:guid}")]
-    public ActionResult<OrderResponse> Get(Guid orderId)
+    public async Task<ActionResult<OrderResponse>> Get(Guid orderId, CancellationToken cancellationToken)
     {
         OrderAggregate? order = orders.Get(orderId);
-        return order is null ? NotFound() : Ok(ToResponse(order));
+        if (order is null) return NotFound();
+        return await HasCustomerAccessAsync(order.OrganizationId, order.BranchId, ProductPermissions.OrderRead, cancellationToken)
+            ? Ok(ToResponse(order)) : NotFound();
+    }
+
+    private async Task<bool> HasCustomerAccessAsync(Guid organizationId, Guid branchId, string permission, CancellationToken cancellationToken)
+    {
+        if (ServiceWorkloadPrincipal.IsTrusted(User)) return true;
+        return Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out Guid contextOrganization)
+            && contextOrganization == organizationId
+            && string.Equals(Request.Headers[TenantContextHeaders.ApplicationCode], "nexa_connect", StringComparison.Ordinal)
+            && Request.Headers.TryGetValue("Authorization", out var authorization)
+            && await tenantAuthorizer.HasBranchAccessAsync(contextOrganization, branchId, permission,
+                authorization.ToString(), cancellationToken);
     }
 
     private static OrderResponse ToResponse(OrderAggregate order) =>
@@ -43,14 +59,14 @@ public sealed class OrderWorkflowController(PlaceOrderWorkflow workflow, IOrderT
     {
         try
         {
-            if (Request.Headers.TryGetValue(TenantContextHeaders.PortalRequest, out var portal)
-                && string.Equals(portal.ToString(), "customer", StringComparison.Ordinal))
+            if (!ServiceWorkloadPrincipal.IsTrusted(User))
             {
                 if (!Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out Guid contextOrganization)
                     || contextOrganization != request.OrganizationId
                     || !string.Equals(Request.Headers[TenantContextHeaders.ApplicationCode], "nexa_connect", StringComparison.Ordinal)
                     || !Request.Headers.TryGetValue("Authorization", out var authorization)
-                    || !await tenantAuthorizer.HasBranchAccessAsync(contextOrganization, request.BranchId, authorization.ToString(), cancellationToken))
+                    || !await tenantAuthorizer.HasBranchAccessAsync(contextOrganization, request.BranchId, ProductPermissions.OrderPlace,
+                        authorization.ToString(), cancellationToken))
                     return Forbid();
             }
             if (string.IsNullOrWhiteSpace(request.IdempotencyKey))

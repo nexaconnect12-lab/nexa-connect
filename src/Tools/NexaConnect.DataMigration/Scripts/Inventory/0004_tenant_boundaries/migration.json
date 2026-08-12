@@ -1,0 +1,7 @@
+{
+  "version": 4,
+  "name": "tenant_boundaries",
+  "transactional": true,
+  "downgradeSafety": "transformative",
+  "minimumApplicationVersion": "0.4.0"
+}

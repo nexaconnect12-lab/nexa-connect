@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using NexaConnect.Services.Payment.Application.Intents;
 using NexaConnect.Contracts.Platform;
 using NexaConnect.Services.Payment.Application.Tenant;
+using NexaConnect.Infrastructure.Authorization;
 
 namespace NexaConnect.Services.Payment.Controllers;
 
@@ -12,7 +13,8 @@ public sealed class PaymentIntentsController(IPaymentIntents intents, IPaymentTe
     [HttpPost]
     public async Task<ActionResult<PaymentIntent>> Create(CreatePaymentIntent command, CancellationToken cancellationToken)
     {
-        if (!await HasCustomerAccessAsync(command.RestaurantId, command.BranchId, command.OrderId, cancellationToken)) return Forbid();
+        if (!await HasCustomerAccessAsync(command.RestaurantId, command.BranchId, command.OrderId,
+            ProductPermissions.PaymentIntentCreate, cancellationToken)) return Forbid();
         try
         {
             PaymentIntent intent = intents.Create(command);
@@ -26,19 +28,18 @@ public sealed class PaymentIntentsController(IPaymentIntents intents, IPaymentTe
     {
         PaymentIntent? intent = intents.Get(id);
         if (intent is null) return NotFound();
-        return await HasCustomerAccessAsync(intent.RestaurantId, intent.BranchId, intent.OrderId, cancellationToken)
-            ? Ok(intent) : Forbid();
+        return await HasCustomerAccessAsync(intent.RestaurantId, intent.BranchId, intent.OrderId,
+            ProductPermissions.PaymentIntentRead, cancellationToken) ? Ok(intent) : NotFound();
     }
 
-    private async Task<bool> HasCustomerAccessAsync(Guid restaurantId, Guid branchId, Guid orderId,
+    private async Task<bool> HasCustomerAccessAsync(Guid restaurantId, Guid branchId, Guid orderId, string permission,
         CancellationToken cancellationToken)
     {
-        if (!Request.Headers.TryGetValue(TenantContextHeaders.PortalRequest, out var portal)
-            || !string.Equals(portal.ToString(), "customer", StringComparison.Ordinal)) return true;
+        if (ServiceWorkloadPrincipal.IsTrusted(User)) return true;
         return Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out Guid organizationId)
             && string.Equals(Request.Headers[TenantContextHeaders.ApplicationCode], "nexa_connect", StringComparison.Ordinal)
             && Request.Headers.TryGetValue("Authorization", out var authorization)
-            && await tenantAuthorizer.CanAccessAsync(organizationId, restaurantId, branchId, orderId,
+            && await tenantAuthorizer.CanAccessAsync(organizationId, restaurantId, branchId, orderId, permission,
                 authorization.ToString(), cancellationToken);
     }
 }

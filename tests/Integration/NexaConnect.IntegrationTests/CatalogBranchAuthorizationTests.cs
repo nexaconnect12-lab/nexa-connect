@@ -41,6 +41,19 @@ public sealed class CatalogBranchAuthorizationTests : IClassFixture<CatalogAutho
         Assert.Equal(HttpStatusCode.Forbidden, deniedResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task Customer_token_cannot_bypass_tenant_context_by_omitting_portal_marker()
+    {
+        using HttpClient client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get,
+            $"/api/catalog/v1/branches/{BranchId:D}/menu-items");
+        request.Headers.TryAddWithoutValidation("Authorization", "Bearer customer-token");
+
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     private static HttpRequestMessage CustomerRequest(Guid organizationId)
     {
         var request = new HttpRequestMessage(
@@ -48,7 +61,7 @@ public sealed class CatalogBranchAuthorizationTests : IClassFixture<CatalogAutho
         request.Headers.TryAddWithoutValidation(TenantContextHeaders.PortalRequest, "customer");
         request.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId, organizationId.ToString("D"));
         request.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode, "nexa_connect");
-        request.Headers.TryAddWithoutValidation("Authorization", "Bearer integration-test-token");
+        request.Headers.TryAddWithoutValidation("Authorization", "Bearer customer-token");
         return request;
     }
 }
@@ -70,10 +83,10 @@ public sealed class CatalogAuthorizationFactory : WebApplicationFactory<CatalogP
         private static readonly Guid organizationId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         private static readonly Guid branchId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
-        public Task<bool> HasAccessAsync(Guid requestedOrganizationId, string authorizationHeader, CancellationToken cancellationToken) =>
+        public Task<bool> HasAccessAsync(Guid requestedOrganizationId, string permission, string authorizationHeader, CancellationToken cancellationToken) =>
             Task.FromResult(requestedOrganizationId == organizationId);
 
-        public Task<bool> HasBranchAccessAsync(Guid requestedOrganizationId, Guid requestedBranchId, string authorizationHeader, CancellationToken cancellationToken) =>
+        public Task<bool> HasBranchAccessAsync(Guid requestedOrganizationId, Guid requestedBranchId, string permission, string authorizationHeader, CancellationToken cancellationToken) =>
             Task.FromResult(requestedOrganizationId == organizationId && requestedBranchId == branchId);
     }
 }

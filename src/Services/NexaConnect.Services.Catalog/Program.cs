@@ -3,6 +3,7 @@ using NexaConnect.Services.Catalog.Application.Menu;
 using NexaConnect.Services.Catalog.Application.Tenant;
 using NexaConnect.Services.Catalog.Infrastructure;
 using Npgsql;
+using NexaConnect.Infrastructure.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
@@ -29,6 +30,8 @@ builder.Services.AddHttpClient<ICatalogTenantAuthorizer, HttpOrganizationAccessC
 });
 builder.Services.AddHttpClient<CatalogWorkloadTokenProvider>();
 builder.Services.AddHttpClient<IRestaurantBranchScopeReader, RestaurantBranchScopeClient>();
+builder.Services.AddHttpClient<ProductAuthorizationClient>(client => client.BaseAddress = new Uri(
+    builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required.")));
 
 var app = builder.Build();
 

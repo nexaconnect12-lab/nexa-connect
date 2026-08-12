@@ -1,6 +1,8 @@
 using System.Net;
 using NexaConnect.Services.Catalog.Application.Tenant;
 using NexaConnect.Services.Catalog.Infrastructure;
+using NexaConnect.Infrastructure.Authorization;
+using NexaConnect.Contracts.Platform;
 
 namespace NexaConnect.UnitTests;
 
@@ -17,10 +19,11 @@ public sealed class CatalogTenantAuthorizationTests
         };
         var checker = new HttpOrganizationAccessChecker(
             platformClient,
-            new StubBranchScopeReader(new RestaurantBranchScope(organizationId, Guid.NewGuid(), branchId)));
+            new StubBranchScopeReader(new RestaurantBranchScope(organizationId, Guid.NewGuid(), branchId)),
+            GrantedAuthorizationClient());
 
-        Assert.True(await checker.HasBranchAccessAsync(organizationId, branchId, "Bearer customer-token", CancellationToken.None));
-        Assert.False(await checker.HasBranchAccessAsync(Guid.NewGuid(), branchId, "Bearer customer-token", CancellationToken.None));
+        Assert.True(await checker.HasBranchAccessAsync(organizationId, branchId, ProductPermissions.CatalogMenuRead, "Bearer customer-token", CancellationToken.None));
+        Assert.False(await checker.HasBranchAccessAsync(Guid.NewGuid(), branchId, ProductPermissions.CatalogMenuRead, "Bearer customer-token", CancellationToken.None));
     }
 
     [Fact]
@@ -34,10 +37,14 @@ public sealed class CatalogTenantAuthorizationTests
         };
         var checker = new HttpOrganizationAccessChecker(
             platformClient,
-            new StubBranchScopeReader(new RestaurantBranchScope(Guid.NewGuid(), Guid.NewGuid(), branchId)));
+            new StubBranchScopeReader(new RestaurantBranchScope(Guid.NewGuid(), Guid.NewGuid(), branchId)),
+            GrantedAuthorizationClient());
 
-        Assert.False(await checker.HasBranchAccessAsync(organizationId, branchId, "Bearer customer-token", CancellationToken.None));
+        Assert.False(await checker.HasBranchAccessAsync(organizationId, branchId, ProductPermissions.CatalogMenuRead, "Bearer customer-token", CancellationToken.None));
     }
+
+    private static ProductAuthorizationClient GrantedAuthorizationClient() => new(new HttpClient(
+        new JsonHandler()) { BaseAddress = new Uri("https://authorization.test/") });
 
     private sealed class StubBranchScopeReader(RestaurantBranchScope? scope) : IRestaurantBranchScopeReader
     {
@@ -48,5 +55,15 @@ public sealed class CatalogTenantAuthorizationTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(new HttpResponseMessage(statusCode));
+    }
+
+    private sealed class JsonHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"decisionId\":\"00000000-0000-0000-0000-000000000001\",\"granted\":true}",
+                    System.Text.Encoding.UTF8, "application/json")
+            });
     }
 }

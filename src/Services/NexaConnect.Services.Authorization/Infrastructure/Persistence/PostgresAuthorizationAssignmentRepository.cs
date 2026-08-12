@@ -18,12 +18,6 @@ public sealed class PostgresAuthorizationAssignmentRepository(NpgsqlDataSource d
                 VALUES ($9, $1, $4, $4, 'active')
                 ON CONFLICT (organization_id, code) DO UPDATE SET status = 'active'
                 RETURNING id
-            ), permission AS (
-                INSERT INTO authorization_role_permissions (role_id, permission_code)
-                SELECT id, permission_code
-                FROM role
-                CROSS JOIN (VALUES ('pos.shift.open'), ('pos.shift.close')) permissions(permission_code)
-                ON CONFLICT DO NOTHING
             )
             INSERT INTO authorization_role_assignments
                 (id, role_id, subject_id, scope_id, status, assigned_at_utc, assigned_by_subject_id)
@@ -46,6 +40,25 @@ public sealed class PostgresAuthorizationAssignmentRepository(NpgsqlDataSource d
         db.Parameters.AddWithValue(Guid.NewGuid());
         object? result = await db.ExecuteScalarAsync(cancellationToken);
         if (result is null) throw new InvalidOperationException("No active role, permission, or branch scope matched the assignment.");
+        Guid roleId;
+        const string roleSql = "SELECT role_id FROM authorization_role_assignments WHERE id = $1 AND subject_id = $2 AND status = 'active';";
+        await using (var roleCommand = new NpgsqlCommand(roleSql, connection))
+        {
+            roleCommand.Parameters.AddWithValue((Guid)result);
+            roleCommand.Parameters.AddWithValue(command.SubjectId);
+            roleId = (Guid)(await roleCommand.ExecuteScalarAsync(cancellationToken)
+                ?? throw new InvalidOperationException("The role assignment was not persisted with an active role."));
+        }
+        string[] permissions = PermissionsFor(command.RoleCode);
+        foreach (string permission in permissions)
+        {
+            await using var permissionCommand = new NpgsqlCommand(
+                "INSERT INTO authorization_role_permissions (role_id, permission_code) VALUES ($1, $2) ON CONFLICT DO NOTHING;",
+                connection);
+            permissionCommand.Parameters.AddWithValue(roleId);
+            permissionCommand.Parameters.AddWithValue(permission);
+            await permissionCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
         const string scopeSql = "SELECT scope_id FROM authorization_role_assignments WHERE id = $1 AND subject_id = $2 AND status = 'active';";
         await using var scopeCommand = new NpgsqlCommand(scopeSql, connection);
         scopeCommand.Parameters.AddWithValue((Guid)result);
@@ -58,7 +71,7 @@ public sealed class PostgresAuthorizationAssignmentRepository(NpgsqlDataSource d
             VALUES ($1, $2, $3, $4, 'allow', 'active')
             ON CONFLICT (subject_id, scope_id, permission_code) DO UPDATE SET effect = 'allow', status = 'active';
             """;
-        foreach (string permission in new[] { "pos.shift.open", "pos.shift.close" })
+        foreach (string permission in permissions)
         {
             await using var overrideCommand = new NpgsqlCommand(overrideSql, connection);
             overrideCommand.Parameters.AddWithValue(Guid.NewGuid());
@@ -69,4 +82,20 @@ public sealed class PostgresAuthorizationAssignmentRepository(NpgsqlDataSource d
         }
         return new RoleAssignmentResult((Guid)result);
     }
+
+    private static string[] PermissionsFor(string roleCode) => roleCode switch
+    {
+        "tenant-admin" or "store-manager" =>
+        [
+            "catalog.menu.read", "catalog.menu.write", "inventory.stock.read", "inventory.stock.write",
+            "inventory.reservation.create", "inventory.reservation.release", "order.create", "order.read",
+            "order.place", "payment.intent.create", "payment.intent.read", "customer.profile.create",
+            "customer.profile.read", "pos.shift.open", "pos.shift.close"
+        ],
+        "cashier" => ["catalog.menu.read", "inventory.stock.read", "inventory.reservation.create", "order.create", "order.read", "order.place", "payment.intent.create", "payment.intent.read", "customer.profile.read", "pos.shift.open", "pos.shift.close"],
+        "inventory-controller" => ["inventory.stock.read", "inventory.stock.write", "inventory.reservation.create", "inventory.reservation.release"],
+        "accountant" => ["order.read", "payment.intent.read"],
+        "report-viewer" => ["catalog.menu.read", "inventory.stock.read", "order.read", "payment.intent.read", "customer.profile.read"],
+        _ => throw new ArgumentException($"Unsupported product role '{roleCode}'.")
+    };
 }

@@ -1,6 +1,6 @@
 # NexaConnect Project Architecture
 
-Phase 3 control-plane status: Platform Directory owns Application orchestration for organization, membership, product access, platform user administration, role/permission discovery, audit queries, and directory summaries. Infrastructure owns PostgreSQL and the Keycloak Admin API adapter; portals remain database-free. Summary contracts currently cover Platform Directory-owned data only.
+Phase 4 tenant-API status: Platform Directory resolves authenticated membership and enabled product access; Catalog, Inventory, Order, Payment, and Customer enforce product-owned permission decisions and resource ownership before their customer use cases execute. Catalog and Inventory customer persistence paths use organization-leading predicates and composite tenant keys; portals remain database-free.
 
 ## 1. Purpose
 
@@ -453,7 +453,7 @@ Administration follows [`ADR-003`](../../docs/Architecture/Decisions/ADR-003-pla
 
 The current Customer Portal BFF is `NexaConnect.CustomerBff`. It keeps the authentication ticket and OIDC tokens in a server-side distributed ticket store, calls Platform Directory for current organization/product access, and stores only an encrypted HTTP-only tenant selection cookie in the browser; product APIs retain final authorization responsibility.
 
-The first authenticated product adapters forward Customer Portal requests to Catalog, Inventory, and the Order place workflow with the server-held bearer token and validated tenant context. The BFF derives organization and branch identifiers from its protected tenant selection and route. Catalog, Inventory, and Order independently verify organization access through Platform Directory and validate branch ownership through Restaurant with dedicated workload identities. Payment validates organization access, referenced Order organization/branch ownership, and Restaurant scope for customer-tagged intent creation and reads. Authorization for refunds, capture, and product resources outside these slices remains product-owned follow-up work.
+The authenticated product adapters forward Customer Portal requests with the server-held bearer token and protected tenant context. Catalog, Inventory, Order, Payment, and Customer independently verify Platform Directory access and evaluate operation-specific product permissions. Branch resources additionally validate Restaurant ownership; Payment validates referenced Order ownership. Conflicting browser identifiers fail closed, and customer reads use organization-scoped resource lookup behavior.
 
 Customer requests resolve the stable identity subject, organization membership, and enabled product access through the Platform Directory current-access API, then apply product-specific authorization before application use cases execute. The Product Owner control plane has Application-owned organization, membership, product-registration, product-access, and support-elevation use cases backed by Infrastructure PostgreSQL persistence. Support elevation requires a scoped reason, independent platform-owner/admin approval, an expiry of at most four hours, and append-only lifecycle audit records. Platform roles do not automatically grant customer product permissions, and browser-supplied tenant identifiers are never authorization proof.
 

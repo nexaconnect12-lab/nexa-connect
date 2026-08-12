@@ -267,9 +267,15 @@ internal sealed class TestAuthenticationHandler : AuthenticationHandler<Authenti
         Microsoft.Extensions.Logging.ILoggerFactory logger,
         System.Text.Encodings.Web.UrlEncoder encoder) : base(options, logger, encoder) { }
 
-    protected override Task<AuthenticateResult> HandleAuthenticateAsync() =>
-        Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(
-            new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "integration-test-user")], Scheme)), Scheme)));
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var claims = new List<Claim> { new("sub", "integration-test-user") };
+        if (!Request.Headers.TryGetValue("Authorization", out var authorization)
+            || string.Equals(authorization.ToString(), "Bearer integration-test-token", StringComparison.Ordinal))
+            claims.Add(new Claim("azp", "nexaconnect-order-service"));
+        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(
+            new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme)), Scheme)));
+    }
 }
 
 internal sealed class ForwardingHandler(Func<HttpClient> clientFactory) : HttpMessageHandler
