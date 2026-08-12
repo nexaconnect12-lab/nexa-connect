@@ -3,9 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "engines": { "node": ">=20.0.0" },
-  "workspaces": ["packages/*"],
+  "workspaces": ["packages/*", "apps/*"],
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && npm run build --workspace @nexaconnect/product-owner-portal",
     "check": "tsc -b --pretty false",
     "test": "vitest run",
     "test:watch": "vitest"

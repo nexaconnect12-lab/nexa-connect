@@ -43,12 +43,33 @@ builder.Services.AddAuthorization(o =>
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
-app.UseHttpsRedirection(); app.UseAuthentication(); app.UseAuthorization();
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    if (context.User.Identity?.IsAuthenticated == true
+        && (HttpMethods.IsPost(context.Request.Method) || HttpMethods.IsPut(context.Request.Method)
+            || HttpMethods.IsPatch(context.Request.Method) || HttpMethods.IsDelete(context.Request.Method)))
+    {
+        string? origin = context.Request.Headers.Origin;
+        if (string.IsNullOrWhiteSpace(origin) || !Uri.TryCreate(origin, UriKind.Absolute, out Uri? originUri)
+            || !string.Equals(originUri.Scheme, context.Request.Scheme, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(originUri.Authority, context.Request.Host.Value, StringComparison.OrdinalIgnoreCase))
+        { context.Response.StatusCode = StatusCodes.Status403Forbidden; return; }
+    }
+    await next(context);
+});
+app.UseAuthorization();
 app.MapGet("/", () => Results.Text("NexaConnect Platform Admin BFF is running."));
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapGet("/bff/platform-admin/login", (string? returnUrl) => Results.Challenge(new AuthenticationProperties { RedirectUri = NormalizeReturnUrl(returnUrl) }, ["AdminOidc"])).AllowAnonymous();
 app.MapGet("/bff/platform-admin/logout", () => Results.SignOut(new AuthenticationProperties { RedirectUri = "/" }, ["AdminCookie", "AdminOidc"])).AllowAnonymous();
-app.MapGet("/bff/platform-admin/me", (HttpContext c) => Results.Ok(new { SubjectId = c.User.FindFirstValue("sub"), Username = c.User.FindFirstValue("preferred_username") })).RequireAuthorization("PlatformUser");
+app.MapGet("/bff/platform-admin/me", (HttpContext c) => Results.Ok(new
+{
+    SubjectId = c.User.FindFirstValue("sub"),
+    Username = c.User.FindFirstValue("preferred_username"),
+    Roles = c.User.FindAll("roles").Select(claim => claim.Value).Distinct(StringComparer.Ordinal).Order().ToArray()
+})).RequireAuthorization("PlatformUser");
 MapProxy("organizations", HttpMethod.Post); MapProxy("products", HttpMethod.Post);
 app.MapMethods("/bff/platform-admin/organizations/{organizationId:guid}", ["PATCH"], Proxy("api/platform-directory/v1/organizations/{organizationId}")).RequireAuthorization("PlatformAdmin");
 app.MapMethods("/bff/platform-admin/organizations/{organizationId:guid}/members/{subjectId}", ["PUT"], Proxy("api/platform-directory/v1/organizations/{organizationId}/members/{subjectId}")).RequireAuthorization("PlatformAdmin");

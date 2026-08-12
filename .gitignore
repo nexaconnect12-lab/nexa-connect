@@ -10,6 +10,7 @@ coverage/
 # Node / React
 node_modules/
 dist/
+dist-types/
 .env
 .env.*
 !.env.example

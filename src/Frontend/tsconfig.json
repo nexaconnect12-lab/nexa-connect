@@ -8,6 +8,7 @@
     { "path": "packages/form-validation" },
     { "path": "packages/localization" },
     { "path": "packages/error-handling" },
-    { "path": "packages/telemetry" }
+    { "path": "packages/telemetry" },
+    { "path": "apps/product-owner-portal" }
   ]
 }

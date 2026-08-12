@@ -4,7 +4,7 @@ Separate Product Owner/Platform Admin session boundary. Control-plane mutations 
 
 Endpoints:
 
-- `GET /bff/platform-admin/login`, `/logout`, and `/me` manage or inspect the dedicated Platform Admin session.
+- `GET /bff/platform-admin/login`, `/logout`, and `/me` manage or inspect the dedicated Platform Admin session. `/me` returns the subject, username, and normalized platform roles needed for presentation-only portal navigation; server policies remain authoritative.
 - `POST /bff/platform-admin/organizations` and `PATCH /bff/platform-admin/organizations/{organizationId}` proxy organization creation and updates.
 - `PUT /bff/platform-admin/organizations/{organizationId}/members/{subjectId}` assigns organization membership.
 - `POST /bff/platform-admin/products` registers a product, and `PUT /bff/platform-admin/organizations/{organizationId}/products` changes organization product access.
@@ -15,6 +15,8 @@ Endpoints:
 `GET /health` is an anonymous process-liveness endpoint. It does not currently assert Platform Directory or Redis readiness.
 
 Unauthenticated management requests are challenged through the Platform Admin login flow. Authenticated users without the endpoint's platform role receive `403 Forbidden`. If the server-held access token is missing, the proxy returns `401 Unauthorized`; otherwise it preserves the Platform Directory response status and body.
+
+Authenticated state-changing requests must carry a same-origin `Origin` header. Missing, malformed, or cross-origin values are rejected with `403 Forbidden` before authorization or proxying as the BFF's cookie-request forgery defense.
 
 The BFF refreshes expiring access tokens and updates the server-side ticket. A rejected refresh clears the session and proxy calls return `401`. Bodyless downstream responses such as `204` and `304` are forwarded without content. Configure `Services:PlatformDirectory`, `Services:Restaurant`, and `Services:Authorization`; Development uses direct HTTPS endpoints to avoid losing bearer tokens during redirects.
 
