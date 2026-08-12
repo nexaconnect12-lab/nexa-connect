@@ -4,8 +4,10 @@ using NexaConnect.Services.Catalog.Application.Tenant;
 using NexaConnect.Services.Catalog.Infrastructure;
 using Npgsql;
 using NexaConnect.Infrastructure.Authorization;
+using NexaConnect.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddNexaConnectObservability("nexaconnect-catalog");
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 
 // Add services to the container.
@@ -27,13 +29,14 @@ builder.Services.AddHttpClient<ICatalogTenantAuthorizer, HttpOrganizationAccessC
 {
     client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"]
         ?? throw new InvalidOperationException("Services:PlatformDirectory is required."));
-});
+}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<CatalogWorkloadTokenProvider>();
-builder.Services.AddHttpClient<IRestaurantBranchScopeReader, RestaurantBranchScopeClient>();
+builder.Services.AddHttpClient<IRestaurantBranchScopeReader, RestaurantBranchScopeClient>().AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<ProductAuthorizationClient>(client => client.BaseAddress = new Uri(
-    builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required.")));
+    builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required."))).AddNexaConnectCorrelationPropagation();
 
 var app = builder.Build();
+app.UseNexaConnectRequestLogging();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

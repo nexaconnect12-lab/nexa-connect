@@ -4,8 +4,10 @@ using NexaConnect.Services.Customer.Infrastructure;
 using Npgsql;
 using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Services.Customer.Application.Tenant;
+using NexaConnect.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddNexaConnectObservability("nexaconnect-customer");
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 
 // Add services to the container.
@@ -16,9 +18,9 @@ builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "customer");
 builder.Services.AddHttpClient<ICustomerTenantAuthorizer, HttpCustomerTenantAuthorizer>(client => client.BaseAddress = new Uri(
-    builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required.")));
+    builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<ProductAuthorizationClient>(client => client.BaseAddress = new Uri(
-    builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required.")));
+    builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required."))).AddNexaConnectCorrelationPropagation();
 if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
 {
     builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Customer")
@@ -31,6 +33,7 @@ else
 }
 
 var app = builder.Build();
+app.UseNexaConnectRequestLogging();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

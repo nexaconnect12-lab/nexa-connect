@@ -1,9 +1,10 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.Extensions.Logging;
 
 namespace NexaConnect.Infrastructure.Authorization;
 
-public sealed class ProductAuthorizationClient(HttpClient client)
+public sealed class ProductAuthorizationClient(HttpClient client, ILogger<ProductAuthorizationClient> logger)
 {
     public async Task<bool> IsGrantedAsync(
         Guid organizationId,
@@ -24,10 +25,19 @@ public sealed class ProductAuthorizationClient(HttpClient client)
         };
         request.Headers.Authorization = authorization;
         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode) return false;
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning("Authorization dependency returned {StatusCode} for permission {Permission} in organization {OrganizationId}",
+                (int)response.StatusCode, permission, organizationId);
+            return false;
+        }
         AuthorizationDecisionResponse? decision = await response.Content.ReadFromJsonAsync<AuthorizationDecisionResponse>(
             cancellationToken: cancellationToken);
-        return decision?.Granted == true;
+        bool granted = decision?.Granted == true;
+        if (!granted)
+            logger.LogWarning("Product permission {Permission} denied in organization {OrganizationId}, restaurant {RestaurantId}, branch {BranchId}",
+                permission, organizationId, restaurantId, branchId);
+        return granted;
     }
 
     private sealed record AuthorizationDecisionRequest(

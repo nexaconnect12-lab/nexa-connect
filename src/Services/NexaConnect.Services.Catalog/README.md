@@ -7,3 +7,6 @@ Customer Portal requests must include the validated `nexa_connect` tenant contex
 Migration 3 marks legacy rows with the empty organization UUID. Backfill those rows from Restaurant branch ownership before customer traffic or downgrade; verify legacy-key uniqueness before restoring version 2.
 
 Configure `Services:Restaurant`, `WorkloadIdentity:Authority`, `WorkloadIdentity:ClientId`, and the secret `WorkloadIdentity:ClientSecret` in deployment configuration. The Restaurant scope endpoint accepts the catalog and POS service workload policies; customer access tokens are not forwarded to that endpoint.
+
+Structured request and dependency logs use service name `nexaconnect-catalog`; validated correlation IDs propagate to Platform Directory, Restaurant, and Authorization.
+JSON stdout is always enabled. Set `Observability__OtlpEnabled=true` and `Observability__OtlpEndpoint=http://localhost:4317` for Loki/Grafana; see the [observability guide](../../../docs/Deployment/Observability.md) for queries.

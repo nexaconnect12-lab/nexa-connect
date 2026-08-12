@@ -17,3 +17,5 @@ Configuration:
 ```
 
 Console logging always remains enabled. If OTLP is disabled, no collector is required. If enabled, the endpoint must be an absolute HTTP(S) URI; exporter delivery failures do not stop request handling. Operational logs are not an audit ledger and must not replace service-owned immutable business audit records.
+
+For request-chain clients, append `.AddNexaConnectCorrelationPropagation()` to the `AddHttpClient` registration. The handler forwards only the correlation identifier already validated by request middleware; it never forwards arbitrary inbound headers.

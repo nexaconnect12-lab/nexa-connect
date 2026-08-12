@@ -11,3 +11,6 @@ The workflow publishes versioned contracts from `NexaConnect.Contracts.Integrati
 The service also exposes `POST` and `GET /api/order/v1/orders` for the aggregate slice, plus the public place-order workflow endpoint. Production provider credentials and migration execution remain operational follow-up work; the deployed Kitchen ticket create/cancel API is now part of the workflow boundary.
 
 Customer Portal create, read, and workflow requests are revalidated inside Order: Platform Directory confirms organization access, Restaurant confirms branch ownership, and Authorization evaluates `order.create`, `order.read`, or `order.place`. Request organization IDs must match the protected context. Cross-tenant reads return `404`; commands fail before the workflow executes.
+
+Structured logs use service name `nexaconnect-order`; correlation IDs propagate through tenant checks and registered workflow HTTP adapters.
+JSON stdout is always enabled. Enable OTLP with `Observability__OtlpEnabled=true`; use the [observability guide](../../../docs/Deployment/Observability.md) for the endpoint and queries.

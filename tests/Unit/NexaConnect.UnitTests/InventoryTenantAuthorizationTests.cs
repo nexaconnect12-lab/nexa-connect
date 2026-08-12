@@ -4,6 +4,7 @@ using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.Inventory.Infrastructure;
 using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Contracts.Platform;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace NexaConnect.UnitTests;
 
@@ -34,7 +35,7 @@ public sealed class InventoryTenantAuthorizationTests
 
     private static ProductAuthorizationClient GrantedAuthorizationClient() => new(new HttpClient(
         new RoutingHandler(_ => Json(new { DecisionId = Guid.NewGuid(), Granted = true })))
-        { BaseAddress = new Uri("https://authorization.test/") });
+        { BaseAddress = new Uri("https://authorization.test/") }, NullLogger<ProductAuthorizationClient>.Instance);
 }
 
 internal sealed class StubTokenProvider : IServiceWorkloadTokenProvider

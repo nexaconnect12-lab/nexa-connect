@@ -7,6 +7,7 @@ NexaConnect is a restaurant operating platform design and implementation scaffol
 The Kitchen service is now implemented as an authenticated bounded-context API with in-memory and PostgreSQL ticket stores. Order's production HTTP adapters call its ticket create/read/cancel endpoints; configure `Services__Kitchen` and the Kitchen service's own connection string for deployment.
 
 The centralized logging foundation provides structured JSON console logs and optional OTLP log export through an OpenTelemetry Collector to Loki and Grafana. Platform Directory and the Platform Admin BFF are the initial adopters. Traces and metrics currently reach the Collector's local debug exporter only. See the [Observability Guide](docs/Deployment/Observability.md) and [ADR-007](docs/Architecture/Decisions/ADR-007-centralized-observability-foundation.md).
+The Phase 4 Customer BFF, Catalog, Inventory, Order, Payment, Customer, Authorization, and Restaurant services now also adopt the foundation and propagate validated correlation identifiers through their registered HTTP dependency chain. Centralized logging is required for future service and BFF implementations.
 
 ## Initial components
 

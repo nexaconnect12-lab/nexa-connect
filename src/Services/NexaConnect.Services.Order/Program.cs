@@ -10,8 +10,10 @@ using NexaConnect.Infrastructure.Http;
 using NexaConnect.Services.Order.Application.Tenant;
 using NexaConnect.Services.Order.Infrastructure;
 using NexaConnect.Infrastructure.Authorization;
+using NexaConnect.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddNexaConnectObservability("nexaconnect-order");
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 
 // Add services to the container.
@@ -20,9 +22,9 @@ builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient("keycloak-token");
 builder.Services.AddHttpClient<OrderWorkloadTokenProvider>();
-builder.Services.AddHttpClient("OrderPlatformDirectory", client => client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required.")));
-builder.Services.AddHttpClient("OrderRestaurant", client => client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")));
-builder.Services.AddHttpClient<ProductAuthorizationClient>(client => client.BaseAddress = new Uri(builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required.")));
+builder.Services.AddHttpClient("OrderPlatformDirectory", client => client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required."))).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient("OrderRestaurant", client => client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required."))).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient<ProductAuthorizationClient>(client => client.BaseAddress = new Uri(builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<IOrderTenantAuthorizer, HttpOrderTenantAuthorizer>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -60,19 +62,20 @@ if (builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
     builder.Services.AddHttpClient("keycloak-token");
     builder.Services.AddHttpClient<IMenuCatalogPort, HttpMenuCatalogPort>(client =>
         client.BaseAddress = new Uri(builder.Configuration["Services:Catalog"] ?? throw new InvalidOperationException("Services:Catalog is required.")))
-        .AddHttpMessageHandler<OutboundTokenHandler>().AddHttpMessageHandler<RetryingHttpMessageHandler>();
+        .AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>().AddHttpMessageHandler<RetryingHttpMessageHandler>();
     builder.Services.AddHttpClient<IInventoryReservationPort, HttpInventoryReservationPort>(client =>
         client.BaseAddress = new Uri(builder.Configuration["Services:Inventory"] ?? throw new InvalidOperationException("Services:Inventory is required.")))
-        .AddHttpMessageHandler<OutboundTokenHandler>().AddHttpMessageHandler<RetryingHttpMessageHandler>();
+        .AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>().AddHttpMessageHandler<RetryingHttpMessageHandler>();
     builder.Services.AddHttpClient<IKitchenPort, HttpKitchenPort>(client =>
         client.BaseAddress = new Uri(builder.Configuration["Services:Kitchen"] ?? throw new InvalidOperationException("Services:Kitchen is required.")))
-        .AddHttpMessageHandler<OutboundTokenHandler>().AddHttpMessageHandler<RetryingHttpMessageHandler>();
+        .AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>().AddHttpMessageHandler<RetryingHttpMessageHandler>();
     builder.Services.AddHttpClient<IPaymentPort, HttpPaymentPort>(client =>
         client.BaseAddress = new Uri(builder.Configuration["Services:Payment"] ?? throw new InvalidOperationException("Services:Payment is required.")))
-        .AddHttpMessageHandler<OutboundTokenHandler>().AddHttpMessageHandler<RetryingHttpMessageHandler>();
+        .AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>().AddHttpMessageHandler<RetryingHttpMessageHandler>();
 }
 
 var app = builder.Build();
+app.UseNexaConnectRequestLogging();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

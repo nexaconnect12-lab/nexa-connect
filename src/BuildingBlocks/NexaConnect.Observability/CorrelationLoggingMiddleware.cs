@@ -10,11 +10,13 @@ public sealed partial class CorrelationLoggingMiddleware(
     ILogger<CorrelationLoggingMiddleware> logger)
 {
     public const string HeaderName = "X-Correlation-ID";
+    public const string ItemName = "NexaConnect.CorrelationId";
 
     public async Task InvokeAsync(HttpContext context)
     {
         string correlationId = ResolveCorrelationId(context.Request.Headers[HeaderName]);
         context.TraceIdentifier = correlationId;
+        context.Items[ItemName] = correlationId;
         context.Response.Headers[HeaderName] = correlationId;
 
         Stopwatch stopwatch = Stopwatch.StartNew();

@@ -19,3 +19,6 @@ The selected tenant is stored in an encrypted, HTTP-only cookie. Product APIs mu
 Authentication tickets and saved OIDC tokens are held in the server-side ticket store; the browser cookie contains only an opaque ticket key. Development/Test use an in-memory distributed cache. Outside those environments, startup requires `ConnectionStrings:BffSessionCache` and uses Redis; `BffSessionCache:InstanceName` optionally isolates keys. The BFF never falls back to browser-held tokens.
 
 Catalog, Inventory, and Order independently validate organization access and branch ownership through Platform Directory and Restaurant. Payment applies the same checks plus referenced-order ownership when handling customer-tagged intent operations. The BFF does not treat browser-selected organization or branch identifiers as permission grants, and it does not replace product-owned resource authorization.
+
+Structured logs use service name `nexaconnect-customer-bff`. The BFF validates or creates `X-Correlation-ID`, returns it to the browser, and propagates it through registered product and Platform Directory clients for Grafana/Loki debugging.
+JSON stdout is always enabled. Enable OTLP with `Observability__OtlpEnabled=true`; use the [observability guide](../../../docs/Deployment/Observability.md) for the endpoint and queries.

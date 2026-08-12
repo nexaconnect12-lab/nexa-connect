@@ -67,11 +67,17 @@ public static class NexaConnectObservabilityExtensions
             if (endpoint is not null) logging.AddOtlpExporter(exporter => exporter.Endpoint = endpoint);
         });
 
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddTransient<CorrelationPropagationHandler>();
+
         return builder;
     }
 
     public static IApplicationBuilder UseNexaConnectRequestLogging(this IApplicationBuilder app) =>
         app.UseMiddleware<CorrelationLoggingMiddleware>();
+
+    public static IHttpClientBuilder AddNexaConnectCorrelationPropagation(this IHttpClientBuilder builder) =>
+        builder.AddHttpMessageHandler<CorrelationPropagationHandler>();
 
     internal static Uri? Validate(ObservabilityOptions options)
     {

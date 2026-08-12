@@ -32,6 +32,8 @@ For every implementation:
 6. Run the `documentation_maintainer` audit when subagents are available and resolve any code/documentation drift it finds.
 7. Run the relevant verification commands and inspect the final diff for code/documentation drift.
 
+Every new or materially changed HTTP service, BFF route, or cross-service adapter must adopt the shared observability foundation in the same implementation. Preserve validated correlation identifiers across outbound calls and add safe structured events for failure and authorization boundaries. Background workers must provide equivalent structured JSON and OTLP telemetry; a reusable worker-host extension remains planned. Never log tokens, cookies, request/response bodies, payment data, unrestricted personal data, secrets, or arbitrary headers. Document the service name and debugging queries with the component change.
+
 Do not claim an implementation is complete while required documentation remains stale. Do not make cosmetic documentation edits merely to create a diff; if an overview or architecture file is genuinely unaffected, leave it unchanged and state that it was reviewed in the handoff.
 
 ## Service layering and persistence rules

@@ -91,6 +91,23 @@ public sealed class ObservabilityTests
         Assert.DoesNotContain("token-value", log, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Outbound_handler_propagates_only_the_validated_correlation_identifier()
+    {
+        var context = new DefaultHttpContext();
+        context.Items[CorrelationLoggingMiddleware.ItemName] = "phase4-debug-123";
+        var terminal = new RecordingHandler();
+        var handler = new CorrelationPropagationHandler(new HttpContextAccessor { HttpContext = context })
+        {
+            InnerHandler = terminal
+        };
+        using var client = new HttpClient(handler);
+
+        await client.GetAsync("https://dependency.test/resource");
+
+        Assert.Equal("phase4-debug-123", terminal.CorrelationId);
+    }
+
     private sealed class CapturingLogger<T> : ILogger<T>
     {
         public List<string> Messages { get; } = [];
@@ -110,6 +127,16 @@ public sealed class ObservabilityTests
         {
             public static NullScope Instance { get; } = new();
             public void Dispose() { }
+        }
+    }
+
+    private sealed class RecordingHandler : HttpMessageHandler
+    {
+        public string? CorrelationId { get; private set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            CorrelationId = request.Headers.GetValues(CorrelationLoggingMiddleware.HeaderName).Single();
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
         }
     }
 }

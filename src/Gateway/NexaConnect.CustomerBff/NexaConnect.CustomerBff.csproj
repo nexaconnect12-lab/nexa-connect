@@ -10,6 +10,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\BuildingBlocks\NexaConnect.Infrastructure\NexaConnect.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\NexaConnect.Observability\NexaConnect.Observability.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\NexaConnect.Contracts\NexaConnect.Contracts.csproj" />
   </ItemGroup>
 </Project>

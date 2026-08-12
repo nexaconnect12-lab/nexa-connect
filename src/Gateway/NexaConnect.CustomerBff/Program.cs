@@ -11,8 +11,10 @@ using NexaConnect.CustomerBff.Infrastructure.Catalog;
 using NexaConnect.CustomerBff.Infrastructure.Inventory;
 using NexaConnect.CustomerBff.Infrastructure.Orders;
 using NexaConnect.Infrastructure.Authentication;
+using NexaConnect.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddNexaConnectObservability("nexaconnect-customer-bff");
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -26,22 +28,22 @@ builder.Services.AddHttpClient("PlatformDirectory", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"]
         ?? throw new InvalidOperationException("Services:PlatformDirectory is required."));
-});
+}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<ICustomerCatalogPort, HttpCustomerCatalogPort>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Services:Catalog"]
         ?? throw new InvalidOperationException("Services:Catalog is required."));
-});
+}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<ICustomerInventoryPort, HttpCustomerInventoryPort>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Services:Inventory"]
         ?? throw new InvalidOperationException("Services:Inventory is required."));
-});
+}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<ICustomerOrderPort, HttpCustomerOrderPort>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Services:Order"]
         ?? throw new InvalidOperationException("Services:Order is required."));
-});
+}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddAuthentication(options =>
     {
         options.DefaultAuthenticateScheme = "CustomerCookie";
@@ -86,6 +88,7 @@ builder.Services.AddAuthorization(options => options.AddPolicy("CustomerSession"
 }));
 
 var app = builder.Build();
+app.UseNexaConnectRequestLogging();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
 app.UseAuthentication();

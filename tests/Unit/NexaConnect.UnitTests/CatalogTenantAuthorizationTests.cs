@@ -3,6 +3,7 @@ using NexaConnect.Services.Catalog.Application.Tenant;
 using NexaConnect.Services.Catalog.Infrastructure;
 using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Contracts.Platform;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace NexaConnect.UnitTests;
 
@@ -44,7 +45,7 @@ public sealed class CatalogTenantAuthorizationTests
     }
 
     private static ProductAuthorizationClient GrantedAuthorizationClient() => new(new HttpClient(
-        new JsonHandler()) { BaseAddress = new Uri("https://authorization.test/") });
+        new JsonHandler()) { BaseAddress = new Uri("https://authorization.test/") }, NullLogger<ProductAuthorizationClient>.Instance);
 
     private sealed class StubBranchScopeReader(RestaurantBranchScope? scope) : IRestaurantBranchScopeReader
     {

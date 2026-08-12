@@ -3,6 +3,7 @@ using System.Text.Json;
 using NexaConnect.Services.Payment.Infrastructure;
 using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Contracts.Platform;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace NexaConnect.UnitTests;
 
@@ -24,7 +25,7 @@ public sealed class PaymentTenantAuthorizationTests
         });
         var authorizer = new HttpPaymentTenantAuthorizer(new StubClientFactory(handler), new StubTokenProvider(),
             new ProductAuthorizationClient(new HttpClient(new RoutingHandler(_ => Json(new { DecisionId = Guid.NewGuid(), Granted = true })))
-            { BaseAddress = new Uri("https://authorization.test/") }));
+            { BaseAddress = new Uri("https://authorization.test/") }, NullLogger<ProductAuthorizationClient>.Instance));
 
         Assert.True(await authorizer.CanAccessAsync(organizationId, restaurantId, branchId, orderId,
             ProductPermissions.PaymentIntentRead, "Bearer customer", CancellationToken.None));

@@ -5,8 +5,10 @@ using NexaConnect.Services.Inventory.Infrastructure;
 using NexaConnect.Services.Inventory.Application.Tenant;
 using Npgsql;
 using NexaConnect.Infrastructure.Authorization;
+using NexaConnect.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddNexaConnectObservability("nexaconnect-inventory");
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 
 // Add services to the container.
@@ -15,11 +17,11 @@ builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<IServiceWorkloadTokenProvider, ServiceWorkloadTokenProvider>();
 builder.Services.AddHttpClient("InventoryPlatformDirectory", client => client.BaseAddress = new Uri(
-    builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required.")));
+    builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient("InventoryRestaurant", client => client.BaseAddress = new Uri(
-    builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")));
+    builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<ProductAuthorizationClient>(client => client.BaseAddress = new Uri(
-    builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required.")));
+    builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<IInventoryTenantAuthorizer, HttpInventoryTenantAuthorizer>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -35,6 +37,7 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
 else builder.Services.AddSingleton<IInventoryReservations, InMemoryInventoryReservations>();
 
 var app = builder.Build();
+app.UseNexaConnectRequestLogging();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
