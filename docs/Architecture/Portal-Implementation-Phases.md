@@ -8,7 +8,7 @@ This document records the agreed Product Owner Portal and Customer Portal implem
 |---|---|---|
 | 1 | Boundaries and contracts | Complete |
 | 2 | Identity and authorization | Complete |
-| 3 | Platform control-plane APIs | Implementation complete; live integration validation pending |
+| 3 | Platform control-plane APIs | Complete (development validation) |
 | 4 | Customer tenant APIs | Partially implemented |
 | 5 | BFF layer | Foundations implemented |
 | 6 | Frontend foundations | Planned |
@@ -40,7 +40,7 @@ Platform Directory now exposes Application-owned use cases for organization and 
 
 The current summary covers Platform Directory-owned counts only. The new audit query covers successful platform-user create, update, and role-change operations; it is not yet a unified history for organization, membership, product-access, or support activity. Product business metrics remain product-owned and require explicit versioned publication contracts before they can be added to the platform projection.
 
-Phase 3 remains validation-pending until the migration and the checked-in `platform-directory-admin` Keycloak service account are exercised together in live PostgreSQL/Keycloak integration tests, including partial-failure reconciliation.
+Development validation now includes a manually observed version-2 to version-3 Platform Directory migration and no-op version-3 re-plan, browser/BFF authorization checks for owner, support, and auditor roles, the checked-in least-privilege `platform-directory-admin` service account, and automated live Keycloak/PostgreSQL integration tests. The tests cover user lifecycle, role mapping, immutable audit persistence, generated-user/schema cleanup, and the explicitly reconcilable partial state when identity creation succeeds before audit persistence fails. Production identity migration, secrets, resilience, and operational reconciliation remain environment-owned deployment work.
 
 ## Next phase
 

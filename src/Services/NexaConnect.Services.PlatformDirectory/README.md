@@ -20,6 +20,8 @@ Phase 3 platform administration is exposed under `/api/platform-directory/v1/pla
 
 The audit table currently records successful platform-user create, update, and role-change operations only; it is not a unified audit of every control-plane route. Keycloak mutation, role mapping, and PostgreSQL audit insertion are not atomic across systems. If role mapping or audit persistence fails after a Keycloak mutation, the API returns an error and operators must reconcile the identity state before retrying.
 
+`PlatformControlPlaneLiveTests` provides opt-in Development/Test validation against a real Keycloak Admin API and an isolated PostgreSQL schema. It registers generated usernames before mutation, discovers exact matches during cleanup, independently drops its schema, verifies role mapping and append-only audit behavior, and proves the documented partial-failure state without changing normal service tables or retained local test users. Cleanup failures fail the test run and require operator attention.
+
 `GET /health` is an anonymous process-liveness endpoint. It does not currently assert database readiness.
 
 Operational telemetry uses `NexaConnect.Observability`: structured JSON remains on stdout and OTLP export is optional through `Observability__OtlpEnabled` and `Observability__OtlpEndpoint`. Request logs include method, path, status, duration, trace ID, and a validated `X-Correlation-ID`; they exclude bodies, query strings, credentials, cookies, and arbitrary headers. These logs do not replace the append-only support-elevation audit history.

@@ -311,7 +311,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 99 tables and 109 explicit indexes; Platform Directory version 2 owns support-elevation state and database-enforced append-only audit history. The scripts remain pre-production until clean-install, downgrade, and re-upgrade tests pass against PostgreSQL 17.
+Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 100 tables and 111 explicit indexes; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Database creation is a provisioning concern, not a service migration. Local Docker initialization creates the 13 catalog databases, one migration owner, and separate restricted runtime roles before service migrations are applied. Production uses the equivalent infrastructure-as-code and secret-management workflow.
 

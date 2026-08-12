@@ -12,6 +12,7 @@ This project hosts in-process API integration tests using `WebApplicationFactory
 - `RealTenantAuthorizationE2ETests` verifies the real Docker-hosted Platform Directory and Restaurant APIs when the E2E environment variables are supplied. It uses a customer access token for organization access and a workload client-credentials token for the Restaurant branch scope.
 - `PosShiftApiTests` verifies POS shift authentication, sign-in → open → close lifecycle, terminal enrollment, cash-session open → movement → close lifecycle, request validation, open/close orchestration, and dependency-failure mapping. POS persistence and external Restaurant/Authorization clients are replaced with controlled test doubles; no production database is required.
 - `SupportElevationPersistenceTests` verifies transactional request/approval/revocation persistence, effective-expiry filtering, and append-only audit history when `NEXACONNECT_PLATFORMDIRECTORY_INTEGRATION_DB` targets a Development/Test PostgreSQL database.
+- `PlatformControlPlaneLiveTests` exercises the real local Keycloak Admin API and an isolated PostgreSQL schema. It verifies platform-user create/list/role/disable behavior, append-only audit persistence, cleanup, and the explicitly reconcilable partial state when identity creation succeeds before audit persistence fails.
 
 Run the suite with:
 
@@ -44,6 +45,8 @@ dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.Integrati
 ```
 
 When the variables are absent, the test returns without contacting external services; it never embeds credentials or assumes a production environment.
+
+Run the live Phase 3 control-plane tests only against disposable Development/Test infrastructure by setting `NEXACONNECT_PLATFORMDIRECTORY_INTEGRATION_DB`, `NEXACONNECT_KEYCLOAK_INTEGRATION_BASE_URL`, `NEXACONNECT_KEYCLOAK_INTEGRATION_REALM`, `NEXACONNECT_KEYCLOAK_INTEGRATION_CLIENT_ID`, `NEXACONNECT_KEYCLOAK_INTEGRATION_CLIENT_SECRET`, and `NEXACONNECT_ENVIRONMENT=Testing`, then filter on `PlatformControlPlaneLiveTests`. Before mutation, the tests register uniquely named `phase3-it-*` and `phase3-partial-*` usernames for cleanup; teardown discovers and deletes exact matches and independently drops the unique PostgreSQL schema, reporting any cleanup failure. Never point these variables at production.
 
 On Windows, stop the local service processes before rebuilding to avoid executable and assembly locks:
 

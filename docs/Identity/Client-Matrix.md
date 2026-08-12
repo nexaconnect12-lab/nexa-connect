@@ -6,7 +6,7 @@
 | `nexaconnect-admin-bff` | NexaConnect | Confidential | Authorization Code | `https://localhost:7200/signin-oidc` |
 | `nexaconnect-mobile` | NexaConnect | Public | Authorization Code + PKCE S256 | `nexaconnect://oauth/callback` |
 | `nexaconnect-pos` | NexaConnect | Public | Authorization Code + PKCE S256 | `nexaconnect-pos://oauth/callback` |
-| `platform-admin-bff` | Shared platform | Confidential | Authorization Code | Shared-platform value; local fixture uses `https://localhost:7300/signin-oidc` |
+| `platform-admin-bff` | Shared platform | Confidential | Authorization Code | Shared-platform value; local fixture uses `https://localhost:58527/signin-oidc` |
 | `platform-directory-admin` | Shared platform directory | Confidential service account | Client Credentials | None |
 | Workload clients | Owning workload | Confidential | Client Credentials | None |
 

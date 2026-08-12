@@ -317,7 +317,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned migrations exist for all 13 service databases and currently define 99 tables and 109 explicit indexes. Platform Directory version 2 owns support-elevation state and database-enforced append-only audit history. The runner supports versioned directories; the catalogs remain pre-production until the scripts pass clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned migrations exist for all 13 service databases and currently define 100 tables and 111 explicit indexes. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Rules:
 
