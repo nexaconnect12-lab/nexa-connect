@@ -19,7 +19,7 @@ public sealed class BffAccessTokenServiceTests
             new AuthenticationToken { Name = "refresh_token", Value = "refresh" },
             new AuthenticationToken { Name = "expires_at", Value = "2025-01-01T00:00:00.0000000+00:00" }
         ]);
-        var authentication = new RecordingAuthenticationService(new AuthenticateResult(
+        var authentication = new RecordingAuthenticationService(AuthenticateResult.Success(
             new AuthenticationTicket(new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity("cookie")), properties, "cookie")));
         var services = new ServiceCollection().AddSingleton<IAuthenticationService>(authentication).BuildServiceProvider();
         var context = new DefaultHttpContext { RequestServices = services };
