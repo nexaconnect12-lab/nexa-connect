@@ -15,3 +15,5 @@ Keycloak client: `nexaconnect-web-bff` (current Customer Portal client; a future
 The BFF must validate issuer, authorization response state and nonce, use the configured API audience, rotate its session on login, and implement remote plus local sign-out. The React application must never persist access or refresh tokens in browser storage.
 
 The current Customer Portal BFF implementation is `src/Gateway/NexaConnect.CustomerBff`. It queries Platform Directory for the authenticated subject's active organization/product access and stores only a server-protected tenant selection cookie. Product APIs remain responsible for final resource authorization.
+
+Frontend implementation should consume the shared packages in [`src/Frontend`](../../Frontend/README.md). The portal must supply its own customer-capability evaluator to the presentation helpers, its own localization catalogs, and the telemetry service name `nexaconnect-customer-portal`. A hidden control or route is never authorization evidence; the Customer BFF and owning product service continue to enforce organization, branch, resource, and operation access.

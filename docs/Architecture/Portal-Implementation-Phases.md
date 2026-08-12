@@ -11,7 +11,7 @@ This document records the agreed Product Owner Portal and Customer Portal implem
 | 3 | Platform control-plane APIs | Complete (development validation) |
 | 4 | Customer tenant APIs | Complete (implemented customer API surface) |
 | 5 | BFF layer | Hardening implemented; broader integration validation continuous |
-| 6 | Frontend foundations | Planned |
+| 6 | Frontend foundations | Complete |
 | 7 | Product Owner Portal | Planned |
 | 8 | Customer Portal | Planned |
 | 9 | Media service | Schema scaffold only |
@@ -48,4 +48,8 @@ Phase 4 is complete for the implemented customer API surface. Catalog, Inventory
 
 Phase 5 hardening is implemented. Both BFFs keep tokens in server-side tickets, renew expiring access tokens, clear sessions when renewal fails, use direct HTTPS service addresses, and propagate safe correlation identifiers. Platform Admin forwards bodyless responses correctly and exposes narrow bootstrap proxy routes for Restaurant-owned hierarchy and Authorization-owned product-role provisioning without direct database access. Unit coverage demonstrates successful renewal, bodyless copying, route protection, and provisioning validation; rejected-refresh and PostgreSQL-backed proxy/controller scenarios remain continuous integration hardening.
 
-The active roadmap step is Phase 6 frontend foundations, while new customer endpoints must meet the Phase 4 tenant contract as part of their initial implementation.
+Phase 6 frontend foundations are implemented as an npm workspace under `src/Frontend`. Independently versionable packages now provide the Ant Design theme, responsive portal layout/navigation, BFF API contracts, Zod form validation, localization, safe error presentation, presentation-only capability helpers, and redacted UI telemetry. The workspace has strict TypeScript project boundaries and unit coverage for contracts, authorization hints, validation, localization, error handling, and telemetry redaction.
+
+These packages share components and contracts only. Each portal supplies its own capability evaluator, message catalogs, BFF base contract, and telemetry service name. The UI helpers never resolve roles or tenants and never authorize an operation; separate BFFs and owning services retain all runtime authorization decisions described by ADR-006.
+
+The active roadmap step is Phase 7 Product Owner Portal. New customer endpoints must continue to meet the Phase 4 tenant contract as part of their initial implementation.

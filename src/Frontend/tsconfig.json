@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/design-system" },
+    { "path": "packages/authorization-ui" },
+    { "path": "packages/layout" },
+    { "path": "packages/api-client" },
+    { "path": "packages/form-validation" },
+    { "path": "packages/localization" },
+    { "path": "packages/error-handling" },
+    { "path": "packages/telemetry" }
+  ]
+}

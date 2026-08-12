@@ -42,6 +42,8 @@ Phase 5 hardening refreshes expiring BFF access tokens in the server-side ticket
 See [Keycloak configuration](docker/keycloak/README.md), the [identity client matrix](docs/Identity/Client-Matrix.md), the [claims contract](docs/Identity/Claims-Contract.md), and the [production runbook](docs/Identity/Production-Runbook.md) for identity integration and deployment.
 The cross-product Platform Admin Dashboard is owned by the shared platform; `NexaConnect.Admin` remains the independently deployed restaurant-product dashboard.
 
+Phase 6 frontend foundations are available in `src/Frontend`: eight versioned React/TypeScript packages cover the design system, layout/navigation, BFF API contracts, form validation, localization, safe error handling, presentation-only authorization helpers, and redacted telemetry. Portals share these components and contracts but keep runtime authorization, sessions, tenant context, and policies inside their independent BFF and service boundaries.
+
 ## Database baseline
 
 NexaConnect uses schema-first PostgreSQL migrations with one independently owned database per service. The initial migration catalog covers Platform Directory, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, POS, Media, and Reporting.
