@@ -8,7 +8,7 @@ namespace NexaConnect.Services.Authorization.Controllers;
 
 [ApiController]
 [Route("api/authorization/v1/role-assignments")]
-[Authorize(Policy = NexaAuthorizationPolicies.SystemAdministrator)]
+[Authorize(Policy = NexaAuthorizationPolicies.ProductRoleAdministrator)]
 public sealed class AuthorizationAssignmentsController(IAuthorizationAssignmentService service) : ControllerBase
 {
     [HttpPost]

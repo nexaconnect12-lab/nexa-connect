@@ -101,6 +101,8 @@ Notification durable delivery state is owned by the separately provisioned `Nexa
 
 Application roles must not own the databases. Use a separate migration role for DDL operations and grant application roles only the permissions needed at runtime.
 
+Restaurant hierarchy provisioning is performed by the Restaurant API and its Infrastructure repository; Platform Admin BFF never writes Restaurant tables. Product-role provisioning follows the same ownership rule through Authorization. The development provisioning routes are idempotent by restaurant organization/code, branch restaurant/code, and role assignment scope.
+
 Runtime roles must not read or modify `nexaconnect_schema_migrations`. The migration runner revokes inherited runtime access after creating or verifying its history table.
 
 ### 3.1 Platform Directory logical tables

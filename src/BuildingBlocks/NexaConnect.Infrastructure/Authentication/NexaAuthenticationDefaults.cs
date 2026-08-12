@@ -13,6 +13,7 @@ public static class NexaAuthorizationPolicies
 {
     public const string SystemAdministrator = "SystemAdministrator";
     public const string PlatformAdministrator = "PlatformAdministrator";
+    public const string ProductRoleAdministrator = "ProductRoleAdministrator";
     public const string PlatformSupport = "PlatformSupport";
     public const string PlatformAuditReader = "PlatformAuditReader";
     public const string PlatformUser = "PlatformUser";

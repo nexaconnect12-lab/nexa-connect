@@ -38,6 +38,7 @@ See [Restaurant POS Architecture](docs/Architecture/Restaurant-POS-Architecture.
 Portal architecture is recorded in [ADR-006](docs/Architecture/Decisions/ADR-006-portal-separation-and-tenant-isolation.md): the ecosystem uses separately deployed Product Owner, product administration, and tenant-scoped Customer Portals, with shared libraries but separate BFF and identity boundaries.
 The Customer Portal BFF foundation is implemented in `src/Gateway/NexaConnect.CustomerBff` and uses Platform Directory tenant-context validation.
 The Product Owner control-plane compatibility BFF is implemented in `src/Gateway/NexaConnect.PlatformAdminBff`; both BFFs require a Redis-backed server-side ticket cache outside Development/Test.
+Phase 5 hardening refreshes expiring BFF access tokens in the server-side ticket, clears sessions when refresh fails, forwards bodyless downstream responses correctly, and lets platform administrators provision Restaurant hierarchy and Authorization roles through service-owned APIs.
 See [Keycloak configuration](docker/keycloak/README.md), the [identity client matrix](docs/Identity/Client-Matrix.md), the [claims contract](docs/Identity/Claims-Contract.md), and the [production runbook](docs/Identity/Production-Runbook.md) for identity integration and deployment.
 The cross-product Platform Admin Dashboard is owned by the shared platform; `NexaConnect.Admin` remains the independently deployed restaurant-product dashboard.
 

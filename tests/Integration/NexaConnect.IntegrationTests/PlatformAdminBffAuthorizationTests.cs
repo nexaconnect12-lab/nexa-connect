@@ -29,6 +29,24 @@ public sealed class PlatformAdminBffAuthorizationTests
     }
 
     [Theory]
+    [InlineData(204)]
+    [InlineData(304)]
+    public async Task Proxy_does_not_write_a_body_for_bodyless_statuses(int statusCode)
+    {
+        using var source = new HttpResponseMessage((HttpStatusCode)statusCode)
+        {
+            Content = new StringContent("must-not-be-written")
+        };
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await PLATFORMADMIN::NexaConnect.PlatformAdminBff.BffProxyResponseCopier.CopyAsync(source, context.Response, default);
+
+        Assert.Equal(statusCode, context.Response.StatusCode);
+        Assert.Equal(0, context.Response.Body.Length);
+    }
+
+    [Theory]
     [InlineData("POST", "/bff/platform-admin/organizations")]
     [InlineData("POST", "/bff/platform-admin/products")]
     [InlineData("PATCH", "/bff/platform-admin/organizations/11111111-1111-1111-1111-111111111111")]
@@ -46,6 +64,9 @@ public sealed class PlatformAdminBffAuthorizationTests
     [InlineData("GET", "/bff/platform-admin/platform/roles")]
     [InlineData("GET", "/bff/platform-admin/platform/audit")]
     [InlineData("GET", "/bff/platform-admin/platform/summary")]
+    [InlineData("POST", "/bff/platform-admin/restaurants")]
+    [InlineData("POST", "/bff/platform-admin/restaurants/11111111-1111-1111-1111-111111111111/branches")]
+    [InlineData("POST", "/bff/platform-admin/authorization/role-assignments")]
     public async Task Mutation_proxies_require_platform_admin_session(string method, string path)
     {
         await using var factory = new PlatformAdminFactory();
@@ -77,7 +98,9 @@ public sealed class PlatformAdminBffAuthorizationTests
                     ["Bff:ClientId"] = "platform-admin-bff",
                     ["Bff:ClientSecret"] = "test-secret",
                     ["Bff:RequireHttpsMetadata"] = "true",
-                    ["Services:PlatformDirectory"] = "https://directory.test/"
+                    ["Services:PlatformDirectory"] = "https://directory.test/",
+                    ["Services:Restaurant"] = "https://restaurant.test/",
+                    ["Services:Authorization"] = "https://authorization.test/"
                 }));
         }
     }

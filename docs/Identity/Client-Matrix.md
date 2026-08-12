@@ -14,6 +14,7 @@
 
 - Register exact redirect and post-logout redirect URIs for every environment; do not use broad wildcards.
 - Store confidential-client secrets in the environment's secret manager and rotate them.
+- BFFs use refresh tokens only from server-side authentication tickets. Successful renewal replaces the stored access/refresh tokens; rejected renewal clears the session and requires interactive login.
 - Public clients never receive a client secret and must require PKCE S256.
 - Password/direct-access grants and implicit flow remain disabled.
 - Full scope is disabled. Assign only explicit client scopes and role scope mappings.

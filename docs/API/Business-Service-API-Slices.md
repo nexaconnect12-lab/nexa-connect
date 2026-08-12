@@ -16,7 +16,11 @@ Customer Portal Catalog reads use `X-Nexa-Portal-Request: customer`, `X-Nexa-Org
 
 All implemented customer-tenant operations also obtain an Authorization service decision. Permission codes are `catalog.menu.read/write`, `inventory.stock.read/write`, `inventory.reservation.create/release`, `order.create/read/place`, `payment.intent.create/read`, and `customer.profile.create/read`. Only allow-listed service workload tokens identified by their validated `azp` claim may use internal paths without tenant context; ordinary authenticated users fail closed when context is absent or conflicting. Resource reads generally return `404` to avoid disclosure, authorization denials return `403`, and malformed Catalog context returns `400`.
 
-`POST /api/authorization/v1/role-assignments` provisions the permission set for the selected product role. `tenant-admin` and `store-manager` receive the full implemented tenant-API set; cashier, inventory-controller, accountant, and report-viewer receive narrower role-appropriate sets. The operation requires `system-admin` and an organization/restaurant/branch scope.
+`POST /api/authorization/v1/role-assignments` provisions the permission set for the selected product role. `tenant-admin` and `store-manager` receive the full implemented tenant-API set; cashier, inventory-controller, accountant, and report-viewer receive narrower role-appropriate sets. The operation requires `system-admin`, `platform-owner`, or `platform-admin` and an organization/restaurant/branch scope.
+
+Platform owners and administrators provision Restaurant scope through `POST /api/restaurant/v1/restaurants` and `POST /api/restaurant/v1/restaurants/{restaurantId}/branches`, normally through the matching Platform Admin BFF routes. Restaurant and Authorization remain the persistence owners; the BFF performs no database writes.
+
+See [Restaurant Provisioning](Restaurant-Provisioning.md) for request, response, validation, status, idempotency, and ownership details.
 
 Inventory operations tagged as Customer Portal requests validate active organization access through Platform Directory, confirm the route branch belongs to that organization through Restaurant, and require the operation-specific permission. Internal service calls remain supported without customer portal headers.
 

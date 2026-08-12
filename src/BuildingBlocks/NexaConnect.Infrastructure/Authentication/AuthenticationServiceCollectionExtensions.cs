@@ -200,6 +200,9 @@ public static class AuthenticationServiceCollectionExtensions
                 NexaAuthorizationPolicies.PlatformAdministrator,
                 policy => policy.RequireRole("platform-owner", "platform-admin"));
             options.AddPolicy(
+                NexaAuthorizationPolicies.ProductRoleAdministrator,
+                policy => policy.RequireRole("system-admin", "platform-owner", "platform-admin"));
+            options.AddPolicy(
                 NexaAuthorizationPolicies.PlatformSupport,
                 policy => policy.RequireRole("platform-owner", "platform-admin", "platform-support"));
             options.AddPolicy(

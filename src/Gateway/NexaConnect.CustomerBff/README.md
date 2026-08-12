@@ -21,4 +21,6 @@ Authentication tickets and saved OIDC tokens are held in the server-side ticket 
 Catalog, Inventory, and Order independently validate organization access and branch ownership through Platform Directory and Restaurant. Payment applies the same checks plus referenced-order ownership when handling customer-tagged intent operations. The BFF does not treat browser-selected organization or branch identifiers as permission grants, and it does not replace product-owned resource authorization.
 
 Structured logs use service name `nexaconnect-customer-bff`. The BFF validates or creates `X-Correlation-ID`, returns it to the browser, and propagates it through registered product and Platform Directory clients for Grafana/Loki debugging.
+
+Before downstream calls, the BFF refreshes an expiring access token and persists replacement tokens in the server-side ticket. Rejected or unavailable refresh clears the session and returns `401`. Development dependency URLs use direct HTTPS launch-profile endpoints.
 JSON stdout is always enabled. Enable OTLP with `Observability__OtlpEnabled=true`; use the [observability guide](../../../docs/Deployment/Observability.md) for the endpoint and queries.

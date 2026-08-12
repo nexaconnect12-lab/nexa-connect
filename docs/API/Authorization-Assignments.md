@@ -1,6 +1,6 @@
 # Authorization role assignments
 
-`POST /api/authorization/v1/role-assignments` creates or reactivates an idempotent, branch-scoped role assignment. The caller must satisfy the `system-admin` policy. The cashier assignment provisions both `pos.shift.open` and `pos.shift.close`; the service resolves the branch scope and persists the assignment and scoped overrides through Infrastructure.
+`POST /api/authorization/v1/role-assignments` creates or reactivates an idempotent, branch-scoped role assignment. The caller must hold `system-admin`, `platform-owner`, or `platform-admin`; Platform Admin BFF proxies it at `POST /bff/platform-admin/authorization/role-assignments`. The service persists the selected role's implemented permission set and scoped overrides through Authorization Infrastructure.
 
 Example request:
 
@@ -15,3 +15,5 @@ Example request:
 ```
 
 The endpoint returns `404` when no active matching scope or role/permission exists and `403` for non-administrators.
+
+Success returns `200` with `{ "assignmentId": "<uuid>" }`; repeating the same subject, role, and scope reactivates the assignment and returns its active identifier. Invalid or unsupported role/scope input returns `400`. Supported codes are `tenant-admin`, `store-manager`, `cashier`, `inventory-controller`, `accountant`, and `report-viewer`; the first two receive the full currently implemented tenant API permission set, while the remaining mappings are listed in [Business Service API Slices](Business-Service-API-Slices.md). Direct API authorization accepts `system-admin`, `platform-owner`, or `platform-admin`; the BFF additionally requires its `PlatformAdmin` session policy before forwarding.

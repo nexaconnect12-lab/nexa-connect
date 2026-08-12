@@ -24,6 +24,9 @@ builder.Services.AddSingleton<ITicketStore, DistributedCacheTicketStore>();
 builder.Services.AddOptions<CookieAuthenticationOptions>("CustomerCookie")
     .Configure<ITicketStore>((options, ticketStore) => options.SessionStore = ticketStore);
 builder.Services.AddSingleton<TenantSelectionCookie>();
+builder.Services.AddHttpClient(nameof(BffAccessTokenService));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<BffAccessTokenService>();
 builder.Services.AddHttpClient("PlatformDirectory", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"]
@@ -167,7 +170,7 @@ app.MapGet("/bff/customer/catalog/branches/{branchId:guid}/menu-items", async (
 {
     TenantContext? tenant = selectionCookie.Unprotect(context.Request.Cookies["__Host-nexa-customer-tenant"]);
     string? subjectId = context.User.FindFirstValue("sub");
-    string? accessToken = await context.GetTokenAsync("CustomerCookie", "access_token");
+    string? accessToken = await GetCustomerAccessTokenAsync(context, cancellationToken);
     if (tenant is null || string.IsNullOrWhiteSpace(subjectId) || subjectId != tenant.SubjectId || string.IsNullOrWhiteSpace(accessToken))
         return Results.Unauthorized();
 
@@ -192,7 +195,7 @@ app.MapGet("/bff/customer/inventory/branches/{branchId:guid}/stock", async (
 {
     TenantContext? tenant = selectionCookie.Unprotect(context.Request.Cookies["__Host-nexa-customer-tenant"]);
     string? subjectId = context.User.FindFirstValue("sub");
-    string? accessToken = await context.GetTokenAsync("CustomerCookie", "access_token");
+    string? accessToken = await GetCustomerAccessTokenAsync(context, cancellationToken);
     if (tenant is null || string.IsNullOrWhiteSpace(subjectId) || subjectId != tenant.SubjectId || string.IsNullOrWhiteSpace(accessToken))
         return Results.Unauthorized();
 
@@ -218,7 +221,7 @@ app.MapPost("/bff/customer/orders/branches/{branchId:guid}/place", async (
 {
     TenantContext? tenant = selectionCookie.Unprotect(context.Request.Cookies["__Host-nexa-customer-tenant"]);
     string? subjectId = context.User.FindFirstValue("sub");
-    string? accessToken = await context.GetTokenAsync("CustomerCookie", "access_token");
+    string? accessToken = await GetCustomerAccessTokenAsync(context, cancellationToken);
     if (tenant is null || string.IsNullOrWhiteSpace(subjectId) || subjectId != tenant.SubjectId || string.IsNullOrWhiteSpace(accessToken))
         return Results.Unauthorized();
 
@@ -238,11 +241,20 @@ app.Run();
 
 static async Task<HttpResponseMessage> CallPlatformDirectoryAsync(HttpContext context, IHttpClientFactory clients, string path, CancellationToken cancellationToken)
 {
-    string? token = await context.GetTokenAsync("CustomerCookie", "access_token");
-    if (string.IsNullOrWhiteSpace(token)) throw new InvalidOperationException("Customer BFF session has no access token.");
+    string? token = await GetCustomerAccessTokenAsync(context, cancellationToken);
+    if (string.IsNullOrWhiteSpace(token))
+        return new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized);
     HttpClient client = clients.CreateClient("PlatformDirectory");
     client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
     return await client.GetAsync(path, cancellationToken);
+}
+
+static Task<string?> GetCustomerAccessTokenAsync(HttpContext context, CancellationToken cancellationToken)
+{
+    IConfiguration configuration = context.RequestServices.GetRequiredService<IConfiguration>();
+    IConfigurationSection bff = configuration.GetRequiredSection("Bff");
+    return context.RequestServices.GetRequiredService<BffAccessTokenService>().GetValidAccessTokenAsync(
+        context, "CustomerCookie", bff["Authority"]!, bff["ClientId"]!, bff["ClientSecret"]!, cancellationToken);
 }
 
 static async Task<IResult> ForwardJsonAsync(HttpResponseMessage response, CancellationToken cancellationToken)

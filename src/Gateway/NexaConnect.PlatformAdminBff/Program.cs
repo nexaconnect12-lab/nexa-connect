@@ -18,7 +18,12 @@ builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Env
 builder.Services.AddNexaConnectBffSessionCache(builder.Configuration, builder.Environment);
 builder.Services.AddSingleton<ITicketStore, AdminTicketStore>();
 builder.Services.AddOptions<CookieAuthenticationOptions>("AdminCookie").Configure<ITicketStore>((o, store) => o.SessionStore = store);
-builder.Services.AddHttpClient("PlatformDirectory", client => client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required.")));
+builder.Services.AddHttpClient("PlatformDirectory", client => client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required."))).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient("Restaurant", client => client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required."))).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient("Authorization", client => client.BaseAddress = new Uri(builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required."))).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient(nameof(BffAccessTokenService));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<BffAccessTokenService>();
 builder.Services.AddAuthentication(o => { o.DefaultAuthenticateScheme = "AdminCookie"; o.DefaultSignInScheme = "AdminCookie"; o.DefaultChallengeScheme = "AdminOidc"; })
     .AddCookie("AdminCookie", o => { o.Cookie.Name = "__Host-nexa-platform-admin"; o.Cookie.SecurePolicy = CookieSecurePolicy.Always; o.Cookie.HttpOnly = true; o.LoginPath = "/bff/platform-admin/login"; o.LogoutPath = "/bff/platform-admin/logout"; })
     .AddOpenIdConnect("AdminOidc", o => { var s = builder.Configuration.GetRequiredSection("Bff"); o.Authority = s["Authority"] ?? throw new InvalidOperationException("Bff:Authority is required."); o.ClientId = s["ClientId"] ?? "platform-admin-bff"; o.ClientSecret = s["ClientSecret"] ?? throw new InvalidOperationException("Bff:ClientSecret is required."); o.ResponseType = "code"; o.UsePkce = true; o.SaveTokens = true; o.SignInScheme = "AdminCookie"; o.Scope.Add("nexaconnect-api"); o.RequireHttpsMetadata = s.GetValue<bool>("RequireHttpsMetadata"); o.MapInboundClaims = false; o.TokenValidationParameters.RoleClaimType = "roles"; o.Events.OnTokenValidated = context => { if (context.Principal?.Identity is ClaimsIdentity identity && context.Principal.FindFirst("realm_access") is { } realmAccess && JsonDocument.Parse(realmAccess.Value).RootElement.TryGetProperty("roles", out var roles)) foreach (var role in roles.EnumerateArray()) if (role.GetString() is { } value && !identity.HasClaim("roles", value)) identity.AddClaim(new Claim("roles", value)); return Task.CompletedTask; }; if (builder.Environment.IsDevelopment()) o.PushedAuthorizationBehavior = PushedAuthorizationBehavior.Disable; });
@@ -48,6 +53,9 @@ MapProxy("organizations", HttpMethod.Post); MapProxy("products", HttpMethod.Post
 app.MapMethods("/bff/platform-admin/organizations/{organizationId:guid}", ["PATCH"], Proxy("api/platform-directory/v1/organizations/{organizationId}")).RequireAuthorization("PlatformAdmin");
 app.MapMethods("/bff/platform-admin/organizations/{organizationId:guid}/members/{subjectId}", ["PUT"], Proxy("api/platform-directory/v1/organizations/{organizationId}/members/{subjectId}")).RequireAuthorization("PlatformAdmin");
 app.MapMethods("/bff/platform-admin/organizations/{organizationId:guid}/products", ["PUT"], Proxy("api/platform-directory/v1/organizations/{organizationId}/products")).RequireAuthorization("PlatformAdmin");
+app.MapMethods("/bff/platform-admin/restaurants", ["POST"], Proxy("api/restaurant/v1/restaurants", "Restaurant")).RequireAuthorization("PlatformAdmin");
+app.MapMethods("/bff/platform-admin/restaurants/{restaurantId:guid}/branches", ["POST"], Proxy("api/restaurant/v1/restaurants/{restaurantId}/branches", "Restaurant")).RequireAuthorization("PlatformAdmin");
+app.MapMethods("/bff/platform-admin/authorization/role-assignments", ["POST"], Proxy("api/authorization/v1/role-assignments", "Authorization")).RequireAuthorization("PlatformAdmin");
 app.MapMethods("/bff/platform-admin/support-elevations", ["POST"], Proxy("api/platform-directory/v1/support-elevations")).RequireAuthorization("PlatformSupport");
 app.MapMethods("/bff/platform-admin/support-elevations/effective", ["GET"], Proxy("api/platform-directory/v1/support-elevations/effective")).RequireAuthorization("PlatformSupport");
 app.MapMethods("/bff/platform-admin/support-elevations/{elevationId:guid}", ["GET"], Proxy("api/platform-directory/v1/support-elevations/{elevationId}")).RequireAuthorization("PlatformAudit");
@@ -68,9 +76,11 @@ static string NormalizeReturnUrl(string? returnUrl) =>
         : returnUrl;
 
 void MapProxy(string route, HttpMethod method) => app.MapMethods($"/bff/platform-admin/{route}", [method.Method], Proxy($"api/platform-directory/v1/{route}")).RequireAuthorization("PlatformAdmin");
-RequestDelegate Proxy(string path) => async context =>
+RequestDelegate Proxy(string path, string clientName = "PlatformDirectory") => async context =>
 {
-    string? token = await context.GetTokenAsync("AdminCookie", "access_token");
+    IConfigurationSection bff = builder.Configuration.GetRequiredSection("Bff");
+    string? token = await context.RequestServices.GetRequiredService<BffAccessTokenService>().GetValidAccessTokenAsync(
+        context, "AdminCookie", bff["Authority"]!, bff["ClientId"]!, bff["ClientSecret"]!, context.RequestAborted);
     if (string.IsNullOrWhiteSpace(token))
     {
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -79,20 +89,19 @@ RequestDelegate Proxy(string path) => async context =>
     string organizationId = Uri.EscapeDataString(context.Request.RouteValues["organizationId"]?.ToString() ?? string.Empty);
     string subjectId = Uri.EscapeDataString(context.Request.RouteValues["subjectId"]?.ToString() ?? string.Empty);
     string elevationId = Uri.EscapeDataString(context.Request.RouteValues["elevationId"]?.ToString() ?? string.Empty);
+    string restaurantId = Uri.EscapeDataString(context.Request.RouteValues["restaurantId"]?.ToString() ?? string.Empty);
     string target = path.Replace("{organizationId}", organizationId, StringComparison.Ordinal)
         .Replace("{subjectId}", subjectId, StringComparison.Ordinal)
-        .Replace("{elevationId}", elevationId, StringComparison.Ordinal);
+        .Replace("{elevationId}", elevationId, StringComparison.Ordinal)
+        .Replace("{restaurantId}", restaurantId, StringComparison.Ordinal);
     if (context.Request.QueryString.HasValue) target += context.Request.QueryString.Value;
     using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method), target);
     request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
     if (context.Request.ContentLength is > 0)
         request.Content = await ReplayableProxyContent.CreateAsync(context.Request, context.RequestAborted);
-    HttpClient client = context.RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient("PlatformDirectory");
+    HttpClient client = context.RequestServices.GetRequiredService<IHttpClientFactory>().CreateClient(clientName);
     using HttpResponseMessage response = await client.SendAsync(request, context.RequestAborted);
-    context.Response.StatusCode = (int)response.StatusCode;
-    if (response.Content.Headers.ContentType is not null)
-        context.Response.ContentType = response.Content.Headers.ContentType.ToString();
-    await response.Content.CopyToAsync(context.Response.Body, context.RequestAborted);
+    await BffProxyResponseCopier.CopyAsync(response, context.Response, context.RequestAborted);
 };
 public partial class Program;
 

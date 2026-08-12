@@ -334,6 +334,8 @@ The shared platform owns a Platform Admin Dashboard for organizations, common me
 
 The Platform Admin Dashboard does not manage restaurant menus, orders, kitchen tickets, payments, shifts, or detailed restaurant reports.
 
+For initial tenant onboarding only, its BFF may invoke narrowly scoped Restaurant-owned APIs to bootstrap a restaurant and branch and an Authorization-owned API to assign the first product administrator. Ongoing restaurant configuration and operations remain in `NexaConnect.Admin`; this bootstrap path does not transfer product ownership to the shared platform.
+
 ### NexaConnect Admin Dashboard
 
 NexaConnect owns `NexaConnect.Admin`. It manages restaurant-specific configuration and operations, including restaurants, branches, employees, menus, modifiers, tables, QR codes, POS terminals, kiosks, kitchen displays, preparation stations, shifts, cash, inventory, payments, and restaurant reporting.

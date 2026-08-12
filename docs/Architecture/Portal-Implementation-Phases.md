@@ -10,7 +10,7 @@ This document records the agreed Product Owner Portal and Customer Portal implem
 | 2 | Identity and authorization | Complete |
 | 3 | Platform control-plane APIs | Complete (development validation) |
 | 4 | Customer tenant APIs | Complete (implemented customer API surface) |
-| 5 | BFF layer | Foundations implemented |
+| 5 | BFF layer | Hardening implemented; broader integration validation continuous |
 | 6 | Frontend foundations | Planned |
 | 7 | Product Owner Portal | Planned |
 | 8 | Customer Portal | Planned |
@@ -45,5 +45,7 @@ Development validation now includes a manually observed version-2 to version-3 P
 ## Next phase
 
 Phase 4 is complete for the implemented customer API surface. Catalog, Inventory, Order, Payment, and Customer resolve active organization/product access from the authenticated bearer `sub`, reject conflicting tenant context, evaluate product-owned permission codes, and apply organization/resource ownership before use cases execute. Only allow-listed workload `azp` identities can use internal unscoped paths. Catalog and Inventory customer persistence paths include `organization_id`; Customer was already organization-keyed, while Order and Payment validate stored ownership. Automated coverage currently includes authorization helpers, migration catalogs, and Catalog/Order cross-tenant controller paths; equivalent PostgreSQL-backed controller tests for every service remain continuous Phase 11 hardening rather than Phase 4 behavior work.
+
+Phase 5 hardening is implemented. Both BFFs keep tokens in server-side tickets, renew expiring access tokens, clear sessions when renewal fails, use direct HTTPS service addresses, and propagate safe correlation identifiers. Platform Admin forwards bodyless responses correctly and exposes narrow bootstrap proxy routes for Restaurant-owned hierarchy and Authorization-owned product-role provisioning without direct database access. Unit coverage demonstrates successful renewal, bodyless copying, route protection, and provisioning validation; rejected-refresh and PostgreSQL-backed proxy/controller scenarios remain continuous integration hardening.
 
 The active roadmap step is Phase 6 frontend foundations, while new customer endpoints must meet the Phase 4 tenant contract as part of their initial implementation.
