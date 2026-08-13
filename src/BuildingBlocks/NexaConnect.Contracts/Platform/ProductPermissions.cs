@@ -22,6 +22,7 @@ public static class ProductPermissions
     public const string ReportingDashboardRead = "reporting.dashboard.read";
     public const string ReportingSalesRead = "reporting.sales.read";
     public const string MediaAssetRead = "media.asset.read";
+    public const string ReportingActivityRead = "reporting.activity.read";
 
     public static IReadOnlyCollection<string> CustomerTenantApiPermissions { get; } =
     [
@@ -32,6 +33,6 @@ public static class ProductPermissions
         CustomerProfileCreate, CustomerProfileRead,
         RestaurantBranchRead, RestaurantBranchManage,
         RestaurantConfigurationRead, RestaurantConfigurationManage,
-        ReportingDashboardRead, ReportingSalesRead, MediaAssetRead
+        ReportingDashboardRead, ReportingSalesRead, ReportingActivityRead, MediaAssetRead
     ];
 }

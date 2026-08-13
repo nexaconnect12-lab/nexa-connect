@@ -16,6 +16,8 @@ builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Env
 builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Reporting") ?? throw new InvalidOperationException("ConnectionStrings:Reporting is required.")));
 builder.Services.AddScoped<ReportingQueries>();
 builder.Services.AddScoped<IReportingReadRepository, PostgresReportingReadRepository>();
+builder.Services.AddScoped<ActivityService>();
+builder.Services.AddScoped<IActivityProjectionRepository, PostgresActivityProjectionRepository>();
 builder.Services.AddHttpClient("PlatformDirectory", client => client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<ProductAuthorizationClient>(client => client.BaseAddress = new Uri(builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<IReportingCustomerAuthorizer>(provider => new HttpReportingCustomerAuthorizer(provider.GetRequiredService<IHttpClientFactory>().CreateClient("PlatformDirectory"), provider.GetRequiredService<ProductAuthorizationClient>()));

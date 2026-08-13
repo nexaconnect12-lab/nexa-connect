@@ -8,13 +8,16 @@ namespace NexaConnect.Services.Reporting.Controllers;
 
 [ApiController, Authorize(Roles = "customer-owner,customer-admin,customer-manager,customer-viewer")]
 [Route("api/reporting/v1/customer/organizations/{organizationId:guid}")]
-public sealed class CustomerReportingController(ReportingQueries queries, IReportingCustomerAuthorizer authorizer, ILogger<CustomerReportingController> logger) : ControllerBase
+public sealed class CustomerReportingController(ReportingQueries queries,ActivityService activity, IReportingCustomerAuthorizer authorizer, ILogger<CustomerReportingController> logger) : ControllerBase
 {
     [HttpGet("dashboard")]
     public Task<IActionResult> Dashboard(Guid organizationId, [FromQuery] Guid? branchId, [FromQuery] DateTimeOffset? fromUtc, [FromQuery] DateTimeOffset? toUtc, CancellationToken cancellationToken) => Execute(organizationId, branchId, ProductPermissions.ReportingDashboardRead, () => queries.DashboardAsync(organizationId, branchId, fromUtc, toUtc, cancellationToken), cancellationToken);
 
     [HttpGet("reports/sales")]
     public Task<IActionResult> Sales(Guid organizationId, [FromQuery] Guid? branchId, [FromQuery] DateTimeOffset? fromUtc, [FromQuery] DateTimeOffset? toUtc, CancellationToken cancellationToken) => Execute(organizationId, branchId, ProductPermissions.ReportingSalesRead, () => queries.SalesAsync(organizationId, branchId, fromUtc, toUtc, cancellationToken), cancellationToken);
+
+    [HttpGet("activity")]
+    public Task<IActionResult> Activity(Guid organizationId,[FromQuery]string? actorSubjectId,[FromQuery]string? action,[FromQuery]string? cursor,[FromQuery]int limit=50,CancellationToken cancellationToken=default)=>Execute(organizationId,null,ProductPermissions.ReportingActivityRead,()=>activity.QueryAsync(organizationId,"nexa_connect",actorSubjectId,action,cursor,limit,cancellationToken),cancellationToken);
 
     private async Task<IActionResult> Execute<T>(Guid organizationId, Guid? branchId, string permission, Func<Task<T>> query, CancellationToken cancellationToken)
     {

@@ -1,0 +1,9 @@
+using NexaConnect.Contracts.IntegrationEvents;using NexaConnect.Services.Reporting.Application;
+namespace NexaConnect.UnitTests;
+public sealed class ActivityServiceTests
+{
+ [Fact]public async Task Query_round_trips_opaque_cursor_and_normalizes_application(){var repo=new Repo();var service=new ActivityService(repo);Guid id=Guid.NewGuid();DateTimeOffset time=DateTimeOffset.UtcNow;await service.QueryAsync(Guid.NewGuid()," NEXA_CONNECT "," actor ",null,ActivityService.Encode(time,id),50,default);Assert.Equal(id,repo.Filter!.BeforeEventId);Assert.Equal(time,repo.Filter.BeforeUtc);Assert.Equal("nexa_connect",repo.Filter.ApplicationCode);Assert.Equal("actor",repo.Filter.ActorSubjectId);}
+ [Fact]public async Task Query_rejects_invalid_cursor_and_limit(){var service=new ActivityService(new Repo());await Assert.ThrowsAsync<ArgumentException>(()=>service.QueryAsync(Guid.NewGuid(),"nexa_connect",null,null,"bad",50,default));await Assert.ThrowsAsync<ArgumentException>(()=>service.QueryAsync(Guid.NewGuid(),"nexa_connect",null,null,null,201,default));}
+ [Fact]public async Task Projection_requires_tenant_and_safe_fields(){var service=new ActivityService(new Repo());var invalid=new PlatformAuditEventV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,"actor",null,"action","type","id","succeeded");await Assert.ThrowsAsync<ArgumentException>(()=>service.ProjectAsync(new(invalid,"nexa_connect","restaurant"),default));}
+ private sealed class Repo:IActivityProjectionRepository{public ActivityFilter? Filter;public Task<ActivityPage> QueryAsync(ActivityFilter filter,CancellationToken c){Filter=filter;return Task.FromResult(new ActivityPage([],null));}public Task<bool> ProjectAsync(ProjectAuditActivityCommand command,CancellationToken c)=>Task.FromResult(true);}
+}

@@ -1,6 +1,6 @@
 # Authorization role assignments
 
-Standard `tenant-admin` and `store-manager` assignments include branch read/manage, configuration read/manage, reporting dashboard/sales read, and media asset read. `accountant` receives reporting reads; `report-viewer` receives reporting and media reads. Restaurant customer branch/configuration controllers additionally require the coarse `customer-owner` or `customer-admin` realm role, so a product `store-manager` assignment alone cannot enter those endpoints.
+Standard `tenant-admin` and `store-manager` assignments include branch read/manage, configuration read/manage, reporting dashboard/sales/activity read, and media asset read. `accountant` receives reporting reads; `report-viewer` receives reporting and media reads. Restaurant customer branch/configuration controllers additionally require the coarse `customer-owner` or `customer-admin` realm role, so a product `store-manager` assignment alone cannot enter those endpoints.
 
 `POST /api/authorization/v1/role-assignments` creates or reactivates an idempotent, branch-scoped role assignment. The caller must hold `system-admin`, `platform-owner`, or `platform-admin`; Platform Admin BFF proxies it at `POST /bff/platform-admin/authorization/role-assignments`. The service persists the selected role's implemented permission set and scoped overrides through Authorization Infrastructure.
 

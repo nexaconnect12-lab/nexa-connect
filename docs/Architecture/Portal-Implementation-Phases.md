@@ -13,7 +13,7 @@ This document records the agreed Product Owner Portal and Customer Portal implem
 | 5 | BFF layer | Hardening implemented; broader integration validation continuous |
 | 6 | Frontend foundations | Complete |
 | 7 | Product Owner Portal | Complete (compatibility implementation) |
-| 8 | Customer Portal | Functional slices for membership, branches, configuration, branch reporting, and media metadata; deeper authenticated/PostgreSQL/UI validation remains Phase 11 |
+| 8 | Customer Portal | Functional page/API slices implemented; activity delivery, media writes, and deeper validation remain |
 | 9 | Media service | Tenant-authorized metadata read implemented; object lifecycle staged |
 | 10 | Product service integration | Partially implemented |
 | 11 | Testing | Continuous; partial coverage implemented |
@@ -56,4 +56,4 @@ Phase 7 is complete as a compatibility implementation in `src/Frontend/apps/prod
 
 Phase 8 now provides an independently buildable Customer Portal context and navigation shell with BFF-owned authentication, active organization/product selection, organization profile, enabled-product switching, and ordered navigation for users/memberships, product configuration, branches/locations, dashboards, reports, media, and activity/audit. Pages are client-gated until a valid context from the current access response is selected; `/tenant` and `/features/*` perform server-side revalidation of the exact organization/application pair.
 
-Customer membership administration established the management pattern and branch/location management extended it into Restaurant. Product configuration now uses a typed, versioned Restaurant-owned branch document with transactional audit. Dashboards and sales reports query only Reporting-owned projections and expose checkpoint freshness. Media metadata is served by a dedicated Media service; upload/object processing and unified activity remain staged.
+Customer membership administration established the management pattern and branch/location management extended it into Restaurant. Product configuration uses a typed, versioned Restaurant-owned branch document with transactional audit. Dashboards, sales reports, and safe activity history query Reporting-owned projections. The activity writer is idempotent and workload-restricted, while source publication/RabbitMQ consumption is staged. Media metadata is served by a dedicated Media service; upload/object processing remains staged.

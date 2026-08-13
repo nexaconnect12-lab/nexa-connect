@@ -91,13 +91,13 @@ public sealed class PostgresAuthorizationAssignmentRepository(NpgsqlDataSource d
             "inventory.reservation.create", "inventory.reservation.release", "order.create", "order.read",
             "order.place", "payment.intent.create", "payment.intent.read", "customer.profile.create",
             "customer.profile.read", "restaurant.branch.read", "restaurant.branch.manage",
-            "restaurant.configuration.read", "restaurant.configuration.manage", "reporting.dashboard.read", "reporting.sales.read", "media.asset.read",
+            "restaurant.configuration.read", "restaurant.configuration.manage", "reporting.dashboard.read", "reporting.sales.read", "reporting.activity.read", "media.asset.read",
             "pos.shift.open", "pos.shift.close"
         ],
         "cashier" => ["catalog.menu.read", "inventory.stock.read", "inventory.reservation.create", "order.create", "order.read", "order.place", "payment.intent.create", "payment.intent.read", "customer.profile.read", "pos.shift.open", "pos.shift.close"],
         "inventory-controller" => ["inventory.stock.read", "inventory.stock.write", "inventory.reservation.create", "inventory.reservation.release"],
-        "accountant" => ["order.read", "payment.intent.read", "reporting.dashboard.read", "reporting.sales.read"],
-        "report-viewer" => ["catalog.menu.read", "inventory.stock.read", "order.read", "payment.intent.read", "customer.profile.read", "reporting.dashboard.read", "reporting.sales.read", "media.asset.read"],
+        "accountant" => ["order.read", "payment.intent.read", "reporting.dashboard.read", "reporting.sales.read", "reporting.activity.read"],
+        "report-viewer" => ["catalog.menu.read", "inventory.stock.read", "order.read", "payment.intent.read", "customer.profile.read", "reporting.dashboard.read", "reporting.sales.read", "reporting.activity.read", "media.asset.read"],
         _ => throw new ArgumentException($"Unsupported product role '{roleCode}'.")
     };
 }

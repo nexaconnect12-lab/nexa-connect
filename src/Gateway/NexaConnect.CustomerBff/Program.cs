@@ -307,6 +307,7 @@ app.MapMethods("/bff/customer/configuration/branches/{branchId:guid}",["GET","PU
 
 app.MapGet("/bff/customer/dashboard",async(HttpContext context,IHttpClientFactory clients,TenantSelectionCookie cookie,ILogger<Program> logger,CancellationToken c)=>await ProxyCustomerQuery("Reporting","api/reporting/v1/customer/organizations/{organizationId}/dashboard",context,clients,cookie,logger,c)).RequireAuthorization("CustomerSession");
 app.MapGet("/bff/customer/reports/sales",async(HttpContext context,IHttpClientFactory clients,TenantSelectionCookie cookie,ILogger<Program> logger,CancellationToken c)=>await ProxyCustomerQuery("Reporting","api/reporting/v1/customer/organizations/{organizationId}/reports/sales",context,clients,cookie,logger,c)).RequireAuthorization("CustomerSession");
+app.MapGet("/bff/customer/activity",async(HttpContext context,IHttpClientFactory clients,TenantSelectionCookie cookie,ILogger<Program> logger,CancellationToken c)=>await ProxyCustomerQuery("Reporting","api/reporting/v1/customer/organizations/{organizationId}/activity",context,clients,cookie,logger,c)).RequireAuthorization("CustomerSession");
 app.MapGet("/bff/customer/media",async(HttpContext context,IHttpClientFactory clients,TenantSelectionCookie cookie,ILogger<Program> logger,CancellationToken c)=>await ProxyCustomerQuery("Media","api/media/v1/customer/organizations/{organizationId}/assets",context,clients,cookie,logger,c)).RequireAuthorization("CustomerSession");
 
 // Phase 8 owns the browser experience, but these capabilities still require versioned,
@@ -320,7 +321,7 @@ app.MapGet("/bff/customer/features/{feature}", async (
     ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
-    string[] allowed = ["activity"];
+    string[] allowed = [];
     if (!allowed.Contains(feature, StringComparer.Ordinal)) return Results.NotFound();
     TenantContext? tenant = selectionCookie.Unprotect(context.Request.Cookies["__Host-nexa-customer-tenant"]);
     string? subjectId = context.User.FindFirstValue("sub");

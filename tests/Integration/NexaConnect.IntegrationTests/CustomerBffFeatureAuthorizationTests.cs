@@ -57,6 +57,7 @@ public sealed class CustomerBffFeatureAuthorizationTests
     [InlineData("GET", "/bff/customer/dashboard")]
     [InlineData("GET", "/bff/customer/reports/sales")]
     [InlineData("GET", "/bff/customer/media")]
+    [InlineData("GET", "/bff/customer/activity")]
     public async Task New_management_routes_require_a_customer_session(string method,string path){await using var factory=new CustomerBffFactory();using HttpClient client=factory.CreateClient(new WebApplicationFactoryClientOptions{AllowAutoRedirect=false,BaseAddress=new Uri("https://localhost")});using var request=new HttpRequestMessage(new HttpMethod(method),path);if(method=="PUT")request.Content=System.Net.Http.Json.JsonContent.Create(new{});using HttpResponseMessage response=await client.SendAsync(request);Assert.Equal(HttpStatusCode.Unauthorized,response.StatusCode);}
 
     private sealed class CustomerBffFactory : WebApplicationFactory<CUSTOMERBFF::Program>
