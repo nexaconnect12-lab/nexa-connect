@@ -43,6 +43,7 @@ These contracts do not grant access by themselves. The platform resolves identit
 
 The `platform-owner` or `platform-admin` role protects the management endpoints:
 
+- `GET /api/platform-directory/v1/organizations` returns organizations ordered by name and identifier for control-plane administration.
 - `POST /api/platform-directory/v1/organizations` creates an organization.
 - `PATCH /api/platform-directory/v1/organizations/{organizationId}` changes organization name, status, or time zone.
 - `PUT /api/platform-directory/v1/organizations/{organizationId}/members/{subjectId}` invites, activates, suspends, or removes a membership.

@@ -12,7 +12,7 @@ This document records the agreed Product Owner Portal and Customer Portal implem
 | 4 | Customer tenant APIs | Complete (implemented customer API surface) |
 | 5 | BFF layer | Hardening implemented; broader integration validation continuous |
 | 6 | Frontend foundations | Complete |
-| 7 | Product Owner Portal | Partial (initial control-plane UI) |
+| 7 | Product Owner Portal | Complete (compatibility implementation) |
 | 8 | Customer Portal | Planned |
 | 9 | Media service | Schema scaffold only |
 | 10 | Product service integration | Partially implemented |
@@ -52,6 +52,6 @@ Phase 6 frontend foundations are implemented as an npm workspace under `src/Fron
 
 These packages share components and contracts only. Each portal supplies its own capability evaluator, message catalogs, BFF base contract, and telemetry service name. The UI helpers never resolve roles or tenants and never authorize an operation; separate BFFs and owning services retain all runtime authorization decisions described by ADR-006.
 
-Phase 7 has an independently buildable initial React/Vite application in `src/Frontend/apps/product-owner-portal`. It uses the dedicated compatibility Platform Admin BFF session shell and currently exposes organization creation, membership status changes, product registration and organization enablement, platform-user creation/listing, role/permission viewing, audit viewing, support-elevation requests, Platform Directory summary counts, and deployment-controlled links into separate product administration portals. Organization update/list, user update/role changes, and support approval/revocation/inspection remain required before Phase 7 is complete. Billing plans and product-owned business metrics require future versioned contracts.
+Phase 7 is complete as a compatibility implementation in `src/Frontend/apps/product-owner-portal`. It uses the dedicated Platform Admin BFF session shell and exposes organization listing/create/update, membership changes, product registration and enablement, platform-user create/update/role assignment, role/permission and audit views, the full request/inspection/approval/revocation/effective support workflow, Platform Directory summary counts, and controlled links into separate product administration portals. Publishing the BFF builds and hosts the SPA on the same origin with explicit browser security and cache policies. Billing plans and product-owned business metrics still require future versioned contracts and are not detailed customer operations.
 
-The active roadmap step remains Phase 7 Product Owner Portal. New customer endpoints must continue to meet the Phase 4 tenant contract as part of their initial implementation.
+The active roadmap step is Phase 8 Customer Portal. New customer endpoints must continue to meet the Phase 4 tenant contract as part of their initial implementation.

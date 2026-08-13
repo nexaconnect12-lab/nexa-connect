@@ -44,7 +44,7 @@ The cross-product Platform Admin Dashboard is owned by the shared platform; `Nex
 
 Phase 6 frontend foundations are available in `src/Frontend`: eight versioned React/TypeScript packages cover the design system, layout/navigation, BFF API contracts, form validation, localization, safe error handling, presentation-only authorization helpers, and redacted telemetry. Portals share these components and contracts but keep runtime authorization, sessions, tenant context, and policies inside their independent BFF and service boundaries.
 
-Phase 7 now has an initial independently buildable Product Owner Portal in `src/Frontend/apps/product-owner-portal`. It uses only the temporary compatibility Platform Admin BFF for implemented cross-product workflows, keeps detailed customer operations in product-owned portals, and permits product administration navigation only through deployment-configured HTTPS or same-origin links. Organization/user lifecycle completion and support approval/revocation screens remain planned Phase 7 work.
+Phase 7 provides the independently buildable Product Owner Portal compatibility implementation in `src/Frontend/apps/product-owner-portal`. It completes the defined control-plane organization, membership, product enablement, platform identity, audit, support, summary, and controlled-navigation workflows while keeping detailed customer operations in product-owned portals. Publishing the Platform Admin BFF builds and hosts the SPA on the same origin.
 
 ## Database baseline
 

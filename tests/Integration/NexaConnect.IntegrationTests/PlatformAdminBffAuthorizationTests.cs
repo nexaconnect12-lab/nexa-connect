@@ -11,6 +11,21 @@ namespace NexaConnect.IntegrationTests;
 
 public sealed class PlatformAdminBffAuthorizationTests
 {
+    [Theory]
+    [InlineData("https", "owner.example.test", "https://owner.example.test", true)]
+    [InlineData("https", "owner.example.test", "https://evil.example.test", false)]
+    [InlineData("https", "owner.example.test", "http://owner.example.test", false)]
+    [InlineData("https", "owner.example.test", null, false)]
+    public void Mutation_origin_must_match_the_Bff_origin(string scheme, string host, string? origin, bool expected)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Scheme = scheme;
+        context.Request.Host = new HostString(host);
+        if (origin is not null) context.Request.Headers.Origin = origin;
+
+        Assert.Equal(expected, PLATFORMADMIN::SameOriginRequestValidator.IsAllowed(context.Request));
+    }
+
     [Fact]
     public async Task Proxy_content_is_replayable()
     {
@@ -48,6 +63,7 @@ public sealed class PlatformAdminBffAuthorizationTests
 
     [Theory]
     [InlineData("POST", "/bff/platform-admin/organizations")]
+    [InlineData("GET", "/bff/platform-admin/organizations")]
     [InlineData("POST", "/bff/platform-admin/products")]
     [InlineData("PATCH", "/bff/platform-admin/organizations/11111111-1111-1111-1111-111111111111")]
     [InlineData("PUT", "/bff/platform-admin/organizations/11111111-1111-1111-1111-111111111111/members/customer-sub")]

@@ -44,6 +44,24 @@ var app = builder.Build();
 app.UseNexaConnectRequestLogging();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    await next(context);
+});
+app.UseDefaultFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        context.Context.Response.Headers.CacheControl = context.File.Name.Equals("index.html", StringComparison.OrdinalIgnoreCase)
+            ? "no-cache"
+            : "public,max-age=31536000,immutable";
+    }
+});
 app.UseAuthentication();
 app.Use(async (context, next) =>
 {
@@ -51,10 +69,7 @@ app.Use(async (context, next) =>
         && (HttpMethods.IsPost(context.Request.Method) || HttpMethods.IsPut(context.Request.Method)
             || HttpMethods.IsPatch(context.Request.Method) || HttpMethods.IsDelete(context.Request.Method)))
     {
-        string? origin = context.Request.Headers.Origin;
-        if (string.IsNullOrWhiteSpace(origin) || !Uri.TryCreate(origin, UriKind.Absolute, out Uri? originUri)
-            || !string.Equals(originUri.Scheme, context.Request.Scheme, StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(originUri.Authority, context.Request.Host.Value, StringComparison.OrdinalIgnoreCase))
+        if (!SameOriginRequestValidator.IsAllowed(context.Request))
         { context.Response.StatusCode = StatusCodes.Status403Forbidden; return; }
     }
     await next(context);
@@ -70,7 +85,7 @@ app.MapGet("/bff/platform-admin/me", (HttpContext c) => Results.Ok(new
     Username = c.User.FindFirstValue("preferred_username"),
     Roles = c.User.FindAll("roles").Select(claim => claim.Value).Distinct(StringComparer.Ordinal).Order().ToArray()
 })).RequireAuthorization("PlatformUser");
-MapProxy("organizations", HttpMethod.Post); MapProxy("products", HttpMethod.Post);
+MapProxy("organizations", HttpMethod.Get); MapProxy("organizations", HttpMethod.Post); MapProxy("products", HttpMethod.Post);
 app.MapMethods("/bff/platform-admin/organizations/{organizationId:guid}", ["PATCH"], Proxy("api/platform-directory/v1/organizations/{organizationId}")).RequireAuthorization("PlatformAdmin");
 app.MapMethods("/bff/platform-admin/organizations/{organizationId:guid}/members/{subjectId}", ["PUT"], Proxy("api/platform-directory/v1/organizations/{organizationId}/members/{subjectId}")).RequireAuthorization("PlatformAdmin");
 app.MapMethods("/bff/platform-admin/organizations/{organizationId:guid}/products", ["PUT"], Proxy("api/platform-directory/v1/organizations/{organizationId}/products")).RequireAuthorization("PlatformAdmin");
@@ -125,6 +140,18 @@ RequestDelegate Proxy(string path, string clientName = "PlatformDirectory") => a
     await BffProxyResponseCopier.CopyAsync(response, context.Response, context.RequestAborted);
 };
 public partial class Program;
+
+public static class SameOriginRequestValidator
+{
+    public static bool IsAllowed(HttpRequest request)
+    {
+        string? origin = request.Headers.Origin;
+        return !string.IsNullOrWhiteSpace(origin)
+            && Uri.TryCreate(origin, UriKind.Absolute, out Uri? originUri)
+            && string.Equals(originUri.Scheme, request.Scheme, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(originUri.Authority, request.Host.Value, StringComparison.OrdinalIgnoreCase);
+    }
+}
 
 public static class ReplayableProxyContent
 {

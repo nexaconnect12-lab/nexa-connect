@@ -6,6 +6,8 @@ public sealed class PlatformDirectoryConflictException(string message) : Excepti
 
 public interface IPlatformDirectoryManagement
 {
+    Task<IReadOnlyCollection<OrganizationSummary>> ListOrganizationsAsync(CancellationToken cancellationToken);
+
     Task<OrganizationSummary> CreateOrganizationAsync(
         CreateOrganizationRequest request,
         string actorSubjectId,
@@ -43,6 +45,9 @@ public sealed class PlatformDirectoryManagementService(IPlatformDirectoryManagem
     private static readonly HashSet<string> MembershipStatuses = ["invited", "active", "suspended", "removed"];
     private static readonly HashSet<string> ProductStatuses = ["active", "suspended", "retired"];
     private static readonly HashSet<string> ProductAccessStatuses = ["enabled", "suspended", "disabled"];
+
+    public Task<IReadOnlyCollection<OrganizationSummary>> ListOrganizationsAsync(CancellationToken cancellationToken) =>
+        repository.ListOrganizationsAsync(cancellationToken);
 
     public Task<OrganizationSummary> CreateOrganizationAsync(
         CreateOrganizationRequest request,

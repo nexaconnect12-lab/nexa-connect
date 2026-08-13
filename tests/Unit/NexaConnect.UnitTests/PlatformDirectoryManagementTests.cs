@@ -52,6 +52,9 @@ public sealed class PlatformDirectoryManagementTests
 
     private sealed class FakeRepository : IPlatformDirectoryManagementRepository
     {
+        public Task<IReadOnlyCollection<OrganizationSummary>> ListOrganizationsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<OrganizationSummary>>([]);
+
         public CreateOrganizationRequest? OrganizationRequest { get; private set; }
         public ChangeOrganizationProductAccessRequest? ProductAccessRequest { get; private set; }
         public string? Actor { get; private set; }

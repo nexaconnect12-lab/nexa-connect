@@ -12,6 +12,10 @@ namespace NexaConnect.Services.PlatformDirectory.Controllers;
 [Route("api/platform-directory/v1")]
 public sealed class PlatformControlPlaneController(IPlatformDirectoryManagement management) : ControllerBase
 {
+    [HttpGet("organizations")]
+    public Task<IReadOnlyCollection<OrganizationSummary>> ListOrganizationsAsync(CancellationToken cancellationToken) =>
+        management.ListOrganizationsAsync(cancellationToken);
+
     [HttpPost("organizations")]
     public async Task<ActionResult<OrganizationSummary>> CreateOrganizationAsync(CreateOrganizationRequest request, CancellationToken cancellationToken)
     {

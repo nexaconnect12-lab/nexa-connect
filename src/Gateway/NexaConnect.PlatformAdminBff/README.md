@@ -5,7 +5,7 @@ Separate Product Owner/Platform Admin session boundary. Control-plane mutations 
 Endpoints:
 
 - `GET /bff/platform-admin/login`, `/logout`, and `/me` manage or inspect the dedicated Platform Admin session. `/me` returns the subject, username, and normalized platform roles needed for presentation-only portal navigation; server policies remain authoritative.
-- `POST /bff/platform-admin/organizations` and `PATCH /bff/platform-admin/organizations/{organizationId}` proxy organization creation and updates.
+- `GET` and `POST /bff/platform-admin/organizations` plus `PATCH /bff/platform-admin/organizations/{organizationId}` proxy organization listing, creation, and updates.
 - `PUT /bff/platform-admin/organizations/{organizationId}/members/{subjectId}` assigns organization membership.
 - `POST /bff/platform-admin/products` registers a product, and `PUT /bff/platform-admin/organizations/{organizationId}/products` changes organization product access.
 - `POST /bff/platform-admin/restaurants`, `POST /bff/platform-admin/restaurants/{restaurantId}/branches`, and `POST /bff/platform-admin/authorization/role-assignments` provision Restaurant-owned hierarchy and Authorization-owned customer product roles through their owning APIs.
@@ -25,3 +25,5 @@ Request bodies are buffered before forwarding so mutation payloads are replayabl
 The OIDC client requests the `nexaconnect-api` scope. Its realm-role mapper must also add the multi-valued `roles` claim to the ID token; the BFF additionally normalizes a nested `realm_access.roles` claim when present. Assign only the appropriate `platform-owner`, `platform-admin`, `platform-support`, or `platform-auditor` role; sign out and sign in again after changing the mapper or role.
 
 Operational telemetry uses the shared observability foundation. JSON console output is always available; set `Observability__OtlpEnabled=true` and `Observability__OtlpEndpoint=http://localhost:4317` for the local collector. Correlation logging intentionally excludes bodies, query strings, authorization headers, cookies, and tokens.
+
+`dotnet publish` builds the Product Owner Portal workspace and includes its output under the BFF's `wwwroot`. Set `SkipProductOwnerPortalBuild=true` only when a trusted release pipeline has already supplied equivalent assets. The BFF serves `index.html` without caching, fingerprints assets with immutable caching, and applies CSP, frame, referrer, and MIME-sniffing response protections.

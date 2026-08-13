@@ -7,6 +7,17 @@ namespace NexaConnect.Services.PlatformDirectory.Infrastructure.Persistence;
 public sealed class PostgresPlatformDirectoryManagementRepository(NpgsqlDataSource dataSource)
     : IPlatformDirectoryManagementRepository
 {
+    public async Task<IReadOnlyCollection<OrganizationSummary>> ListOrganizationsAsync(CancellationToken cancellationToken)
+    {
+        const string sql = "SELECT id, code, name, status, default_time_zone FROM organizations ORDER BY name, id;";
+        await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        var organizations = new List<OrganizationSummary>();
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) organizations.Add(ReadOrganization(reader));
+        return organizations;
+    }
+
     public async Task<OrganizationSummary> CreateOrganizationAsync(CreateOrganizationRequest request, string actorSubjectId, CancellationToken cancellationToken)
     {
         Guid organizationId = Guid.NewGuid();
