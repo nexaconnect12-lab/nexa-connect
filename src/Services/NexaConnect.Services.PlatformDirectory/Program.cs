@@ -9,6 +9,7 @@ using NexaConnect.Services.PlatformDirectory.Application.Support;
 using NexaConnect.Services.PlatformDirectory.Infrastructure.Persistence;
 using NexaConnect.Observability;
 using Npgsql;
+using NexaConnect.Infrastructure.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-platform-directory");
@@ -36,6 +37,7 @@ builder.Services.AddScoped<IPlatformControlPlaneStore, PostgresPlatformControlPl
 builder.Services.AddHttpClient<IPlatformIdentityAdministration, KeycloakPlatformIdentityAdministration>(client =>
     client.BaseAddress = new Uri(builder.Configuration["KeycloakAdmin:BaseUrl"] ?? throw new InvalidOperationException("KeycloakAdmin:BaseUrl is required.")));
 builder.Services.AddSingleton(TimeProvider.System);
+if(builder.Configuration.GetValue<bool>("Outbox:Enabled"))builder.Services.AddPostgresOutbox(builder.Configuration,"PlatformDirectory");
 
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();

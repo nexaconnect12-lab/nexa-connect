@@ -1,6 +1,8 @@
 using NexaConnect.Contracts.Platform;
 using NexaConnect.Services.PlatformDirectory.Application.CustomerMemberships;
 using Npgsql;
+using NexaConnect.Contracts.IntegrationEvents;
+using NexaConnect.Infrastructure.Messaging;
 
 namespace NexaConnect.Services.PlatformDirectory.Infrastructure.Persistence;
 
@@ -38,8 +40,10 @@ public sealed class PostgresCustomerMembershipRepository(NpgsqlDataSource dataSo
         command.Parameters.AddWithValue(Guid.NewGuid()); command.Parameters.AddWithValue(organizationId); command.Parameters.AddWithValue(subjectId); command.Parameters.AddWithValue(status); command.Parameters.AddWithValue(actorSubjectId);
         CustomerMembershipSummary? result; await using (NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken)) result = await reader.ReadAsync(cancellationToken) ? Read(reader) : null;
         if (result is null) { await transaction.RollbackAsync(cancellationToken); throw new CustomerMembershipConflictException("Membership changed concurrently or could not be updated."); }
-        const string audit = "INSERT INTO platform_audit_records (id,action,resource_type,resource_id,actor_subject_id,outcome,occurred_at_utc) VALUES ($1,'customer-membership.changed','organization-membership',$2,$3,'succeeded',now());";
-        await using var auditCommand = new NpgsqlCommand(audit, connection, transaction); auditCommand.Parameters.AddWithValue(Guid.NewGuid()); auditCommand.Parameters.AddWithValue($"{organizationId:D}:{subjectId}"); auditCommand.Parameters.AddWithValue(actorSubjectId); await auditCommand.ExecuteNonQueryAsync(cancellationToken);
+        Guid auditId=Guid.NewGuid(),correlationId=Guid.NewGuid();DateTimeOffset occurred=DateTimeOffset.UtcNow;string resourceId=$"{organizationId:D}:{subjectId}";
+        const string audit = "INSERT INTO platform_audit_records (id,action,resource_type,resource_id,actor_subject_id,outcome,occurred_at_utc) VALUES ($1,'customer-membership.changed','organization-membership',$2,$3,'succeeded',$4);";
+        await using var auditCommand = new NpgsqlCommand(audit, connection, transaction); auditCommand.Parameters.AddWithValue(auditId); auditCommand.Parameters.AddWithValue(resourceId); auditCommand.Parameters.AddWithValue(actorSubjectId);auditCommand.Parameters.AddWithValue(occurred); await auditCommand.ExecuteNonQueryAsync(cancellationToken);
+        await TransactionalAuditOutbox.EnqueueAuditAsync(connection,transaction,new(auditId,correlationId,occurred,actorSubjectId,organizationId,"customer-membership.changed","organization-membership",resourceId,"succeeded"),"platform-directory.audit.v1",cancellationToken);
         await transaction.CommitAsync(cancellationToken); return result;
     }
 

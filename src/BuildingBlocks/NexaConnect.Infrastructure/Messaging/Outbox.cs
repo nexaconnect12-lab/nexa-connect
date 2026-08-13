@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using RabbitMQ.Client;
 
@@ -111,11 +112,11 @@ public sealed class RabbitMqOutboxTransport(IConnection connection, IOptions<Out
 {
     public async Task PublishAsync(OutboxMessage message, CancellationToken cancellationToken)
     {
-        await using IChannel channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
+        await using IChannel channel = await connection.CreateChannelAsync(new CreateChannelOptions(publisherConfirmationsEnabled:true,publisherConfirmationTrackingEnabled:true),cancellationToken);
         await channel.ExchangeDeclareAsync(options.Value.Exchange, ExchangeType.Topic, durable: true, cancellationToken: cancellationToken);
         var properties = new BasicProperties { Persistent = true, ContentType = "application/json", Type = message.EventType };
         byte[] body = Encoding.UTF8.GetBytes(message.Payload);
-        await channel.BasicPublishAsync(options.Value.Exchange, message.EventType, false, properties, body, cancellationToken);
+        await channel.BasicPublishAsync(options.Value.Exchange, message.EventType, true, properties, body, cancellationToken);
     }
 }
 
@@ -129,7 +130,8 @@ public sealed class OutboxDispatcher(
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            IReadOnlyList<OutboxMessage> messages = await store.ClaimBatchAsync(options.Value.BatchSize, stoppingToken);
+            IReadOnlyList<OutboxMessage> messages;
+            try{messages=await store.ClaimBatchAsync(options.Value.BatchSize,stoppingToken);}catch(Exception exception)when(exception is not OperationCanceledException){logger.LogError(exception,"Failed to claim outbox messages.");await Task.Delay(TimeSpan.FromSeconds(5),stoppingToken);continue;}
             foreach (OutboxMessage message in messages)
             {
                 try
@@ -165,7 +167,7 @@ public static class OutboxServiceCollectionExtensions
     {
         string databaseConnection = configuration.GetConnectionString(connectionStringName)
             ?? throw new InvalidOperationException($"ConnectionStrings:{connectionStringName} is required for PostgreSQL outbox persistence.");
-        services.AddSingleton(_ => NpgsqlDataSource.Create(databaseConnection));
+        services.TryAddSingleton(_ => NpgsqlDataSource.Create(databaseConnection));
         services.AddSingleton<IOutboxStore, PostgresOutboxStore>();
         services.Configure<OutboxOptions>(configuration.GetSection("Outbox"));
         string configuredConnection = configuration["Outbox:ConnectionString"]

@@ -11,6 +11,8 @@ public interface IInboxStore
     Task MarkCompletedAsync(Guid messageId, string consumerName, CancellationToken cancellationToken);
     Task ReleaseAsync(Guid messageId, string consumerName, string errorCategory, CancellationToken cancellationToken);
 }
+public enum InboxClaimResult{Claimed,Completed,Busy}
+public interface IDurableInboxStore:IInboxStore{Task<InboxClaimResult> ClaimAsync(Guid messageId,string consumerName,TimeSpan lease,CancellationToken cancellationToken);}
 
 public static class InboxConsumer
 {
@@ -87,9 +89,11 @@ public sealed class InMemoryInboxStore : IInboxStore
     }
 }
 
-public sealed class PostgresInboxStore(NpgsqlDataSource dataSource) : IInboxStore
+public sealed class PostgresInboxStore(NpgsqlDataSource dataSource) : IDurableInboxStore
 {
     public async Task<bool> TryClaimAsync(Guid messageId, string consumerName, TimeSpan lease, CancellationToken cancellationToken)
+        =>await ClaimAsync(messageId,consumerName,lease,cancellationToken)==InboxClaimResult.Claimed;
+    public async Task<InboxClaimResult> ClaimAsync(Guid messageId, string consumerName, TimeSpan lease, CancellationToken cancellationToken)
     {
         if (messageId == Guid.Empty) throw new ArgumentException("Inbox message id is required.");
         if (string.IsNullOrWhiteSpace(consumerName)) throw new ArgumentException("Inbox consumer name is required.");
@@ -112,7 +116,8 @@ public sealed class PostgresInboxStore(NpgsqlDataSource dataSource) : IInboxStor
         command.Parameters.AddWithValue(messageId);
         command.Parameters.AddWithValue(consumerName.Trim());
         command.Parameters.AddWithValue(lease.TotalSeconds);
-        return await command.ExecuteScalarAsync(cancellationToken) is Guid;
+        if(await command.ExecuteScalarAsync(cancellationToken) is Guid)return InboxClaimResult.Claimed;
+        await using var status=new NpgsqlCommand("SELECT status FROM inbox_messages WHERE message_id=$1 AND consumer_name=$2;",connection);status.Parameters.AddWithValue(messageId);status.Parameters.AddWithValue(consumerName.Trim());return (string?)await status.ExecuteScalarAsync(cancellationToken)=="completed"?InboxClaimResult.Completed:InboxClaimResult.Busy;
     }
 
     public Task MarkCompletedAsync(Guid messageId, string consumerName, CancellationToken cancellationToken) => ExecuteAsync(

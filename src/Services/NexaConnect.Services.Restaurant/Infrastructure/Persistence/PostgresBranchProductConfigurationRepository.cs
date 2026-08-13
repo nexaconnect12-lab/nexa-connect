@@ -2,6 +2,8 @@ using System.Text.Json;
 using NexaConnect.Services.Restaurant.Application.Configuration;
 using Npgsql;
 using NpgsqlTypes;
+using NexaConnect.Contracts.IntegrationEvents;
+using NexaConnect.Infrastructure.Messaging;
 
 namespace NexaConnect.Services.Restaurant.Infrastructure.Persistence;
 
@@ -34,9 +36,11 @@ public sealed class PostgresBranchProductConfigurationRepository(NpgsqlDataSourc
         BranchProductConfiguration? result = await reader.ReadAsync(cancellationToken) ? Read(reader) : null;
         if (result is null) { await transaction.RollbackAsync(cancellationToken); return null; }
         await reader.DisposeAsync();
-        await using var audit = new NpgsqlCommand("INSERT INTO branch_management_audit(id,organization_id,branch_id,action,actor_subject_id,occurred_at_utc) VALUES($1,$2,$3,'branch.configuration.updated',$4,now());", connection, transaction);
-        audit.Parameters.AddWithValue(Guid.NewGuid()); audit.Parameters.AddWithValue(organizationId); audit.Parameters.AddWithValue(branchId); audit.Parameters.AddWithValue(actor);
+        Guid auditId=Guid.NewGuid(),correlationId=Guid.NewGuid();DateTimeOffset occurred=DateTimeOffset.UtcNow;
+        await using var audit = new NpgsqlCommand("INSERT INTO branch_management_audit(id,organization_id,branch_id,action,actor_subject_id,occurred_at_utc) VALUES($1,$2,$3,'branch.configuration.updated',$4,$5);", connection, transaction);
+        audit.Parameters.AddWithValue(auditId); audit.Parameters.AddWithValue(organizationId); audit.Parameters.AddWithValue(branchId); audit.Parameters.AddWithValue(actor);audit.Parameters.AddWithValue(occurred);
         await audit.ExecuteNonQueryAsync(cancellationToken);
+        await TransactionalAuditOutbox.EnqueueAuditAsync(connection,transaction,new(auditId,correlationId,occurred,actor,organizationId,"branch.configuration.updated","branch-configuration",branchId.ToString("D"),"succeeded"),"restaurant.audit.v1",cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
     }

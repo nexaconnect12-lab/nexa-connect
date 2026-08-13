@@ -12,5 +12,8 @@
     <PackageReference Include="Npgsql" />
     <PackageReference Include="RabbitMQ.Client" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NexaConnect.Contracts\NexaConnect.Contracts.csproj" />
+  </ItemGroup>
 
 </Project>

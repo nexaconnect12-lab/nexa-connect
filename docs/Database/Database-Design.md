@@ -335,7 +335,7 @@ Image binaries belong in MinIO or S3-compatible object storage. PostgreSQL store
 - `shift_cash_facts` — shift totals, tenders, cash movements, and variance measures.
 - `projection_checkpoints` — last processed event position for each reporting projector.
 
-Reporting tables are projections of versioned events and can be rebuilt. Customer dashboards and sales reports use organization-leading predicates. Reporting migration 3 adds `activity_records`, keyed by event ID for idempotency and indexed by organization, application, occurrence time, and event ID for cursor reads. It stores safe audit identifiers/outcomes only. Reporting never writes back into operational service databases.
+Reporting tables are rebuildable projections. Migration 3 adds bounded `activity_records`, keyed by event ID and indexed for tenant cursor reads. Platform Directory membership and Restaurant branch/configuration transactions insert audit plus outbox event atomically. Reporting deduplicates through `inbox_messages` and acknowledges RabbitMQ after handling. Retention/archive and a full replay checkpoint remain unimplemented; broker retention and source outboxes are the current recovery inputs.
 
 ## 7. Branch-local data
 
