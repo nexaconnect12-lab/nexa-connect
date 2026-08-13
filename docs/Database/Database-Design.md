@@ -2,6 +2,8 @@
 
 Platform Directory owns `organization_memberships`. Customer membership mutations lock existing rows for optimistic concurrency and require the current `concurrency_version` for updates. The membership mutation and its `customer-membership.changed` append-only audit row commit in one transaction. Keycloak subject identifiers are stored; credentials are not.
 
+Restaurant migration 2 adds append-only `branch_management_audit`; migration 3 permits `branch.configuration.updated`. Typed settings remain in `branches.business_configuration`. Lifecycle and configuration writes share `branches.concurrency_version`, exclude closed branches, and commit audit insertion in the same transaction. Rollback to migration 2 removes acceptance of the configuration audit action.
+
 ## 1. Purpose
 
 This document defines the initial logical and physical database baseline for NexaConnect. It covers PostgreSQL ownership, schema naming, migrations, sample-data generation, integration-event reliability, and media metadata.
@@ -333,7 +335,7 @@ Image binaries belong in MinIO or S3-compatible object storage. PostgreSQL store
 - `shift_cash_facts` — shift totals, tenders, cash movements, and variance measures.
 - `projection_checkpoints` — last processed event position for each reporting projector.
 
-Reporting tables are projections of versioned events and can be rebuilt. Every report exposes or records its data freshness. Reporting never writes back into operational service databases.
+Reporting tables are projections of versioned events and can be rebuilt. Customer dashboards and sales reports use organization-leading predicates and expose checkpoint freshness. Reporting never writes back into operational service databases.
 
 ## 7. Branch-local data
 

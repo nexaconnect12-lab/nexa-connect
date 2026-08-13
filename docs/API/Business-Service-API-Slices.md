@@ -1,5 +1,7 @@
 # Business Service API Slices
 
+Restaurant customer branch management uses `restaurant.branch.read` and `restaurant.branch.manage`. Restaurant combines a coarse customer owner/admin realm role, active Platform Directory access, an Authorization decision, and organization-leading persistence predicates. The Customer BFF derives organization from its protected tenant selection.
+
 The former weather scaffold endpoints have been replaced with initial bounded-context APIs. All endpoints use the shared authenticated API policy.
 
 | Service | Routes | Current persistence |
@@ -11,18 +13,23 @@ The former weather scaffold endpoints have been replaced with initial bounded-co
 | Customer | `POST` and `GET /api/customer/v1/organizations/{organizationId}/customers` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory, with organization boundary checks |
 | Notification | `POST` and `GET /api/notification/v1/notifications` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory |
 | Platform Directory | `GET /api/platform-directory/v1/me/access`, `GET /api/platform-directory/v1/organizations/{organizationId}/access` | Organization membership and enabled product-access boundary; product authorization remains owned by each product |
+| Restaurant | Branch management and `GET/PUT .../configuration/branches/{branchId}` | PostgreSQL hierarchy, typed branch configuration, and append-only audit |
+| Reporting | `GET .../dashboard`, `GET .../reports/sales` | PostgreSQL event projections only, with checkpoint freshness |
+| Media | `GET .../assets` | PostgreSQL metadata only; object lifecycle staged |
 
 Customer Portal Catalog reads use `X-Nexa-Portal-Request: customer`, `X-Nexa-Organization-Id`, and `X-Nexa-Application-Code: nexa_connect` headers. The Catalog service validates organization access through Platform Directory using the forwarded customer bearer token, then checks the selected branch's Restaurant-owned authorization scope with the Catalog workload identity. A branch whose scope organization does not match the selected organization is rejected; the headers remain context, not a substitute for authorization.
 
-The Customer BFF also exposes `GET /bff/customer/features/{feature}` for `users`, `configuration`, `branches`, `reports`, `media`, and `activity`. A valid request returns `200` with `{ status, message, organizationId, applicationCode, items: [] }`. Unknown features return `404`; an absent or subject-mismatched selection returns `401`; revoked organization/application access returns `403`; and Platform Directory validation errors are forwarded. This availability contract does not aggregate business data.
+The Customer BFF exposes explicit configuration, dashboard, sales-report, and media routes whose organization is derived from the protected tenant selection. `GET /bff/customer/features/activity` is the remaining availability route. It returns `200` with `{ status, message, organizationId, applicationCode, items: [] }`; absent context returns `401`, revoked access returns `403`, and validation errors are forwarded.
 
-All implemented customer-tenant operations also obtain an Authorization service decision. Permission codes are `catalog.menu.read/write`, `inventory.stock.read/write`, `inventory.reservation.create/release`, `order.create/read/place`, `payment.intent.create/read`, and `customer.profile.create/read`. Only allow-listed service workload tokens identified by their validated `azp` claim may use internal paths without tenant context; ordinary authenticated users fail closed when context is absent or conflicting. Resource reads generally return `404` to avoid disclosure, authorization denials return `403`, and malformed Catalog context returns `400`.
+All implemented customer-tenant operations also obtain an Authorization service decision. Permission codes include the existing catalog, inventory, order, payment, and customer profile permissions plus `restaurant.branch.read/manage`, `restaurant.configuration.read/manage`, `reporting.dashboard.read`, `reporting.sales.read`, and `media.asset.read`. Only allow-listed service workload tokens identified by their validated `azp` claim may use internal paths without tenant context; ordinary authenticated users fail closed when context is absent or conflicting. Resource reads generally return `404` to avoid disclosure, authorization denials return `403`, and malformed Catalog context returns `400`.
 
 `POST /api/authorization/v1/role-assignments` provisions the permission set for the selected product role. `tenant-admin` and `store-manager` receive the full implemented tenant-API set; cashier, inventory-controller, accountant, and report-viewer receive narrower role-appropriate sets. The operation requires `system-admin`, `platform-owner`, or `platform-admin` and an organization/restaurant/branch scope.
 
 Platform owners and administrators provision Restaurant scope through `POST /api/restaurant/v1/restaurants` and `POST /api/restaurant/v1/restaurants/{restaurantId}/branches`, normally through the matching Platform Admin BFF routes. Restaurant and Authorization remain the persistence owners; the BFF performs no database writes.
 
 See [Restaurant Provisioning](Restaurant-Provisioning.md) for request, response, validation, status, idempotency, and ownership details.
+
+See [Customer product configuration, reporting, and media](Customer-Product-Configuration-and-Reporting.md) for exact range, currency, checkpoint, cap, concurrency, and failure contracts.
 
 Inventory operations tagged as Customer Portal requests validate active organization access through Platform Directory, confirm the route branch belongs to that organization through Restaurant, and require the operation-specific permission. Internal service calls remain supported without customer portal headers.
 

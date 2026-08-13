@@ -15,6 +15,13 @@ public static class ProductPermissions
     public const string PaymentIntentRead = "payment.intent.read";
     public const string CustomerProfileCreate = "customer.profile.create";
     public const string CustomerProfileRead = "customer.profile.read";
+    public const string RestaurantBranchRead = "restaurant.branch.read";
+    public const string RestaurantBranchManage = "restaurant.branch.manage";
+    public const string RestaurantConfigurationRead = "restaurant.configuration.read";
+    public const string RestaurantConfigurationManage = "restaurant.configuration.manage";
+    public const string ReportingDashboardRead = "reporting.dashboard.read";
+    public const string ReportingSalesRead = "reporting.sales.read";
+    public const string MediaAssetRead = "media.asset.read";
 
     public static IReadOnlyCollection<string> CustomerTenantApiPermissions { get; } =
     [
@@ -22,6 +29,9 @@ public static class ProductPermissions
         InventoryStockRead, InventoryStockWrite, InventoryReservationCreate, InventoryReservationRelease,
         OrderCreate, OrderRead, OrderPlace,
         PaymentIntentCreate, PaymentIntentRead,
-        CustomerProfileCreate, CustomerProfileRead
+        CustomerProfileCreate, CustomerProfileRead,
+        RestaurantBranchRead, RestaurantBranchManage,
+        RestaurantConfigurationRead, RestaurantConfigurationManage,
+        ReportingDashboardRead, ReportingSalesRead, MediaAssetRead
     ];
 }

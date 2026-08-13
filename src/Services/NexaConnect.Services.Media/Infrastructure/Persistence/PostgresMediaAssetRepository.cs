@@ -1,0 +1,6 @@
+using NexaConnect.Services.Media.Application;using Npgsql;
+namespace NexaConnect.Services.Media.Infrastructure.Persistence;
+public sealed class PostgresMediaAssetRepository(NpgsqlDataSource dataSource):IMediaAssetRepository
+{
+ public async Task<IReadOnlyCollection<MediaAssetSummary>> ListAsync(Guid organizationId,CancellationToken c){const string sql="SELECT id,owner_service,owner_type,owner_id,original_file_name,content_type,size_bytes,processing_status,uploaded_at_utc,processed_at_utc,concurrency_version FROM media_assets WHERE organization_id=$1 AND deleted_at_utc IS NULL ORDER BY uploaded_at_utc DESC,id LIMIT 500;";await using var connection=await dataSource.OpenConnectionAsync(c);await using var command=new NpgsqlCommand(sql,connection);command.Parameters.AddWithValue(organizationId);var items=new List<MediaAssetSummary>();await using var reader=await command.ExecuteReaderAsync(c);while(await reader.ReadAsync(c))items.Add(new(reader.GetGuid(0),reader.GetString(1),reader.GetString(2),reader.GetGuid(3),reader.GetString(4),reader.GetString(5),reader.GetInt64(6),reader.GetString(7),reader.GetFieldValue<DateTimeOffset>(8),reader.IsDBNull(9)?null:reader.GetFieldValue<DateTimeOffset>(9),reader.GetInt64(10)));return items;}
+}

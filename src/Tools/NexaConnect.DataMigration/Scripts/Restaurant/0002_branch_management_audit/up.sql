@@ -1,0 +1,5 @@
+CREATE TABLE branch_management_audit(id uuid NOT NULL,organization_id uuid NOT NULL,branch_id uuid NOT NULL,action text NOT NULL,actor_subject_id text NOT NULL,occurred_at_utc timestamptz NOT NULL,CONSTRAINT pk_branch_management_audit PRIMARY KEY(id),CONSTRAINT fk_branch_management_audit_branch FOREIGN KEY(branch_id) REFERENCES branches(id) ON DELETE RESTRICT,CONSTRAINT ck_branch_management_audit_action CHECK(action IN('branch.created','branch.updated')),CONSTRAINT ck_branch_management_audit_actor CHECK(char_length(btrim(actor_subject_id))>0));
+CREATE INDEX ix_branch_management_audit_org_time ON branch_management_audit(organization_id,occurred_at_utc DESC,id DESC);
+CREATE FUNCTION prevent_branch_management_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'branch_management_audit is append-only'; END; $$;
+CREATE TRIGGER tr_branch_management_audit_append_only BEFORE UPDATE OR DELETE ON branch_management_audit FOR EACH ROW EXECUTE FUNCTION prevent_branch_management_audit_mutation();
+COMMENT ON TABLE branch_management_audit IS 'Append-only audit history for tenant-scoped branch management.';

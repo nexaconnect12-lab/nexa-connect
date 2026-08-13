@@ -16,8 +16,10 @@ Endpoints:
 - `GET /bff/customer/catalog/branches/{branchId}/menu-items` forwards the current bearer token and validated tenant headers through the Catalog adapter.
 - `GET /bff/customer/inventory/branches/{branchId}/stock` forwards the current bearer token and validated tenant headers through the Inventory adapter.
 - `POST /bff/customer/orders/branches/{branchId}/place` submits the tenant-bound order workflow through the Order adapter; organization and branch IDs come from the protected tenant context and route, not the browser payload.
-- `GET /bff/customer/features/{users|configuration|branches|reports|media|activity}` revalidates the active organization/product and returns `200` contract status, `401` for absent/mismatched context, `403` for revoked access, `404` for unknown features, or the Platform Directory validation error.
+- `GET|PUT /bff/customer/configuration/branches/{branchId}` forwards typed Restaurant configuration. `GET /bff/customer/dashboard` and `/bff/customer/reports/sales` forward Reporting queries. `GET /bff/customer/media` forwards Media metadata. The BFF derives organization from the protected tenant cookie.
+- `GET /bff/customer/features/activity` is the remaining contract-pending feature route.
 - `GET /bff/customer/memberships` and `PUT /bff/customer/memberships/{subjectId}` derive the organization from the protected `nexa_connect` tenant selection and forward the server-held bearer token.
+- `GET`/`POST /bff/customer/branches` and `PUT /bff/customer/branches/{branchId}` proxy only to Restaurant-owned branch management APIs.
 
 The selected tenant is stored in an encrypted, HTTP-only cookie. Product APIs must still enforce organization and product authorization; the BFF selection is context, not a permission grant. The browser never receives an access token and never calls Platform Directory or product databases directly.
 
