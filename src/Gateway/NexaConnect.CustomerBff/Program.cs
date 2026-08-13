@@ -62,6 +62,26 @@ builder.Services.AddAuthentication(options =>
         options.SlidingExpiration = true;
         options.LoginPath = "/bff/customer/login";
         options.LogoutPath = "/bff/customer/logout";
+        options.Events.OnRedirectToLogin = context =>
+        {
+            if (context.Request.Path.StartsWithSegments("/bff/customer"))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            }
+            context.Response.Redirect(context.RedirectUri);
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = context =>
+        {
+            if (context.Request.Path.StartsWithSegments("/bff/customer"))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return Task.CompletedTask;
+            }
+            context.Response.Redirect(context.RedirectUri);
+            return Task.CompletedTask;
+        };
     })
     .AddOpenIdConnect("CustomerOidc", options =>
     {
@@ -110,7 +130,7 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/", () => Results.Text("NexaConnect Customer BFF is running."));
+app.MapGet("/health/live", () => Results.Ok(new { Status = "Healthy" })).AllowAnonymous();
 app.MapGet("/bff/customer/login", (string? returnUrl) =>
     Results.Challenge(new AuthenticationProperties { RedirectUri = NormalizeReturnUrl(returnUrl) }, ["CustomerOidc"])).AllowAnonymous();
 app.MapGet("/bff/customer/logout", () =>
@@ -249,6 +269,28 @@ app.MapPost("/bff/customer/orders/branches/{branchId:guid}/place", async (
     return await ForwardJsonAsync(response, cancellationToken);
 }).RequireAuthorization("CustomerSession");
 
+app.MapGet("/bff/customer/memberships", async (HttpContext context, IHttpClientFactory clients, TenantSelectionCookie cookie, ILogger<Program> logger, CancellationToken cancellationToken) =>
+{
+    TenantContext? tenant = ValidTenant(context, cookie);
+    if (tenant is null || tenant.ApplicationCode != "nexa_connect") return Results.Unauthorized();
+    using HttpResponseMessage response = await CallPlatformDirectoryAsync(context, clients, $"api/platform-directory/v1/customer/organizations/{tenant.OrganizationId:D}/members", cancellationToken);
+    if (!response.IsSuccessStatusCode) logger.LogWarning("Customer membership list downstream failure for organization {OrganizationId}, status {StatusCode}", tenant.OrganizationId, (int)response.StatusCode);
+    return await ForwardJsonAsync(response, cancellationToken);
+}).RequireAuthorization("CustomerSession");
+
+app.MapPut("/bff/customer/memberships/{subjectId}", async (string subjectId, ChangeCustomerMembershipRequest request, HttpContext context, IHttpClientFactory clients, TenantSelectionCookie cookie, ILogger<Program> logger, CancellationToken cancellationToken) =>
+{
+    TenantContext? tenant = ValidTenant(context, cookie);
+    if (tenant is null || tenant.ApplicationCode != "nexa_connect") return Results.Unauthorized();
+    string? token = await GetCustomerAccessTokenAsync(context, cancellationToken); if (string.IsNullOrWhiteSpace(token)) return Results.Unauthorized();
+    HttpClient client = clients.CreateClient("PlatformDirectory");
+    using var downstream = new HttpRequestMessage(HttpMethod.Put, $"api/platform-directory/v1/customer/organizations/{tenant.OrganizationId:D}/members/{Uri.EscapeDataString(subjectId)}") { Content = JsonContent.Create(request) };
+    downstream.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+    using HttpResponseMessage response = await client.SendAsync(downstream, cancellationToken);
+    if (!response.IsSuccessStatusCode) logger.LogWarning("Customer membership change downstream failure for organization {OrganizationId}, target {TargetSubjectId}, status {StatusCode}", tenant.OrganizationId, subjectId, (int)response.StatusCode);
+    return await ForwardJsonAsync(response, cancellationToken);
+}).RequireAuthorization("CustomerSession");
+
 // Phase 8 owns the browser experience, but these capabilities still require versioned,
 // product-owned contracts. Return an explicitly tenant-bound availability response until
 // each owning service publishes its API rather than querying another service's data.
@@ -260,7 +302,7 @@ app.MapGet("/bff/customer/features/{feature}", async (
     ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
-    string[] allowed = ["users", "configuration", "branches", "reports", "media", "activity"];
+    string[] allowed = ["configuration", "branches", "reports", "media", "activity"];
     if (!allowed.Contains(feature, StringComparer.Ordinal)) return Results.NotFound();
     TenantContext? tenant = selectionCookie.Unprotect(context.Request.Cookies["__Host-nexa-customer-tenant"]);
     string? subjectId = context.User.FindFirstValue("sub");
@@ -315,6 +357,12 @@ static Task<string?> GetCustomerAccessTokenAsync(HttpContext context, Cancellati
     IConfigurationSection bff = configuration.GetRequiredSection("Bff");
     return context.RequestServices.GetRequiredService<BffAccessTokenService>().GetValidAccessTokenAsync(
         context, "CustomerCookie", bff["Authority"]!, bff["ClientId"]!, bff["ClientSecret"]!, cancellationToken);
+}
+
+static TenantContext? ValidTenant(HttpContext context, TenantSelectionCookie cookie)
+{
+    TenantContext? tenant = cookie.Unprotect(context.Request.Cookies["__Host-nexa-customer-tenant"]);
+    return tenant is not null && tenant.SubjectId == context.User.FindFirstValue("sub") ? tenant : null;
 }
 
 static async Task<IResult> ForwardJsonAsync(HttpResponseMessage response, CancellationToken cancellationToken)

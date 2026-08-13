@@ -13,7 +13,7 @@ This document records the agreed Product Owner Portal and Customer Portal implem
 | 5 | BFF layer | Hardening implemented; broader integration validation continuous |
 | 6 | Frontend foundations | Complete |
 | 7 | Product Owner Portal | Complete (compatibility implementation) |
-| 8 | Customer Portal | Context/navigation shell implemented; operational UI and product contracts staged |
+| 8 | Customer Portal | Membership management implemented; remaining operational UI staged |
 | 9 | Media service | Schema scaffold only |
 | 10 | Product service integration | Partially implemented |
 | 11 | Testing | Continuous; partial coverage implemented |
@@ -56,4 +56,4 @@ Phase 7 is complete as a compatibility implementation in `src/Frontend/apps/prod
 
 Phase 8 now provides an independently buildable Customer Portal context and navigation shell with BFF-owned authentication, active organization/product selection, organization profile, enabled-product switching, and ordered navigation for users/memberships, product configuration, branches/locations, dashboards, reports, media, and activity/audit. Pages are client-gated until a valid context from the current access response is selected; `/tenant` and `/features/*` perform server-side revalidation of the exact organization/application pair.
 
-Catalog, Inventory, and Order BFF adapters remain implemented, but the Phase 8 portal does not yet consume them. Customer user administration, product configuration, hierarchy reads/writes, operational dashboards, reporting, media, and unified customer audit still require versioned contracts and UI integration. Their current pages are placeholders or surface an explicit tenant-bound `contract-pending` state. Phase 9 remains responsible for Media and Phase 10 for product-service integration.
+Customer membership administration is the first complete Phase 8 management page: customer owners/admins list and manage memberships through tenant-derived BFF routes and Platform Directory APIs with exact-organization authorization, self-mutation protection, optimistic concurrency, and transactional audit history. Configuration, hierarchy, dashboards, reporting, media, activity, and operational product UI remain staged.

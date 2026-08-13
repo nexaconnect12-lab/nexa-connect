@@ -28,8 +28,21 @@ public sealed class CustomerBffFeatureAuthorizationTests
 
         using HttpResponseMessage response = await client.GetAsync($"/bff/customer/features/{feature}");
 
-        Assert.Equal(HttpStatusCode.Found, response.StatusCode);
-        Assert.Contains("/bff/customer/login", response.Headers.Location?.ToString());
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+    }
+
+    [Theory]
+    [InlineData("GET", "/bff/customer/memberships")]
+    [InlineData("PUT", "/bff/customer/memberships/customer-subject")]
+    public async Task Membership_routes_require_a_customer_session(string method, string path)
+    {
+        await using var factory = new CustomerBffFactory();
+        using HttpClient client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect=false, BaseAddress=new Uri("https://localhost") });
+        using var request=new HttpRequestMessage(new HttpMethod(method),path);
+        if(method=="PUT") request.Content=System.Net.Http.Json.JsonContent.Create(new{status="active"});
+        using HttpResponseMessage response=await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Unauthorized,response.StatusCode); Assert.Null(response.Headers.Location);
     }
 
     private sealed class CustomerBffFactory : WebApplicationFactory<CUSTOMERBFF::Program>

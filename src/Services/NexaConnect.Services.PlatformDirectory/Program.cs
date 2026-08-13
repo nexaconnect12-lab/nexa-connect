@@ -3,6 +3,7 @@ using NexaConnect.Services.PlatformDirectory;
 using NexaConnect.Services.PlatformDirectory.Application.Access;
 using NexaConnect.Services.PlatformDirectory.Application.ControlPlane;
 using NexaConnect.Services.PlatformDirectory.Application.Administration;
+using NexaConnect.Services.PlatformDirectory.Application.CustomerMemberships;
 using NexaConnect.Services.PlatformDirectory.Infrastructure.Identity;
 using NexaConnect.Services.PlatformDirectory.Application.Support;
 using NexaConnect.Services.PlatformDirectory.Infrastructure.Persistence;
@@ -26,6 +27,8 @@ builder.Services.AddSingleton<NpgsqlDataSource>(_ =>
 builder.Services.AddScoped<IOrganizationAccessReader, PostgresOrganizationAccessReader>();
 builder.Services.AddScoped<IPlatformDirectoryManagement, PlatformDirectoryManagementService>();
 builder.Services.AddScoped<IPlatformDirectoryManagementRepository, PostgresPlatformDirectoryManagementRepository>();
+builder.Services.AddScoped<CustomerMembershipManagement>();
+builder.Services.AddScoped<ICustomerMembershipRepository, PostgresCustomerMembershipRepository>();
 builder.Services.AddScoped<ISupportElevationRepository, PostgresSupportElevationRepository>();
 builder.Services.AddScoped<SupportElevationApplicationService>();
 builder.Services.AddScoped<IPlatformAdministration, PlatformAdministrationService>();
@@ -42,6 +45,11 @@ app.Use(async (context, next) =>
     catch (ArgumentException exception)
     {
         context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsJsonAsync(new { error = exception.Message }, context.RequestAborted);
+    }
+    catch (NexaConnect.Services.PlatformDirectory.Application.CustomerMemberships.CustomerMembershipConflictException exception)
+    {
+        context.Response.StatusCode = StatusCodes.Status409Conflict;
         await context.Response.WriteAsJsonAsync(new { error = exception.Message }, context.RequestAborted);
     }
     catch (HttpRequestException)

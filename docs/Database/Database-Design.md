@@ -1,5 +1,7 @@
 # NexaConnect Database Design
 
+Platform Directory owns `organization_memberships`. Customer membership mutations lock existing rows for optimistic concurrency and require the current `concurrency_version` for updates. The membership mutation and its `customer-membership.changed` append-only audit row commit in one transaction. Keycloak subject identifiers are stored; credentials are not.
+
 ## 1. Purpose
 
 This document defines the initial logical and physical database baseline for NexaConnect. It covers PostgreSQL ownership, schema naming, migrations, sample-data generation, integration-event reliability, and media metadata.

@@ -8,6 +8,8 @@ This service owns cross-product organization membership and organization-level a
 
 `GET /api/platform-directory/v1/organizations/{organizationId}/members/{subjectId}/access` requires `platform-owner` or `platform-admin`.
 
+Customer owners and administrators manage memberships through `GET` and `PUT /api/platform-directory/v1/customer/organizations/{organizationId}/members[/{subjectId}]`. Platform Directory verifies the role and active access to the exact organization. Mutations reject self-mutation, support optimistic concurrency, and transactionally append `customer-membership.changed` audit records. Keycloak remains the credential owner.
+
 Control-plane management endpoints require `platform-owner` or `platform-admin`: organization list/create/update, membership status changes, product registration, and organization-product access changes. Organization listing is ordered by name and identifier. Mutations use the authenticated `sub` as the actor and persist through the Application-owned management interface and Infrastructure PostgreSQL repository.
 
 The support-elevation endpoints implement request, independent approval, effective-access lookup, audit inspection, and revocation. An elevation is scoped to one support subject, organization, and application; it lasts 5–240 minutes, cannot be self-approved, and is ineffective after expiry or revocation. Platform Directory stores elevation state and append-only request/approval/revocation audit rows through an Application-owned repository port and Infrastructure PostgreSQL adapter.

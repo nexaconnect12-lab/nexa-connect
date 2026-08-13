@@ -6,6 +6,7 @@ The Phase 8 React portal is in `src/Frontend/apps/customer-portal` and is built 
 
 Endpoints:
 
+- `GET /health/live` provides the unauthenticated process-liveness response; `/` is reserved for the Customer Portal SPA.
 - `GET /bff/customer/login` starts the confidential Authorization Code + PKCE flow.
 - `GET /bff/customer/logout` clears the session and signs out remotely.
 - `GET /bff/customer/me` returns the authenticated subject summary.
@@ -16,10 +17,13 @@ Endpoints:
 - `GET /bff/customer/inventory/branches/{branchId}/stock` forwards the current bearer token and validated tenant headers through the Inventory adapter.
 - `POST /bff/customer/orders/branches/{branchId}/place` submits the tenant-bound order workflow through the Order adapter; organization and branch IDs come from the protected tenant context and route, not the browser payload.
 - `GET /bff/customer/features/{users|configuration|branches|reports|media|activity}` revalidates the active organization/product and returns `200` contract status, `401` for absent/mismatched context, `403` for revoked access, `404` for unknown features, or the Platform Directory validation error.
+- `GET /bff/customer/memberships` and `PUT /bff/customer/memberships/{subjectId}` derive the organization from the protected `nexa_connect` tenant selection and forward the server-held bearer token.
 
 The selected tenant is stored in an encrypted, HTTP-only cookie. Product APIs must still enforce organization and product authorization; the BFF selection is context, not a permission grant. The browser never receives an access token and never calls Platform Directory or product databases directly.
 
 Authentication tickets and saved OIDC tokens are held in the server-side ticket store; the browser cookie contains only an opaque ticket key. Development/Test use an in-memory distributed cache. Outside those environments, startup requires `ConnectionStrings:BffSessionCache` and uses Redis; `BffSessionCache:InstanceName` optionally isolates keys. The BFF never falls back to browser-held tokens.
+
+Unauthenticated or forbidden `/bff/customer/*` API requests return `401` or `403` without redirecting the fetch to Keycloak. The SPA responds to `401` with a top-level navigation to `/bff/customer/login`, preserving the same-origin Content Security Policy boundary.
 
 Catalog, Inventory, and Order independently validate organization access and branch ownership through Platform Directory and Restaurant. Payment applies the same checks plus referenced-order ownership when handling customer-tagged intent operations. The BFF does not treat browser-selected organization or branch identifiers as permission grants, and it does not replace product-owned resource authorization.
 

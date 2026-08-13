@@ -40,6 +40,20 @@ public sealed record ChangeOrganizationMembershipRequest(
     string SubjectId,
     string Status);
 
+public sealed record CustomerMembershipSummary(
+    Guid OrganizationId,
+    string SubjectId,
+    string Status,
+    DateTimeOffset? InvitedAtUtc,
+    DateTimeOffset? JoinedAtUtc,
+    DateTimeOffset? SuspendedAtUtc,
+    DateTimeOffset? RemovedAtUtc,
+    long ConcurrencyVersion);
+
+public sealed record ChangeCustomerMembershipRequest(
+    string Status,
+    long? ExpectedVersion);
+
 public sealed record RegisterProductRequest(
     string ApplicationCode,
     string Name);

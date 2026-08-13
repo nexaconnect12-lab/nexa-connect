@@ -46,7 +46,7 @@ Phase 6 frontend foundations are available in `src/Frontend`: eight versioned Re
 
 Phase 7 provides the independently buildable Product Owner Portal compatibility implementation in `src/Frontend/apps/product-owner-portal`. It completes the defined control-plane organization, membership, product enablement, platform identity, audit, support, summary, and controlled-navigation workflows while keeping detailed customer operations in product-owned portals. Publishing the Platform Admin BFF builds and hosts the SPA on the same origin.
 
-Phase 8 provides the independently buildable Customer Portal context/navigation shell in `src/Frontend/apps/customer-portal`. Client pages are gated by one active organization and enabled product from current access; `/tenant` and `/features/*` revalidate that pair server-side. Organization profile and product switching are implemented, while operational dashboards and product-owned users, configuration, branch, reporting, media, audit, Catalog, Inventory, and Order UI integration remain staged.
+Phase 8 provides the independently buildable Customer Portal in `src/Frontend/apps/customer-portal`. Organization profile, product switching, and tenant-scoped customer membership management are implemented. Membership changes require a coarse customer owner/admin realm role plus exact organization access, concurrency checks, and transactional audit records; remaining operational UI is staged.
 
 ## Database baseline
 
