@@ -13,7 +13,7 @@ This document records the agreed Product Owner Portal and Customer Portal implem
 | 5 | BFF layer | Hardening implemented; broader integration validation continuous |
 | 6 | Frontend foundations | Complete |
 | 7 | Product Owner Portal | Complete (compatibility implementation) |
-| 8 | Customer Portal | Planned |
+| 8 | Customer Portal | Context/navigation shell implemented; operational UI and product contracts staged |
 | 9 | Media service | Schema scaffold only |
 | 10 | Product service integration | Partially implemented |
 | 11 | Testing | Continuous; partial coverage implemented |
@@ -54,4 +54,6 @@ These packages share components and contracts only. Each portal supplies its own
 
 Phase 7 is complete as a compatibility implementation in `src/Frontend/apps/product-owner-portal`. It uses the dedicated Platform Admin BFF session shell and exposes organization listing/create/update, membership changes, product registration and enablement, platform-user create/update/role assignment, role/permission and audit views, the full request/inspection/approval/revocation/effective support workflow, Platform Directory summary counts, and controlled links into separate product administration portals. Publishing the BFF builds and hosts the SPA on the same origin with explicit browser security and cache policies. Billing plans and product-owned business metrics still require future versioned contracts and are not detailed customer operations.
 
-The active roadmap step is Phase 8 Customer Portal. New customer endpoints must continue to meet the Phase 4 tenant contract as part of their initial implementation.
+Phase 8 now provides an independently buildable Customer Portal context and navigation shell with BFF-owned authentication, active organization/product selection, organization profile, enabled-product switching, and ordered navigation for users/memberships, product configuration, branches/locations, dashboards, reports, media, and activity/audit. Pages are client-gated until a valid context from the current access response is selected; `/tenant` and `/features/*` perform server-side revalidation of the exact organization/application pair.
+
+Catalog, Inventory, and Order BFF adapters remain implemented, but the Phase 8 portal does not yet consume them. Customer user administration, product configuration, hierarchy reads/writes, operational dashboards, reporting, media, and unified customer audit still require versioned contracts and UI integration. Their current pages are placeholders or surface an explicit tenant-bound `contract-pending` state. Phase 9 remains responsible for Media and Phase 10 for product-service integration.

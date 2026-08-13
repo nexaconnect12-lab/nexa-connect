@@ -98,8 +98,8 @@ public sealed class PlatformAdminBffAuthorizationTests
 
         using HttpResponseMessage response = await client.SendAsync(request);
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.StartsWith("/bff/platform-admin/login", response.Headers.Location?.AbsolutePath, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Null(response.Headers.Location);
     }
 
     private sealed class PlatformAdminFactory : WebApplicationFactory<PLATFORMADMIN::Program>

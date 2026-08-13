@@ -14,7 +14,7 @@ Endpoints:
 
 `GET /health` is an anonymous process-liveness endpoint. It does not currently assert Platform Directory or Redis readiness.
 
-Unauthenticated management requests are challenged through the Platform Admin login flow. Authenticated users without the endpoint's platform role receive `403 Forbidden`. If the server-held access token is missing, the proxy returns `401 Unauthorized`; otherwise it preserves the Platform Directory response status and body.
+Unauthenticated BFF API requests return `401 Unauthorized` without a cross-origin redirect so the browser shell can initiate a top-level Platform Admin login. Authenticated users without the endpoint's platform role receive `403 Forbidden`. If the server-held access token is missing, the proxy returns `401`; otherwise it preserves the Platform Directory response status and body.
 
 Authenticated state-changing requests must carry a same-origin `Origin` header. Missing, malformed, or cross-origin values are rejected with `403 Forbidden` before authorization or proxying as the BFF's cookie-request forgery defense.
 

@@ -9,6 +9,7 @@
     { "path": "packages/localization" },
     { "path": "packages/error-handling" },
     { "path": "packages/telemetry" },
-    { "path": "apps/product-owner-portal" }
+    { "path": "apps/product-owner-portal" },
+    { "path": "apps/customer-portal" }
   ]
 }

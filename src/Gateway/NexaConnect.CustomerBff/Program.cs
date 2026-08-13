@@ -94,6 +94,19 @@ var app = builder.Build();
 app.UseNexaConnectRequestLogging();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.ContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+    context.Response.Headers.XContentTypeOptions = "nosniff";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    await next();
+});
+app.UseDefaultFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = item => item.Context.Response.Headers.CacheControl =
+        item.File.Name.Equals("index.html", StringComparison.OrdinalIgnoreCase) ? "no-store" : "public,max-age=31536000,immutable"
+});
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -236,7 +249,54 @@ app.MapPost("/bff/customer/orders/branches/{branchId:guid}/place", async (
     return await ForwardJsonAsync(response, cancellationToken);
 }).RequireAuthorization("CustomerSession");
 
+// Phase 8 owns the browser experience, but these capabilities still require versioned,
+// product-owned contracts. Return an explicitly tenant-bound availability response until
+// each owning service publishes its API rather than querying another service's data.
+app.MapGet("/bff/customer/features/{feature}", async (
+    string feature,
+    HttpContext context,
+    IHttpClientFactory clients,
+    TenantSelectionCookie selectionCookie,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    string[] allowed = ["users", "configuration", "branches", "reports", "media", "activity"];
+    if (!allowed.Contains(feature, StringComparer.Ordinal)) return Results.NotFound();
+    TenantContext? tenant = selectionCookie.Unprotect(context.Request.Cookies["__Host-nexa-customer-tenant"]);
+    string? subjectId = context.User.FindFirstValue("sub");
+    if (tenant is null || subjectId != tenant.SubjectId)
+    {
+        logger.LogWarning("Customer feature access denied because tenant context was absent or did not match the session for feature {Feature}", feature);
+        return Results.Unauthorized();
+    }
+
+    using HttpResponseMessage accessResponse = await CallPlatformDirectoryAsync(context, clients, "api/platform-directory/v1/me/access", cancellationToken);
+    if (!accessResponse.IsSuccessStatusCode)
+    {
+        logger.LogWarning("Customer feature access validation failed for organization {OrganizationId}, application {ApplicationCode}, feature {Feature}, status {StatusCode}", tenant.OrganizationId, tenant.ApplicationCode, feature, (int)accessResponse.StatusCode);
+        return await ForwardJsonAsync(accessResponse, cancellationToken);
+    }
+    CurrentPlatformAccessResponse? access = await accessResponse.Content.ReadFromJsonAsync<CurrentPlatformAccessResponse>(cancellationToken: cancellationToken);
+    bool stillGranted = access?.SubjectId == tenant.SubjectId && access.Organizations.Any(item =>
+        item.OrganizationId == tenant.OrganizationId && item.ApplicationCode == tenant.ApplicationCode);
+    if (!stillGranted)
+    {
+        logger.LogWarning("Customer feature access was revoked for organization {OrganizationId}, application {ApplicationCode}, feature {Feature}", tenant.OrganizationId, tenant.ApplicationCode, feature);
+        return Results.Forbid();
+    }
+
+    return Results.Ok(new
+    {
+        Status = "contract-pending",
+        Message = $"{feature} is not available until the active product publishes its tenant-aware API contract.",
+        tenant.OrganizationId,
+        tenant.ApplicationCode,
+        Items = Array.Empty<object>()
+    });
+}).RequireAuthorization("CustomerSession");
+
 app.MapControllers();
+app.MapFallbackToFile("index.html").AllowAnonymous();
 app.Run();
 
 static async Task<HttpResponseMessage> CallPlatformDirectoryAsync(HttpContext context, IHttpClientFactory clients, string path, CancellationToken cancellationToken)

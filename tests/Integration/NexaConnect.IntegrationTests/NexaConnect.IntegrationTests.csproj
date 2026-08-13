@@ -30,6 +30,7 @@
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Kitchen\NexaConnect.Services.Kitchen.csproj" Aliases="KITCHEN" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.PlatformDirectory\NexaConnect.Services.PlatformDirectory.csproj" Aliases="DIRECTORY" />
     <ProjectReference Include="..\..\..\src\Gateway\NexaConnect.PlatformAdminBff\NexaConnect.PlatformAdminBff.csproj" Aliases="PLATFORMADMIN" />
+    <ProjectReference Include="..\..\..\src\Gateway\NexaConnect.CustomerBff\NexaConnect.CustomerBff.csproj" Aliases="CUSTOMERBFF" />
   </ItemGroup>
 
   <ItemGroup>

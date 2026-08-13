@@ -2,6 +2,8 @@
 
 This is the Customer Portal's server-side session and tenant-context boundary. It uses the existing `nexaconnect-web-bff` client during the migration period; a future client rename must be explicit and use separate cookies and secrets.
 
+The Phase 8 React portal is in `src/Frontend/apps/customer-portal` and is built into this BFF during publish. It provides the requested navigation in implementation order. Features without an owning versioned API return an explicit tenant-bound `contract-pending` response from the allow-listed `/bff/customer/features/{feature}` route; this is capability status, not synthetic business data.
+
 Endpoints:
 
 - `GET /bff/customer/login` starts the confidential Authorization Code + PKCE flow.
@@ -13,6 +15,7 @@ Endpoints:
 - `GET /bff/customer/catalog/branches/{branchId}/menu-items` forwards the current bearer token and validated tenant headers through the Catalog adapter.
 - `GET /bff/customer/inventory/branches/{branchId}/stock` forwards the current bearer token and validated tenant headers through the Inventory adapter.
 - `POST /bff/customer/orders/branches/{branchId}/place` submits the tenant-bound order workflow through the Order adapter; organization and branch IDs come from the protected tenant context and route, not the browser payload.
+- `GET /bff/customer/features/{users|configuration|branches|reports|media|activity}` revalidates the active organization/product and returns `200` contract status, `401` for absent/mismatched context, `403` for revoked access, `404` for unknown features, or the Platform Directory validation error.
 
 The selected tenant is stored in an encrypted, HTTP-only cookie. Product APIs must still enforce organization and product authorization; the BFF selection is context, not a permission grant. The browser never receives an access token and never calls Platform Directory or product databases directly.
 

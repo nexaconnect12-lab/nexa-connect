@@ -11,6 +11,7 @@ coverage/
 node_modules/
 dist/
 dist-types/
+.npm-cache/
 .env
 .env.*
 !.env.example
@@ -37,3 +38,7 @@ docker-data/
 
 # Local development runtime state, including per-service Data Protection keys
 .runstate/
+
+# Local smoke-test and runtime logs
+.runlogs/
+**/.runlogs/

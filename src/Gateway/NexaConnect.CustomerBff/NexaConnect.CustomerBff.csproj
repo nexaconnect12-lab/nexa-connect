@@ -13,4 +13,15 @@
     <ProjectReference Include="..\..\BuildingBlocks\NexaConnect.Observability\NexaConnect.Observability.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\NexaConnect.Contracts\NexaConnect.Contracts.csproj" />
   </ItemGroup>
+  <Target Name="BuildCustomerPortal" BeforeTargets="ComputeFilesToPublish" Condition="'$(SkipCustomerPortalBuild)' != 'true'">
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)\..\..\Frontend" Command="npm ci --ignore-scripts" />
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)\..\..\Frontend" Command="npm run build --workspace @nexaconnect/customer-portal" />
+    <ItemGroup>
+      <CustomerPortalFiles Include="$(MSBuildProjectDirectory)\..\..\Frontend\apps\customer-portal\dist\**\*" />
+      <ResolvedFileToPublish Include="@(CustomerPortalFiles)">
+        <RelativePath>wwwroot\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 </Project>

@@ -25,7 +25,34 @@ builder.Services.AddHttpClient(nameof(BffAccessTokenService));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<BffAccessTokenService>();
 builder.Services.AddAuthentication(o => { o.DefaultAuthenticateScheme = "AdminCookie"; o.DefaultSignInScheme = "AdminCookie"; o.DefaultChallengeScheme = "AdminOidc"; })
-    .AddCookie("AdminCookie", o => { o.Cookie.Name = "__Host-nexa-platform-admin"; o.Cookie.SecurePolicy = CookieSecurePolicy.Always; o.Cookie.HttpOnly = true; o.LoginPath = "/bff/platform-admin/login"; o.LogoutPath = "/bff/platform-admin/logout"; })
+    .AddCookie("AdminCookie", o =>
+    {
+        o.Cookie.Name = "__Host-nexa-platform-admin";
+        o.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        o.Cookie.HttpOnly = true;
+        o.LoginPath = "/bff/platform-admin/login";
+        o.LogoutPath = "/bff/platform-admin/logout";
+        o.Events.OnRedirectToLogin = context =>
+        {
+            if (context.Request.Path.StartsWithSegments("/bff/platform-admin"))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            }
+            context.Response.Redirect(context.RedirectUri);
+            return Task.CompletedTask;
+        };
+        o.Events.OnRedirectToAccessDenied = context =>
+        {
+            if (context.Request.Path.StartsWithSegments("/bff/platform-admin"))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return Task.CompletedTask;
+            }
+            context.Response.Redirect(context.RedirectUri);
+            return Task.CompletedTask;
+        };
+    })
     .AddOpenIdConnect("AdminOidc", o => { var s = builder.Configuration.GetRequiredSection("Bff"); o.Authority = s["Authority"] ?? throw new InvalidOperationException("Bff:Authority is required."); o.ClientId = s["ClientId"] ?? "platform-admin-bff"; o.ClientSecret = s["ClientSecret"] ?? throw new InvalidOperationException("Bff:ClientSecret is required."); o.ResponseType = "code"; o.UsePkce = true; o.SaveTokens = true; o.SignInScheme = "AdminCookie"; o.Scope.Add("nexaconnect-api"); o.RequireHttpsMetadata = s.GetValue<bool>("RequireHttpsMetadata"); o.MapInboundClaims = false; o.TokenValidationParameters.RoleClaimType = "roles"; o.Events.OnTokenValidated = context => { if (context.Principal?.Identity is ClaimsIdentity identity && context.Principal.FindFirst("realm_access") is { } realmAccess && JsonDocument.Parse(realmAccess.Value).RootElement.TryGetProperty("roles", out var roles)) foreach (var role in roles.EnumerateArray()) if (role.GetString() is { } value && !identity.HasClaim("roles", value)) identity.AddClaim(new Claim("roles", value)); return Task.CompletedTask; }; if (builder.Environment.IsDevelopment()) o.PushedAuthorizationBehavior = PushedAuthorizationBehavior.Disable; });
 builder.Services.AddAuthorization(o =>
 {
@@ -75,7 +102,6 @@ app.Use(async (context, next) =>
     await next(context);
 });
 app.UseAuthorization();
-app.MapGet("/", () => Results.Text("NexaConnect Platform Admin BFF is running."));
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapGet("/bff/platform-admin/login", (string? returnUrl) => Results.Challenge(new AuthenticationProperties { RedirectUri = NormalizeReturnUrl(returnUrl) }, ["AdminOidc"])).AllowAnonymous();
 app.MapGet("/bff/platform-admin/logout", () => Results.SignOut(new AuthenticationProperties { RedirectUri = "/" }, ["AdminCookie", "AdminOidc"])).AllowAnonymous();
@@ -103,7 +129,9 @@ app.MapMethods("/bff/platform-admin/platform/users/{subjectId}/roles", ["PUT"], 
 app.MapMethods("/bff/platform-admin/platform/roles", ["GET"], Proxy("api/platform-directory/v1/platform/roles")).RequireAuthorization("PlatformUser");
 app.MapMethods("/bff/platform-admin/platform/audit", ["GET"], Proxy("api/platform-directory/v1/platform/audit")).RequireAuthorization("PlatformAudit");
 app.MapMethods("/bff/platform-admin/platform/summary", ["GET"], Proxy("api/platform-directory/v1/platform/summary")).RequireAuthorization("PlatformUser");
-app.MapControllers(); app.Run();
+app.MapControllers();
+app.MapFallbackToFile("index.html").AllowAnonymous();
+app.Run();
 
 static string NormalizeReturnUrl(string? returnUrl) =>
     string.IsNullOrWhiteSpace(returnUrl) || !returnUrl.StartsWith("/", StringComparison.Ordinal)

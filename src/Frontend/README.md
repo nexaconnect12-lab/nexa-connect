@@ -2,7 +2,7 @@
 
 This npm workspace contains the versioned, browser-safe foundations shared by NexaConnect portals. It requires Node.js 20.19 or later.
 
-The Phase 7 Product Owner Portal is implemented in `apps/product-owner-portal`. It consumes these packages while retaining its own platform-admin session, capabilities, configuration, and deployment boundary. See its README for local and deployment configuration.
+The Phase 7 Product Owner Portal is implemented in `apps/product-owner-portal`. The Phase 8 tenant-scoped Customer Portal is implemented in `apps/customer-portal`; it consumes the same presentation foundations but retains its own Customer BFF session, protected organization/product selection, configuration, and deployment boundary. See each app README for local and deployment configuration.
 
 ## Packages
 
