@@ -16,7 +16,7 @@ public interface IActivityProjectionRepository
 
 public sealed class ActivityService(IActivityProjectionRepository repository)
 {
-    private static readonly HashSet<string> Actions=["customer-membership.changed","branch.created","branch.updated","branch.configuration.updated","media.asset.created","media.asset.deleted"];
+    private static readonly HashSet<string> Actions=["customer-membership.changed","branch.created","branch.updated","branch.configuration.updated","media.asset.created","media.asset.quarantined","media.asset.deleted"];
     private static readonly HashSet<string> ResourceTypes=["organization-membership","branch","branch-configuration","media-asset"];
     private static readonly HashSet<string> Outcomes=["succeeded","failed","denied"];
     public Task<ActivityPage> QueryAsync(Guid organizationId,string applicationCode,string? actor,string? action,string? cursor,int limit,CancellationToken cancellationToken)

@@ -46,7 +46,7 @@ Phase 6 frontend foundations are available in `src/Frontend`: eight versioned Re
 
 Phase 7 provides the independently buildable Product Owner Portal compatibility implementation in `src/Frontend/apps/product-owner-portal`. It completes the defined control-plane organization, membership, product enablement, platform identity, audit, support, summary, and controlled-navigation workflows while keeping detailed customer operations in product-owned portals. Publishing the Platform Admin BFF builds and hosts the SPA on the same origin.
 
-Phase 8 provides the independently buildable Customer Portal in `src/Frontend/apps/customer-portal`. Organization profile, product switching, membership and branch management, typed product configuration, Reporting dashboards/sales/activity-preview reads, and Media list and presigned object lifecycle are available as a development preview. Media validates Catalog ownership and provider-returned object size/SHA-256; malware scanning, quotas, variants, and reconciliation remain staged.
+Phase 8 provides the independently buildable Customer Portal in `src/Frontend/apps/customer-portal`. Organization profile, product switching, membership and branch management, typed product configuration, Reporting dashboards/sales/activity-preview reads, and Media list and presigned object lifecycle are available as a hardened preview pending production acceptance. Media validates Catalog ownership, provider-returned object size/SHA-256, file signatures, and ClamAV results before readiness; unsafe objects are quarantined and queued for deletion. Quotas, expired-upload cleanup, and variants remain staged.
 
 ## Database baseline
 

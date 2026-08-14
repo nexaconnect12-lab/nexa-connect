@@ -4,13 +4,22 @@ public sealed record StartMediaUploadCommand(string OwnerService, string OwnerTy
 public sealed record UploadSession(MediaAssetSummary Asset, string UploadUrl, DateTimeOffset ExpiresAtUtc);
 public sealed record DownloadSession(string DownloadUrl, DateTimeOffset ExpiresAtUtc);
 public sealed record StoredObjectInfo(long SizeBytes, string? ChecksumSha256);
+public sealed record MediaSafetyResult(bool Safe, string? RejectionCategory);
+public sealed class MediaLifecycleConflictException(string message) : Exception(message);
+public sealed class MediaDependencyException(string message, Exception innerException) : Exception(message, innerException);
 
 public interface IMediaObjectStorage
 {
     Task<string> CreateUploadUrlAsync(string key, string type, long size, string checksum, TimeSpan lifetime, CancellationToken cancellationToken);
     Task<string> CreateDownloadUrlAsync(string key, TimeSpan lifetime, CancellationToken cancellationToken);
     Task<StoredObjectInfo?> InspectAsync(string key, CancellationToken cancellationToken);
+    Task<byte[]> ReadAsync(string key, long maximumBytes, CancellationToken cancellationToken);
     Task DeleteAsync(string key, CancellationToken cancellationToken);
+}
+
+public interface IMediaContentSafety
+{
+    Task<MediaSafetyResult> InspectAsync(byte[] content, string declaredContentType, CancellationToken cancellationToken);
 }
 
 public interface IMediaOwnerValidator
@@ -23,10 +32,11 @@ public interface IMediaManagementRepository
     Task<MediaAssetSummary> StartAsync(Guid organizationId, Guid id, string key, StartMediaUploadCommand command, string actor, DateTimeOffset expires, CancellationToken cancellationToken);
     Task<(MediaAssetSummary Asset, string Key, string Checksum)?> FindAsync(Guid organizationId, Guid id, CancellationToken cancellationToken);
     Task<MediaAssetSummary?> CompleteAsync(Guid organizationId, Guid id, long version, string actor, CancellationToken cancellationToken);
+    Task<MediaAssetSummary?> QuarantineAsync(Guid organizationId, Guid id, long version, string actor, string category, CancellationToken cancellationToken);
     Task<MediaAssetSummary?> DeleteAsync(Guid organizationId, Guid id, long version, string actor, CancellationToken cancellationToken);
 }
 
-public sealed class MediaManagement(IMediaManagementRepository repository, IMediaObjectStorage storage, IMediaOwnerValidator owners)
+public sealed class MediaManagement(IMediaManagementRepository repository, IMediaObjectStorage storage, IMediaOwnerValidator owners, IMediaContentSafety safety)
 {
     private static readonly HashSet<string> Types = ["image/jpeg", "image/png", "image/webp"];
 
@@ -56,16 +66,33 @@ public sealed class MediaManagement(IMediaManagementRepository repository, IMedi
     {
         if (version <= 0) throw new ArgumentException("Expected version must be positive.");
         var found = await repository.FindAsync(organizationId, id, cancellationToken) ?? throw new KeyNotFoundException();
-        StoredObjectInfo info = await storage.InspectAsync(found.Key, cancellationToken) ?? throw new InvalidOperationException("Uploaded object was not found.");
-        if (info.SizeBytes != found.Asset.SizeBytes || string.IsNullOrWhiteSpace(info.ChecksumSha256) || !string.Equals(info.ChecksumSha256, found.Checksum, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Uploaded object verification failed.");
-        return await repository.CompleteAsync(organizationId, id, version, actor, cancellationToken) ?? throw new InvalidOperationException("Media changed concurrently or the upload expired.");
+        StoredObjectInfo info;
+        byte[] content;
+        MediaSafetyResult result;
+        try
+        {
+            info = await storage.InspectAsync(found.Key, cancellationToken) ?? throw new MediaLifecycleConflictException("Uploaded object was not found.");
+            if (info.SizeBytes != found.Asset.SizeBytes || string.IsNullOrWhiteSpace(info.ChecksumSha256) || !string.Equals(info.ChecksumSha256, found.Checksum, StringComparison.OrdinalIgnoreCase))
+                throw new MediaLifecycleConflictException("Uploaded object verification failed.");
+            content = await storage.ReadAsync(found.Key, found.Asset.SizeBytes, cancellationToken);
+            result = await safety.InspectAsync(content, found.Asset.ContentType, cancellationToken);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (MediaLifecycleConflictException) { throw; }
+        catch (Exception exception) { throw new MediaDependencyException("Media storage or safety inspection is unavailable.", exception); }
+        if (!result.Safe)
+        {
+            _ = await repository.QuarantineAsync(organizationId, id, version, actor, result.RejectionCategory ?? "unsafe-content", cancellationToken)
+                ?? throw new MediaLifecycleConflictException("Media changed concurrently or the upload expired.");
+            throw new MediaLifecycleConflictException("Uploaded object was quarantined by content safety validation.");
+        }
+        return await repository.CompleteAsync(organizationId, id, version, actor, cancellationToken) ?? throw new MediaLifecycleConflictException("Media changed concurrently or the upload expired.");
     }
 
     public async Task<DownloadSession> DownloadAsync(Guid organizationId, Guid id, CancellationToken cancellationToken)
     {
         var found = await repository.FindAsync(organizationId, id, cancellationToken) ?? throw new KeyNotFoundException();
-        if (found.Asset.ProcessingStatus != "ready") throw new InvalidOperationException("Media is not ready.");
+        if (found.Asset.ProcessingStatus != "ready") throw new MediaLifecycleConflictException("Media is not ready.");
         DateTimeOffset expires = DateTimeOffset.UtcNow.AddMinutes(5);
         return new(await storage.CreateDownloadUrlAsync(found.Key, TimeSpan.FromMinutes(5), cancellationToken), expires);
     }
@@ -74,6 +101,6 @@ public sealed class MediaManagement(IMediaManagementRepository repository, IMedi
     {
         if (version <= 0) throw new ArgumentException("Expected version must be positive.");
         _ = await repository.FindAsync(organizationId, id, cancellationToken) ?? throw new KeyNotFoundException();
-        return await repository.DeleteAsync(organizationId, id, version, actor, cancellationToken) ?? throw new InvalidOperationException("Media changed concurrently.");
+        return await repository.DeleteAsync(organizationId, id, version, actor, cancellationToken) ?? throw new MediaLifecycleConflictException("Media changed concurrently.");
     }
 }

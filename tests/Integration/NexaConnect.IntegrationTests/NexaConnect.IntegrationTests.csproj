@@ -8,6 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Media\NexaConnect.Services.Media.csproj" Aliases="MEDIA" />
+    <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />

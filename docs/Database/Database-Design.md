@@ -323,6 +323,7 @@ The server must enforce uniqueness for each terminal and client-generated operat
 - `media_assets` — owner reference, object key, original name, content type, size, checksum, dimensions, and processing status.
 - Media migration 2 adds upload expiry and a tenant/status/expiry index for pending signed sessions. Completion clears expiry and increments concurrency. Expired or signing-failed pending uploads still require cleanup.
 - Media migration 3 adds `media_object_deletions`. Asset soft-delete, audit/integration outbox, and deletion-job enqueue share one PostgreSQL transaction. The Media worker retries idempotent object deletion and removes the job only after storage succeeds.
+- Failed file-signature or malware inspection moves a pending asset to `quarantined`, appends `media.asset.quarantined`, and enqueues durable object deletion in the same transaction; ready-only download queries exclude it. No schema migration is required because processing status is service-owned text state and the migration-3 deletion table is reused.
 - `media_variants` — thumbnail or transformed variant, dimensions, format, object key, and checksum.
 - `media_processing_attempts` — worker attempt, outcome, error category, and timestamps.
 

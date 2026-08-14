@@ -151,6 +151,18 @@ services:
     depends_on:
       - loki
 
+  clamav:
+    image: clamav/clamav:1.4.3
+    ports:
+      - "127.0.0.1:3310:3310"
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
   minio:
     image: minio/minio:RELEASE.2025-07-23T15-54-02Z
     command: server /data --console-address ":9001"
@@ -189,3 +201,4 @@ volumes:
   loki-data:
   grafana-data:
   minio-data:
+  clamav-data:

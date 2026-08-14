@@ -34,6 +34,9 @@ public sealed class PostgresMediaManagementRepository(NpgsqlDataSource dataSourc
     public Task<MediaAssetSummary?> CompleteAsync(Guid org, Guid id, long version, string actor, CancellationToken cancellationToken) =>
         Change(org, id, version, actor, "processing_status='ready',processed_at_utc=now(),upload_expires_at_utc=NULL", "media.asset.created", "processing_status='pending' AND upload_expires_at_utc >= now()", false, cancellationToken);
 
+    public Task<MediaAssetSummary?> QuarantineAsync(Guid org, Guid id, long version, string actor, string category, CancellationToken cancellationToken) =>
+        Change(org, id, version, actor, "processing_status='quarantined',processed_at_utc=now(),upload_expires_at_utc=NULL", "media.asset.quarantined", "processing_status='pending' AND upload_expires_at_utc >= now()", true, cancellationToken);
+
     public Task<MediaAssetSummary?> DeleteAsync(Guid org, Guid id, long version, string actor, CancellationToken cancellationToken) =>
         Change(org, id, version, actor, "processing_status='deleted',deleted_at_utc=now()", "media.asset.deleted", "TRUE", true, cancellationToken);
 

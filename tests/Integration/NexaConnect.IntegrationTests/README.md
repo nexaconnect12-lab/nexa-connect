@@ -2,6 +2,8 @@
 
 This project hosts in-process API integration tests using `WebApplicationFactory`.
 
+Media provider acceptance is opt-in so normal test runs do not require containers; disabled cases are reported as skipped. Start Compose services `minio`, `minio-init`, and `clamav`, set `NEXA_MINIO_ACCEPTANCE=1` and `NEXA_CLAMAV_ACCEPTANCE=1`, then filter on `MediaObjectStorageAcceptanceTests`. The MinIO adapter case verifies the signed checksum header, provider-returned checksum, normal provider object read, deletion, and rejection of tampered bytes against the pinned image. The ClamAV adapter case submits the standard antivirus test signature and expects malware rejection. Use only disposable local acceptance credentials; the tests never target production storage. Full authenticated HTTP/PostgreSQL quarantine and outbox acceptance remains a production gate.
+
 `RestaurantWorkflowCrossServiceTests` verifies the public Catalog -> Order -> Inventory -> Kitchen -> Payment workflow over independent HTTP service boundaries. Catalog and Inventory are seeded through their APIs, Order uses its production HTTP adapters, Payment is recorded through its service API, and the deployed Kitchen API is hosted through its real `WebApplicationFactory` boundary with a controlled store. The test asserts the paid order, inventory decrement, kitchen ticket, and payment intent.
 
 `InboxPersistenceTests` verifies durable consumer claims against PostgreSQL when `NEXACONNECT_INBOX_INTEGRATION_DB` is configured: duplicate deliveries are suppressed, failed claims are retried, and completed messages remain suppressed.
