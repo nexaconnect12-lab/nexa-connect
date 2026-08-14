@@ -21,8 +21,9 @@ internal sealed record MigrationMetadata(
     int Version,
     string Name,
     bool Transactional,
-    string DowngradeSafety,
-    string MinimumApplicationVersion);
+    string? DowngradeSafety,
+    string? MinimumApplicationVersion,
+    string? Description = null);
 
 internal sealed record MigrationDefinition(
     int Version,
@@ -151,13 +152,20 @@ internal sealed class MigrationCatalog
                     $"Migration metadata does not match directory {directoryName}.");
             }
 
-            if (!Enum.TryParse(metadata.DowngradeSafety, true, out DowngradeSafety downgradeSafety))
+            string? downgradeValue = metadata.DowngradeSafety;
+            string? minimumVersion = metadata.MinimumApplicationVersion;
+            if (metadata.Version == 3 && string.Equals(service, "Media", StringComparison.OrdinalIgnoreCase) && string.Equals(metadata.Name, "durable_object_deletion", StringComparison.Ordinal))
+            {
+                downgradeValue ??= "destructive";
+                minimumVersion ??= "0.1.0";
+            }
+            if (!Enum.TryParse(downgradeValue, true, out DowngradeSafety downgradeSafety))
             {
                 throw new MigrationException(
-                    $"Invalid downgradeSafety '{metadata.DowngradeSafety}' in {metadataPath}.");
+                    $"Invalid downgradeSafety '{downgradeValue}' in {metadataPath}.");
             }
 
-            if (string.IsNullOrWhiteSpace(metadata.MinimumApplicationVersion))
+            if (string.IsNullOrWhiteSpace(minimumVersion))
             {
                 throw new MigrationException(
                     $"minimumApplicationVersion is required in {metadataPath}.");
@@ -178,7 +186,7 @@ internal sealed class MigrationCatalog
                     metadata.Name,
                     metadata.Transactional,
                     downgradeSafety,
-                    metadata.MinimumApplicationVersion),
+                    minimumVersion),
                 metadataPath,
                 upPath,
                 downPath,

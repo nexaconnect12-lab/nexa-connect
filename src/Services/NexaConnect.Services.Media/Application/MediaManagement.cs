@@ -5,6 +5,7 @@ public sealed record UploadSession(MediaAssetSummary Asset, string UploadUrl, Da
 public sealed record DownloadSession(string DownloadUrl, DateTimeOffset ExpiresAtUtc);
 public sealed record StoredObjectInfo(long SizeBytes, string? ChecksumSha256);
 public sealed record MediaSafetyResult(bool Safe, string? RejectionCategory);
+public sealed record MediaQuota(long MaximumStoredBytes, int MaximumPendingUploads);
 public sealed class MediaLifecycleConflictException(string message) : Exception(message);
 public sealed class MediaDependencyException(string message, Exception innerException) : Exception(message, innerException);
 
@@ -14,6 +15,7 @@ public interface IMediaObjectStorage
     Task<string> CreateDownloadUrlAsync(string key, TimeSpan lifetime, CancellationToken cancellationToken);
     Task<StoredObjectInfo?> InspectAsync(string key, CancellationToken cancellationToken);
     Task<byte[]> ReadAsync(string key, long maximumBytes, CancellationToken cancellationToken);
+    Task PutAsync(string key, byte[] content, string contentType, string checksumSha256, CancellationToken cancellationToken);
     Task DeleteAsync(string key, CancellationToken cancellationToken);
 }
 
@@ -29,14 +31,15 @@ public interface IMediaOwnerValidator
 
 public interface IMediaManagementRepository
 {
-    Task<MediaAssetSummary> StartAsync(Guid organizationId, Guid id, string key, StartMediaUploadCommand command, string actor, DateTimeOffset expires, CancellationToken cancellationToken);
+    Task<MediaAssetSummary> StartAsync(Guid organizationId, Guid id, string key, StartMediaUploadCommand command, string actor, DateTimeOffset expires, MediaQuota quota, CancellationToken cancellationToken);
     Task<(MediaAssetSummary Asset, string Key, string Checksum)?> FindAsync(Guid organizationId, Guid id, CancellationToken cancellationToken);
+    Task<string?> FindVariantKeyAsync(Guid organizationId, Guid id, string variantName, CancellationToken cancellationToken);
     Task<MediaAssetSummary?> CompleteAsync(Guid organizationId, Guid id, long version, string actor, CancellationToken cancellationToken);
     Task<MediaAssetSummary?> QuarantineAsync(Guid organizationId, Guid id, long version, string actor, string category, CancellationToken cancellationToken);
     Task<MediaAssetSummary?> DeleteAsync(Guid organizationId, Guid id, long version, string actor, CancellationToken cancellationToken);
 }
 
-public sealed class MediaManagement(IMediaManagementRepository repository, IMediaObjectStorage storage, IMediaOwnerValidator owners, IMediaContentSafety safety)
+public sealed class MediaManagement(IMediaManagementRepository repository, IMediaObjectStorage storage, IMediaOwnerValidator owners, IMediaContentSafety safety, MediaQuota quota)
 {
     private static readonly HashSet<string> Types = ["image/jpeg", "image/png", "image/webp"];
 
@@ -58,7 +61,7 @@ public sealed class MediaManagement(IMediaManagementRepository repository, IMedi
         string key = $"organizations/{organizationId:D}/assets/{id:D}/original";
         DateTimeOffset expires = DateTimeOffset.UtcNow.AddMinutes(10);
         var normalized = command with { OwnerService = owner, OwnerType = kind, FileName = name, ContentType = type, ChecksumSha256 = hash };
-        MediaAssetSummary asset = await repository.StartAsync(organizationId, id, key, normalized, actor.Trim(), expires, cancellationToken);
+        MediaAssetSummary asset = await repository.StartAsync(organizationId, id, key, normalized, actor.Trim(), expires, quota, cancellationToken);
         return new(asset, await storage.CreateUploadUrlAsync(key, type, command.SizeBytes, hash, TimeSpan.FromMinutes(10), cancellationToken), expires);
     }
 
@@ -95,6 +98,13 @@ public sealed class MediaManagement(IMediaManagementRepository repository, IMedi
         if (found.Asset.ProcessingStatus != "ready") throw new MediaLifecycleConflictException("Media is not ready.");
         DateTimeOffset expires = DateTimeOffset.UtcNow.AddMinutes(5);
         return new(await storage.CreateDownloadUrlAsync(found.Key, TimeSpan.FromMinutes(5), cancellationToken), expires);
+    }
+
+    public async Task<DownloadSession> DownloadVariantAsync(Guid organizationId, Guid id, string variantName, CancellationToken cancellationToken)
+    {
+        string name = variantName?.Trim().ToLowerInvariant() ?? ""; if (name is not ("thumbnail" or "display")) throw new ArgumentException("Variant name is invalid.");
+        string key = await repository.FindVariantKeyAsync(organizationId, id, name, cancellationToken) ?? throw new KeyNotFoundException();
+        DateTimeOffset expires = DateTimeOffset.UtcNow.AddMinutes(5); return new(await storage.CreateDownloadUrlAsync(key, TimeSpan.FromMinutes(5), cancellationToken), expires);
     }
 
     public async Task<MediaAssetSummary> DeleteAsync(Guid organizationId, Guid id, long version, string actor, CancellationToken cancellationToken)

@@ -45,6 +45,11 @@ public sealed class MediaObjectStorageAcceptanceTests
         Assert.Equal(content, await storage.ReadAsync(key, content.Length, default));
         await storage.DeleteAsync(key, default);
 
+        string variantKey = $"acceptance/{Guid.NewGuid():D}-variant.webp";
+        await storage.PutAsync(variantKey, content, "image/webp", checksum, default);
+        var variantInfo = await storage.InspectAsync(variantKey, default);
+        Assert.NotNull(variantInfo); Assert.Equal(checksum, variantInfo.ChecksumSha256); await storage.DeleteAsync(variantKey, default);
+
         string badKey = $"acceptance/{Guid.NewGuid():D}-bad.png";
         string badUrl = await storage.CreateUploadUrlAsync(badKey, "image/png", content.Length, checksum, TimeSpan.FromMinutes(2), default);
         byte[] tampered = (byte[])content.Clone(); tampered[^1] = 1;

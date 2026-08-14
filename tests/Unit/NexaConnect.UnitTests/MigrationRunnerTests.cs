@@ -10,7 +10,7 @@ public sealed class MigrationRunnerTests
         {
             ["PlatformDirectory"] = 3,
             ["Authorization"] = 1,
-            ["Restaurant"] = 1,
+            ["Restaurant"] = 3,
             ["Catalog"] = 3,
             ["Inventory"] = 4,
             ["Order"] = 1,
@@ -19,8 +19,8 @@ public sealed class MigrationRunnerTests
             ["Payment"] = 1,
             ["Notification"] = 1,
             ["POS"] = 3,
-            ["Media"] = 1,
-            ["Reporting"] = 2
+            ["Media"] = 4,
+            ["Reporting"] = 3
         };
 
         foreach ((string service, int expectedVersion) in services)

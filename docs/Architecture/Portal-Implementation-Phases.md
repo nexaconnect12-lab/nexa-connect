@@ -14,7 +14,7 @@ This document records the agreed Product Owner Portal and Customer Portal implem
 | 6 | Frontend foundations | Complete |
 | 7 | Product Owner Portal | Complete (compatibility implementation) |
 | 8 | Customer Portal | Functional page/API slices implemented; activity delivery, media writes, and deeper validation remain |
-| 9 | Media service | Tenant-authorized presigned upload/download/delete preview available; scanning and variants staged |
+| 9 | Media service | Tenant-authorized upload/download/delete, scanning, quotas, expiry cleanup, and generated variants implemented |
 | 10 | Product service integration | Partially implemented |
 | 11 | Testing | Continuous; partial coverage implemented |
 | 12 | Deployment and operations | Development foundation; production hardening planned |
@@ -56,4 +56,4 @@ Phase 7 is complete as a compatibility implementation in `src/Frontend/apps/prod
 
 Phase 8 now provides an independently buildable Customer Portal context and navigation shell with BFF-owned authentication, active organization/product selection, organization profile, enabled-product switching, and ordered navigation for users/memberships, product configuration, branches/locations, dashboards, reports, media, and activity/audit. Pages are client-gated until a valid context from the current access response is selected; `/tenant` and `/features/*` perform server-side revalidation of the exact organization/application pair.
 
-Customer membership administration established the management pattern and branch/location management extended it into Restaurant. Media now provides tenant-authorized list, presigned upload/completion, signed download, and delete flows through its own service and storage boundary. Completion compares object size and client-declared checksum metadata; scanning, variants, and reconciliation remain staged.
+Customer membership administration established the management pattern and branch/location management extended it into Restaurant. Media provides tenant-authorized list, presigned upload/completion, original/variant download, and delete flows through its own service and storage boundary. Completion verifies provider size/SHA-256, file signature, and ClamAV result. Organization original-upload quotas, expired-session deletion, and durable thumbnail/display generation are implemented and covered by focused HTTP, PostgreSQL, MinIO, and ClamAV component tests. Joined browser/provider E2E remains a release gate.

@@ -321,8 +321,9 @@ The server must enforce uniqueness for each terminal and client-generated operat
 ### 6.9 Media
 
 - `media_assets` — owner reference, object key, original name, content type, size, checksum, dimensions, and processing status.
-- Media migration 2 adds upload expiry and a tenant/status/expiry index for pending signed sessions. Completion clears expiry and increments concurrency. Expired or signing-failed pending uploads still require cleanup.
+- Media migration 2 adds upload expiry and a tenant/status/expiry index for pending signed sessions. Completion clears expiry and increments concurrency. The maintenance worker transactionally marks expired sessions failed, appends audit/outbox state, and queues object deletion.
 - Media migration 3 adds `media_object_deletions`. Asset soft-delete, audit/integration outbox, and deletion-job enqueue share one PostgreSQL transaction. The Media worker retries idempotent object deletion and removes the job only after storage succeeds.
+- Media migration 4 adds `media_processing_jobs`, a tenant/status quota index, and multiple deletion jobs per asset so original and variant keys are independently retried. Completion and processing-job enqueue share a transaction. Variant object writes precede retry-safe metadata upserts; deterministic keys make retries idempotent. Quota checks take an organization-derived transaction advisory lock and count pending/ready original bytes. Generated variants are excluded from tenant upload quota and remain object-storage capacity overhead.
 - Failed file-signature or malware inspection moves a pending asset to `quarantined`, appends `media.asset.quarantined`, and enqueues durable object deletion in the same transaction; ready-only download queries exclude it. No schema migration is required because processing status is service-owned text state and the migration-3 deletion table is reused.
 - `media_variants` — thumbnail or transformed variant, dimensions, format, object key, and checksum.
 - `media_processing_attempts` — worker attempt, outcome, error category, and timestamps.

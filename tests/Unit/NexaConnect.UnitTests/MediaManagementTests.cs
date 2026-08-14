@@ -47,7 +47,7 @@ public sealed class MediaManagementTests
     public async Task Start_rejects_owner_outside_active_organization() =>
         await Assert.ThrowsAsync<KeyNotFoundException>(() => Service(owners: new Owners { Exists = false }).StartAsync(Guid.NewGuid(), new("catalog", "product", Guid.NewGuid(), "a.png", "image/png", 10, new string('a', 64)), "actor", default));
 
-    private static MediaManagement Service(Repo? repo = null, Storage? storage = null, Owners? owners = null, IMediaContentSafety? safety = null) => new(repo ?? new(), storage ?? new(), owners ?? new(), safety ?? new Safety(true));
+    private static MediaManagement Service(Repo? repo = null, Storage? storage = null, Owners? owners = null, IMediaContentSafety? safety = null) => new(repo ?? new(), storage ?? new(), owners ?? new(), safety ?? new Safety(true), new MediaQuota(1_073_741_824, 20));
     private static (MediaAssetSummary Asset, string Key, string Checksum) Asset() { Guid id = Guid.NewGuid(); return (new(id, "catalog", "product", Guid.NewGuid(), "a.png", "image/png", 10, "pending", DateTimeOffset.UtcNow, null, 1), "key", new string('a', 64)); }
 
     private sealed class Safety(bool safe) : IMediaContentSafety { public Task<MediaSafetyResult> InspectAsync(byte[] content, string type, CancellationToken c) => Task.FromResult(new MediaSafetyResult(safe, safe ? null : "unsafe")); }
@@ -60,13 +60,15 @@ public sealed class MediaManagementTests
         public Task<string> CreateDownloadUrlAsync(string k, TimeSpan l, CancellationToken c) => Task.FromResult("https://download.test");
         public Task<StoredObjectInfo?> InspectAsync(string k, CancellationToken c) => Task.FromResult(Info);
         public Task<byte[]> ReadAsync(string k, long m, CancellationToken c) => Task.FromResult(Content);
+        public Task PutAsync(string k, byte[] content, string type, string checksum, CancellationToken c) => Task.CompletedTask;
         public Task DeleteAsync(string k, CancellationToken c) => Task.CompletedTask;
     }
     private sealed class Repo : IMediaManagementRepository
     {
         public Guid Org = Guid.NewGuid(), Id = Guid.NewGuid(); public string? Key; public StartMediaUploadCommand? Command; public (MediaAssetSummary Asset, string Key, string Checksum)? Found; public bool Quarantined;
-        public Task<MediaAssetSummary> StartAsync(Guid o, Guid id, string k, StartMediaUploadCommand x, string a, DateTimeOffset e, CancellationToken c) { Key = k; Command = x; return Task.FromResult(new MediaAssetSummary(id, x.OwnerService, x.OwnerType, x.OwnerId, x.FileName, x.ContentType, x.SizeBytes, "pending", DateTimeOffset.UtcNow, null, 1)); }
+        public Task<MediaAssetSummary> StartAsync(Guid o, Guid id, string k, StartMediaUploadCommand x, string a, DateTimeOffset e, MediaQuota quota, CancellationToken c) { Key = k; Command = x; return Task.FromResult(new MediaAssetSummary(id, x.OwnerService, x.OwnerType, x.OwnerId, x.FileName, x.ContentType, x.SizeBytes, "pending", DateTimeOffset.UtcNow, null, 1)); }
         public Task<(MediaAssetSummary Asset, string Key, string Checksum)?> FindAsync(Guid o, Guid id, CancellationToken c) => Task.FromResult(Found);
+        public Task<string?> FindVariantKeyAsync(Guid o, Guid id, string name, CancellationToken c) => Task.FromResult<string?>(null);
         public Task<MediaAssetSummary?> CompleteAsync(Guid o, Guid id, long v, string a, CancellationToken c) => Task.FromResult<MediaAssetSummary?>(Found?.Asset);
         public Task<MediaAssetSummary?> QuarantineAsync(Guid o, Guid id, long v, string a, string category, CancellationToken c) { Quarantined = true; return Task.FromResult<MediaAssetSummary?>(Found?.Asset); }
         public Task<MediaAssetSummary?> DeleteAsync(Guid o, Guid id, long v, string a, CancellationToken c) => Task.FromResult<MediaAssetSummary?>(Found?.Asset);
