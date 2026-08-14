@@ -38,6 +38,7 @@ docker-data/
 
 # Local development runtime state, including per-service Data Protection keys
 .runstate/
+.runartifacts/
 
 # Local smoke-test and runtime logs
 .runlogs/
