@@ -27,4 +27,4 @@ public sealed class AuthorizationAssignmentsController(IAuthorizationAssignmentS
     }
 }
 
-public sealed record AssignRoleRequest(string SubjectId, Guid OrganizationId, Guid RestaurantId, Guid BranchId, string RoleCode = "cashier");
+public sealed record AssignRoleRequest(string SubjectId, Guid OrganizationId, Guid? RestaurantId, Guid? BranchId, string RoleCode = "cashier");

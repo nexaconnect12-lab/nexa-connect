@@ -9,21 +9,29 @@ public sealed class MediaObjectDeletionWorker(NpgsqlDataSource dataSource, IMedi
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            try { if (!await ProcessOne(stoppingToken)) await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken); }
+            try { if (!await ProcessOneAsync(stoppingToken)) await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
             catch (Exception exception) { logger.LogError(exception, "Media object deletion worker iteration failed"); await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken); }
         }
     }
 
-    private async Task<bool> ProcessOne(CancellationToken cancellationToken)
+    public async Task<bool> ProcessOneAsync(CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         const string claimSql = "SELECT id,asset_id,object_key FROM media_object_deletions WHERE attempts<10 AND next_attempt_at_utc<=now() ORDER BY next_attempt_at_utc FOR UPDATE SKIP LOCKED LIMIT 1;";
-        await using var claim = new NpgsqlCommand(claimSql, connection, transaction);
-        await using var reader = await claim.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken)) { await transaction.RollbackAsync(cancellationToken); return false; }
-        Guid jobId = reader.GetGuid(0), assetId = reader.GetGuid(1); string key = reader.GetString(2); await reader.DisposeAsync();
+        Guid jobId, assetId; string key;
+        await using (var claim = new NpgsqlCommand(claimSql, connection, transaction))
+        await using (var reader = await claim.ExecuteReaderAsync(cancellationToken))
+        {
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                await reader.DisposeAsync();
+                await transaction.RollbackAsync(cancellationToken);
+                return false;
+            }
+            jobId = reader.GetGuid(0); assetId = reader.GetGuid(1); key = reader.GetString(2);
+        }
         await using var lease = new NpgsqlCommand("UPDATE media_object_deletions SET attempts=attempts+1,next_attempt_at_utc=now()+(LEAST(power(2,attempts),60)*interval '1 minute'),last_error=NULL WHERE id=$1;", connection, transaction);
         lease.Parameters.AddWithValue(jobId); await lease.ExecuteNonQueryAsync(cancellationToken); await transaction.CommitAsync(cancellationToken);
         try

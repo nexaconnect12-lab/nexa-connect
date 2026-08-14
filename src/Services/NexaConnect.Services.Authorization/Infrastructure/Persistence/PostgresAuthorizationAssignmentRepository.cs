@@ -29,8 +29,8 @@ public sealed class PostgresAuthorizationAssignmentRepository(NpgsqlDataSource d
         await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var db = new NpgsqlCommand(sql, connection);
         db.Parameters.AddWithValue(command.OrganizationId);
-        db.Parameters.AddWithValue(command.RestaurantId);
-        db.Parameters.AddWithValue(command.BranchId);
+        db.Parameters.AddWithValue((object?)command.RestaurantId ?? DBNull.Value);
+        db.Parameters.AddWithValue((object?)command.BranchId ?? DBNull.Value);
         db.Parameters.AddWithValue(command.RoleCode);
         Guid assignmentId = Guid.NewGuid();
         db.Parameters.AddWithValue(assignmentId);

@@ -38,9 +38,18 @@ public sealed class MediaMaintenanceWorker(NpgsqlDataSource dataSource, IMediaOb
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         const string sql = "SELECT id,organization_id,object_key FROM media_assets WHERE processing_status='pending' AND upload_expires_at_utc<now() ORDER BY upload_expires_at_utc FOR UPDATE SKIP LOCKED LIMIT 1;";
-        await using var claim = new NpgsqlCommand(sql, connection, transaction); await using var reader = await claim.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken)) { await transaction.RollbackAsync(cancellationToken); return false; }
-        Guid id = reader.GetGuid(0), organizationId = reader.GetGuid(1); string key = reader.GetString(2); await reader.DisposeAsync();
+        Guid id, organizationId; string key;
+        await using (var claim = new NpgsqlCommand(sql, connection, transaction))
+        await using (var reader = await claim.ExecuteReaderAsync(cancellationToken))
+        {
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                await reader.DisposeAsync();
+                await transaction.RollbackAsync(cancellationToken);
+                return false;
+            }
+            id = reader.GetGuid(0); organizationId = reader.GetGuid(1); key = reader.GetString(2);
+        }
         await using (var update = new NpgsqlCommand("UPDATE media_assets SET processing_status='failed',processed_at_utc=now(),updated_at_utc=now(),upload_expires_at_utc=NULL,concurrency_version=concurrency_version+1 WHERE id=$1;", connection, transaction)) { update.Parameters.AddWithValue(id); await update.ExecuteNonQueryAsync(cancellationToken); }
         await using (var deletion = new NpgsqlCommand("INSERT INTO media_object_deletions(asset_id,organization_id,object_key,next_attempt_at_utc) VALUES($1,$2,$3,now()) ON CONFLICT(object_key) DO NOTHING;", connection, transaction)) { deletion.Parameters.AddWithValue(id); deletion.Parameters.AddWithValue(organizationId); deletion.Parameters.AddWithValue(key); await deletion.ExecuteNonQueryAsync(cancellationToken); }
         await TransactionalAuditOutbox.EnqueueAuditAsync(connection, transaction, new(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow, "media-expiry-worker", organizationId, "media.asset.upload-expired", "media-asset", id.ToString("D"), "succeeded"), "media.audit.v1", cancellationToken);
@@ -52,9 +61,18 @@ public sealed class MediaMaintenanceWorker(NpgsqlDataSource dataSource, IMediaOb
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         const string sql = "SELECT j.asset_id,j.organization_id,j.object_key,a.content_type,a.size_bytes FROM media_processing_jobs j JOIN media_assets a ON a.id=j.asset_id WHERE j.attempts<10 AND j.next_attempt_at_utc<=now() AND a.processing_status='ready' ORDER BY j.next_attempt_at_utc FOR UPDATE SKIP LOCKED LIMIT 1;";
-        await using var claim = new NpgsqlCommand(sql, connection, transaction); await using var reader = await claim.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken)) { await transaction.RollbackAsync(cancellationToken); return false; }
-        Guid id = reader.GetGuid(0), organizationId = reader.GetGuid(1); string key = reader.GetString(2); long size = reader.GetInt64(4); await reader.DisposeAsync();
+        Guid id, organizationId; string key; long size;
+        await using (var claim = new NpgsqlCommand(sql, connection, transaction))
+        await using (var reader = await claim.ExecuteReaderAsync(cancellationToken))
+        {
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                await reader.DisposeAsync();
+                await transaction.RollbackAsync(cancellationToken);
+                return false;
+            }
+            id = reader.GetGuid(0); organizationId = reader.GetGuid(1); key = reader.GetString(2); size = reader.GetInt64(4);
+        }
         await using (var lease = new NpgsqlCommand("UPDATE media_processing_jobs SET attempts=attempts+1,next_attempt_at_utc=now()+(LEAST(power(2,attempts),60)*interval '1 minute'),last_error=NULL WHERE asset_id=$1;", connection, transaction)) { lease.Parameters.AddWithValue(id); await lease.ExecuteNonQueryAsync(cancellationToken); }
         await transaction.CommitAsync(cancellationToken);
         try

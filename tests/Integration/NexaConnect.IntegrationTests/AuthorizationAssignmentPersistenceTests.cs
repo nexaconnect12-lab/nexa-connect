@@ -47,6 +47,26 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
         Assert.True(freshDecision.Granted);
     }
 
+    [Fact]
+    public async Task Organization_assignment_authorizes_organization_and_child_resources_only()
+    {
+        if (!DatabaseConfigured()) return;
+
+        Guid organizationId = Guid.NewGuid();
+        var repository = new AssignmentRepository(_dataSource!);
+        await repository.AssignAsync(
+            new Assignment.AssignRoleCommand("tenant-admin", organizationId, null, null, "tenant-admin"),
+            "integration-admin", CancellationToken.None);
+
+        var decisions = new DecisionService(_dataSource!, NullLogger<DecisionService>.Instance);
+        Assert.True((await decisions.DecideAsync("tenant-admin", organizationId, null, null,
+            "media.asset.read", null, null, CancellationToken.None)).Granted);
+        Assert.True((await decisions.DecideAsync("tenant-admin", organizationId, Guid.NewGuid(), null,
+            "restaurant.branch.manage", null, null, CancellationToken.None)).Granted);
+        Assert.False((await decisions.DecideAsync("tenant-admin", Guid.NewGuid(), null, null,
+            "media.asset.read", null, null, CancellationToken.None)).Granted);
+    }
+
     public async Task InitializeAsync()
     {
         if (string.IsNullOrWhiteSpace(_configuredConnectionString) || !IsSafeEnvironment())

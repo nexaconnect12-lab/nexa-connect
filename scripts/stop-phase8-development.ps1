@@ -41,4 +41,4 @@ if ($remaining.Count -gt 0) {
     throw "Phase 8 cleanup is incomplete; retained $stateFile. Remaining service PIDs: $($remaining -join ', ')"
 }
 Remove-Item -LiteralPath $stateFile
-Write-Host "Stopped $stopped validated Phase 8 service process(es)."
+Write-Host "Stopped $stopped validated Phase 8 service process(es), including the portal BFFs recorded by the launcher."

@@ -4,7 +4,7 @@
 
 `GET /api/restaurant/v1/customer/organizations/{organizationId}/branches` requires `customer-owner` or `customer-admin`, active Platform Directory access, and `restaurant.branch.read`. `POST` accepts `{ restaurantId, code, name, timeZone, currency }`; `PUT .../{branchId}` accepts `{ name, timeZone, currency, status, expectedVersion }`. Mutations require `restaurant.branch.manage`. Ownership is enforced by organization-leading queries. Invalid input returns `400`, denial `403`, missing hierarchy `404`, and code/concurrency conflicts `409`.
 
-Restaurant owns the initial restaurant and branch hierarchy. The Platform Admin BFF exposes a narrow onboarding proxy; ongoing restaurant configuration remains a NexaConnect Admin responsibility.
+Restaurant owns the initial restaurant and branch hierarchy. The Platform Admin BFF exposes a narrow onboarding proxy, and the Product Owner compatibility portal exposes forms for these two proxy routes; ongoing restaurant configuration remains a NexaConnect Admin responsibility.
 
 ## Create or reactivate a restaurant
 

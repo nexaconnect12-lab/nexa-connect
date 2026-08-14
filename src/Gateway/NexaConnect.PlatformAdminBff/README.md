@@ -2,13 +2,15 @@
 
 Separate Product Owner/Platform Admin session boundary. Control-plane mutations require `platform-owner` or `platform-admin`; support requests additionally allow `platform-support`, and elevation inspection allows `platform-auditor`. The BFF forwards the server-held access token to Platform Directory and never accesses PostgreSQL directly. Configure `Bff:ClientSecret` from a secret store. Development/Test use an in-memory ticket cache; other environments require Redis through `ConnectionStrings:BffSessionCache`, with optional key isolation through `BffSessionCache:InstanceName`.
 
+The recorded local origin is `https://localhost:58627` (`http://localhost:58628` is the secondary development listener). The Keycloak development client uses `https://localhost:58627/signin-oidc` and origin `https://localhost:58627`. The Phase 8 development launcher publishes and starts this BFF with the hosted Product Owner Portal using `PLATFORM_ADMIN_BFF_CLIENT_SECRET` from the ignored `.env`.
+
 Endpoints:
 
 - `GET /bff/platform-admin/login`, `/logout`, and `/me` manage or inspect the dedicated Platform Admin session. `/me` returns the subject, username, and normalized platform roles needed for presentation-only portal navigation; server policies remain authoritative.
 - `GET` and `POST /bff/platform-admin/organizations` plus `PATCH /bff/platform-admin/organizations/{organizationId}` proxy organization listing, creation, and updates.
 - `PUT /bff/platform-admin/organizations/{organizationId}/members/{subjectId}` assigns organization membership.
 - `POST /bff/platform-admin/products` registers a product, and `PUT /bff/platform-admin/organizations/{organizationId}/products` changes organization product access.
-- `POST /bff/platform-admin/restaurants`, `POST /bff/platform-admin/restaurants/{restaurantId}/branches`, and `POST /bff/platform-admin/authorization/role-assignments` provision Restaurant-owned hierarchy and Authorization-owned customer product roles through their owning APIs.
+- `POST /bff/platform-admin/restaurants`, `POST /bff/platform-admin/restaurants/{restaurantId}/branches`, and `POST /bff/platform-admin/authorization/role-assignments` provision Restaurant-owned hierarchy and Authorization-owned customer product roles through their owning APIs. The hosted Product Owner compatibility portal exposes matching hierarchy and product-role forms; tenant administrators are organization-scoped, store managers are restaurant-scoped, and other roles are branch-scoped.
 - `/bff/platform-admin/support-elevations` proxies request, effective lookup, audit read, approval, and revocation operations with endpoint-specific platform-role policies.
 - `/bff/platform-admin/platform/users`, `/roles`, `/audit`, and `/summary` proxy Phase 3 user administration, permission-catalog, audit-query, and directory-summary operations. The BFF forwards its server-held token and never holds Keycloak administration credentials.
 

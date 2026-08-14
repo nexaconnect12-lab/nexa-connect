@@ -1,6 +1,6 @@
 export const capabilitiesByRole: Readonly<Record<string, readonly string[]>> = {
-  "platform-owner": ["summary.read", "organizations.manage", "memberships.manage", "products.manage", "subscriptions.manage", "users.manage", "roles.read", "audit.read", "support.workflow", "support.request", "support.effective", "support.inspect", "support.approve", "admin-links.open"],
-  "platform-admin": ["summary.read", "organizations.manage", "memberships.manage", "products.manage", "subscriptions.manage", "users.manage", "roles.read", "audit.read", "support.workflow", "support.request", "support.effective", "support.inspect", "support.approve", "admin-links.open"],
+  "platform-owner": ["summary.read", "organizations.manage", "memberships.manage", "products.manage", "subscriptions.manage", "hierarchy.manage", "product-roles.manage", "users.manage", "roles.read", "audit.read", "support.workflow", "support.request", "support.effective", "support.inspect", "support.approve", "admin-links.open"],
+  "platform-admin": ["summary.read", "organizations.manage", "memberships.manage", "products.manage", "subscriptions.manage", "hierarchy.manage", "product-roles.manage", "users.manage", "roles.read", "audit.read", "support.workflow", "support.request", "support.effective", "support.inspect", "support.approve", "admin-links.open"],
   "platform-support": ["summary.read", "roles.read", "support.workflow", "support.request", "support.effective"],
   "platform-auditor": ["summary.read", "roles.read", "audit.read", "support.workflow", "support.inspect"]
 };

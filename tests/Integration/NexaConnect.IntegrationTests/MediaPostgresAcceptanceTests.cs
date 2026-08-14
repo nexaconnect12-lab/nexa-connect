@@ -8,6 +8,7 @@ using IMediaObjectStorage = MEDIA::NexaConnect.Services.Media.Application.IMedia
 using StoredObjectInfo = MEDIA::NexaConnect.Services.Media.Application.StoredObjectInfo;
 using MediaLifecycleConflictException = MEDIA::NexaConnect.Services.Media.Application.MediaLifecycleConflictException;
 using MediaMaintenanceWorker = MEDIA::NexaConnect.Services.Media.Infrastructure.MediaMaintenanceWorker;
+using MediaObjectDeletionWorker = MEDIA::NexaConnect.Services.Media.Infrastructure.MediaObjectDeletionWorker;
 using PostgresMediaManagementRepository = MEDIA::NexaConnect.Services.Media.Infrastructure.Persistence.PostgresMediaManagementRepository;
 
 namespace NexaConnect.IntegrationTests;
@@ -25,6 +26,13 @@ public sealed class MediaPostgresAcceptanceTests
         {
             await using (var create = new NpgsqlCommand($"CREATE SCHEMA \"{schema}\";", admin)) await create.ExecuteNonQueryAsync();
             await using var dataSource = NpgsqlDataSource.Create(builder.ConnectionString); await ApplyMigrationsAsync(dataSource);
+            var storage = new AcceptanceStorage();
+            var worker = new MediaMaintenanceWorker(dataSource, storage, NullLogger<MediaMaintenanceWorker>.Instance);
+            var deletionWorker = new MediaObjectDeletionWorker(dataSource, storage, NullLogger<MediaObjectDeletionWorker>.Instance);
+            Assert.False(await worker.ProcessExpiredOnceAsync(default));
+            Assert.False(await worker.ProcessVariantOnceAsync(default));
+            Assert.False(await deletionWorker.ProcessOneAsync(default));
+
             var repository = new PostgresMediaManagementRepository(dataSource); Guid organizationId = Guid.NewGuid(); string actor = "acceptance-user";
             StartMediaUploadCommand command = new("catalog", "product", Guid.NewGuid(), "one.png", "image/png", 68, new string('a', 64));
             var first = await repository.StartAsync(organizationId, Guid.NewGuid(), $"organizations/{organizationId:D}/assets/one/original", command, actor, DateTimeOffset.UtcNow.AddMinutes(10), new MediaQuota(100, 1), default);
@@ -33,7 +41,6 @@ public sealed class MediaPostgresAcceptanceTests
             Assert.Equal(1, (await Task.WhenAll(starts)).Count(value => value));
 
             await using (var expire = dataSource.CreateCommand("UPDATE media_assets SET upload_expires_at_utc=now()-interval '1 minute' WHERE id=$1;")) { expire.Parameters.AddWithValue(first.Id); await expire.ExecuteNonQueryAsync(); }
-            var storage = new AcceptanceStorage(); var worker = new MediaMaintenanceWorker(dataSource, storage, NullLogger<MediaMaintenanceWorker>.Instance);
             Assert.True(await worker.ProcessExpiredOnceAsync(default));
             Assert.Equal("failed", await ScalarAsync<string>(dataSource, "SELECT processing_status FROM media_assets WHERE id=$1", first.Id));
             Assert.Equal(1L, await ScalarAsync<long>(dataSource, "SELECT count(*) FROM media_object_deletions WHERE asset_id=$1", first.Id));

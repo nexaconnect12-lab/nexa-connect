@@ -2,7 +2,7 @@
 
 Owns restaurant and branch hierarchy used by tenant authorization. Operational telemetry uses service name `nexaconnect-restaurant`; request logs exclude query strings, bodies, authorization headers, cookies, and arbitrary headers.
 
-Platform owners and administrators provision hierarchy through `POST /api/restaurant/v1/restaurants` and `POST /api/restaurant/v1/restaurants/{restaurantId}/branches`. Both operations are idempotent by owner/code and keep PostgreSQL writes inside Restaurant Infrastructure. Provisioning logs record scoped UUIDs but no tokens or request bodies.
+Platform owners and administrators provision hierarchy through `POST /api/restaurant/v1/restaurants` and `POST /api/restaurant/v1/restaurants/{restaurantId}/branches`. Both operations are idempotent by owner/code and keep PostgreSQL writes inside Restaurant Infrastructure. The Platform Admin compatibility portal provides forms that call the BFF proxies for these routes. Provisioning logs record scoped UUIDs but no tokens or request bodies.
 
 Customer owners/admins manage tenant branches through `/api/restaurant/v1/customer/organizations/{organizationId}/branches`. Restaurant requires active Platform Directory access plus `restaurant.branch.read` or `restaurant.branch.manage` from Authorization and enforces ownership in organization-leading SQL. Creates and versioned updates transactionally append immutable branch audit records. Apply Restaurant migration 2 and configure direct HTTPS `Services:PlatformDirectory` and `Services:Authorization`; dependency failure is fail-closed.
 
