@@ -9,4 +9,5 @@ public interface IMenuCatalog
     IReadOnlyCollection<MenuItem> GetForOrganizationBranch(Guid organizationId, Guid branchId);
     MenuItem Add(Guid branchId, CreateMenuItem command);
     MenuItem AddForOrganizationBranch(Guid organizationId, Guid branchId, CreateMenuItem command);
+    Task<bool> ProductExistsAsync(Guid organizationId, Guid productId, CancellationToken cancellationToken);
 }

@@ -26,6 +26,7 @@ public sealed class CustomerReportingController(ReportingQueries queries,Activit
         if (!granted) { logger.LogWarning("Customer reporting authorization denied for organization {OrganizationId}, branch {BranchId}, permission {Permission}, actor {ActorSubjectId}", organizationId, branchId, permission, actor); return Forbid(); }
         try { return Ok(await query()); }
         catch (ArgumentException exception) { return BadRequest(new ProblemDetails { Title = exception.Message, Status = 400 }); }
+        catch (MixedReportingCurrencyException exception) { return Conflict(new ProblemDetails { Title = exception.Message, Status = 409 }); }
         catch (Exception exception) { logger.LogError(exception, "Customer reporting query failed for organization {OrganizationId}, branch {BranchId}, permission {Permission}", organizationId, branchId, permission); throw; }
     }
 }

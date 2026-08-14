@@ -526,6 +526,18 @@
       "serviceAccountsEnabled": true,
       "fullScopeAllowed": false,
       "defaultClientScopes": ["nexaconnect-api"]
+    },
+    {
+      "clientId": "nexaconnect-media-service",
+      "name": "NexaConnect Media Workload",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${NEXACONNECT_MEDIA_SERVICE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["nexaconnect-api"]
     }
   ]
 }

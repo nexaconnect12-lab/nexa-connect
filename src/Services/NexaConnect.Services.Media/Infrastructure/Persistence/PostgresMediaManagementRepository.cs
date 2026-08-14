@@ -1,11 +1,62 @@
-using NexaConnect.Services.Media.Application;using Npgsql;using NexaConnect.Contracts.IntegrationEvents;using NexaConnect.Infrastructure.Messaging;
+using NexaConnect.Contracts.IntegrationEvents;
+using NexaConnect.Infrastructure.Messaging;
+using NexaConnect.Services.Media.Application;
+using Npgsql;
+
 namespace NexaConnect.Services.Media.Infrastructure.Persistence;
-public sealed class PostgresMediaManagementRepository(NpgsqlDataSource dataSource):IMediaManagementRepository
+
+public sealed class PostgresMediaManagementRepository(NpgsqlDataSource dataSource) : IMediaManagementRepository
 {
- public async Task<MediaAssetSummary>StartAsync(Guid org,Guid id,string key,StartMediaUploadCommand x,string actor,DateTimeOffset expires,CancellationToken c){const string sql="INSERT INTO media_assets(id,organization_id,owner_service,owner_type,owner_id,object_key,original_file_name,content_type,size_bytes,checksum_sha256,processing_status,uploaded_at_utc,created_by,updated_at_utc,upload_expires_at_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',now(),$11,now(),$12) RETURNING id,owner_service,owner_type,owner_id,original_file_name,content_type,size_bytes,processing_status,uploaded_at_utc,processed_at_utc,concurrency_version;";await using var cn=await dataSource.OpenConnectionAsync(c);await using var cmd=new NpgsqlCommand(sql,cn);object[] p=[id,org,x.OwnerService,x.OwnerType,x.OwnerId,key,x.FileName,x.ContentType,x.SizeBytes,x.ChecksumSha256,actor,expires];foreach(var v in p)cmd.Parameters.AddWithValue(v);await using var r=await cmd.ExecuteReaderAsync(c);await r.ReadAsync(c);return Read(r);}
- public async Task<(MediaAssetSummary Asset,string Key,string Checksum)?>FindAsync(Guid org,Guid id,CancellationToken c){const string sql="SELECT id,owner_service,owner_type,owner_id,original_file_name,content_type,size_bytes,processing_status,uploaded_at_utc,processed_at_utc,concurrency_version,object_key,checksum_sha256 FROM media_assets WHERE organization_id=$1 AND id=$2 AND deleted_at_utc IS NULL;";await using var cn=await dataSource.OpenConnectionAsync(c);await using var cmd=new NpgsqlCommand(sql,cn);cmd.Parameters.AddWithValue(org);cmd.Parameters.AddWithValue(id);await using var r=await cmd.ExecuteReaderAsync(c);return await r.ReadAsync(c)?(Read(r),r.GetString(11),r.GetString(12)):null;}
- public Task<MediaAssetSummary?>CompleteAsync(Guid org,Guid id,long v,string actor,CancellationToken c)=>Change(org,id,v,actor,"processing_status='ready',processed_at_utc=now(),upload_expires_at_utc=NULL","media.asset.created","processing_status='pending' AND upload_expires_at_utc >= now()",c);
- public Task<MediaAssetSummary?>DeleteAsync(Guid org,Guid id,long v,string actor,CancellationToken c)=>Change(org,id,v,actor,"processing_status='deleted',deleted_at_utc=now()","media.asset.deleted","TRUE",c);
- async Task<MediaAssetSummary?>Change(Guid org,Guid id,long v,string actor,string set,string action,string predicate,CancellationToken c){string sql=$"UPDATE media_assets SET {set},updated_at_utc=now(),concurrency_version=concurrency_version+1 WHERE organization_id=$1 AND id=$2 AND concurrency_version=$3 AND deleted_at_utc IS NULL AND {predicate} RETURNING id,owner_service,owner_type,owner_id,original_file_name,content_type,size_bytes,processing_status,uploaded_at_utc,processed_at_utc,concurrency_version;";await using var cn=await dataSource.OpenConnectionAsync(c);await using var tx=await cn.BeginTransactionAsync(c);await using var cmd=new NpgsqlCommand(sql,cn,tx);cmd.Parameters.AddWithValue(org);cmd.Parameters.AddWithValue(id);cmd.Parameters.AddWithValue(v);await using var r=await cmd.ExecuteReaderAsync(c);MediaAssetSummary? result=await r.ReadAsync(c)?Read(r):null;if(result is null){await tx.RollbackAsync(c);return null;}await r.DisposeAsync();DateTimeOffset occurred=DateTimeOffset.UtcNow;await TransactionalAuditOutbox.EnqueueAuditAsync(cn,tx,new(Guid.NewGuid(),Guid.NewGuid(),occurred,actor,org,action,"media-asset",id.ToString("D"),"succeeded"),"media.audit.v1",c);await tx.CommitAsync(c);return result;}
- static MediaAssetSummary Read(NpgsqlDataReader r)=>new(r.GetGuid(0),r.GetString(1),r.GetString(2),r.GetGuid(3),r.GetString(4),r.GetString(5),r.GetInt64(6),r.GetString(7),r.GetFieldValue<DateTimeOffset>(8),r.IsDBNull(9)?null:r.GetFieldValue<DateTimeOffset>(9),r.GetInt64(10));
+    private const string Columns = "id,owner_service,owner_type,owner_id,original_file_name,content_type,size_bytes,processing_status,uploaded_at_utc,processed_at_utc,concurrency_version";
+
+    public async Task<MediaAssetSummary> StartAsync(Guid org, Guid id, string key, StartMediaUploadCommand value, string actor, DateTimeOffset expires, CancellationToken cancellationToken)
+    {
+        string sql = $"INSERT INTO media_assets(id,organization_id,owner_service,owner_type,owner_id,object_key,original_file_name,content_type,size_bytes,checksum_sha256,processing_status,uploaded_at_utc,created_by,updated_at_utc,upload_expires_at_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',now(),$11,now(),$12) RETURNING {Columns};";
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        object[] parameters = [id, org, value.OwnerService, value.OwnerType, value.OwnerId, key, value.FileName, value.ContentType, value.SizeBytes, value.ChecksumSha256, actor, expires];
+        foreach (object parameter in parameters) command.Parameters.AddWithValue(parameter);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        return Read(reader);
+    }
+
+    public async Task<(MediaAssetSummary Asset, string Key, string Checksum)?> FindAsync(Guid org, Guid id, CancellationToken cancellationToken)
+    {
+        string sql = $"SELECT {Columns},object_key,checksum_sha256 FROM media_assets WHERE organization_id=$1 AND id=$2 AND deleted_at_utc IS NULL;";
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue(org); command.Parameters.AddWithValue(id);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? (Read(reader), reader.GetString(11), reader.GetString(12)) : null;
+    }
+
+    public Task<MediaAssetSummary?> CompleteAsync(Guid org, Guid id, long version, string actor, CancellationToken cancellationToken) =>
+        Change(org, id, version, actor, "processing_status='ready',processed_at_utc=now(),upload_expires_at_utc=NULL", "media.asset.created", "processing_status='pending' AND upload_expires_at_utc >= now()", false, cancellationToken);
+
+    public Task<MediaAssetSummary?> DeleteAsync(Guid org, Guid id, long version, string actor, CancellationToken cancellationToken) =>
+        Change(org, id, version, actor, "processing_status='deleted',deleted_at_utc=now()", "media.asset.deleted", "TRUE", true, cancellationToken);
+
+    private async Task<MediaAssetSummary?> Change(Guid org, Guid id, long version, string actor, string set, string action, string predicate, bool enqueueDeletion, CancellationToken cancellationToken)
+    {
+        string sql = $"UPDATE media_assets SET {set},updated_at_utc=now(),concurrency_version=concurrency_version+1 WHERE organization_id=$1 AND id=$2 AND concurrency_version=$3 AND deleted_at_utc IS NULL AND {predicate} RETURNING {Columns},object_key;";
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue(org); command.Parameters.AddWithValue(id); command.Parameters.AddWithValue(version);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) { await transaction.RollbackAsync(cancellationToken); return null; }
+        MediaAssetSummary result = Read(reader); string objectKey = reader.GetString(11); await reader.DisposeAsync();
+        if (enqueueDeletion)
+        {
+            await using var deletion = new NpgsqlCommand("INSERT INTO media_object_deletions(asset_id,organization_id,object_key,next_attempt_at_utc) VALUES($1,$2,$3,now()) ON CONFLICT(asset_id) DO NOTHING;", connection, transaction);
+            deletion.Parameters.AddWithValue(id); deletion.Parameters.AddWithValue(org); deletion.Parameters.AddWithValue(objectKey);
+            await deletion.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await TransactionalAuditOutbox.EnqueueAuditAsync(connection, transaction, new(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow, actor, org, action, "media-asset", id.ToString("D"), "succeeded"), "media.audit.v1", cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
+    private static MediaAssetSummary Read(NpgsqlDataReader reader) => new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetGuid(3), reader.GetString(4), reader.GetString(5), reader.GetInt64(6), reader.GetString(7), reader.GetFieldValue<DateTimeOffset>(8), reader.IsDBNull(9) ? null : reader.GetFieldValue<DateTimeOffset>(9), reader.GetInt64(10));
 }

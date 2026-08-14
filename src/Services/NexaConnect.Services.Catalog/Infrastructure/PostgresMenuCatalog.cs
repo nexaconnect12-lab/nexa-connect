@@ -5,6 +5,13 @@ namespace NexaConnect.Services.Catalog.Infrastructure;
 
 public sealed class PostgresMenuCatalog(NpgsqlDataSource dataSource) : IMenuCatalog
 {
+    public async Task<bool> ProductExistsAsync(Guid organizationId, Guid productId, CancellationToken cancellationToken)
+    {
+        using var command = dataSource.CreateCommand("SELECT EXISTS(SELECT 1 FROM catalog_menu_items WHERE organization_id=@organization AND product_id=@product)");
+        command.Parameters.AddWithValue("organization", organizationId);
+        command.Parameters.AddWithValue("product", productId);
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
+    }
     public IReadOnlyCollection<MenuItem> GetForBranch(Guid branchId)
     {
         using var command = dataSource.CreateCommand("SELECT product_id,name,unit_price,currency,preparation_station,available FROM catalog_menu_items WHERE branch_id=@branch ORDER BY name");

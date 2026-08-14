@@ -1,15 +1,79 @@
 namespace NexaConnect.Services.Media.Application;
-public sealed record StartMediaUploadCommand(string OwnerService,string OwnerType,Guid OwnerId,string FileName,string ContentType,long SizeBytes,string ChecksumSha256);
-public sealed record UploadSession(MediaAssetSummary Asset,string UploadUrl,DateTimeOffset ExpiresAtUtc);
-public sealed record DownloadSession(string DownloadUrl,DateTimeOffset ExpiresAtUtc);
-public sealed record StoredObjectInfo(long SizeBytes,string? ChecksumSha256);
-public interface IMediaObjectStorage{Task<string>CreateUploadUrlAsync(string key,string type,long size,string checksum,TimeSpan life,CancellationToken c);Task<string>CreateDownloadUrlAsync(string key,TimeSpan life,CancellationToken c);Task<StoredObjectInfo?>InspectAsync(string key,CancellationToken c);Task DeleteAsync(string key,CancellationToken c);}
-public interface IMediaManagementRepository{Task<MediaAssetSummary>StartAsync(Guid org,Guid id,string key,StartMediaUploadCommand command,string actor,DateTimeOffset expires,CancellationToken c);Task<(MediaAssetSummary Asset,string Key,string Checksum)?>FindAsync(Guid org,Guid id,CancellationToken c);Task<MediaAssetSummary?>CompleteAsync(Guid org,Guid id,long version,string actor,CancellationToken c);Task<MediaAssetSummary?>DeleteAsync(Guid org,Guid id,long version,string actor,CancellationToken c);}
-public sealed class MediaManagement(IMediaManagementRepository repository,IMediaObjectStorage storage)
+
+public sealed record StartMediaUploadCommand(string OwnerService, string OwnerType, Guid OwnerId, string FileName, string ContentType, long SizeBytes, string ChecksumSha256);
+public sealed record UploadSession(MediaAssetSummary Asset, string UploadUrl, DateTimeOffset ExpiresAtUtc);
+public sealed record DownloadSession(string DownloadUrl, DateTimeOffset ExpiresAtUtc);
+public sealed record StoredObjectInfo(long SizeBytes, string? ChecksumSha256);
+
+public interface IMediaObjectStorage
 {
- static readonly HashSet<string>Types=["image/jpeg","image/png","image/webp"];
- public async Task<UploadSession>StartAsync(Guid org,StartMediaUploadCommand x,string actor,CancellationToken c){string owner=x.OwnerService?.Trim().ToLowerInvariant()??"",kind=x.OwnerType?.Trim().ToLowerInvariant()??"",name=Path.GetFileName(x.FileName?.Trim()??""),type=x.ContentType?.Trim().ToLowerInvariant()??"",hash=x.ChecksumSha256?.Trim().ToLowerInvariant()??"";if(org==Guid.Empty||x.OwnerId==Guid.Empty||string.IsNullOrWhiteSpace(actor)||owner!="catalog"||kind!="product")throw new ArgumentException("Organization, Catalog product owner, and actor are required.");if(name.Length is<1 or>200||name.Any(char.IsControl)||!Types.Contains(type)||x.SizeBytes is<1 or>10_485_760||!System.Text.RegularExpressions.Regex.IsMatch(hash,"^[0-9a-f]{64}$"))throw new ArgumentException("File name, type, size, or checksum is invalid.");Guid id=Guid.NewGuid();string key=$"organizations/{org:D}/assets/{id:D}/original";DateTimeOffset expires=DateTimeOffset.UtcNow.AddMinutes(10);var normalized=x with{OwnerService=owner,OwnerType=kind,FileName=name,ContentType=type,ChecksumSha256=hash};MediaAssetSummary asset=await repository.StartAsync(org,id,key,normalized,actor.Trim(),expires,c);return new(asset,await storage.CreateUploadUrlAsync(key,type,x.SizeBytes,hash,TimeSpan.FromMinutes(10),c),expires);}
- public async Task<MediaAssetSummary>CompleteAsync(Guid org,Guid id,long version,string actor,CancellationToken c){if(version<=0)throw new ArgumentException("Expected version must be positive.");var found=await repository.FindAsync(org,id,c)??throw new KeyNotFoundException();StoredObjectInfo info=await storage.InspectAsync(found.Key,c)??throw new InvalidOperationException("Uploaded object was not found.");if(info.SizeBytes!=found.Asset.SizeBytes||(string.IsNullOrWhiteSpace(info.ChecksumSha256)||!string.Equals(info.ChecksumSha256,found.Checksum,StringComparison.OrdinalIgnoreCase)))throw new InvalidOperationException("Uploaded object metadata did not match the upload declaration.");return await repository.CompleteAsync(org,id,version,actor,c)??throw new InvalidOperationException("Media changed concurrently or the upload expired.");}
- public async Task<DownloadSession>DownloadAsync(Guid org,Guid id,CancellationToken c){var found=await repository.FindAsync(org,id,c)??throw new KeyNotFoundException();if(found.Asset.ProcessingStatus!="ready")throw new InvalidOperationException("Media is not ready.");DateTimeOffset expires=DateTimeOffset.UtcNow.AddMinutes(5);return new(await storage.CreateDownloadUrlAsync(found.Key,TimeSpan.FromMinutes(5),c),expires);}
- public async Task<MediaAssetSummary>DeleteAsync(Guid org,Guid id,long version,string actor,CancellationToken c){if(version<=0)throw new ArgumentException("Expected version must be positive.");var found=await repository.FindAsync(org,id,c)??throw new KeyNotFoundException();MediaAssetSummary deleted=await repository.DeleteAsync(org,id,version,actor,c)??throw new InvalidOperationException("Media changed concurrently.");await storage.DeleteAsync(found.Key,c);return deleted;}
+    Task<string> CreateUploadUrlAsync(string key, string type, long size, string checksum, TimeSpan lifetime, CancellationToken cancellationToken);
+    Task<string> CreateDownloadUrlAsync(string key, TimeSpan lifetime, CancellationToken cancellationToken);
+    Task<StoredObjectInfo?> InspectAsync(string key, CancellationToken cancellationToken);
+    Task DeleteAsync(string key, CancellationToken cancellationToken);
+}
+
+public interface IMediaOwnerValidator
+{
+    Task<bool> ExistsAsync(Guid organizationId, string ownerService, string ownerType, Guid ownerId, CancellationToken cancellationToken);
+}
+
+public interface IMediaManagementRepository
+{
+    Task<MediaAssetSummary> StartAsync(Guid organizationId, Guid id, string key, StartMediaUploadCommand command, string actor, DateTimeOffset expires, CancellationToken cancellationToken);
+    Task<(MediaAssetSummary Asset, string Key, string Checksum)?> FindAsync(Guid organizationId, Guid id, CancellationToken cancellationToken);
+    Task<MediaAssetSummary?> CompleteAsync(Guid organizationId, Guid id, long version, string actor, CancellationToken cancellationToken);
+    Task<MediaAssetSummary?> DeleteAsync(Guid organizationId, Guid id, long version, string actor, CancellationToken cancellationToken);
+}
+
+public sealed class MediaManagement(IMediaManagementRepository repository, IMediaObjectStorage storage, IMediaOwnerValidator owners)
+{
+    private static readonly HashSet<string> Types = ["image/jpeg", "image/png", "image/webp"];
+
+    public async Task<UploadSession> StartAsync(Guid organizationId, StartMediaUploadCommand command, string actor, CancellationToken cancellationToken)
+    {
+        string owner = command.OwnerService?.Trim().ToLowerInvariant() ?? "";
+        string kind = command.OwnerType?.Trim().ToLowerInvariant() ?? "";
+        string name = Path.GetFileName(command.FileName?.Trim() ?? "");
+        string type = command.ContentType?.Trim().ToLowerInvariant() ?? "";
+        string hash = command.ChecksumSha256?.Trim().ToLowerInvariant() ?? "";
+        if (organizationId == Guid.Empty || command.OwnerId == Guid.Empty || string.IsNullOrWhiteSpace(actor) || owner != "catalog" || kind != "product")
+            throw new ArgumentException("Organization, Catalog product owner, and actor are required.");
+        if (name.Length is < 1 or > 200 || name.Any(char.IsControl) || !Types.Contains(type) || command.SizeBytes is < 1 or > 10_485_760 || !System.Text.RegularExpressions.Regex.IsMatch(hash, "^[0-9a-f]{64}$"))
+            throw new ArgumentException("File name, type, size, or checksum is invalid.");
+        if (!await owners.ExistsAsync(organizationId, owner, kind, command.OwnerId, cancellationToken))
+            throw new KeyNotFoundException("Catalog product owner was not found in the active organization.");
+
+        Guid id = Guid.NewGuid();
+        string key = $"organizations/{organizationId:D}/assets/{id:D}/original";
+        DateTimeOffset expires = DateTimeOffset.UtcNow.AddMinutes(10);
+        var normalized = command with { OwnerService = owner, OwnerType = kind, FileName = name, ContentType = type, ChecksumSha256 = hash };
+        MediaAssetSummary asset = await repository.StartAsync(organizationId, id, key, normalized, actor.Trim(), expires, cancellationToken);
+        return new(asset, await storage.CreateUploadUrlAsync(key, type, command.SizeBytes, hash, TimeSpan.FromMinutes(10), cancellationToken), expires);
+    }
+
+    public async Task<MediaAssetSummary> CompleteAsync(Guid organizationId, Guid id, long version, string actor, CancellationToken cancellationToken)
+    {
+        if (version <= 0) throw new ArgumentException("Expected version must be positive.");
+        var found = await repository.FindAsync(organizationId, id, cancellationToken) ?? throw new KeyNotFoundException();
+        StoredObjectInfo info = await storage.InspectAsync(found.Key, cancellationToken) ?? throw new InvalidOperationException("Uploaded object was not found.");
+        if (info.SizeBytes != found.Asset.SizeBytes || string.IsNullOrWhiteSpace(info.ChecksumSha256) || !string.Equals(info.ChecksumSha256, found.Checksum, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Uploaded object verification failed.");
+        return await repository.CompleteAsync(organizationId, id, version, actor, cancellationToken) ?? throw new InvalidOperationException("Media changed concurrently or the upload expired.");
+    }
+
+    public async Task<DownloadSession> DownloadAsync(Guid organizationId, Guid id, CancellationToken cancellationToken)
+    {
+        var found = await repository.FindAsync(organizationId, id, cancellationToken) ?? throw new KeyNotFoundException();
+        if (found.Asset.ProcessingStatus != "ready") throw new InvalidOperationException("Media is not ready.");
+        DateTimeOffset expires = DateTimeOffset.UtcNow.AddMinutes(5);
+        return new(await storage.CreateDownloadUrlAsync(found.Key, TimeSpan.FromMinutes(5), cancellationToken), expires);
+    }
+
+    public async Task<MediaAssetSummary> DeleteAsync(Guid organizationId, Guid id, long version, string actor, CancellationToken cancellationToken)
+    {
+        if (version <= 0) throw new ArgumentException("Expected version must be positive.");
+        _ = await repository.FindAsync(organizationId, id, cancellationToken) ?? throw new KeyNotFoundException();
+        return await repository.DeleteAsync(organizationId, id, version, actor, cancellationToken) ?? throw new InvalidOperationException("Media changed concurrently.");
+    }
 }

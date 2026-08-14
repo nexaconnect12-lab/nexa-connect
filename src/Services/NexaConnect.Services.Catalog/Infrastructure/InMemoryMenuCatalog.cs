@@ -17,6 +17,9 @@ public sealed class InMemoryMenuCatalog : IMenuCatalog
 
     public MenuItem Add(Guid branchId, CreateMenuItem command) => AddForOrganizationBranch(Guid.Empty, branchId, command);
 
+    public Task<bool> ProductExistsAsync(Guid organizationId, Guid productId, CancellationToken cancellationToken) =>
+        Task.FromResult(menus.Where(pair => pair.Key.OrganizationId == organizationId).Any(pair => pair.Value.ContainsKey(productId)));
+
     public MenuItem AddForOrganizationBranch(Guid organizationId, Guid branchId, CreateMenuItem command)
     {
         if (command.ProductId == Guid.Empty || string.IsNullOrWhiteSpace(command.Name) || command.UnitPrice < 0)
