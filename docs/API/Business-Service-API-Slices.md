@@ -15,7 +15,7 @@ The former weather scaffold endpoints have been replaced with initial bounded-co
 | Platform Directory | `GET /api/platform-directory/v1/me/access`, `GET /api/platform-directory/v1/organizations/{organizationId}/access` | Organization membership and enabled product-access boundary; product authorization remains owned by each product |
 | Restaurant | Branch management and `GET/PUT .../configuration/branches/{branchId}` | PostgreSQL hierarchy, typed branch configuration, and append-only audit |
 | Reporting | `GET .../dashboard`, `GET .../reports/sales`, `GET .../activity` | PostgreSQL event projections only; activity uses cursor pagination |
-| Media | `GET .../assets` | PostgreSQL metadata only; object lifecycle staged |
+| Media | list, upload-start/complete, signed download, delete | PostgreSQL metadata plus S3-compatible lifecycle; scanning and variants staged |
 
 Customer Portal Catalog reads use `X-Nexa-Portal-Request: customer`, `X-Nexa-Organization-Id`, and `X-Nexa-Application-Code: nexa_connect` headers. The Catalog service validates organization access through Platform Directory using the forwarded customer bearer token, then checks the selected branch's Restaurant-owned authorization scope with the Catalog workload identity. A branch whose scope organization does not match the selected organization is rejected; the headers remain context, not a substitute for authorization.
 

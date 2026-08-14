@@ -5,6 +5,9 @@ using Npgsql;
 using NexaConnect.Services.Media.Application;
 using NexaConnect.Services.Media.Infrastructure.Persistence;
 using NexaConnect.Services.Media.Infrastructure;
+using Amazon.S3;
+using Amazon.Runtime;
+using NexaConnect.Infrastructure.Messaging;
 
 var builder=WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-media");
@@ -12,6 +15,8 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 builder.Services.AddControllers();builder.Services.AddOpenApi();builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);builder.Services.AddNexaConnectDataProtection(builder.Configuration,builder.Environment,"media");
 builder.Services.AddSingleton(_=>NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Media")??throw new InvalidOperationException("ConnectionStrings:Media is required.")));
 builder.Services.AddScoped<MediaAssetQueries>();builder.Services.AddScoped<IMediaAssetRepository,PostgresMediaAssetRepository>();
+builder.Services.AddScoped<MediaManagement>();builder.Services.AddScoped<IMediaManagementRepository,PostgresMediaManagementRepository>();builder.Services.AddSingleton<IAmazonS3>(_=>{string accessKey=builder.Configuration["MediaStorage:AccessKey"]??throw new InvalidOperationException("MediaStorage:AccessKey is required.");string secretKey=builder.Configuration["MediaStorage:SecretKey"]??throw new InvalidOperationException("MediaStorage:SecretKey is required.");return new AmazonS3Client(new BasicAWSCredentials(accessKey,secretKey),new AmazonS3Config{ServiceURL=builder.Configuration["MediaStorage:ServiceUrl"]??throw new InvalidOperationException("MediaStorage:ServiceUrl is required."),ForcePathStyle=true});});builder.Services.AddSingleton<IMediaObjectStorage,S3MediaObjectStorage>();
+if(builder.Configuration.GetValue<bool>("Outbox:Enabled"))builder.Services.AddPostgresOutbox(builder.Configuration,"Media");
 builder.Services.AddHttpClient("PlatformDirectory",client=>client.BaseAddress=new Uri(builder.Configuration["Services:PlatformDirectory"]??throw new InvalidOperationException("Services:PlatformDirectory is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<ProductAuthorizationClient>(client=>client.BaseAddress=new Uri(builder.Configuration["Services:Authorization"]??throw new InvalidOperationException("Services:Authorization is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<IMediaCustomerAuthorizer>(provider=>new HttpMediaCustomerAuthorizer(provider.GetRequiredService<IHttpClientFactory>().CreateClient("PlatformDirectory"),provider.GetRequiredService<ProductAuthorizationClient>(),provider.GetRequiredService<ILogger<HttpMediaCustomerAuthorizer>>()));

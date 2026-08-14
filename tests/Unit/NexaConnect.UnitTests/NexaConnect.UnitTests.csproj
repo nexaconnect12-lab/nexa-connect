@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.PlatformDirectory\NexaConnect.Services.PlatformDirectory.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Restaurant\NexaConnect.Services.Restaurant.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Reporting\NexaConnect.Services.Reporting.csproj" />
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Media\NexaConnect.Services.Media.csproj" />
     <ProjectReference Include="..\..\..\src\Gateway\NexaConnect.CustomerBff\NexaConnect.CustomerBff.csproj" />
     <ProjectReference Include="..\..\..\src\Gateway\NexaConnect.PlatformAdminBff\NexaConnect.PlatformAdminBff.csproj" />
     <ProjectReference Include="..\..\..\src\Tools\NexaConnect.DataGeneration\NexaConnect.DataGeneration.csproj" />

@@ -321,6 +321,7 @@ The server must enforce uniqueness for each terminal and client-generated operat
 ### 6.9 Media
 
 - `media_assets` — owner reference, object key, original name, content type, size, checksum, dimensions, and processing status.
+- Media migration 2 adds upload expiry and a tenant/status/expiry index for pending signed sessions. Completion clears expiry and increments concurrency. Object storage and PostgreSQL cannot share a transaction, so stale pending rows and delete-race orphans require reconciliation.
 - `media_variants` — thumbnail or transformed variant, dimensions, format, object key, and checksum.
 - `media_processing_attempts` — worker attempt, outcome, error category, and timestamps.
 

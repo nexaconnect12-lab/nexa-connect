@@ -14,7 +14,7 @@ This document records the agreed Product Owner Portal and Customer Portal implem
 | 6 | Frontend foundations | Complete |
 | 7 | Product Owner Portal | Complete (compatibility implementation) |
 | 8 | Customer Portal | Functional page/API slices implemented; activity delivery, media writes, and deeper validation remain |
-| 9 | Media service | Tenant-authorized metadata read implemented; object lifecycle staged |
+| 9 | Media service | Tenant-authorized presigned upload/download/delete preview available; scanning and variants staged |
 | 10 | Product service integration | Partially implemented |
 | 11 | Testing | Continuous; partial coverage implemented |
 | 12 | Deployment and operations | Development foundation; production hardening planned |
@@ -28,7 +28,7 @@ Phase 2 is complete in the current development implementation:
 - Customer roles are `customer-owner`, `customer-admin`, `customer-manager`, `customer-user`, and `customer-viewer`.
 - Product-specific roles remain a separate namespace and platform roles do not automatically grant product permissions.
 - Portal cookies, server-side ticket stores, secrets, scopes, redirect URIs, and Data Protection applications are isolated.
-- Support elevation is scoped to a support subject, organization, and application; requires a reason and independent approval; lasts 5–240 minutes; and becomes ineffective on expiry or revocation.
+- Support elevation is scoped to a support subject, organization, and application; requires a reason and independent approval; lasts 5â€“240 minutes; and becomes ineffective on expiry or revocation.
 - Support request, approval, and revocation actions are transactionally recorded in audit history whose database trigger rejects updates and deletes.
 - Tenant-authorization tests cover denial across organization boundaries for implemented customer-facing product slices.
 
@@ -56,4 +56,4 @@ Phase 7 is complete as a compatibility implementation in `src/Frontend/apps/prod
 
 Phase 8 now provides an independently buildable Customer Portal context and navigation shell with BFF-owned authentication, active organization/product selection, organization profile, enabled-product switching, and ordered navigation for users/memberships, product configuration, branches/locations, dashboards, reports, media, and activity/audit. Pages are client-gated until a valid context from the current access response is selected; `/tenant` and `/features/*` perform server-side revalidation of the exact organization/application pair.
 
-Customer membership administration established the management pattern and branch/location management extended it into Restaurant. Product configuration uses a typed, versioned Restaurant-owned branch document with transactional audit. Dashboards, sales reports, and the non-authoritative activity projection preview query Reporting-owned projections. The activity writer is idempotent and workload-restricted, while membership/Restaurant outbox publication and durable RabbitMQ consumption are implemented; Media publication is staged. Media metadata is served by a dedicated Media service; upload/object processing remains staged.
+Customer membership administration established the management pattern and branch/location management extended it into Restaurant. Media now provides tenant-authorized list, presigned upload/completion, signed download, and delete flows through its own service and storage boundary. Completion compares object size and client-declared checksum metadata; scanning, variants, and reconciliation remain staged.

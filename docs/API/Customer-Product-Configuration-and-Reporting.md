@@ -6,7 +6,7 @@ All routes require an authenticated Customer session. The BFF derives `organizat
 
 Restaurant owns `GET/PUT /api/restaurant/v1/customer/organizations/{organizationId}/configuration/branches/{branchId}`; the BFF surface is `/bff/customer/configuration/branches/{branchId}`. GET returns branch/restaurant/organization IDs, `dineInEnabled`, `takeawayEnabled`, `requireTableForDineIn`, `serviceChargePercent`, and `concurrencyVersion`. PUT accepts the four settings plus positive `expectedVersion`.
 
-At least one service mode is required, table requirement needs dine-in, and service charge is 0–100. GET returns `404` for missing, cross-tenant, closed, or inactive hierarchy. Invalid PUT returns `400`; unavailable/cross-tenant/closed/stale writes collapse to `409`; success returns `200`. Lifecycle and configuration edits share the branch concurrency token. Writes append `branch.configuration.updated` transactionally.
+At least one service mode is required, table requirement needs dine-in, and service charge is 0â€“100. GET returns `404` for missing, cross-tenant, closed, or inactive hierarchy. Invalid PUT returns `400`; unavailable/cross-tenant/closed/stale writes collapse to `409`; success returns `200`. Lifecycle and configuration edits share the branch concurrency token. Writes append `branch.configuration.updated` transactionally.
 
 ## Reporting
 
@@ -16,11 +16,13 @@ Dashboard returns completed orders, gross sales, net paid, refunded, currency, a
 
 ## Media metadata
 
-Media owns `GET /api/media/v1/customer/organizations/{organizationId}/assets`; BFF path `/bff/customer/media`. It returns up to 500 non-deleted rows newest-first with asset ID, owner, filename/type/size, processing status/times, and version. Upload, signed download, deletion, variants, and workers remain staged in Media.
+Media writes are a development preview and must not accept untrusted production content. SHA-256 is caller-declared object metadata, not a provider-verified digest. Owner validation, quarantine/scanning, quotas, cleanup, and cross-store reconciliation remain required. Delete commits the soft-delete/audit before object removal, so stale versions cannot remove live bytes but storage failure may leave an orphan.
+
+Media owns list, upload-start, completion, signed-download, and deletion routes; the BFF exposes them below `/bff/customer/media` and derives organization from its tenant cookie. Start accepts Catalog product ownership, filename, content type, size, and lowercase SHA-256 and returns `201` with the asset, ten-minute PUT URL, and expiry. JPEG/PNG/WebP files are limited to 10 MiB. The PUT sends the signed content type and `x-amz-meta-sha256`; completion accepts `expectedVersion` and verifies size/checksum metadata. Download is ready-only and returns a five-minute URL. Delete requires `expectedVersion`. Reads require `media.asset.read`; mutations require `media.asset.manage`. Invalid requests return `400`, denial `403`, absence `404`, expired/stale transitions `409`, and storage/dependency failures `5xx`. Variants, malware scanning, owner validation, and orphan reconciliation remain staged.
 
 ## Activity and audit history
 
-Reporting owns `GET /api/reporting/v1/customer/organizations/{organizationId}/activity`; the BFF path is `/bff/customer/activity`. Optional exact-match `actorSubjectId` and `action` filters are supported. `limit` defaults to 50 and must be 1–200. `cursor` is an opaque continuation token; malformed cursors return `400`. Results are newest-first and return `{ items, nextCursor }`. Every item contains only event ID, organization/application, source service, actor subject, action, resource type/ID, outcome, occurrence time, and projection time.
+Reporting owns `GET /api/reporting/v1/customer/organizations/{organizationId}/activity`; the BFF path is `/bff/customer/activity`. Optional exact-match `actorSubjectId` and `action` filters are supported. `limit` defaults to 50 and must be 1â€“200. `cursor` is an opaque continuation token; malformed cursors return `400`. Results are newest-first and return `{ items, nextCursor }`. Every item contains only event ID, organization/application, source service, actor subject, action, resource type/ID, outcome, occurrence time, and projection time.
 
 The read requires `reporting.activity.read`, active organization access, and the active `nexa_connect` context. Platform Directory membership and Restaurant branch/configuration mutations enqueue `PlatformAuditEventV1` atomically with their mutation and local audit; dispatch is asynchronous. Reporting consumes `*.audit.v1` with manual acknowledgement and durable inbox deduplication. Media mutation publication remains future work, so this is not a complete compliance record.
 

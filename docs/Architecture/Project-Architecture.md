@@ -14,18 +14,18 @@ The detailed restaurant domains, branch-edge topology, offline failure model, ki
 
 ## 2. Architectural principles
 
-1. **Business capability boundaries** — services are organized by domain responsibility rather than technical layer.
-2. **Independent data ownership** — each service owns its schema or database and other services do not update its tables directly.
-3. **API-first integration** — synchronous communication uses versioned HTTP APIs; asynchronous state changes use integration events.
-4. **Centralized identity** — Keycloak provides OpenID Connect and OAuth 2.0 authentication.
-5. **Defense in depth** — authentication occurs centrally, while resource-level authorization remains inside each business service.
-6. **Observable by default** — logging, traces, metrics, and health checks are included from the beginning.
-7. **Offline-aware POS** — the Windows POS client uses local storage and reliable synchronization.
-8. **Incremental microservices** — avoid splitting services until a clear deployment, scaling, ownership, or reliability requirement exists.
-9. **Branch resilience** — restaurant ordering, kitchen routing, cash payment, and receipt printing must not depend on continuous WAN connectivity.
-10. **One order lifecycle** — POS, waiter, kiosk, and customer QR channels converge into the same Ordering capability.
-11. **Reporting projections** — reporting consumes business events and never becomes a cross-service transactional query layer.
-12. **Domain-driven design** — bounded contexts own their language, models, persistence, and integration contracts; tactical patterns are applied where business complexity justifies them.
+1. **Business capability boundaries** â€” services are organized by domain responsibility rather than technical layer.
+2. **Independent data ownership** â€” each service owns its schema or database and other services do not update its tables directly.
+3. **API-first integration** â€” synchronous communication uses versioned HTTP APIs; asynchronous state changes use integration events.
+4. **Centralized identity** â€” Keycloak provides OpenID Connect and OAuth 2.0 authentication.
+5. **Defense in depth** â€” authentication occurs centrally, while resource-level authorization remains inside each business service.
+6. **Observable by default** â€” logging, traces, metrics, and health checks are included from the beginning.
+7. **Offline-aware POS** â€” the Windows POS client uses local storage and reliable synchronization.
+8. **Incremental microservices** â€” avoid splitting services until a clear deployment, scaling, ownership, or reliability requirement exists.
+9. **Branch resilience** â€” restaurant ordering, kitchen routing, cash payment, and receipt printing must not depend on continuous WAN connectivity.
+10. **One order lifecycle** â€” POS, waiter, kiosk, and customer QR channels converge into the same Ordering capability.
+11. **Reporting projections** â€” reporting consumes business events and never becomes a cross-service transactional query layer.
+12. **Domain-driven design** â€” bounded contexts own their language, models, persistence, and integration contracts; tactical patterns are applied where business complexity justifies them.
 
 ## 3. High-level architecture
 
@@ -84,51 +84,51 @@ flowchart TB
 
 ```text
 NexaConnect/
-├── docs/
-│   ├── Architecture/
-│   ├── API/
-│   ├── Database/
-│   └── Deployment/
-├── docker/
-│   ├── keycloak/
-│   ├── postgres/
-│   ├── redis/
-│   ├── rabbitmq/
-│   ├── prometheus/
-│   └── grafana/
-├── scripts/
-├── src/
-│   ├── Aspire/
-│   │   ├── NexaConnect.AppHost/
-│   │   └── NexaConnect.ServiceDefaults/
-│   ├── BuildingBlocks/
-│   │   ├── NexaConnect.BuildingBlocks/
-│   │   ├── NexaConnect.Contracts/
-│   │   ├── NexaConnect.Infrastructure/
-│   │   └── NexaConnect.Shared/
-│   ├── Gateway/
-│   │   └── NexaConnect.Gateway/
-│   ├── Tools/
-│   │   ├── NexaConnect.DataMigration/
-│   │   └── NexaConnect.DataGeneration/
-│   ├── Services/
-│   │   ├── NexaConnect.Services.Catalog/
-│   │   ├── NexaConnect.Services.PlatformDirectory/
-│   │   ├── NexaConnect.Services.Inventory/
-│   │   ├── NexaConnect.Services.Order/
-│   │   ├── NexaConnect.Services.Customer/
-│   │   ├── NexaConnect.Services.Payment/
-│   │   ├── NexaConnect.Services.Notification/
-│   │   └── NexaConnect.Services.POS/
-│   └── Clients/
-│       ├── NexaConnect.Web/
-│       ├── NexaConnect.Admin/
-│       ├── NexaConnect.Mobile/
-│       └── NexaConnect.POS/
-└── tests/
-    ├── Unit/
-    ├── Integration/
-    └── Architecture/
+â”œâ”€â”€ docs/
+â”‚   â”œâ”€â”€ Architecture/
+â”‚   â”œâ”€â”€ API/
+â”‚   â”œâ”€â”€ Database/
+â”‚   â””â”€â”€ Deployment/
+â”œâ”€â”€ docker/
+â”‚   â”œâ”€â”€ keycloak/
+â”‚   â”œâ”€â”€ postgres/
+â”‚   â”œâ”€â”€ redis/
+â”‚   â”œâ”€â”€ rabbitmq/
+â”‚   â”œâ”€â”€ prometheus/
+â”‚   â””â”€â”€ grafana/
+â”œâ”€â”€ scripts/
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ Aspire/
+â”‚   â”‚   â”œâ”€â”€ NexaConnect.AppHost/
+â”‚   â”‚   â””â”€â”€ NexaConnect.ServiceDefaults/
+â”‚   â”œâ”€â”€ BuildingBlocks/
+â”‚   â”‚   â”œâ”€â”€ NexaConnect.BuildingBlocks/
+â”‚   â”‚   â”œâ”€â”€ NexaConnect.Contracts/
+â”‚   â”‚   â”œâ”€â”€ NexaConnect.Infrastructure/
+â”‚   â”‚   â””â”€â”€ NexaConnect.Shared/
+â”‚   â”œâ”€â”€ Gateway/
+â”‚   â”‚   â””â”€â”€ NexaConnect.Gateway/
+â”‚   â”œâ”€â”€ Tools/
+â”‚   â”‚   â”œâ”€â”€ NexaConnect.DataMigration/
+â”‚   â”‚   â””â”€â”€ NexaConnect.DataGeneration/
+â”‚   â”œâ”€â”€ Services/
+â”‚   â”‚   â”œâ”€â”€ NexaConnect.Services.Catalog/
+â”‚   â”‚   â”œâ”€â”€ NexaConnect.Services.PlatformDirectory/
+â”‚   â”‚   â”œâ”€â”€ NexaConnect.Services.Inventory/
+â”‚   â”‚   â”œâ”€â”€ NexaConnect.Services.Order/
+â”‚   â”‚   â”œâ”€â”€ NexaConnect.Services.Customer/
+â”‚   â”‚   â”œâ”€â”€ NexaConnect.Services.Payment/
+â”‚   â”‚   â”œâ”€â”€ NexaConnect.Services.Notification/
+â”‚   â”‚   â””â”€â”€ NexaConnect.Services.POS/
+â”‚   â””â”€â”€ Clients/
+â”‚       â”œâ”€â”€ NexaConnect.Web/
+â”‚       â”œâ”€â”€ NexaConnect.Admin/
+â”‚       â”œâ”€â”€ NexaConnect.Mobile/
+â”‚       â””â”€â”€ NexaConnect.POS/
+â””â”€â”€ tests/
+    â”œâ”€â”€ Unit/
+    â”œâ”€â”€ Integration/
+    â””â”€â”€ Architecture/
 ```
 
 ## 5. Component responsibilities
@@ -156,11 +156,11 @@ Shared organization and membership data is owned by a Platform Directory capabil
 
 Recommended clients:
 
-- `nexaconnect-web-bff` — confidential client.
-- `nexaconnect-admin-bff` — confidential client.
-- `platform-admin-bff` — separately deployed shared-platform dashboard client, owned outside NexaConnect.
-- `nexaconnect-mobile` — public client using Authorization Code with PKCE.
-- `nexaconnect-pos` — public client using Authorization Code with PKCE.
+- `nexaconnect-web-bff` â€” confidential client.
+- `nexaconnect-admin-bff` â€” confidential client.
+- `platform-admin-bff` â€” separately deployed shared-platform dashboard client, owned outside NexaConnect.
+- `nexaconnect-mobile` â€” public client using Authorization Code with PKCE.
+- `nexaconnect-pos` â€” public client using Authorization Code with PKCE.
 - One confidential service account per machine-to-machine workload.
 
 Implemented platform roles:
@@ -241,12 +241,12 @@ Each new or materially changed business service follows Domain-Driven Design wit
 
 ```text
 NexaConnect.Services.Order/
-├── Api/
-├── Application/
-├── Domain/
-├── Infrastructure/
-├── Contracts/
-└── Tests/
+â”œâ”€â”€ Api/
+â”œâ”€â”€ Application/
+â”œâ”€â”€ Domain/
+â”œâ”€â”€ Infrastructure/
+â”œâ”€â”€ Contracts/
+â””â”€â”€ Tests/
 ```
 
 For the first implementation, these can be folders inside one project. Split them into separate `.csproj` files only when compile-time boundaries provide clear value.
@@ -398,16 +398,16 @@ Organize by business feature:
 
 ```text
 src/
-├── app/
-├── features/
-│   ├── catalog/
-│   ├── inventory/
-│   ├── orders/
-│   ├── customers/
-│   └── reporting/
-├── shared/
-├── api/
-└── layouts/
+â”œâ”€â”€ app/
+â”œâ”€â”€ features/
+â”‚   â”œâ”€â”€ catalog/
+â”‚   â”œâ”€â”€ inventory/
+â”‚   â”œâ”€â”€ orders/
+â”‚   â”œâ”€â”€ customers/
+â”‚   â””â”€â”€ reporting/
+â”œâ”€â”€ shared/
+â”œâ”€â”€ api/
+â””â”€â”€ layouts/
 ```
 
 The browser should preferably authenticate through an ASP.NET Core BFF using secure HTTP-only cookies. Avoid storing long-lived refresh tokens in browser local storage.
@@ -418,7 +418,7 @@ Administration follows [ADR-003](Decisions/ADR-003-platform-and-product-dashboar
 
 The current Customer Portal BFF is `NexaConnect.CustomerBff`. It validates the authenticated session, keeps the authentication ticket and OIDC tokens in a server-side distributed ticket store, renews expiring access tokens or clears an unusable session, calls Platform Directory's current-access API, and protects the selected tenant context in an encrypted HTTP-only cookie. The browser receives only opaque cookie keys. This selection is context only; product Application use cases must perform final tenant and resource authorization. Platform Directory separately owns support-elevation request, independent approval, expiry, effective-access lookup, revocation, and append-only lifecycle audit behavior; an elevation never becomes a customer role or bypasses product authorization by itself.
 
-The Phase 8 React portal is independently built from `src/Frontend/apps/customer-portal` and published with the Customer BFF. Profile, product switching, memberships, branches, typed branch configuration, dashboards, sales reports, activity-projection preview, and media metadata use real contracts. Restaurant owns configuration and transactional audit; Reporting owns rebuildable metric and activity projections; Media owns metadata and the future object lifecycle. Activity ingestion enforces a bounded versioned audit contract. Membership and Restaurant publishers use transactional outboxes; Reporting consumes through a durable RabbitMQ queue and inbox. Media publication remains staged.
+The Phase 8 React portal is independently built and published with the Customer BFF. Profile, product switching, memberships, branches, typed configuration, dashboards, sales, activity preview, and Media list and preview upload/download/delete use real contracts. Media owns metadata and object keys and issues short-lived S3-compatible URLs, so bytes do not traverse the BFF. It compares size and client-declared checksum metadata before readiness; malware scanning, variants, and cross-store reconciliation remain staged.
 
 The complete Phase 7 Product Owner Portal compatibility application is implemented in `src/Frontend/apps/product-owner-portal`; ADR-006 still assigns the durable portal and BFF to the future shared-platform repository. It authenticates only through `NexaConnect.PlatformAdminBff` and covers organization lifecycle, membership changes, product registration/enablement, platform-user lifecycle and roles, audit, support elevation, directory summaries, and controlled handoff. `dotnet publish` builds the SPA into the BFF's same-origin static host, which applies explicit CSP, anti-framing, caching, and same-origin mutation controls. It never embeds customer operations.
 
@@ -472,7 +472,7 @@ Every backend component should provide:
 - Liveness and readiness health checks
 - Correlation IDs
 
-Use `NexaConnect.Observability` for structured JSON console logging, correlation propagation, and OpenTelemetry instrumentation. The Phase 4 chain—Customer BFF, Catalog, Inventory, Order, Payment, Customer, Authorization, Restaurant, and Platform Directory—propagates validated correlation identifiers across registered HTTP dependencies. Platform Admin BFF also adopts the foundation. Only logs are stored in Loki and queryable in Grafana; traces and metrics use the Collector debug exporter. Operational telemetry never replaces durable audit records. Future HTTP services, BFF routes, workers, and materially changed adapters must include this foundation with redaction tests and debugging documentation.
+Use `NexaConnect.Observability` for structured JSON console logging, correlation propagation, and OpenTelemetry instrumentation. The Phase 4 chainâ€”Customer BFF, Catalog, Inventory, Order, Payment, Customer, Authorization, Restaurant, and Platform Directoryâ€”propagates validated correlation identifiers across registered HTTP dependencies. Platform Admin BFF also adopts the foundation. Only logs are stored in Loki and queryable in Grafana; traces and metrics use the Collector debug exporter. Operational telemetry never replaces durable audit records. Future HTTP services, BFF routes, workers, and materially changed adapters must include this foundation with redaction tests and debugging documentation.
 
 Never log passwords, access tokens, refresh tokens, payment secrets, or sensitive personal data.
 

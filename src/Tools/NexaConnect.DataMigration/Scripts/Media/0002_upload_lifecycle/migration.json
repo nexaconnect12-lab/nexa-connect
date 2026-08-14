@@ -1,0 +1,1 @@
+{"version":2,"name":"upload_lifecycle","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.1.0"}
