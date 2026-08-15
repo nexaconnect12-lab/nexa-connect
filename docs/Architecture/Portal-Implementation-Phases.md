@@ -13,7 +13,7 @@ This document records the agreed Product Owner Portal and Customer Portal implem
 | 5 | BFF layer | Hardening implemented; broader integration validation continuous |
 | 6 | Frontend foundations | Complete |
 | 7 | Product Owner Portal | Complete (compatibility implementation) |
-| 8 | Customer Portal | Functional page/API slices implemented; activity delivery, media writes, and deeper validation remain |
+| 8 | Customer Portal | Functional page/API slices, activity delivery, and media writes implemented; joined E2E and production acceptance remain |
 | 9 | Media service | Tenant-authorized upload/download/delete, scanning, quotas, expiry cleanup, and generated variants implemented |
 | 10 | Product service integration | Partially implemented |
 | 11 | Testing | Continuous; partial coverage implemented |
@@ -42,7 +42,9 @@ The current summary covers Platform Directory-owned counts only. The new audit q
 
 Development validation now includes a manually observed version-2 to version-3 Platform Directory migration and no-op version-3 re-plan, browser/BFF authorization checks for owner, support, and auditor roles, the checked-in least-privilege `platform-directory-admin` service account, and automated live Keycloak/PostgreSQL integration tests. The tests cover user lifecycle, role mapping, immutable audit persistence, generated-user/schema cleanup, and the explicitly reconcilable partial state when identity creation succeeds before audit persistence fails. Production identity migration, secrets, resilience, and operational reconciliation remain environment-owned deployment work.
 
-## Next phase
+## Implementation status and remaining work
+
+The portal roadmap is no longer progressing as a single strictly sequential phase. Phases 1-4, 6, and 7 are complete for their documented development scope; Phase 5 BFF hardening and the Phase 8 and Phase 9 functional slices are implemented. Phase 10 product integration is partial, Phase 11 testing is continuous, and Phase 12 has a development foundation with production hardening planned. Joined browser-to-provider E2E, recovery, load, environment-specific security validation, and production operational hardening remain release gates.
 
 Phase 4 is complete for the implemented customer API surface. Catalog, Inventory, Order, Payment, and Customer resolve active organization/product access from the authenticated bearer `sub`, reject conflicting tenant context, evaluate product-owned permission codes, and apply organization/resource ownership before use cases execute. Only allow-listed workload `azp` identities can use internal unscoped paths. Catalog and Inventory customer persistence paths include `organization_id`; Customer was already organization-keyed, while Order and Payment validate stored ownership. Automated coverage currently includes authorization helpers, migration catalogs, and Catalog/Order cross-tenant controller paths; equivalent PostgreSQL-backed controller tests for every service remain continuous Phase 11 hardening rather than Phase 4 behavior work.
 

@@ -1,5 +1,7 @@
 # NexaConnect Project Architecture
 
+Portal roadmap status: Phases 1-4, 6, and 7 are complete for their documented development scope; Phase 5 BFF hardening and the Phase 8 Customer Portal and Phase 9 Media functional slices are implemented. Phase 10 product integration is partial, Phase 11 testing is continuous, and Phase 12 has a development foundation with production hardening planned. Joined browser-to-provider E2E, recovery, load, environment-specific security validation, and production operational hardening remain release gates.
+
 Phase 4 tenant-API status: Platform Directory resolves authenticated membership and enabled product access; Catalog, Inventory, Order, Payment, and Customer enforce product-owned permission decisions and resource ownership before their customer use cases execute. Catalog and Inventory customer persistence paths use organization-leading predicates and composite tenant keys; portals remain database-free.
 
 ## 1. Purpose
