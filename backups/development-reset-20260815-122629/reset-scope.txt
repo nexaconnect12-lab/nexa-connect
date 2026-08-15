@@ -1,0 +1,4 @@
+Development reset backup
+Application PostgreSQL: complete pg_dumpall
+MinIO: nexaconnect-media objects
+Preserved live: Keycloak database/realm/users/clients/secrets

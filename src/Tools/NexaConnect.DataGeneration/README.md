@@ -20,7 +20,11 @@ The repository helper plans by default and mutates only with `-Confirm`:
 ```powershell
 ./scripts/generate-sample-data.ps1
 ./scripts/generate-sample-data.ps1 -Confirm
+./scripts/generate-sample-data.ps1 -Service Payment
+./scripts/generate-sample-data.ps1 -Service Payment -Confirm
 ```
+
+For a single-service run, `-Service <name>` selects the matching built-in package directory under `ImportPackages`; for example, `-Service Payment` imports `ImportPackages/Payment`. An all-service import is ordered but is not one cross-database transaction. Each service package commits independently, so a later failure leaves earlier service imports committed; correct the failing package and resume that service, or safely rerun the deterministic all-service upsert.
 
 In Visual Studio, the default `All Data Generate` launch profile runs the confirmed all-database workflow using the repository `.env` file.
 

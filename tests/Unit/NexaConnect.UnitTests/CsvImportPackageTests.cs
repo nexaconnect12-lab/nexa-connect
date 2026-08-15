@@ -58,6 +58,62 @@ public sealed class CsvImportPackageTests
     }
 
     [Fact]
+    public void Payment_sample_uses_only_supported_provider_transaction_types()
+    {
+        string path = Path.Combine(
+            AppContext.BaseDirectory,
+            "ImportPackages",
+            "Payment",
+            "provider_transactions.csv");
+        string[] allowed = ["authorize", "capture", "sale", "void", "refund"];
+        string[] transactionTypes = File.ReadLines(path)
+            .Skip(1)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(line => line.Split(',')[4])
+            .ToArray();
+
+        Assert.NotEmpty(transactionTypes);
+        Assert.All(transactionTypes, value => Assert.Contains(value, allowed));
+    }
+
+    [Fact]
+    public void Payment_sample_uses_unique_provider_transaction_references()
+    {
+        string path = Path.Combine(
+            AppContext.BaseDirectory,
+            "ImportPackages",
+            "Payment",
+            "provider_transactions.csv");
+        string[] providerReferences = File.ReadLines(path)
+            .Skip(1)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(line => line.Split(',')[3])
+            .ToArray();
+
+        Assert.Equal(providerReferences.Length, providerReferences.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task Pos_sample_covers_current_shift_authorization_columns()
+    {
+        string packageRoot = Path.Combine(AppContext.BaseDirectory, "ImportPackages", "POS");
+        CsvImportPackage package = await CsvImportPackage.LoadAsync(
+            packageRoot,
+            CancellationToken.None);
+        CsvImportTable shifts = Assert.Single(package.Tables, table => table.Table == "shifts");
+
+        Assert.Equal(3, package.RequiredSchemaVersion);
+        Assert.Contains("authorization_decision_id", shifts.Columns);
+        Assert.Contains("close_authorization_decision_id", shifts.Columns);
+        int authorizationColumn = shifts.Columns.ToList().IndexOf("authorization_decision_id");
+        IReadOnlyList<string[]> rows = CsvParser.Parse(
+            await File.ReadAllTextAsync(shifts.Path),
+            shifts.File);
+        Assert.All(rows.Skip(1), row => Assert.False(
+            string.IsNullOrWhiteSpace(row[authorizationColumn])));
+    }
+
+    [Fact]
     public async Task Package_accepts_quoted_commas_and_newlines()
     {
         using var fixture = new ImportPackageFixture();

@@ -1,7 +1,7 @@
 {
   "formatVersion": 1,
   "service": "POS",
-  "requiredSchemaVersion": 1,
+  "requiredSchemaVersion": 3,
   "minimumTotalRows": 400,
   "tables": [
     {

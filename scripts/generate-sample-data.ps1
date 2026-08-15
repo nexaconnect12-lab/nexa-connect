@@ -22,6 +22,7 @@ if ($Service -eq 'All') {
     $dotnetArguments += '--all'
 } else {
     $dotnetArguments += @('--service', $Service)
+    $importPackageRoot = Join-Path $importPackageRoot $Service
 }
 $dotnetArguments += @(
     '--import-package', $importPackageRoot,

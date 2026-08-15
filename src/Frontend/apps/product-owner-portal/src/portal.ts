@@ -6,6 +6,29 @@ export const capabilitiesByRole: Readonly<Record<string, readonly string[]>> = {
 };
 export function capabilitiesFor(roles: readonly string[]): ReadonlySet<string> { return new Set(roles.flatMap(role => capabilitiesByRole[role] ?? [])); }
 export interface ProductAdminLink { applicationCode: string; label: string; url: string }
+export interface OrganizationOptionSource { organizationId: string; code: string; name: string; status: string }
+export interface OrganizationOption { value: string; label: string }
+export interface IdentityOptionSource { subjectId: string; username: string; email?: string; enabled: boolean }
+export interface IdentityOption { value: string; label: string }
+export function organizationOptions(organizations: readonly OrganizationOptionSource[]): OrganizationOption[] {
+  return organizations
+    .map(organization => ({
+      value: organization.organizationId,
+      label: `${organization.name} (${organization.code}) · ${organization.status}`
+    }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+export function identityOptions(users: readonly IdentityOptionSource[]): IdentityOption[] {
+  return users
+    .map(user => ({
+      value: user.subjectId,
+      label: `${user.username} · ${user.email?.trim() || "No email"} · ${user.enabled ? "Enabled" : "Disabled"}`
+    }))
+    .sort((left, right) => left.label.localeCompare(right.label));
+}
+export function membershipPath(organizationId: string, subjectId: string): string {
+  return `/bff/platform-admin/organizations/${organizationId}/members/${encodeURIComponent(subjectId)}`;
+}
 export function parseAdminLinks(value: string | undefined, origin: string): ProductAdminLink[] {
   if (!value) return [];
   return value.split(",").flatMap(entry => {
