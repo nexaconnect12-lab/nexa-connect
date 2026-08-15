@@ -235,6 +235,8 @@ Owns terminals, stores, shifts, cash sessions, device registration, synchronizat
 
 Consumes integration events and sends email, SMS, push, or in-application notifications. Notification failures must not roll back completed sales transactions.
 
+The durable slice consumes `NotificationRequestedV1` idempotently, persists organization-scoped notifications and audits in its own PostgreSQL database, and publishes `NotificationQueuedV1` plus the audit event through its transactional outbox. Customer reads use the tenant-derived Customer BFF route. No Notification domain entity or database model is shared with producers.
+
 ### 5.10 Data Migration Tool
 
 `NexaConnect.DataMigration` is a .NET console tool that applies ordered, transactional PostgreSQL scripts for one service-owned database at a time. Migration scripts are checksum-validated, retained in memory for execution, bounded by a 60-second command/lock timeout, and treated as immutable after application.

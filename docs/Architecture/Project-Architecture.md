@@ -229,6 +229,8 @@ Owns terminals, stores, shifts, cash sessions, device registration, synchronizat
 
 Consumes integration events and sends email, SMS, push, or in-application notifications. Notification failures must not roll back completed sales transactions.
 
+Its durable integration slice owns `NotificationRequestedV1` consumption, inbox/source-event deduplication, organization-scoped notification persistence, product audit records, and transactional `NotificationQueuedV1` plus audit publication. Tenant API access is revalidated through Platform Directory and Authorization; Customer BFF derives the organization context. Recipient preferences remain Customer-owned and must be resolved by an approved producer/orchestrator rather than copied into shared domain entities.
+
 ### 5.10 Data Migration Tool
 
 `NexaConnect.DataMigration` applies ordered, transactional PostgreSQL scripts for one service-owned database at a time. It checksum-validates and retains SQL content before execution, records schema history atomically with the migration, and bounds database commands and advisory-lock acquisition to 60 seconds. Non-transactional migrations are rejected.

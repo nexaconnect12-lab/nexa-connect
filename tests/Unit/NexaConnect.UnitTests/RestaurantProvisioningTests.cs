@@ -30,6 +30,15 @@ public sealed class RestaurantProvisioningTests
             new(Guid.NewGuid(), code, "Demo", currency, "Asia/Singapore"), "admin", default));
     }
 
+    [Fact]
+    public async Task Platform_directory_queries_require_their_owner_identifiers()
+    {
+        var service = new RestaurantProvisioningService(new CapturingRepository());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.ListRestaurantsAsync(Guid.Empty, default));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.ListBranchesAsync(Guid.Empty, default));
+    }
+
     private sealed class CapturingRepository : IRestaurantProvisioningRepository
     {
         public CreateRestaurantCommand? Restaurant { get; private set; }
@@ -41,5 +50,9 @@ public sealed class RestaurantProvisioningTests
         }
         public Task<BranchProvisioningResult?> CreateBranchAsync(Guid restaurantId, CreateBranchCommand command, string actor, CancellationToken cancellationToken) =>
             Task.FromResult<BranchProvisioningResult?>(new(Guid.NewGuid(), restaurantId, Guid.NewGuid(), command.Code, command.Name));
+        public Task<IReadOnlyCollection<PlatformRestaurantSummary>> ListRestaurantsAsync(Guid organizationId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<PlatformRestaurantSummary>>([]);
+        public Task<IReadOnlyCollection<PlatformBranchSummary>> ListBranchesAsync(Guid restaurantId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyCollection<PlatformBranchSummary>>([]);
     }
 }

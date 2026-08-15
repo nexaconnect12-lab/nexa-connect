@@ -5,6 +5,30 @@ namespace NexaConnect.Services.Restaurant.Infrastructure.Persistence;
 
 public sealed class PostgresRestaurantProvisioningRepository(NpgsqlDataSource dataSource) : IRestaurantProvisioningRepository
 {
+    public async Task<IReadOnlyCollection<PlatformRestaurantSummary>> ListRestaurantsAsync(Guid organizationId, CancellationToken cancellationToken)
+    {
+        const string sql = "SELECT id, organization_id, code, name, default_currency, default_time_zone, status FROM restaurants WHERE organization_id=$1 ORDER BY name, id;";
+        await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var db = new NpgsqlCommand(sql, connection);
+        db.Parameters.AddWithValue(organizationId);
+        var rows = new List<PlatformRestaurantSummary>();
+        await using NpgsqlDataReader reader = await db.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) rows.Add(new(reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6)));
+        return rows;
+    }
+
+    public async Task<IReadOnlyCollection<PlatformBranchSummary>> ListBranchesAsync(Guid restaurantId, CancellationToken cancellationToken)
+    {
+        const string sql = "SELECT b.id, b.restaurant_id, r.organization_id, b.code, b.name, b.currency, b.time_zone, b.status FROM branches b JOIN restaurants r ON r.id=b.restaurant_id WHERE b.restaurant_id=$1 ORDER BY b.name, b.id;";
+        await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var db = new NpgsqlCommand(sql, connection);
+        db.Parameters.AddWithValue(restaurantId);
+        var rows = new List<PlatformBranchSummary>();
+        await using NpgsqlDataReader reader = await db.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) rows.Add(new(reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2), reader.GetString(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), reader.GetString(7)));
+        return rows;
+    }
+
     public async Task<RestaurantProvisioningResult> CreateRestaurantAsync(CreateRestaurantCommand command, string actor, CancellationToken cancellationToken)
     {
         Guid id = Guid.NewGuid();

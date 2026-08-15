@@ -18,6 +18,7 @@ Endpoints:
 - `POST /bff/customer/orders/branches/{branchId}/place` submits the tenant-bound order workflow through the Order adapter; organization and branch IDs come from the protected tenant context and route, not the browser payload.
 - `GET|PUT /bff/customer/configuration/branches/{branchId}` forwards typed Restaurant configuration. `GET /bff/customer/dashboard` and `/bff/customer/reports/sales` forward Reporting queries. Explicit Media routes cover list, upload start/completion, original download/delete, variant list, and `thumbnail`/`display` download. The BFF derives organization from the protected tenant cookie.
 - `GET /bff/customer/activity` forwards safe, cursor-paginated Reporting activity for the protected tenant. No contract-pending feature routes remain.
+- `GET /bff/customer/notifications/{id}` derives the organization from the protected tenant selection and forwards the bearer token plus tenant headers to Notification; it never accepts a browser-supplied organization ID.
 - `GET /bff/customer/memberships` and `PUT /bff/customer/memberships/{subjectId}` derive the organization from the protected `nexa_connect` tenant selection and forward the server-held bearer token.
 - `GET`/`POST /bff/customer/branches` and `PUT /bff/customer/branches/{branchId}` proxy only to Restaurant-owned branch management APIs.
 

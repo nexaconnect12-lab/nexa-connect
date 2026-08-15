@@ -64,6 +64,7 @@ public sealed class CustomerBffFeatureAuthorizationTests
     [InlineData("GET", "/bff/customer/media/11111111-1111-1111-1111-111111111111/variants/thumbnail/download")]
     [InlineData("DELETE", "/bff/customer/media/11111111-1111-1111-1111-111111111111?expectedVersion=1")]
     [InlineData("GET", "/bff/customer/activity")]
+    [InlineData("GET", "/bff/customer/notifications/11111111-1111-1111-1111-111111111111")]
     public async Task New_management_routes_require_a_customer_session(string method,string path){await using var factory=new CustomerBffFactory();using HttpClient client=factory.CreateClient(new WebApplicationFactoryClientOptions{AllowAutoRedirect=false,BaseAddress=new Uri("https://localhost")});using var request=new HttpRequestMessage(new HttpMethod(method),path);if(method=="PUT")request.Content=System.Net.Http.Json.JsonContent.Create(new{});using HttpResponseMessage response=await client.SendAsync(request);Assert.Equal(HttpStatusCode.Unauthorized,response.StatusCode);}
 
     private sealed class CustomerBffFactory : WebApplicationFactory<CUSTOMERBFF::Program>
@@ -85,6 +86,7 @@ public sealed class CustomerBffFeatureAuthorizationTests
                     ,["Services:Restaurant"] = "https://restaurant.test/"
                     ,["Services:Reporting"] = "https://reporting.test/"
                     ,["Services:Media"] = "https://media.test/"
+                    ,["Services:Notification"] = "https://notification.test/"
                 }));
         }
     }

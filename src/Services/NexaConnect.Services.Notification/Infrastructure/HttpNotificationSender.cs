@@ -12,13 +12,13 @@ public sealed class NotificationProviderOptions
 
 public sealed class HttpNotificationSender(HttpClient client, IOptions<NotificationProviderOptions> options) : INotificationSender
 {
-    public NotificationMessage Send(SendNotification command)
+    public NotificationMessage Send(SendNotification command, string actorSubjectId)
     {
-        var message = new NotificationMessage(Guid.NewGuid(), command.Channel.Trim().ToLowerInvariant(), command.Recipient.Trim(), command.Subject.Trim(), command.Body, "queued", DateTimeOffset.UtcNow);
+        var message = new NotificationMessage(Guid.NewGuid(), command.OrganizationId, command.Channel.Trim().ToLowerInvariant(), command.Recipient.Trim(), command.Subject.Trim(), command.Body, "queued", DateTimeOffset.UtcNow);
         using var response = client.PostAsJsonAsync(options.Value.Path, message).GetAwaiter().GetResult();
         if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"Notification provider returned {(int)response.StatusCode}.");
         return message;
     }
 
-    public NotificationMessage? Get(Guid id) => null;
+    public NotificationMessage? Get(Guid organizationId, Guid id) => null;
 }

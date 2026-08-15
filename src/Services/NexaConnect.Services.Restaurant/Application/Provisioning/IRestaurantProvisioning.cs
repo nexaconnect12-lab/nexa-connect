@@ -4,21 +4,39 @@ public sealed record CreateRestaurantCommand(Guid OrganizationId, string Code, s
 public sealed record CreateBranchCommand(string Code, string Name, string Currency, string TimeZone);
 public sealed record RestaurantProvisioningResult(Guid RestaurantId, Guid OrganizationId, string Code, string Name);
 public sealed record BranchProvisioningResult(Guid BranchId, Guid RestaurantId, Guid OrganizationId, string Code, string Name);
+public sealed record PlatformRestaurantSummary(Guid RestaurantId, Guid OrganizationId, string Code, string Name, string Currency, string TimeZone, string Status);
+public sealed record PlatformBranchSummary(Guid BranchId, Guid RestaurantId, Guid OrganizationId, string Code, string Name, string Currency, string TimeZone, string Status);
 
 public interface IRestaurantProvisioningRepository
 {
     Task<RestaurantProvisioningResult> CreateRestaurantAsync(CreateRestaurantCommand command, string actor, CancellationToken cancellationToken);
     Task<BranchProvisioningResult?> CreateBranchAsync(Guid restaurantId, CreateBranchCommand command, string actor, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<PlatformRestaurantSummary>> ListRestaurantsAsync(Guid organizationId, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<PlatformBranchSummary>> ListBranchesAsync(Guid restaurantId, CancellationToken cancellationToken);
 }
 
 public interface IRestaurantProvisioning
 {
     Task<RestaurantProvisioningResult> CreateRestaurantAsync(CreateRestaurantCommand command, string actor, CancellationToken cancellationToken);
     Task<BranchProvisioningResult?> CreateBranchAsync(Guid restaurantId, CreateBranchCommand command, string actor, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<PlatformRestaurantSummary>> ListRestaurantsAsync(Guid organizationId, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<PlatformBranchSummary>> ListBranchesAsync(Guid restaurantId, CancellationToken cancellationToken);
 }
 
 public sealed class RestaurantProvisioningService(IRestaurantProvisioningRepository repository) : IRestaurantProvisioning
 {
+    public Task<IReadOnlyCollection<PlatformRestaurantSummary>> ListRestaurantsAsync(Guid organizationId, CancellationToken cancellationToken)
+    {
+        if (organizationId == Guid.Empty) throw new ArgumentException("Organization identifier is required.");
+        return repository.ListRestaurantsAsync(organizationId, cancellationToken);
+    }
+
+    public Task<IReadOnlyCollection<PlatformBranchSummary>> ListBranchesAsync(Guid restaurantId, CancellationToken cancellationToken)
+    {
+        if (restaurantId == Guid.Empty) throw new ArgumentException("Restaurant identifier is required.");
+        return repository.ListBranchesAsync(restaurantId, cancellationToken);
+    }
+
     public Task<RestaurantProvisioningResult> CreateRestaurantAsync(CreateRestaurantCommand command, string actor, CancellationToken cancellationToken)
     {
         Validate(command.OrganizationId, command.Code, command.Name, command.Currency, command.TimeZone, actor);

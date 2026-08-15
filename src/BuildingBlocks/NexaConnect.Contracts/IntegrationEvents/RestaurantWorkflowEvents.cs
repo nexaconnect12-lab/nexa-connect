@@ -63,3 +63,22 @@ public sealed record PaymentFailedV1(
     DateTimeOffset OccurredAtUtc,
     Guid OrderId,
     string Reason) : IIntegrationEvent;
+
+public sealed record NotificationQueuedV1(
+    Guid EventId,
+    Guid CorrelationId,
+    DateTimeOffset OccurredAtUtc,
+    Guid NotificationId,
+    Guid OrganizationId,
+    string Channel) : IIntegrationEvent;
+
+public sealed record NotificationRequestedV1(
+    Guid EventId,
+    Guid CorrelationId,
+    DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId,
+    string Channel,
+    string Recipient,
+    string Subject,
+    string Body,
+    string SourceService) : IIntegrationEvent;

@@ -103,6 +103,8 @@ Initialization does not apply schema migrations and does not rerun for an existi
 
 Notification durable delivery state is owned by the separately provisioned `NexaConnect_Notification` database; other services do not access it directly.
 
+Notification migration 2 adds the organization-leading `organization_id`, unique optional `source_event_id`, append-only `notification_audit_records`, lease-based `inbox_messages`, and `outbox_messages`. The notification row, queued integration event, and audit event commit in one PostgreSQL transaction. Authorization migration 2 backfills `notification.read` and `notification.send` on existing tenant-admin/store-manager role definitions; effective access still follows each assignment's organization/restaurant scope.
+
 Application roles must not own the databases. Use a separate migration role for DDL operations and grant application roles only the permissions needed at runtime.
 
 Restaurant hierarchy provisioning is performed by the Restaurant API and its Infrastructure repository; Platform Admin BFF never writes Restaurant tables. Product-role provisioning follows the same ownership rule through Authorization. Authorization migration 1 already models nullable hierarchical resource scopes with `UNIQUE NULLS NOT DISTINCT`: tenant administrators use organization scope, store managers use restaurant scope, and operational roles use branch scope. The development provisioning routes are idempotent by restaurant organization/code, branch restaurant/code, and role assignment scope; this correction requires no new database migration.

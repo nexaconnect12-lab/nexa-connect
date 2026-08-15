@@ -6,6 +6,12 @@
 
 Restaurant owns the initial restaurant and branch hierarchy. The Platform Admin BFF exposes a narrow onboarding proxy, and the Product Owner compatibility portal exposes forms for these two proxy routes; ongoing restaurant configuration remains a NexaConnect Admin responsibility.
 
+## Platform hierarchy directory
+
+`GET /api/restaurant/v1/restaurants?organizationId={organizationId}` requires `platform-owner` or `platform-admin` and returns restaurants for the exact organization ordered by name and ID. Each item contains `restaurantId`, `organizationId`, `code`, `name`, `currency`, `timeZone`, and `status`. The corresponding BFF route is `GET /bff/platform-admin/restaurants?organizationId=...` and requires its `PlatformAdmin` policy.
+
+`GET /api/restaurant/v1/restaurants/{restaurantId}/branches` uses the same authorization and returns that restaurant's branches ordered by name and ID. Each item contains `branchId`, `restaurantId`, `organizationId`, `code`, `name`, `currency`, `timeZone`, and `status`. The equivalent BFF route retains the same suffix. Both listing routes return `200` with an empty collection when no matching records exist, including an unknown restaurant ID. A missing, empty, or malformed `organizationId` query value and an all-zero owner identifier return `400`; a malformed restaurant path does not match the GUID-constrained route. Unauthenticated callers receive `401`, and authenticated non-platform administrators receive `403`. Restaurant owns and queries these records; the BFF does not access its database.
+
 ## Create or reactivate a restaurant
 
 `POST /api/restaurant/v1/restaurants` requires `platform-owner` or `platform-admin`. The BFF route is `POST /bff/platform-admin/restaurants` and applies its `PlatformAdmin` policy.

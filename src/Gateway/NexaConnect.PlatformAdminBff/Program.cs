@@ -116,7 +116,8 @@ app.MapMethods("/bff/platform-admin/organizations/{organizationId:guid}", ["PATC
 app.MapMethods("/bff/platform-admin/organizations/{organizationId:guid}/members/{subjectId}", ["PUT"], Proxy("api/platform-directory/v1/organizations/{organizationId}/members/{subjectId}")).RequireAuthorization("PlatformAdmin");
 app.MapMethods("/bff/platform-admin/organizations/{organizationId:guid}/products", ["PUT"], Proxy("api/platform-directory/v1/organizations/{organizationId}/products")).RequireAuthorization("PlatformAdmin");
 app.MapMethods("/bff/platform-admin/restaurants", ["POST"], Proxy("api/restaurant/v1/restaurants", "Restaurant")).RequireAuthorization("PlatformAdmin");
-app.MapMethods("/bff/platform-admin/restaurants/{restaurantId:guid}/branches", ["POST"], Proxy("api/restaurant/v1/restaurants/{restaurantId}/branches", "Restaurant")).RequireAuthorization("PlatformAdmin");
+app.MapMethods("/bff/platform-admin/restaurants", ["GET"], Proxy("api/restaurant/v1/restaurants", "Restaurant")).RequireAuthorization("PlatformAdmin");
+app.MapMethods("/bff/platform-admin/restaurants/{restaurantId:guid}/branches", ["GET", "POST"], Proxy("api/restaurant/v1/restaurants/{restaurantId}/branches", "Restaurant")).RequireAuthorization("PlatformAdmin");
 app.MapMethods("/bff/platform-admin/authorization/role-assignments", ["POST"], Proxy("api/authorization/v1/role-assignments", "Authorization")).RequireAuthorization("PlatformAdmin");
 app.MapMethods("/bff/platform-admin/support-elevations", ["POST"], Proxy("api/platform-directory/v1/support-elevations")).RequireAuthorization("PlatformSupport");
 app.MapMethods("/bff/platform-admin/support-elevations/effective", ["GET"], Proxy("api/platform-directory/v1/support-elevations/effective")).RequireAuthorization("PlatformSupport");

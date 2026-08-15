@@ -11,6 +11,20 @@ namespace NexaConnect.Services.Restaurant.Controllers;
 [Route("api/restaurant/v1/restaurants")]
 public sealed class RestaurantProvisioningController(IRestaurantProvisioning provisioning, ILogger<RestaurantProvisioningController> logger) : ControllerBase
 {
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyCollection<PlatformRestaurantSummary>>> ListRestaurantsAsync([FromQuery] Guid organizationId, CancellationToken cancellationToken)
+    {
+        try { return Ok(await provisioning.ListRestaurantsAsync(organizationId, cancellationToken)); }
+        catch (ArgumentException exception) { return BadRequest(new ProblemDetails { Title = exception.Message, Status = 400 }); }
+    }
+
+    [HttpGet("{restaurantId:guid}/branches")]
+    public async Task<ActionResult<IReadOnlyCollection<PlatformBranchSummary>>> ListBranchesAsync(Guid restaurantId, CancellationToken cancellationToken)
+    {
+        try { return Ok(await provisioning.ListBranchesAsync(restaurantId, cancellationToken)); }
+        catch (ArgumentException exception) { return BadRequest(new ProblemDetails { Title = exception.Message, Status = 400 }); }
+    }
+
     [HttpPost]
     public async Task<ActionResult<RestaurantProvisioningResult>> CreateRestaurantAsync(CreateRestaurantCommand request, CancellationToken cancellationToken)
     {

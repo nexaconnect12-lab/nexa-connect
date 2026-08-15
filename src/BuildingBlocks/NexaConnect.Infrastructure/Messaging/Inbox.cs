@@ -42,13 +42,16 @@ public static class InboxConsumer
     }
 }
 
-public sealed class InMemoryInboxStore : IInboxStore
+public sealed class InMemoryInboxStore : IDurableInboxStore
 {
     private sealed record Entry(string Status, int Attempts, DateTimeOffset? LockedUntilUtc);
     private readonly Dictionary<(Guid MessageId, string ConsumerName), Entry> entries = new();
     private readonly object gate = new();
 
-    public Task<bool> TryClaimAsync(Guid messageId, string consumerName, TimeSpan lease, CancellationToken cancellationToken)
+    public async Task<bool> TryClaimAsync(Guid messageId, string consumerName, TimeSpan lease, CancellationToken cancellationToken)
+        => await ClaimAsync(messageId, consumerName, lease, cancellationToken) == InboxClaimResult.Claimed;
+
+    public Task<InboxClaimResult> ClaimAsync(Guid messageId, string consumerName, TimeSpan lease, CancellationToken cancellationToken)
     {
         Validate(messageId, consumerName, lease);
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -57,10 +60,10 @@ public sealed class InMemoryInboxStore : IInboxStore
         {
             if (entries.TryGetValue(key, out Entry? current)
                 && (current.Status == "completed" || (current.Status == "processing" && current.LockedUntilUtc > now)))
-                return Task.FromResult(false);
+                return Task.FromResult(current.Status == "completed" ? InboxClaimResult.Completed : InboxClaimResult.Busy);
 
             entries[key] = new Entry("processing", current?.Attempts + 1 ?? 1, now.Add(lease));
-            return Task.FromResult(true);
+            return Task.FromResult(InboxClaimResult.Claimed);
         }
     }
 
@@ -149,7 +152,9 @@ public static class InboxServiceCollectionExtensions
         string connectionString = configuration.GetConnectionString(connectionStringName)
             ?? throw new InvalidOperationException($"ConnectionStrings:{connectionStringName} is required for PostgreSQL inbox persistence.");
         services.TryAddSingleton(_ => NpgsqlDataSource.Create(connectionString));
-        services.AddSingleton<IInboxStore, PostgresInboxStore>();
+        services.AddSingleton<PostgresInboxStore>();
+        services.AddSingleton<IInboxStore>(provider => provider.GetRequiredService<PostgresInboxStore>());
+        services.AddSingleton<IDurableInboxStore>(provider => provider.GetRequiredService<PostgresInboxStore>());
         return services;
     }
 }

@@ -81,6 +81,8 @@ public sealed class PlatformAdminBffAuthorizationTests
     [InlineData("GET", "/bff/platform-admin/platform/audit")]
     [InlineData("GET", "/bff/platform-admin/platform/summary")]
     [InlineData("POST", "/bff/platform-admin/restaurants")]
+    [InlineData("GET", "/bff/platform-admin/restaurants?organizationId=11111111-1111-1111-1111-111111111111")]
+    [InlineData("GET", "/bff/platform-admin/restaurants/11111111-1111-1111-1111-111111111111/branches")]
     [InlineData("POST", "/bff/platform-admin/restaurants/11111111-1111-1111-1111-111111111111/branches")]
     [InlineData("POST", "/bff/platform-admin/authorization/role-assignments")]
     public async Task Mutation_proxies_require_platform_admin_session(string method, string path)

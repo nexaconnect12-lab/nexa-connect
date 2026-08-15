@@ -24,6 +24,8 @@ public static class ProductPermissions
     public const string MediaAssetRead = "media.asset.read";
     public const string MediaAssetManage = "media.asset.manage";
     public const string ReportingActivityRead = "reporting.activity.read";
+    public const string NotificationSend = "notification.send";
+    public const string NotificationRead = "notification.read";
 
     public static IReadOnlyCollection<string> CustomerTenantApiPermissions { get; } =
     [
@@ -34,6 +36,7 @@ public static class ProductPermissions
         CustomerProfileCreate, CustomerProfileRead,
         RestaurantBranchRead, RestaurantBranchManage,
         RestaurantConfigurationRead, RestaurantConfigurationManage,
-        ReportingDashboardRead, ReportingSalesRead, ReportingActivityRead, MediaAssetRead, MediaAssetManage
+        ReportingDashboardRead, ReportingSalesRead, ReportingActivityRead, MediaAssetRead, MediaAssetManage,
+        NotificationSend, NotificationRead
     ];
 }

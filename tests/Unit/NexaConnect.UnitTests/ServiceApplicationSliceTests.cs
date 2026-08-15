@@ -65,7 +65,7 @@ public sealed class ServiceApplicationSliceTests
     {
         var notifications = new InMemoryNotificationSender();
 
-        NotificationMessage message = notifications.Send(new SendNotification(" Email ", "ada@example.test", "Welcome", "Hello"));
+        NotificationMessage message = notifications.Send(new SendNotification(Guid.NewGuid(), " Email ", "ada@example.test", "Welcome", "Hello"), "test-user");
 
         Assert.Equal("email", message.Channel);
         Assert.Equal("queued", message.Status);

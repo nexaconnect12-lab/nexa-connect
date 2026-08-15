@@ -1,59 +1,1617 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Alert, Button, Card, Col, Descriptions, Form, Input, InputNumber, List, Modal, Row, Select, Space, Spin, Statistic, Table, Tag, Typography } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Col,
+  Descriptions,
+  Form,
+  Input,
+  InputNumber,
+  List,
+  Modal,
+  Row,
+  Select,
+  Space,
+  Spin,
+  Statistic,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import { createApiClient } from "@nexaconnect/api-client";
-import { AuthorizationUiProvider, Authorized } from "@nexaconnect/authorization-ui";
+import {
+  AuthorizationUiProvider,
+  Authorized,
+} from "@nexaconnect/authorization-ui";
 import { NexaDesignProvider } from "@nexaconnect/design-system";
 import { ErrorBoundary, normalizeError } from "@nexaconnect/error-handling";
 import { PortalLayout } from "@nexaconnect/layout";
-import { capabilitiesFor, identityOptions, membershipPath, organizationOptions, parseAdminLinks } from "./portal";
+import {
+  applicationOptions,
+  branchOptions,
+  capabilitiesFor,
+  identityOptions,
+  membershipPath,
+  organizationOptions,
+  parseAdminLinks,
+  restaurantOptions,
+} from "./portal";
 
 type Session = { subjectId: string; username?: string; roles?: string[] };
-type Organization = { organizationId: string; code: string; name: string; status: string; defaultTimeZone: string };
-type Summary = { organizationCount:number; activeOrganizationCount:number; activeMembershipCount:number; registeredProductCount:number; enabledProductAccessCount:number; activeSupportElevationCount:number };
-type PlatformUser = { subjectId:string; username:string; email?:string; enabled:boolean; roles:string[] };
-type PlatformRole = { code:string; description:string; permissions:string[] };
-type AuditRecord = { auditId:string; action:string; resourceType:string; resourceId:string; actorSubjectId:string; outcome:string; occurredAtUtc:string };
-type SupportElevation = { elevationId:string; organizationId:string; applicationCode:string; supportSubjectId:string; reason:string; status:string; requestedAtUtc:string; approvedAtUtc?:string; expiresAtUtc?:string; revokedAtUtc?:string; approvedBySubjectId?:string; revokedBySubjectId?:string };
-type Section = "summary"|"organizations"|"memberships"|"products"|"subscriptions"|"hierarchy"|"product-roles"|"users"|"roles"|"audit"|"support"|"administration";
+type Organization = {
+  organizationId: string;
+  code: string;
+  name: string;
+  status: string;
+  defaultTimeZone: string;
+};
+type Summary = {
+  organizationCount: number;
+  activeOrganizationCount: number;
+  activeMembershipCount: number;
+  registeredProductCount: number;
+  enabledProductAccessCount: number;
+  activeSupportElevationCount: number;
+};
+type PlatformUser = {
+  subjectId: string;
+  username: string;
+  email?: string;
+  enabled: boolean;
+  roles: string[];
+};
+type PlatformRestaurant = {
+  restaurantId: string;
+  organizationId: string;
+  code: string;
+  name: string;
+  currency: string;
+  timeZone: string;
+  status: string;
+};
+type PlatformBranch = {
+  branchId: string;
+  restaurantId: string;
+  organizationId: string;
+  code: string;
+  name: string;
+  currency: string;
+  timeZone: string;
+  status: string;
+};
+type PlatformRole = {
+  code: string;
+  description: string;
+  permissions: string[];
+};
+type AuditRecord = {
+  auditId: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  actorSubjectId: string;
+  outcome: string;
+  occurredAtUtc: string;
+};
+type SupportElevation = {
+  elevationId: string;
+  organizationId: string;
+  applicationCode: string;
+  supportSubjectId: string;
+  reason: string;
+  status: string;
+  requestedAtUtc: string;
+  approvedAtUtc?: string;
+  expiresAtUtc?: string;
+  revokedAtUtc?: string;
+  approvedBySubjectId?: string;
+  revokedBySubjectId?: string;
+};
+type Section =
+  | "summary"
+  | "organizations"
+  | "memberships"
+  | "products"
+  | "subscriptions"
+  | "hierarchy"
+  | "product-roles"
+  | "users"
+  | "roles"
+  | "audit"
+  | "support"
+  | "administration";
 
-const sections: readonly Section[] = ["summary","organizations","memberships","products","subscriptions","hierarchy","product-roles","users","roles","audit","support","administration"];
-const api = createApiClient({ onUnauthorized: () => location.assign(`/bff/platform-admin/login?returnUrl=${encodeURIComponent(location.pathname + location.hash)}`) });
+const sections: readonly Section[] = [
+  "summary",
+  "organizations",
+  "memberships",
+  "products",
+  "subscriptions",
+  "hierarchy",
+  "product-roles",
+  "users",
+  "roles",
+  "audit",
+  "support",
+  "administration",
+];
+const api = createApiClient({
+  onUnauthorized: () =>
+    location.assign(
+      `/bff/platform-admin/login?returnUrl=${encodeURIComponent(location.pathname + location.hash)}`,
+    ),
+});
 
-function useLoad<T>(path:string, enabled=true) {
-  const [data,setData]=useState<T>(); const [error,setError]=useState<string>();
-  const reload=()=>{ if(enabled) api.request<T>(path).then(value=>{setData(value);setError(undefined);}).catch(e=>setError(normalizeError(e).message)); };
-  useEffect(reload,[path,enabled]); return {data,error,reload};
+function useLoad<T>(path: string, enabled = true) {
+  const [data, setData] = useState<T>();
+  const [error, setError] = useState<string>();
+  const requestGeneration = useRef(0);
+  const reload = () => {
+    const generation = ++requestGeneration.current;
+    if (enabled) {
+      api
+        .request<T>(path)
+        .then((value) => {
+          if (requestGeneration.current !== generation) return;
+          setData(value);
+          setError(undefined);
+        })
+        .catch((e) => {
+          if (requestGeneration.current !== generation) return;
+          setError(normalizeError(e).message);
+        });
+    }
+  };
+  useEffect(() => {
+    setData(undefined);
+    setError(undefined);
+    reload();
+    return () => {
+      requestGeneration.current++;
+    };
+  }, [path, enabled]);
+  return { data, error, reload };
 }
 
-function MutationForm({title,children,path,method="POST",onSaved}:{title:string;children:React.ReactNode;path:(values:Record<string,unknown>)=>string;method?:string;onSaved?:()=>void}) {
-  const [form]=Form.useForm(); const [message,setMessage]=useState<string>();
-  const save=async(values:Record<string,unknown>)=>{setMessage(undefined);try{await api.request(path(values),{method,body:values});form.resetFields();setMessage("Saved successfully.");onSaved?.();}catch(e){setMessage(normalizeError(e).message);}};
-  return <Card title={title}><Form form={form} layout="vertical" onFinish={save}>{children}<Button type="primary" htmlType="submit">Save</Button>{message&&<Alert style={{marginTop:16}} type={message.startsWith("Saved")?"success":"error"} message={message}/>}</Form></Card>;
+function MutationForm({
+  title,
+  children,
+  path,
+  method = "POST",
+  onSaved,
+  fixedValues,
+  disabled = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  path: (values: Record<string, unknown>) => string;
+  method?: string;
+  onSaved?: () => void;
+  fixedValues?: Record<string, unknown>;
+  disabled?: boolean;
+}) {
+  const [form] = Form.useForm();
+  const [message, setMessage] = useState<string>();
+  const save = async (values: Record<string, unknown>) => {
+    setMessage(undefined);
+    const submitted = { ...fixedValues, ...values };
+    try {
+      await api.request(path(submitted), { method, body: submitted });
+      form.resetFields();
+      setMessage("Saved successfully.");
+      onSaved?.();
+    } catch (e) {
+      setMessage(normalizeError(e).message);
+    }
+  };
+  return (
+    <Card title={title}>
+      <Form form={form} layout="vertical" onFinish={save}>
+        {children}
+        <Button type="primary" htmlType="submit" disabled={disabled}>
+          Save
+        </Button>
+        {message && (
+          <Alert
+            style={{ marginTop: 16 }}
+            type={message.startsWith("Saved") ? "success" : "error"}
+            message={message}
+          />
+        )}
+      </Form>
+    </Card>
+  );
 }
 
-function SummaryPanel(){const state=useLoad<Summary>("/bff/platform-admin/platform/summary");if(!state.data)return state.error?<Alert type="error" message={state.error}/>:<Spin/>;const s=state.data;const values:[[string,number],[string,number],[string,number],[string,number],[string,number],[string,number]]=[["Organizations",s.organizationCount],["Active organizations",s.activeOrganizationCount],["Active memberships",s.activeMembershipCount],["Registered products",s.registeredProductCount],["Enabled subscriptions",s.enabledProductAccessCount],["Active support elevations",s.activeSupportElevationCount]];return <><Typography.Title level={2}>Cross-product summary</Typography.Title><Alert type="info" showIcon message="Control-plane totals only. Detailed business metrics remain product-owned."/><Row gutter={[16,16]} style={{marginTop:16}}>{values.map(([title,value])=><Col xs={24} md={8} key={title}><Card><Statistic title={title} value={value}/></Card></Col>)}</Row></>;}
+function SummaryPanel() {
+  const state = useLoad<Summary>("/bff/platform-admin/platform/summary");
+  if (!state.data)
+    return state.error ? (
+      <Alert type="error" message={state.error} />
+    ) : (
+      <Spin />
+    );
+  const s = state.data;
+  const values: [
+    [string, number],
+    [string, number],
+    [string, number],
+    [string, number],
+    [string, number],
+    [string, number],
+  ] = [
+    ["Organizations", s.organizationCount],
+    ["Active organizations", s.activeOrganizationCount],
+    ["Active memberships", s.activeMembershipCount],
+    ["Registered products", s.registeredProductCount],
+    ["Enabled subscriptions", s.enabledProductAccessCount],
+    ["Active support elevations", s.activeSupportElevationCount],
+  ];
+  return (
+    <>
+      <Typography.Title level={2}>Cross-product summary</Typography.Title>
+      <Alert
+        type="info"
+        showIcon
+        message="Control-plane totals only. Detailed business metrics remain product-owned."
+      />
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        {values.map(([title, value]) => (
+          <Col xs={24} md={8} key={title}>
+            <Card>
+              <Statistic title={title} value={value} />
+            </Card>
+          </Col>
+        ))}
+      </Row>
+    </>
+  );
+}
 
-function OrganizationsPanel(){const state=useLoad<Organization[]>("/bff/platform-admin/organizations");const[editing,setEditing]=useState<Organization>();const[form]=Form.useForm();const[message,setMessage]=useState<string>();const update=async(values:Record<string,unknown>)=>{if(!editing)return;try{await api.request(`/bff/platform-admin/organizations/${editing.organizationId}`,{method:"PATCH",body:values});setEditing(undefined);state.reload();}catch(e){setMessage(normalizeError(e).message);}};return <><Typography.Title level={2}>Organization management</Typography.Title><MutationForm title="Create organization" path={()=>"/bff/platform-admin/organizations"} onSaved={state.reload}><Form.Item name="code" label="Code" rules={[{required:true,pattern:/^[a-z0-9][a-z0-9_-]{0,63}$/}]}><Input/></Form.Item><Form.Item name="name" label="Name" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="defaultTimeZone" label="IANA time zone" initialValue="UTC" rules={[{required:true}]}><Input/></Form.Item></MutationForm>{state.error&&<Alert type="error" message={state.error}/>}<Table style={{marginTop:16}} rowKey="organizationId" dataSource={state.data} columns={[{title:"Code",dataIndex:"code"},{title:"Name",dataIndex:"name"},{title:"Status",dataIndex:"status",render:v=><Tag>{v}</Tag>},{title:"Time zone",dataIndex:"defaultTimeZone"},{title:"",render:(_,row)=><Button onClick={()=>{setMessage(undefined);setEditing(row);form.setFieldsValue(row);}}>Edit</Button>}]} /><Modal title="Update organization" open={!!editing} onCancel={()=>setEditing(undefined)} onOk={()=>form.submit()}><Form form={form} layout="vertical" onFinish={update}><Form.Item name="name" label="Name" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="status" label="Status" rules={[{required:true}]}><Select options={["pending","active","suspended","closed"].map(value=>({value}))}/></Form.Item><Form.Item name="defaultTimeZone" label="IANA time zone" rules={[{required:true}]}><Input/></Form.Item>{message&&<Alert type="error" message={message}/>}</Form></Modal></>;}
+function OrganizationsPanel() {
+  const state = useLoad<Organization[]>("/bff/platform-admin/organizations");
+  const [editing, setEditing] = useState<Organization>();
+  const [form] = Form.useForm();
+  const [message, setMessage] = useState<string>();
+  const update = async (values: Record<string, unknown>) => {
+    if (!editing) return;
+    try {
+      await api.request(
+        `/bff/platform-admin/organizations/${editing.organizationId}`,
+        { method: "PATCH", body: values },
+      );
+      setEditing(undefined);
+      state.reload();
+    } catch (e) {
+      setMessage(normalizeError(e).message);
+    }
+  };
+  return (
+    <>
+      <Typography.Title level={2}>Organization management</Typography.Title>
+      <MutationForm
+        title="Create organization"
+        path={() => "/bff/platform-admin/organizations"}
+        onSaved={state.reload}
+      >
+        <Form.Item
+          name="code"
+          label="Code"
+          rules={[{ required: true, pattern: /^[a-z0-9][a-z0-9_-]{0,63}$/ }]}
+        >
+          <Input />
+        </Form.Item>
+        <Form.Item name="name" label="Name" rules={[{ required: true }]}>
+          <Input />
+        </Form.Item>
+        <Form.Item
+          name="defaultTimeZone"
+          label="IANA time zone"
+          initialValue="UTC"
+          rules={[{ required: true }]}
+        >
+          <Input />
+        </Form.Item>
+      </MutationForm>
+      {state.error && <Alert type="error" message={state.error} />}
+      <Table
+        style={{ marginTop: 16 }}
+        rowKey="organizationId"
+        dataSource={state.data}
+        columns={[
+          { title: "Code", dataIndex: "code" },
+          { title: "Name", dataIndex: "name" },
+          {
+            title: "Status",
+            dataIndex: "status",
+            render: (v) => <Tag>{v}</Tag>,
+          },
+          { title: "Time zone", dataIndex: "defaultTimeZone" },
+          {
+            title: "",
+            render: (_, row) => (
+              <Button
+                onClick={() => {
+                  setMessage(undefined);
+                  setEditing(row);
+                  form.setFieldsValue(row);
+                }}
+              >
+                Edit
+              </Button>
+            ),
+          },
+        ]}
+      />
+      <Modal
+        title="Update organization"
+        open={!!editing}
+        onCancel={() => setEditing(undefined)}
+        onOk={() => form.submit()}
+      >
+        <Form form={form} layout="vertical" onFinish={update}>
+          <Form.Item name="name" label="Name" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+            <Select
+              options={["pending", "active", "suspended", "closed"].map(
+                (value) => ({ value }),
+              )}
+            />
+          </Form.Item>
+          <Form.Item
+            name="defaultTimeZone"
+            label="IANA time zone"
+            rules={[{ required: true }]}
+          >
+            <Input />
+          </Form.Item>
+          {message && <Alert type="error" message={message} />}
+        </Form>
+      </Modal>
+    </>
+  );
+}
 
-function MembershipsPanel(){const organizations=useLoad<Organization[]>("/bff/platform-admin/organizations");const users=useLoad<PlatformUser[]>("/bff/platform-admin/platform/users");const organizationItems=organizationOptions(organizations.data??[]);const identityItems=identityOptions(users.data??[]);return <><Typography.Title level={2}>Membership management</Typography.Title>{organizations.error&&<Alert type="error" showIcon message="Organizations could not be loaded" description={organizations.error}/>} {users.error&&<Alert type="error" showIcon message="Identity users could not be loaded" description={users.error}/>}<MutationForm title="Set organization membership" method="PUT" path={v=>membershipPath(String(v.organizationId),String(v.subjectId))}><Form.Item name="organizationId" label="Organization" rules={[{required:true,message:"Select an organization."}]}><Select showSearch optionFilterProp="label" placeholder="Search by organization name or code" loading={!organizations.data&&!organizations.error} disabled={!!organizations.error} options={organizationItems} notFoundContent={organizations.data&&organizationItems.length===0?"No organizations are available.":undefined}/></Form.Item><Form.Item name="subjectId" label="User" rules={[{required:true,message:"Select a user."}]}><Select showSearch optionFilterProp="label" placeholder="Search by username or email" loading={!users.data&&!users.error} disabled={!!users.error} options={identityItems} notFoundContent={users.data&&identityItems.length===0?"No identity users are available.":undefined}/></Form.Item><Form.Item name="status" label="Status" initialValue="active"><Select options={["invited","active","suspended","removed"].map(value=>({value}))}/></Form.Item></MutationForm></>;}
-function ProductsPanel(){return <><Typography.Title level={2}>Product registry</Typography.Title><MutationForm title="Register product" path={()=>"/bff/platform-admin/products"}><Form.Item name="applicationCode" label="Application code" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="name" label="Product name" rules={[{required:true}]}><Input/></Form.Item></MutationForm></>;}
-function SubscriptionsPanel(){return <><Typography.Title level={2}>Product enablement and subscriptions</Typography.Title><Alert type="info" showIcon message="The current subscription contract records organization-level enablement; billing and plan data require a future platform contract."/><MutationForm title="Change product access" method="PUT" path={v=>`/bff/platform-admin/organizations/${v.organizationId}/products`}><Form.Item name="organizationId" label="Organization ID" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="applicationCode" label="Application code" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="status" label="Status" initialValue="enabled"><Select options={["enabled","suspended","disabled"].map(value=>({value}))}/></Form.Item></MutationForm></>;}
+function MembershipsPanel() {
+  const organizations = useLoad<Organization[]>(
+    "/bff/platform-admin/organizations",
+  );
+  const users = useLoad<PlatformUser[]>("/bff/platform-admin/platform/users");
+  const organizationItems = organizationOptions(organizations.data ?? []);
+  const identityItems = identityOptions(users.data ?? []);
+  return (
+    <>
+      <Typography.Title level={2}>Membership management</Typography.Title>
+      {organizations.error && (
+        <Alert
+          type="error"
+          showIcon
+          message="Organizations could not be loaded"
+          description={organizations.error}
+        />
+      )}{" "}
+      {users.error && (
+        <Alert
+          type="error"
+          showIcon
+          message="Identity users could not be loaded"
+          description={users.error}
+        />
+      )}
+      <MutationForm
+        title="Set organization membership"
+        method="PUT"
+        path={(v) =>
+          membershipPath(String(v.organizationId), String(v.subjectId))
+        }
+      >
+        <Form.Item
+          name="organizationId"
+          label="Organization"
+          rules={[{ required: true, message: "Select an organization." }]}
+        >
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="Search by organization name or code"
+            loading={!organizations.data && !organizations.error}
+            disabled={!!organizations.error}
+            options={organizationItems}
+            notFoundContent={
+              organizations.data && organizationItems.length === 0
+                ? "No organizations are available."
+                : undefined
+            }
+          />
+        </Form.Item>
+        <Form.Item
+          name="subjectId"
+          label="User"
+          rules={[{ required: true, message: "Select a user." }]}
+        >
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="Search by username or email"
+            loading={!users.data && !users.error}
+            disabled={!!users.error}
+            options={identityItems}
+            notFoundContent={
+              users.data && identityItems.length === 0
+                ? "No identity users are available."
+                : undefined
+            }
+          />
+        </Form.Item>
+        <Form.Item name="status" label="Status" initialValue="active">
+          <Select
+            options={["invited", "active", "suspended", "removed"].map(
+              (value) => ({ value }),
+            )}
+          />
+        </Form.Item>
+      </MutationForm>
+    </>
+  );
+}
+function ProductsPanel() {
+  const options = applicationOptions(
+    import.meta.env.VITE_PLATFORM_APPLICATION_CATALOG,
+  );
+  return (
+    <>
+      <Typography.Title level={2}>Product registry</Typography.Title>
+      <MutationForm
+        title="Register product"
+        path={() => "/bff/platform-admin/products"}
+      >
+        <Form.Item
+          name="applicationCode"
+          label="Application"
+          rules={[{ required: true, message: "Select an application." }]}
+        >
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="Search by application name or code"
+            options={options}
+            notFoundContent="No configured applications are available."
+          />
+        </Form.Item>
+        <Form.Item
+          name="name"
+          label="Product name"
+          rules={[{ required: true }]}
+        >
+          <Input />
+        </Form.Item>
+      </MutationForm>
+    </>
+  );
+}
+function SubscriptionsPanel() {
+  const organizations = useLoad<Organization[]>(
+    "/bff/platform-admin/organizations",
+  );
+  const organizationItems = organizationOptions(organizations.data ?? []);
+  const applications = applicationOptions(
+    import.meta.env.VITE_PLATFORM_APPLICATION_CATALOG,
+  );
+  return (
+    <>
+      <Typography.Title level={2}>
+        Product enablement and subscriptions
+      </Typography.Title>
+      <Alert
+        type="info"
+        showIcon
+        message="The current subscription contract records organization-level enablement; billing and plan data require a future platform contract."
+      />
+      {organizations.error && (
+        <Alert
+          type="error"
+          showIcon
+          message="Organizations could not be loaded"
+          description={organizations.error}
+        />
+      )}
+      <MutationForm
+        title="Change product access"
+        method="PUT"
+        path={(v) =>
+          `/bff/platform-admin/organizations/${v.organizationId}/products`
+        }
+      >
+        <Form.Item
+          name="organizationId"
+          label="Organization"
+          rules={[{ required: true, message: "Select an organization." }]}
+        >
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="Search by organization name or code"
+            loading={!organizations.data && !organizations.error}
+            disabled={!!organizations.error}
+            options={organizationItems}
+            notFoundContent={
+              organizations.data && organizationItems.length === 0
+                ? "No organizations are available."
+                : undefined
+            }
+          />
+        </Form.Item>
+        <Form.Item
+          name="applicationCode"
+          label="Application"
+          rules={[{ required: true, message: "Select an application." }]}
+        >
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="Search by application name or code"
+            options={applications}
+            notFoundContent="No configured applications are available."
+          />
+        </Form.Item>
+        <Form.Item name="status" label="Status" initialValue="enabled">
+          <Select
+            options={["enabled", "suspended", "disabled"].map((value) => ({
+              value,
+            }))}
+          />
+        </Form.Item>
+      </MutationForm>
+    </>
+  );
+}
 
-function HierarchyPanel(){return <><Typography.Title level={2}>Restaurant hierarchy</Typography.Title><Row gutter={[16,16]}><Col xs={24} lg={12}><MutationForm title="Create or reactivate restaurant" path={()=>"/bff/platform-admin/restaurants"}><Form.Item name="organizationId" label="Organization ID" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="code" label="Code" rules={[{required:true,pattern:/^[a-z0-9][a-z0-9_-]{0,63}$/}]}><Input/></Form.Item><Form.Item name="name" label="Name" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="currency" label="Currency" initialValue="SGD" rules={[{required:true,pattern:/^[A-Z]{3}$/}]}><Input/></Form.Item><Form.Item name="timeZone" label="IANA time zone" initialValue="Asia/Singapore" rules={[{required:true}]}><Input/></Form.Item></MutationForm></Col><Col xs={24} lg={12}><MutationForm title="Create or reactivate branch" path={v=>`/bff/platform-admin/restaurants/${v.restaurantId}/branches`}><Form.Item name="restaurantId" label="Restaurant ID" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="code" label="Code" rules={[{required:true,pattern:/^[a-z0-9][a-z0-9_-]{0,63}$/}]}><Input/></Form.Item><Form.Item name="name" label="Name" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="currency" label="Currency" initialValue="SGD" rules={[{required:true,pattern:/^[A-Z]{3}$/}]}><Input/></Form.Item><Form.Item name="timeZone" label="IANA time zone" initialValue="Asia/Singapore" rules={[{required:true}]}><Input/></Form.Item></MutationForm></Col></Row></>;}
+function HierarchyPanel() {
+  const organizations = useLoad<Organization[]>(
+    "/bff/platform-admin/organizations",
+  );
+  const organizationItems = organizationOptions(organizations.data ?? []);
+  const [organizationId, setOrganizationId] = useState<string>();
+  const [restaurantId, setRestaurantId] = useState<string>();
+  const restaurants = useLoad<PlatformRestaurant[]>(
+    `/bff/platform-admin/restaurants?organizationId=${encodeURIComponent(organizationId ?? "")}`,
+    !!organizationId,
+  );
+  const restaurantItems = restaurantOptions(restaurants.data ?? []);
+  const branches = useLoad<PlatformBranch[]>(
+    `/bff/platform-admin/restaurants/${encodeURIComponent(restaurantId ?? "")}/branches`,
+    !!restaurantId,
+  );
+  const branchItems = branchOptions(branches.data ?? []);
+  useEffect(() => setRestaurantId(undefined), [organizationId]);
+  return (
+    <>
+      <Typography.Title level={2}>Restaurant hierarchy</Typography.Title>
+      {organizations.error && (
+        <Alert
+          type="error"
+          showIcon
+          message="Organizations could not be loaded"
+          description={organizations.error}
+        />
+      )}
+      <Card title="Hierarchy context" style={{ marginBottom: 16 }}>
+        <Form layout="vertical">
+          <Form.Item label="Organization" required>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="Search by organization name or code"
+              loading={!organizations.data && !organizations.error}
+              disabled={!!organizations.error}
+              options={organizationItems}
+              value={organizationId}
+              onChange={setOrganizationId}
+              notFoundContent={
+                organizations.data && organizationItems.length === 0
+                  ? "No organizations are available."
+                  : undefined
+              }
+            />
+          </Form.Item>
+        </Form>
+      </Card>
+      {!organizationId && (
+        <Alert
+          type="info"
+          showIcon
+          message="Select an organization to browse and manage its restaurants and branches."
+          style={{ marginBottom: 16 }}
+        />
+      )}
+      {restaurants.error && (
+        <Alert
+          type="error"
+          showIcon
+          message="Restaurants could not be loaded"
+          description={restaurants.error}
+          style={{ marginBottom: 16 }}
+        />
+      )}
+      {branches.error && (
+        <Alert
+          type="error"
+          showIcon
+          message="Branches could not be loaded"
+          description={branches.error}
+          style={{ marginBottom: 16 }}
+        />
+      )}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}>
+          <MutationForm
+            title="Create or reactivate restaurant"
+            path={() => "/bff/platform-admin/restaurants"}
+            fixedValues={{ organizationId }}
+            onSaved={restaurants.reload}
+            disabled={!organizationId}
+          >
+            <Form.Item
+              name="code"
+              label="Code"
+              rules={[
+                { required: true, pattern: /^[a-z0-9][a-z0-9_-]{0,63}$/ },
+              ]}
+            >
+              <Input />
+            </Form.Item>
+            <Form.Item name="name" label="Name" rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item
+              name="currency"
+              label="Currency"
+              initialValue="SGD"
+              rules={[{ required: true, pattern: /^[A-Z]{3}$/ }]}
+            >
+              <Input />
+            </Form.Item>
+            <Form.Item
+              name="timeZone"
+              label="IANA time zone"
+              initialValue="Asia/Singapore"
+              rules={[{ required: true }]}
+            >
+              <Input />
+            </Form.Item>
+          </MutationForm>
+        </Col>
+        <Col xs={24} lg={12}>
+          <MutationForm
+            key={organizationId ?? "no-organization"}
+            title="Create or reactivate branch"
+            path={(v) =>
+              `/bff/platform-admin/restaurants/${v.restaurantId}/branches`
+            }
+            onSaved={branches.reload}
+            disabled={!organizationId || restaurantItems.length === 0}
+          >
+            <Form.Item
+              name="restaurantId"
+              label="Restaurant"
+              rules={[{ required: true, message: "Select a restaurant." }]}
+            >
+              <Select
+                showSearch
+                optionFilterProp="label"
+                placeholder="Search by restaurant name or code"
+                loading={
+                  !!organizationId && !restaurants.data && !restaurants.error
+                }
+                disabled={!organizationId || !!restaurants.error}
+                options={restaurantItems}
+                onChange={setRestaurantId}
+                notFoundContent={
+                  restaurants.data && restaurantItems.length === 0
+                    ? "No restaurants are available."
+                    : undefined
+                }
+              />
+            </Form.Item>
+            <Form.Item
+              name="code"
+              label="Code"
+              rules={[
+                { required: true, pattern: /^[a-z0-9][a-z0-9_-]{0,63}$/ },
+              ]}
+            >
+              <Input />
+            </Form.Item>
+            <Form.Item name="name" label="Name" rules={[{ required: true }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item
+              name="currency"
+              label="Currency"
+              initialValue="SGD"
+              rules={[{ required: true, pattern: /^[A-Z]{3}$/ }]}
+            >
+              <Input />
+            </Form.Item>
+            <Form.Item
+              name="timeZone"
+              label="IANA time zone"
+              initialValue="Asia/Singapore"
+              rules={[{ required: true }]}
+            >
+              <Input />
+            </Form.Item>
+          </MutationForm>
+        </Col>
+      </Row>
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24} lg={12}>
+          <Card title="Restaurants">
+            <Table
+              size="small"
+              rowKey="restaurantId"
+              loading={
+                !!organizationId && !restaurants.data && !restaurants.error
+              }
+              dataSource={restaurants.data}
+              locale={{
+                emptyText: organizationId
+                  ? "No restaurants found."
+                  : "Select an organization.",
+              }}
+              columns={[
+                { title: "Name", dataIndex: "name" },
+                { title: "Code", dataIndex: "code" },
+                {
+                  title: "Status",
+                  dataIndex: "status",
+                  render: (value) => <Tag>{value}</Tag>,
+                },
+                {
+                  title: "",
+                  render: (_, row) => (
+                    <Button
+                      type={
+                        restaurantId === row.restaurantId
+                          ? "primary"
+                          : "default"
+                      }
+                      onClick={() => setRestaurantId(row.restaurantId)}
+                    >
+                      Branches
+                    </Button>
+                  ),
+                },
+              ]}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card title="Branches">
+            <Table
+              size="small"
+              rowKey="branchId"
+              loading={!!restaurantId && !branches.data && !branches.error}
+              dataSource={branches.data}
+              locale={{
+                emptyText: restaurantId
+                  ? "No branches found."
+                  : "Select a restaurant.",
+              }}
+              columns={[
+                { title: "Name", dataIndex: "name" },
+                { title: "Code", dataIndex: "code" },
+                {
+                  title: "Status",
+                  dataIndex: "status",
+                  render: (value) => <Tag>{value}</Tag>,
+                },
+              ]}
+            />
+            {restaurantId && branchItems.length > 0 && (
+              <Typography.Text type="secondary">
+                {branchItems.length} branch
+                {branchItems.length === 1 ? "" : "es"} available for scoped
+                assignments.
+              </Typography.Text>
+            )}
+          </Card>
+        </Col>
+      </Row>
+    </>
+  );
+}
 
-function ProductRolesPanel(){const[form]=Form.useForm();const[message,setMessage]=useState<string>();const roleCode=Form.useWatch("roleCode",form)??"tenant-admin";const save=async(values:Record<string,string>)=>{setMessage(undefined);const body={...values,restaurantId:values.restaurantId||null,branchId:values.branchId||null};try{await api.request("/bff/platform-admin/authorization/role-assignments",{method:"POST",body});form.resetFields();setMessage("Saved successfully.");}catch(e){setMessage(normalizeError(e).message);}};const restaurantRequired=roleCode!=="tenant-admin";const branchRequired=!(["tenant-admin","store-manager"].includes(roleCode));return <><Typography.Title level={2}>Customer product roles</Typography.Title><Alert type="info" showIcon message="Tenant administrators are organization-scoped; store managers are restaurant-scoped; operational roles are branch-scoped."/><Card style={{marginTop:16}}><Form form={form} layout="vertical" initialValues={{roleCode:"tenant-admin"}} onFinish={save}><Form.Item name="subjectId" label="Identity subject ID" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="organizationId" label="Organization ID" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="roleCode" label="Role" rules={[{required:true}]}><Select options={["tenant-admin","store-manager","cashier","inventory-controller","accountant","report-viewer"].map(value=>({value}))}/></Form.Item>{restaurantRequired&&<Form.Item name="restaurantId" label="Restaurant ID" rules={[{required:true}]}><Input/></Form.Item>}{branchRequired&&<Form.Item name="branchId" label="Branch ID" rules={[{required:true}]}><Input/></Form.Item>}<Button type="primary" htmlType="submit">Assign role</Button>{message&&<Alert style={{marginTop:16}} type={message.startsWith("Saved")?"success":"error"} message={message}/>}</Form></Card></>;}
+function ProductRolesPanel() {
+  const organizations = useLoad<Organization[]>(
+    "/bff/platform-admin/organizations",
+  );
+  const users = useLoad<PlatformUser[]>("/bff/platform-admin/platform/users");
+  const organizationItems = organizationOptions(organizations.data ?? []);
+  const identityItems = identityOptions(users.data ?? []);
+  const [form] = Form.useForm();
+  const [message, setMessage] = useState<string>();
+  const roleCode = Form.useWatch("roleCode", form) ?? "tenant-admin";
+  const organizationId = Form.useWatch("organizationId", form);
+  const restaurantId = Form.useWatch("restaurantId", form);
+  const restaurants = useLoad<PlatformRestaurant[]>(
+    `/bff/platform-admin/restaurants?organizationId=${encodeURIComponent(organizationId ?? "")}`,
+    !!organizationId,
+  );
+  const branches = useLoad<PlatformBranch[]>(
+    `/bff/platform-admin/restaurants/${encodeURIComponent(restaurantId ?? "")}/branches`,
+    !!restaurantId,
+  );
+  const restaurantItems = restaurantOptions(restaurants.data ?? []);
+  const branchItems = branchOptions(branches.data ?? []);
+  const save = async (values: Record<string, string>) => {
+    setMessage(undefined);
+    const body = {
+      ...values,
+      restaurantId: values.restaurantId || null,
+      branchId: values.branchId || null,
+    };
+    try {
+      await api.request("/bff/platform-admin/authorization/role-assignments", {
+        method: "POST",
+        body,
+      });
+      form.resetFields();
+      setMessage("Saved successfully.");
+    } catch (e) {
+      setMessage(normalizeError(e).message);
+    }
+  };
+  const restaurantRequired = roleCode !== "tenant-admin";
+  const branchRequired = !["tenant-admin", "store-manager"].includes(roleCode);
+  return (
+    <>
+      <Typography.Title level={2}>Customer product roles</Typography.Title>
+      <Alert
+        type="info"
+        showIcon
+        message="Tenant administrators are organization-scoped; store managers are restaurant-scoped; operational roles are branch-scoped."
+      />
+      {organizations.error && (
+        <Alert
+          type="error"
+          showIcon
+          message="Organizations could not be loaded"
+          description={organizations.error}
+        />
+      )}{" "}
+      {users.error && (
+        <Alert
+          type="error"
+          showIcon
+          message="Identity users could not be loaded"
+          description={users.error}
+        />
+      )}
+      {restaurants.error && (
+        <Alert
+          type="error"
+          showIcon
+          message="Restaurants could not be loaded"
+          description={restaurants.error}
+        />
+      )}
+      {branches.error && (
+        <Alert
+          type="error"
+          showIcon
+          message="Branches could not be loaded"
+          description={branches.error}
+        />
+      )}
+      <Card style={{ marginTop: 16 }}>
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ roleCode: "tenant-admin" }}
+          onFinish={save}
+        >
+          <Form.Item
+            name="subjectId"
+            label="User"
+            rules={[{ required: true, message: "Select a user." }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="Search by username or email"
+              loading={!users.data && !users.error}
+              disabled={!!users.error}
+              options={identityItems}
+              notFoundContent={
+                users.data && identityItems.length === 0
+                  ? "No identity users are available."
+                  : undefined
+              }
+            />
+          </Form.Item>
+          <Form.Item
+            name="organizationId"
+            label="Organization"
+            rules={[{ required: true, message: "Select an organization." }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="Search by organization name or code"
+              loading={!organizations.data && !organizations.error}
+              disabled={!!organizations.error}
+              options={organizationItems}
+              notFoundContent={
+                organizations.data && organizationItems.length === 0
+                  ? "No organizations are available."
+                  : undefined
+              }
+              onChange={() =>
+                form.setFieldsValue({
+                  restaurantId: undefined,
+                  branchId: undefined,
+                })
+              }
+            />
+          </Form.Item>
+          <Form.Item name="roleCode" label="Role" rules={[{ required: true }]}>
+            <Select
+              onChange={(value) =>
+                form.setFieldsValue(
+                  value === "tenant-admin"
+                    ? { restaurantId: undefined, branchId: undefined }
+                    : value === "store-manager"
+                      ? { branchId: undefined }
+                      : {},
+                )
+              }
+              options={[
+                "tenant-admin",
+                "store-manager",
+                "cashier",
+                "inventory-controller",
+                "accountant",
+                "report-viewer",
+              ].map((value) => ({ value }))}
+            />
+          </Form.Item>
+          {restaurantRequired && (
+            <Form.Item
+              name="restaurantId"
+              label="Restaurant"
+              rules={[{ required: true, message: "Select a restaurant." }]}
+            >
+              <Select
+                showSearch
+                optionFilterProp="label"
+                placeholder="Search by restaurant name or code"
+                loading={
+                  !!organizationId && !restaurants.data && !restaurants.error
+                }
+                disabled={!organizationId || !!restaurants.error}
+                options={restaurantItems}
+                onChange={() => form.setFieldValue("branchId", undefined)}
+                notFoundContent={
+                  restaurants.data && restaurantItems.length === 0
+                    ? "No restaurants are available."
+                    : undefined
+                }
+              />
+            </Form.Item>
+          )}
+          {branchRequired && (
+            <Form.Item
+              name="branchId"
+              label="Branch"
+              rules={[{ required: true, message: "Select a branch." }]}
+            >
+              <Select
+                showSearch
+                optionFilterProp="label"
+                placeholder="Search by branch name or code"
+                loading={!!restaurantId && !branches.data && !branches.error}
+                disabled={!restaurantId || !!branches.error}
+                options={branchItems}
+                notFoundContent={
+                  branches.data && branchItems.length === 0
+                    ? "No branches are available."
+                    : undefined
+                }
+              />
+            </Form.Item>
+          )}
+          <Button type="primary" htmlType="submit">
+            Assign role
+          </Button>
+          {message && (
+            <Alert
+              style={{ marginTop: 16 }}
+              type={message.startsWith("Saved") ? "success" : "error"}
+              message={message}
+            />
+          )}
+        </Form>
+      </Card>
+    </>
+  );
+}
 
-function UsersPanel(){const state=useLoad<PlatformUser[]>("/bff/platform-admin/platform/users");const[selected,setSelected]=useState<PlatformUser>();const[profile]=Form.useForm();const[roles]=Form.useForm();const[message,setMessage]=useState<string>();const save=async(method:string,path:string,values:unknown)=>{try{await api.request(path,{method,body:values});setSelected(undefined);state.reload();}catch(e){setMessage(normalizeError(e).message);}};return <><Typography.Title level={2}>Platform users</Typography.Title><MutationForm title="Create platform user" path={()=>"/bff/platform-admin/platform/users"} onSaved={state.reload}><Form.Item name="username" label="Username" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="email" label="Email"><Input/></Form.Item><Form.Item name="enabled" initialValue={true} hidden><Input/></Form.Item><Form.Item name="roles" label="Roles" rules={[{required:true}]}><Select mode="multiple" options={["platform-owner","platform-admin","platform-support","platform-auditor"].map(value=>({value}))}/></Form.Item></MutationForm><Table style={{marginTop:16}} rowKey="subjectId" dataSource={state.data} columns={[{title:"Username",dataIndex:"username"},{title:"Email",dataIndex:"email"},{title:"Enabled",dataIndex:"enabled",render:v=>v?"Yes":"No"},{title:"Roles",dataIndex:"roles",render:(value:string[])=><Space wrap>{value.map(role=><Tag key={role}>{role}</Tag>)}</Space>},{title:"",render:(_,row)=><Button onClick={()=>{setMessage(undefined);setSelected(row);profile.setFieldsValue(row);roles.setFieldsValue({roles:row.roles});}}>Manage</Button>}]} /><Modal title={`Manage ${selected?.username??"user"}`} open={!!selected} footer={null} onCancel={()=>setSelected(undefined)}><Form form={profile} layout="vertical" onFinish={v=>save("PATCH",`/bff/platform-admin/platform/users/${encodeURIComponent(selected!.subjectId)}`,v)}><Form.Item name="email" label="Email"><Input/></Form.Item><Form.Item name="enabled" label="Enabled"><Select options={[{value:true,label:"Enabled"},{value:false,label:"Disabled"}]}/></Form.Item><Button htmlType="submit">Update profile</Button></Form><Form form={roles} layout="vertical" style={{marginTop:24}} onFinish={v=>save("PUT",`/bff/platform-admin/platform/users/${encodeURIComponent(selected!.subjectId)}/roles`,v)}><Form.Item name="roles" label="Platform roles" rules={[{required:true}]}><Select mode="multiple" options={["platform-owner","platform-admin","platform-support","platform-auditor"].map(value=>({value}))}/></Form.Item><Button type="primary" htmlType="submit">Assign roles</Button></Form>{message&&<Alert style={{marginTop:16}} type="error" message={message}/>}</Modal></>;}
+function UsersPanel() {
+  const state = useLoad<PlatformUser[]>("/bff/platform-admin/platform/users");
+  const [selected, setSelected] = useState<PlatformUser>();
+  const [profile] = Form.useForm();
+  const [roles] = Form.useForm();
+  const [message, setMessage] = useState<string>();
+  const save = async (method: string, path: string, values: unknown) => {
+    try {
+      await api.request(path, { method, body: values });
+      setSelected(undefined);
+      state.reload();
+    } catch (e) {
+      setMessage(normalizeError(e).message);
+    }
+  };
+  return (
+    <>
+      <Typography.Title level={2}>Platform users</Typography.Title>
+      <MutationForm
+        title="Create platform user"
+        path={() => "/bff/platform-admin/platform/users"}
+        onSaved={state.reload}
+      >
+        <Form.Item
+          name="username"
+          label="Username"
+          rules={[{ required: true }]}
+        >
+          <Input />
+        </Form.Item>
+        <Form.Item name="email" label="Email">
+          <Input />
+        </Form.Item>
+        <Form.Item name="enabled" initialValue={true} hidden>
+          <Input />
+        </Form.Item>
+        <Form.Item name="roles" label="Roles" rules={[{ required: true }]}>
+          <Select
+            mode="multiple"
+            options={[
+              "platform-owner",
+              "platform-admin",
+              "platform-support",
+              "platform-auditor",
+            ].map((value) => ({ value }))}
+          />
+        </Form.Item>
+      </MutationForm>
+      <Table
+        style={{ marginTop: 16 }}
+        rowKey="subjectId"
+        dataSource={state.data}
+        columns={[
+          { title: "Username", dataIndex: "username" },
+          { title: "Email", dataIndex: "email" },
+          {
+            title: "Enabled",
+            dataIndex: "enabled",
+            render: (v) => (v ? "Yes" : "No"),
+          },
+          {
+            title: "Roles",
+            dataIndex: "roles",
+            render: (value: string[]) => (
+              <Space wrap>
+                {value.map((role) => (
+                  <Tag key={role}>{role}</Tag>
+                ))}
+              </Space>
+            ),
+          },
+          {
+            title: "",
+            render: (_, row) => (
+              <Button
+                onClick={() => {
+                  setMessage(undefined);
+                  setSelected(row);
+                  profile.setFieldsValue(row);
+                  roles.setFieldsValue({ roles: row.roles });
+                }}
+              >
+                Manage
+              </Button>
+            ),
+          },
+        ]}
+      />
+      <Modal
+        title={`Manage ${selected?.username ?? "user"}`}
+        open={!!selected}
+        footer={null}
+        onCancel={() => setSelected(undefined)}
+      >
+        <Form
+          form={profile}
+          layout="vertical"
+          onFinish={(v) =>
+            save(
+              "PATCH",
+              `/bff/platform-admin/platform/users/${encodeURIComponent(selected!.subjectId)}`,
+              v,
+            )
+          }
+        >
+          <Form.Item name="email" label="Email">
+            <Input />
+          </Form.Item>
+          <Form.Item name="enabled" label="Enabled">
+            <Select
+              options={[
+                { value: true, label: "Enabled" },
+                { value: false, label: "Disabled" },
+              ]}
+            />
+          </Form.Item>
+          <Button htmlType="submit">Update profile</Button>
+        </Form>
+        <Form
+          form={roles}
+          layout="vertical"
+          style={{ marginTop: 24 }}
+          onFinish={(v) =>
+            save(
+              "PUT",
+              `/bff/platform-admin/platform/users/${encodeURIComponent(selected!.subjectId)}/roles`,
+              v,
+            )
+          }
+        >
+          <Form.Item
+            name="roles"
+            label="Platform roles"
+            rules={[{ required: true }]}
+          >
+            <Select
+              mode="multiple"
+              options={[
+                "platform-owner",
+                "platform-admin",
+                "platform-support",
+                "platform-auditor",
+              ].map((value) => ({ value }))}
+            />
+          </Form.Item>
+          <Button type="primary" htmlType="submit">
+            Assign roles
+          </Button>
+        </Form>
+        {message && (
+          <Alert style={{ marginTop: 16 }} type="error" message={message} />
+        )}
+      </Modal>
+    </>
+  );
+}
 
-function RolesPanel(){const state=useLoad<PlatformRole[]>("/bff/platform-admin/platform/roles");return <><Typography.Title level={2}>Platform roles and permissions</Typography.Title><Alert type="info" showIcon message="Platform roles never grant customer or product operational access."/><List dataSource={state.data} renderItem={role=><List.Item><Descriptions title={role.code} column={1}><Descriptions.Item label="Purpose">{role.description}</Descriptions.Item><Descriptions.Item label="Permissions"><Space wrap>{role.permissions.map(p=><Tag key={p}>{p}</Tag>)}</Space></Descriptions.Item></Descriptions></List.Item>}/></>;}
-function AuditPanel(){const state=useLoad<AuditRecord[]>("/bff/platform-admin/platform/audit?limit=100");return <><Typography.Title level={2}>Audit log</Typography.Title>{state.error&&<Alert type="error" message={state.error}/>}<Table rowKey="auditId" dataSource={state.data} columns={[{title:"Time",dataIndex:"occurredAtUtc"},{title:"Action",dataIndex:"action"},{title:"Resource",render:(_,row)=>`${row.resourceType}: ${row.resourceId}`},{title:"Actor",dataIndex:"actorSubjectId"},{title:"Outcome",dataIndex:"outcome"}]}/></>;}
+function RolesPanel() {
+  const state = useLoad<PlatformRole[]>("/bff/platform-admin/platform/roles");
+  return (
+    <>
+      <Typography.Title level={2}>
+        Platform roles and permissions
+      </Typography.Title>
+      <Alert
+        type="info"
+        showIcon
+        message="Platform roles never grant customer or product operational access."
+      />
+      <List
+        dataSource={state.data}
+        renderItem={(role) => (
+          <List.Item>
+            <Descriptions title={role.code} column={1}>
+              <Descriptions.Item label="Purpose">
+                {role.description}
+              </Descriptions.Item>
+              <Descriptions.Item label="Permissions">
+                <Space wrap>
+                  {role.permissions.map((p) => (
+                    <Tag key={p}>{p}</Tag>
+                  ))}
+                </Space>
+              </Descriptions.Item>
+            </Descriptions>
+          </List.Item>
+        )}
+      />
+    </>
+  );
+}
+function AuditPanel() {
+  const state = useLoad<AuditRecord[]>(
+    "/bff/platform-admin/platform/audit?limit=100",
+  );
+  return (
+    <>
+      <Typography.Title level={2}>Audit log</Typography.Title>
+      {state.error && <Alert type="error" message={state.error} />}
+      <Table
+        rowKey="auditId"
+        dataSource={state.data}
+        columns={[
+          { title: "Time", dataIndex: "occurredAtUtc" },
+          { title: "Action", dataIndex: "action" },
+          {
+            title: "Resource",
+            render: (_, row) => `${row.resourceType}: ${row.resourceId}`,
+          },
+          { title: "Actor", dataIndex: "actorSubjectId" },
+          { title: "Outcome", dataIndex: "outcome" },
+        ]}
+      />
+    </>
+  );
+}
 
-function ElevationDetails({value}:{value?:SupportElevation}){return value?<Descriptions bordered column={1} style={{marginTop:16}}><Descriptions.Item label="ID">{value.elevationId}</Descriptions.Item><Descriptions.Item label="Organization">{value.organizationId}</Descriptions.Item><Descriptions.Item label="Product">{value.applicationCode}</Descriptions.Item><Descriptions.Item label="Support subject">{value.supportSubjectId}</Descriptions.Item><Descriptions.Item label="Reason">{value.reason}</Descriptions.Item><Descriptions.Item label="Status"><Tag>{value.status}</Tag></Descriptions.Item><Descriptions.Item label="Expires">{value.expiresAtUtc??"—"}</Descriptions.Item></Descriptions>:null;}
-function SupportPanel({can}:{can:(capability:string)=>boolean}){const[result,setResult]=useState<SupportElevation>();const[message,setMessage]=useState<string>();const lookup=async(path:string)=>{try{setResult(await api.request<SupportElevation>(path));setMessage(undefined);}catch(e){setMessage(normalizeError(e).message);}};const action=async(actionName:string,elevationId:string)=>{if(!elevationId){setMessage("Inspect an elevation before taking action.");return;}try{setResult(await api.request<SupportElevation>(`/bff/platform-admin/support-elevations/${elevationId}/${actionName}`,{method:"POST",body:{}}));setMessage(undefined);}catch(e){setMessage(normalizeError(e).message);}};return <><Typography.Title level={2}>Platform support workflow</Typography.Title><Alert type="warning" showIcon message="Elevation is reasoned, time-limited, independently approved, revocable, and audited. It does not authorize product operations by itself."/><Row gutter={[16,16]} style={{marginTop:16}}><Col xs={24} lg={12}><Authorized capability="support.request"><MutationForm title="Request support elevation" path={()=>"/bff/platform-admin/support-elevations"}><Form.Item name="organizationId" label="Organization ID" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="applicationCode" label="Application code" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="reason" label="Reason" rules={[{required:true,min:10}]}><Input.TextArea/></Form.Item><Form.Item name="durationMinutes" label="Duration (5–240 minutes)" initialValue={30}><InputNumber min={5} max={240}/></Form.Item></MutationForm></Authorized></Col><Col xs={24} lg={12}>{can("support.effective")&&<Card title="My effective elevation"><Form layout="vertical" onFinish={v=>lookup(`/bff/platform-admin/support-elevations/effective?organizationId=${encodeURIComponent(v.organizationId)}&applicationCode=${encodeURIComponent(v.applicationCode)}`)}><Form.Item name="organizationId" label="Organization ID" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="applicationCode" label="Application code" rules={[{required:true}]}><Input/></Form.Item><Button htmlType="submit">Check effective access</Button></Form></Card>}{can("support.inspect")&&<Card title="Inspect or decide elevation"><Form layout="vertical" onFinish={v=>lookup(`/bff/platform-admin/support-elevations/${encodeURIComponent(v.elevationId)}`)}><Form.Item name="elevationId" label="Elevation ID" rules={[{required:true}]}><Input/></Form.Item><Space><Button htmlType="submit">Inspect</Button>{can("support.approve")&&<><Button onClick={()=>action("approve",String(result?.elevationId??""))}>Approve</Button><Button danger onClick={()=>action("revoke",String(result?.elevationId??""))}>Revoke</Button></>}</Space></Form></Card>}</Col></Row>{message&&<Alert style={{marginTop:16}} type="error" message={message}/>}<ElevationDetails value={result}/></>;}
+function ElevationDetails({ value }: { value?: SupportElevation }) {
+  return value ? (
+    <Descriptions bordered column={1} style={{ marginTop: 16 }}>
+      <Descriptions.Item label="ID">{value.elevationId}</Descriptions.Item>
+      <Descriptions.Item label="Organization">
+        {value.organizationId}
+      </Descriptions.Item>
+      <Descriptions.Item label="Product">
+        {value.applicationCode}
+      </Descriptions.Item>
+      <Descriptions.Item label="Support subject">
+        {value.supportSubjectId}
+      </Descriptions.Item>
+      <Descriptions.Item label="Reason">{value.reason}</Descriptions.Item>
+      <Descriptions.Item label="Status">
+        <Tag>{value.status}</Tag>
+      </Descriptions.Item>
+      <Descriptions.Item label="Expires">
+        {value.expiresAtUtc ?? "—"}
+      </Descriptions.Item>
+    </Descriptions>
+  ) : null;
+}
+function SupportPanel({ can }: { can: (capability: string) => boolean }) {
+  const applications = applicationOptions(
+    import.meta.env.VITE_PLATFORM_APPLICATION_CATALOG,
+  );
+  const [result, setResult] = useState<SupportElevation>();
+  const [message, setMessage] = useState<string>();
+  const lookup = async (path: string) => {
+    try {
+      setResult(await api.request<SupportElevation>(path));
+      setMessage(undefined);
+    } catch (e) {
+      setMessage(normalizeError(e).message);
+    }
+  };
+  const action = async (actionName: string, elevationId: string) => {
+    if (!elevationId) {
+      setMessage("Inspect an elevation before taking action.");
+      return;
+    }
+    try {
+      setResult(
+        await api.request<SupportElevation>(
+          `/bff/platform-admin/support-elevations/${elevationId}/${actionName}`,
+          { method: "POST", body: {} },
+        ),
+      );
+      setMessage(undefined);
+    } catch (e) {
+      setMessage(normalizeError(e).message);
+    }
+  };
+  return (
+    <>
+      <Typography.Title level={2}>Platform support workflow</Typography.Title>
+      <Alert
+        type="warning"
+        showIcon
+        message="Elevation is reasoned, time-limited, independently approved, revocable, and audited. It does not authorize product operations by itself."
+      />
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24} lg={12}>
+          <Authorized capability="support.request">
+            <MutationForm
+              title="Request support elevation"
+              path={() => "/bff/platform-admin/support-elevations"}
+            >
+              <Form.Item
+                name="organizationId"
+                label="Organization ID"
+                extra="Support-only users cannot access the administrator organization directory."
+                rules={[{ required: true }]}
+              >
+                <Input />
+              </Form.Item>
+              <Form.Item
+                name="applicationCode"
+                label="Application"
+                rules={[{ required: true, message: "Select an application." }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="Search by application name or code"
+                  options={applications}
+                  notFoundContent="No configured applications are available."
+                />
+              </Form.Item>
+              <Form.Item
+                name="reason"
+                label="Reason"
+                rules={[{ required: true, min: 10 }]}
+              >
+                <Input.TextArea />
+              </Form.Item>
+              <Form.Item
+                name="durationMinutes"
+                label="Duration (5–240 minutes)"
+                initialValue={30}
+              >
+                <InputNumber min={5} max={240} />
+              </Form.Item>
+            </MutationForm>
+          </Authorized>
+        </Col>
+        <Col xs={24} lg={12}>
+          {can("support.effective") && (
+            <Card title="My effective elevation">
+              <Form
+                layout="vertical"
+                onFinish={(v) =>
+                  lookup(
+                    `/bff/platform-admin/support-elevations/effective?organizationId=${encodeURIComponent(v.organizationId)}&applicationCode=${encodeURIComponent(v.applicationCode)}`,
+                  )
+                }
+              >
+                <Form.Item
+                  name="organizationId"
+                  label="Organization ID"
+                  extra="Support-only users cannot access the administrator organization directory."
+                  rules={[{ required: true }]}
+                >
+                  <Input />
+                </Form.Item>
+                <Form.Item
+                  name="applicationCode"
+                  label="Application"
+                  rules={[
+                    { required: true, message: "Select an application." },
+                  ]}
+                >
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="Search by application name or code"
+                    options={applications}
+                    notFoundContent="No configured applications are available."
+                  />
+                </Form.Item>
+                <Button htmlType="submit">Check effective access</Button>
+              </Form>
+            </Card>
+          )}
+          {can("support.inspect") && (
+            <Card title="Inspect or decide elevation">
+              <Form
+                layout="vertical"
+                onFinish={(v) =>
+                  lookup(
+                    `/bff/platform-admin/support-elevations/${encodeURIComponent(v.elevationId)}`,
+                  )
+                }
+              >
+                <Form.Item
+                  name="elevationId"
+                  label="Elevation ID"
+                  rules={[{ required: true }]}
+                >
+                  <Input />
+                </Form.Item>
+                <Space>
+                  <Button htmlType="submit">Inspect</Button>
+                  {can("support.approve") && (
+                    <>
+                      <Button
+                        onClick={() =>
+                          action("approve", String(result?.elevationId ?? ""))
+                        }
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        danger
+                        onClick={() =>
+                          action("revoke", String(result?.elevationId ?? ""))
+                        }
+                      >
+                        Revoke
+                      </Button>
+                    </>
+                  )}
+                </Space>
+              </Form>
+            </Card>
+          )}
+        </Col>
+      </Row>
+      {message && (
+        <Alert style={{ marginTop: 16 }} type="error" message={message} />
+      )}
+      <ElevationDetails value={result} />
+    </>
+  );
+}
 
-function AdminLinksPanel(){const links=parseAdminLinks(import.meta.env.VITE_PRODUCT_ADMIN_LINKS,location.origin);return <><Typography.Title level={2}>Product administration portals</Typography.Title><Alert type="info" showIcon message="Controlled links open separately deployed product administration boundaries; product operations are never embedded here."/><List dataSource={links} locale={{emptyText:"No product administration links are configured."}} renderItem={link=><List.Item actions={[<Button key="open" href={link.url} target="_blank" rel="noopener noreferrer">Open portal</Button>]}><List.Item.Meta title={link.label} description={link.applicationCode}/></List.Item>}/></>;}
+function AdminLinksPanel() {
+  const links = parseAdminLinks(
+    import.meta.env.VITE_PRODUCT_ADMIN_LINKS,
+    location.origin,
+  );
+  return (
+    <>
+      <Typography.Title level={2}>
+        Product administration portals
+      </Typography.Title>
+      <Alert
+        type="info"
+        showIcon
+        message="Controlled links open separately deployed product administration boundaries; product operations are never embedded here."
+      />
+      <List
+        dataSource={links}
+        locale={{
+          emptyText: "No product administration links are configured.",
+        }}
+        renderItem={(link) => (
+          <List.Item
+            actions={[
+              <Button
+                key="open"
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open portal
+              </Button>,
+            ]}
+          >
+            <List.Item.Meta
+              title={link.label}
+              description={link.applicationCode}
+            />
+          </List.Item>
+        )}
+      />
+    </>
+  );
+}
 
-function App(){const session=useLoad<Session>("/bff/platform-admin/me");const[section,setSection]=useState<Section>(()=>sections.includes(location.hash.slice(1) as Section)?location.hash.slice(1) as Section:"summary");const roles=session.data?.roles??[];const capabilities=useMemo(()=>capabilitiesFor(roles),[roles.join("|")]);if(!session.data)return session.error?<Alert type="error" message={session.error}/>:<Spin fullscreen/>;const capability=(key:Section)=>key==="summary"?"summary.read":key==="organizations"?"organizations.manage":key==="memberships"?"memberships.manage":key==="products"?"products.manage":key==="subscriptions"?"subscriptions.manage":key==="hierarchy"?"hierarchy.manage":key==="product-roles"?"product-roles.manage":key==="users"?"users.manage":key==="roles"?"roles.read":key==="audit"?"audit.read":key==="support"?"support.workflow":"admin-links.open";const nav=sections.map(key=>({key,label:key==="product-roles"?"Product roles":key[0]!.toUpperCase()+key.slice(1),capability:capability(key),onSelect:()=>{location.hash=key;setSection(key);}}));let panel:React.ReactNode=section==="summary"?<SummaryPanel/>:section==="organizations"?<OrganizationsPanel/>:section==="memberships"?<MembershipsPanel/>:section==="products"?<ProductsPanel/>:section==="subscriptions"?<SubscriptionsPanel/>:section==="hierarchy"?<HierarchyPanel/>:section==="product-roles"?<ProductRolesPanel/>:section==="users"?<UsersPanel/>:section==="roles"?<RolesPanel/>:section==="audit"?<AuditPanel/>:section==="support"?<SupportPanel can={c=>capabilities.has(c)}/>:<AdminLinksPanel/>;if(!capabilities.has(capability(section)))panel=<Alert type="error" message="This section is not available for your platform role."/>;return <AuthorizationUiProvider can={c=>capabilities.has(c)}><PortalLayout title="Product Owner" items={nav} selectedKey={section} headerActions={<Space><span>{session.data.username??session.data.subjectId}</span><Button href="/bff/platform-admin/logout">Sign out</Button></Space>}>{panel}</PortalLayout></AuthorizationUiProvider>;}
+function App() {
+  const session = useLoad<Session>("/bff/platform-admin/me");
+  const [section, setSection] = useState<Section>(() =>
+    sections.includes(location.hash.slice(1) as Section)
+      ? (location.hash.slice(1) as Section)
+      : "summary",
+  );
+  const roles = session.data?.roles ?? [];
+  const capabilities = useMemo(() => capabilitiesFor(roles), [roles.join("|")]);
+  if (!session.data)
+    return session.error ? (
+      <Alert type="error" message={session.error} />
+    ) : (
+      <Spin fullscreen />
+    );
+  const capability = (key: Section) =>
+    key === "summary"
+      ? "summary.read"
+      : key === "organizations"
+        ? "organizations.manage"
+        : key === "memberships"
+          ? "memberships.manage"
+          : key === "products"
+            ? "products.manage"
+            : key === "subscriptions"
+              ? "subscriptions.manage"
+              : key === "hierarchy"
+                ? "hierarchy.manage"
+                : key === "product-roles"
+                  ? "product-roles.manage"
+                  : key === "users"
+                    ? "users.manage"
+                    : key === "roles"
+                      ? "roles.read"
+                      : key === "audit"
+                        ? "audit.read"
+                        : key === "support"
+                          ? "support.workflow"
+                          : "admin-links.open";
+  const nav = sections.map((key) => ({
+    key,
+    label:
+      key === "product-roles"
+        ? "Product roles"
+        : key[0]!.toUpperCase() + key.slice(1),
+    capability: capability(key),
+    onSelect: () => {
+      location.hash = key;
+      setSection(key);
+    },
+  }));
+  let panel: React.ReactNode =
+    section === "summary" ? (
+      <SummaryPanel />
+    ) : section === "organizations" ? (
+      <OrganizationsPanel />
+    ) : section === "memberships" ? (
+      <MembershipsPanel />
+    ) : section === "products" ? (
+      <ProductsPanel />
+    ) : section === "subscriptions" ? (
+      <SubscriptionsPanel />
+    ) : section === "hierarchy" ? (
+      <HierarchyPanel />
+    ) : section === "product-roles" ? (
+      <ProductRolesPanel />
+    ) : section === "users" ? (
+      <UsersPanel />
+    ) : section === "roles" ? (
+      <RolesPanel />
+    ) : section === "audit" ? (
+      <AuditPanel />
+    ) : section === "support" ? (
+      <SupportPanel can={(c) => capabilities.has(c)} />
+    ) : (
+      <AdminLinksPanel />
+    );
+  if (!capabilities.has(capability(section)))
+    panel = (
+      <Alert
+        type="error"
+        message="This section is not available for your platform role."
+      />
+    );
+  return (
+    <AuthorizationUiProvider can={(c) => capabilities.has(c)}>
+      <PortalLayout
+        title="Product Owner"
+        items={nav}
+        selectedKey={section}
+        headerActions={
+          <Space>
+            <span>{session.data.username ?? session.data.subjectId}</span>
+            <Button href="/bff/platform-admin/logout">Sign out</Button>
+          </Space>
+        }
+      >
+        {panel}
+      </PortalLayout>
+    </AuthorizationUiProvider>
+  );
+}
 
-createRoot(document.getElementById("root")!).render(<React.StrictMode><NexaDesignProvider><ErrorBoundary fallback={()=><Alert type="error" message="The portal could not render safely."/>}><App/></ErrorBoundary></NexaDesignProvider></React.StrictMode>);
+createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <NexaDesignProvider>
+      <ErrorBoundary
+        fallback={() => (
+          <Alert type="error" message="The portal could not render safely." />
+        )}
+      >
+        <App />
+      </ErrorBoundary>
+    </NexaDesignProvider>
+  </React.StrictMode>,
+);

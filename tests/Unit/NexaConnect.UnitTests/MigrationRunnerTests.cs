@@ -9,7 +9,7 @@ public sealed class MigrationRunnerTests
         var services = new Dictionary<string, int>(StringComparer.Ordinal)
         {
             ["PlatformDirectory"] = 3,
-            ["Authorization"] = 1,
+            ["Authorization"] = 2,
             ["Restaurant"] = 3,
             ["Catalog"] = 3,
             ["Inventory"] = 4,
@@ -17,7 +17,7 @@ public sealed class MigrationRunnerTests
             ["Kitchen"] = 2,
             ["Customer"] = 1,
             ["Payment"] = 1,
-            ["Notification"] = 1,
+            ["Notification"] = 2,
             ["POS"] = 3,
             ["Media"] = 4,
             ["Reporting"] = 3
@@ -123,6 +123,38 @@ public sealed class MigrationRunnerTests
                 CancellationToken.None));
 
         Assert.Contains("not linear", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Notification_product_integration_has_a_versioned_rollback()
+    {
+        MigrationCatalog catalog = await MigrationCatalog.LoadAsync(
+            Path.Combine(AppContext.BaseDirectory, "Scripts"),
+            "Notification",
+            CancellationToken.None);
+        IReadOnlyList<AppliedMigration> applied = catalog.Migrations.Select(ToAppliedMigration).ToArray();
+
+        MigrationStep rollback = Assert.Single(catalog.CreatePlan(applied, 1));
+        Assert.Equal(MigrationDirection.Down, rollback.Direction);
+        Assert.Contains("DROP TABLE outbox_messages", rollback.Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("DROP TABLE inbox_messages", rollback.Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("DROP TABLE notification_audit_records", rollback.Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("prevent_notification_audit_mutation", rollback.Migration.DownSql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Authorization_notification_permissions_have_a_versioned_rollback()
+    {
+        MigrationCatalog catalog = await MigrationCatalog.LoadAsync(
+            Path.Combine(AppContext.BaseDirectory, "Scripts"),
+            "Authorization",
+            CancellationToken.None);
+        IReadOnlyList<AppliedMigration> applied = catalog.Migrations.Select(ToAppliedMigration).ToArray();
+
+        MigrationStep rollback = Assert.Single(catalog.CreatePlan(applied, 1));
+        Assert.Equal(MigrationDirection.Down, rollback.Direction);
+        Assert.Contains("notification.read", rollback.Migration.UpSql, StringComparison.Ordinal);
+        Assert.Contains("DELETE FROM authorization_role_permissions", rollback.Migration.DownSql, StringComparison.Ordinal);
     }
 
     [Fact]
