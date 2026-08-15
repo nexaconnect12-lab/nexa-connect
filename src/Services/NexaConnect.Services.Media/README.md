@@ -18,5 +18,6 @@ Verification:
 - Run `MediaAuthenticatedHttpAcceptanceTests`.
 - Set `NEXACONNECT_MEDIA_INTEGRATION_DB` to a disposable Development/Test PostgreSQL database and run `MediaPostgresAcceptanceTests`.
 - Start MinIO/ClamAV, set `NEXA_MINIO_ACCEPTANCE=1` and `NEXA_CLAMAV_ACCEPTANCE=1`, and run `MediaObjectStorageAcceptanceTests`.
+- Start the disposable Phase 8 stack and run `npm run test:e2e:phase8` from `src/Frontend` with the settings in [the joined browser acceptance guide](../../Frontend/e2e/phase8/README.md). This joins the configured Media service to the authenticated portal, BFF, storage, scanner, database, and worker; provider/configuration claims depend on the launched environment and the run does not replace recovery, load, TLS, CORS, credential, or operational validation.
 
 Deletion and processing jobs back off exponentially for ten attempts. Monitor `media_object_deletions` and `media_processing_jobs` ordered by `next_attempt_at_utc`; terminal rows require operator review. Drain both tables and stop Media before downgrading migration 4 or 3.

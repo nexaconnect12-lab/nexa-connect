@@ -2,6 +2,8 @@
 
 This project hosts in-process API integration tests using `WebApplicationFactory`.
 
+The joined authenticated browser acceptance suite is intentionally hosted in the frontend workspace rather than this in-process project. See `src/Frontend/e2e/phase8/README.md` for the opt-in Playwright workflow across Keycloak, Customer Portal/BFF, Media, MinIO, ClamAV, PostgreSQL, and the Media worker.
+
 Media provider acceptance is opt-in so normal test runs do not require containers; disabled cases are reported as skipped. Start Compose services `minio`, `minio-init`, and `clamav`, set `NEXA_MINIO_ACCEPTANCE=1` and `NEXA_CLAMAV_ACCEPTANCE=1`, then filter on `MediaObjectStorageAcceptanceTests`. `MediaAuthenticatedHttpAcceptanceTests` proves an authenticated customer role crosses the HTTP authorization boundary and uses the route organization. Set `NEXACONNECT_MEDIA_INTEGRATION_DB` to a disposable Development/Test PostgreSQL database for `MediaPostgresAcceptanceTests`, which applies migrations 1-4 in an isolated schema and verifies tenant quota serialization, expiry cleanup/deletion, completion processing jobs, and generated variant metadata. Never target production infrastructure.
 
 `RestaurantWorkflowCrossServiceTests` verifies the public Catalog -> Order -> Inventory -> Kitchen -> Payment workflow over independent HTTP service boundaries. Catalog and Inventory are seeded through their APIs, Order uses its production HTTP adapters, Payment is recorded through its service API, and the deployed Kitchen API is hosted through its real `WebApplicationFactory` boundary with a controlled store. The test asserts the paid order, inventory decrement, kitchen ticket, and payment intent.

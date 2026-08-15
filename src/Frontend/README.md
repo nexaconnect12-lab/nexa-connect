@@ -19,6 +19,8 @@ The Phase 7 Product Owner Portal is implemented in `apps/product-owner-portal`. 
 
 Run `npm install`, `npm run check`, and `npm test` from this directory. Package output is generated into each package's ignored `dist` directory. Consumers import only public package exports.
 
+The opt-in [Phase 8 joined browser acceptance](e2e/phase8/README.md) uses Playwright against the real local Customer Portal stack. It covers OIDC sign-in, tenant selection and cross-tenant denial, direct Media upload, safety completion, generated-variant downloads, and deletion. Missing credentials and seed identifiers skip the suite; normal frontend checks never contact external services.
+
 ## Trust boundaries
 
 The authorization UI helpers receive an evaluator from the consuming portal. They may hide navigation or actions for usability, but they do not define roles, resolve organizations, validate sessions, or authorize requests. Each Customer, Product Administration, and Product Owner portal must build its evaluator from its own BFF contracts and keep its deployment, OIDC client, cookie, audience, and policy model independent. Every BFF and owning service must authorize every operation even when the UI already hid or disabled it.
