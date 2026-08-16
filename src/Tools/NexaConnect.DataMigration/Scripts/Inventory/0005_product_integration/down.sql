@@ -1,3 +1,5 @@
 DROP TRIGGER tr_inventory_audit_records_append_only ON inventory_audit_records;
 DROP FUNCTION prevent_inventory_audit_mutation();
 DROP TABLE inventory_audit_records;
+DROP INDEX ix_inventory_reservation_id;
+ALTER TABLE inventory_reservation_lines DROP COLUMN reservation_id;

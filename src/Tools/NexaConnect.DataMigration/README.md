@@ -6,7 +6,7 @@ The agreed migration contract is defined by [ADR-001](../../../docs/Architecture
 
 ## Implementation status
 
-Schema-first catalogs have been authored for 13 independently owned databases. Platform Directory version 2 adds support-elevation state and database-enforced append-only audit history. Inventory version 5 adds its append-only product-audit table and trigger while preserving the outbox owned by version 1; live PostgreSQL migration acceptance remains required. Other services retain their independently versioned catalogs.
+Schema-first catalogs have been authored for 13 independently owned databases. Platform Directory version 2 adds support-elevation state and database-enforced append-only audit history. Inventory version 5 adds durable simplified-table reservation identity and its append-only product-audit table/trigger while preserving the outbox owned by version 1. All five opt-in isolated-schema tests passed against local real PostgreSQL; one directly executes 5→4→5 with repository scripts. That result does not exercise migration history/checksums or the full migration-runner 0→5 lifecycle, which remains required. Other services retain their independently versioned catalogs.
 
 - `PlatformDirectory`
 - `Authorization`
