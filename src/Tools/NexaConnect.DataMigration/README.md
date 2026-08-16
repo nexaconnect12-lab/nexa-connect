@@ -12,6 +12,10 @@ Payment version 2 adds organization ownership and append-only product audit whil
 
 Reporting version 4 expands the activity projection's database-enforced action/resource vocabulary for approved Catalog, Media, Notification, and Payment audit contracts. Live PostgreSQL coverage confirms Payment projection and destructive rollback removal of incompatible projection rows.
 
+Kitchen version 3 adds tenant ownership, station snapshot fingerprints, multi-station uniqueness, and append-only audit/history protection while preserving migration-1 outbox and migration-2 inbox ownership. Reporting version 5 adds Kitchen audit vocabulary and replay-safe destructive rollback. Their coordinated live lifecycle passed locally.
+
+Authorization version 3 backfills `kitchen.ticket.read` and `kitchen.ticket.transition` for existing `tenant-admin` and `store-manager` role assignments. Its destructive downgrade removes only those Kitchen permission rows.
+
 - `PlatformDirectory`
 - `Authorization`
 - `Restaurant`

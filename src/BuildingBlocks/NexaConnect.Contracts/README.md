@@ -4,7 +4,7 @@ This project contains stable cross-context contracts only. `IntegrationEvents/Re
 
 - `OrderSubmittedV1`
 - `InventoryReservedV1` / `InventoryReservationRejectedV1`
-- `KitchenTicketCreatedV1`
+- `KitchenTicketCreatedV1`, `KitchenTicketQueuedV1`, and `KitchenTicketStatusChangedV1`
 - `PaymentCompletedV1` / `PaymentFailedV1`
 
 These records are integration contracts, not domain entities. Each bounded context keeps its own aggregate and persistence model.

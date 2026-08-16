@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Catalog\NexaConnect.Services.Catalog.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Inventory\NexaConnect.Services.Inventory.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Payment\NexaConnect.Services.Payment.csproj" />
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Kitchen\NexaConnect.Services.Kitchen.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Customer\NexaConnect.Services.Customer.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Notification\NexaConnect.Services.Notification.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.PlatformDirectory\NexaConnect.Services.PlatformDirectory.csproj" />

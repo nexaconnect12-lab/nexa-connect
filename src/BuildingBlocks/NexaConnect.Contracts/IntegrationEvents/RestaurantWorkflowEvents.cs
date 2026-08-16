@@ -47,6 +47,9 @@ public sealed record KitchenTicketCreatedV1(
     Guid TicketId,
     IReadOnlyList<OrderLineSnapshot> Lines) : IIntegrationEvent;
 
+public sealed record KitchenTicketQueuedV1(Guid EventId,Guid CorrelationId,DateTimeOffset OccurredAtUtc,Guid OrganizationId,Guid RestaurantId,Guid BranchId,Guid OrderId,Guid TicketId,Guid PreparationStationId,int ServiceSequence,string Status,string? RequestCorrelationId=null):IIntegrationEvent;
+public sealed record KitchenTicketStatusChangedV1(Guid EventId,Guid CorrelationId,DateTimeOffset OccurredAtUtc,Guid OrganizationId,Guid RestaurantId,Guid BranchId,Guid OrderId,Guid TicketId,string FromStatus,string ToStatus,long ConcurrencyVersion,string? ReasonCode,string? RequestCorrelationId=null):IIntegrationEvent;
+
 public sealed record PaymentCompletedV1(
     Guid EventId,
     Guid CorrelationId,

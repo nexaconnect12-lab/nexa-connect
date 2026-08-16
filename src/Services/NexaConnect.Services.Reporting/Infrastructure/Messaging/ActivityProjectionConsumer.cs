@@ -104,6 +104,7 @@ public sealed class ActivityProjectionConsumer(
         "media.audit.v1" => "media",
         "notification.audit.v1" => "notification",
         "payment.audit.v1" => "payment",
+        "kitchen.audit.v1" => "kitchen",
         _ => throw new InvalidOperationException("Audit routing key is not allowed.")
     };
 }

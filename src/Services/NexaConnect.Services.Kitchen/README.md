@@ -1,27 +1,16 @@
 # NexaConnect Kitchen Service
 
-The Kitchen service owns kitchen tickets, preparation snapshots, ticket status, cancellation, and the Kitchen database boundary. It does not recalculate commercial prices or connect directly to the Order database.
+Kitchen owns tenant-scoped preparation tickets and ticket-level lifecycle state. Only `nexaconnect-order-service` may create or compensate tickets; operators use tenant-authorized branch routes with `kitchen.ticket.read` or `kitchen.ticket.transition`.
 
-## Local run
+- `POST /api/kitchen/v1/tickets` creates one station ticket.
+- `POST /api/kitchen/v1/tickets/{orderId}/cancel?branchId=...` performs Order compensation.
+- `GET /api/kitchen/v1/branches/{branchId}/tickets/{ticketId}` reads an authorized ticket.
+- `POST /api/kitchen/v1/branches/{branchId}/tickets/{ticketId}/transitions` accepts target status, expected version, and optional bounded reason.
 
-```powershell
-dotnet run --project src/Services/NexaConnect.Services.Kitchen --urls http://localhost:7103
-```
+Legal transitions are queued → in-progress/cancelled, in-progress → ready/cancelled, and ready → completed/cancelled. A same-target request with the current expected version is a no-op; stale or illegal transitions return `409`. Completed/cancelled are terminal.
 
-The service defaults to in-memory persistence. For PostgreSQL, set:
+PostgreSQL mode requires migration 3. New writes atomically persist ticket/items, append-only status history and audit, a Kitchen lifecycle event, and `kitchen.audit.v1`. Migration 1 owns the outbox, migration 2 the inbox, and migration 3 tenant/fingerprint/audit state plus multi-station uniqueness. Enable dispatch only after Reporting migration 5 and its compatible consumer. Legacy rows use the empty organization UUID and require authoritative Order reconciliation.
 
-```text
-Persistence__Provider=PostgreSQL
-ConnectionStrings__Kitchen=Host=127.0.0.1;Port=5432;Database=NexaConnect_Kitchen;Username=nexaconnect_kitchen_app;Password=<secret>
-Kitchen__RestaurantId=<restaurant-guid>
-```
+Service name is `nexaconnect-kitchen`. All five coordinated Kitchen/Reporting acceptances passed locally against PostgreSQL 17 and RabbitMQ. Item-level workflows, station queues, adjustments, offline KDS, canonical station IDs, and established-dispatcher reconnection remain planned.
 
-Apply the service-owned Kitchen migration before enabling PostgreSQL persistence. PostgreSQL mode also registers the service-owned durable inbox store for idempotent event consumers. Order calls the authenticated endpoints using its configured `Services__Kitchen` URL and workload bearer token.
-
-## API
-
-- `POST /api/kitchen/v1/tickets` creates a queued ticket from an Order snapshot.
-- `GET /api/kitchen/v1/tickets/{ticketId}` reads a ticket.
-- `POST /api/kitchen/v1/tickets/{orderId}/cancel` compensates a ticket after payment failure.
-
-All routes require the NexaConnect API bearer token. Production deployments must use HTTPS and a durable PostgreSQL database.
+The service-specific production template is [`docs/Deployment/kitchen.production.env.example`](../../../docs/Deployment/kitchen.production.env.example). PostgreSQL deployment requires `ConnectionStrings__Kitchen`, `Persistence__Provider=PostgreSQL`, `Services__PlatformDirectory`, `Services__Restaurant`, `Services__Authorization`, and the `nexaconnect-kitchen-service` `WorkloadIdentity__Authority`, `WorkloadIdentity__ClientId`, and secret-managed `WorkloadIdentity__ClientSecret`. Authorization migration 3 must precede operator traffic. Enable outbox delivery with `Outbox__Enabled`, `Outbox__ConnectionString`, and the normal exchange settings only after Reporting migration 5. JSON stdout is always enabled; set `Observability__OtlpEnabled=true` and use the Kitchen-inclusive correlation query in the [observability guide](../../../docs/Deployment/Observability.md).

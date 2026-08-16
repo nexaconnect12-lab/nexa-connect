@@ -53,22 +53,19 @@ public sealed class HttpInventoryReservationPort(HttpClient client) : IInventory
 
 public sealed class HttpKitchenPort(HttpClient client) : IKitchenPort
 {
-    public async Task CancelTicketAsync(Guid orderId, Guid branchId, CancellationToken cancellationToken)
+    public async Task CancelTicketAsync(Guid organizationId,Guid orderId, Guid branchId, CancellationToken cancellationToken)
     {
-        using var response = await client.PostAsync($"api/kitchen/v1/tickets/{orderId:D}/cancel", null, cancellationToken);
+        using var request=new HttpRequestMessage(HttpMethod.Post,$"api/kitchen/v1/tickets/{orderId:D}/cancel?branchId={branchId:D}");request.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId,organizationId.ToString("D"));request.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode,"nexa_connect");using var response = await client.SendAsync(request,cancellationToken);
         if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
             throw new InvalidOperationException($"Kitchen cancellation failed with {(int)response.StatusCode}.");
     }
     public async Task<KitchenTicketResult> CreateTicketAsync(
-        Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
+        Guid organizationId,Guid restaurantId,Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
     {
         KitchenTicketResult? firstTicket = null;
         foreach (IGrouping<string, OrderLine> group in lines.GroupBy(line => line.PreparationStation, StringComparer.OrdinalIgnoreCase))
         {
-            using HttpResponseMessage response = await client.PostAsJsonAsync(
-                "api/kitchen/v1/tickets",
-                new TicketRequest(orderId, branchId, group.Select(line => new TicketLine(line.ProductId, line.Name, line.Quantity, line.PreparationStation)).ToArray()),
-                cancellationToken);
+            using var request=new HttpRequestMessage(HttpMethod.Post,"api/kitchen/v1/tickets"){Content=JsonContent.Create(new TicketRequest(restaurantId,orderId, branchId, group.Select(line => new TicketLine(line.ProductId, line.Name, line.Quantity, line.PreparationStation)).ToArray()))};request.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId,organizationId.ToString("D"));request.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode,"nexa_connect");using HttpResponseMessage response=await client.SendAsync(request,cancellationToken);
             response.EnsureSuccessStatusCode();
             TicketResponse ticket = await response.Content.ReadFromJsonAsync<TicketResponse>(cancellationToken)
                 ?? throw new InvalidOperationException("Kitchen returned an empty ticket response.");
@@ -78,7 +75,7 @@ public sealed class HttpKitchenPort(HttpClient client) : IKitchenPort
         return firstTicket ?? throw new InvalidOperationException("Kitchen requires at least one order line.");
     }
 
-    private sealed record TicketRequest(Guid OrderId, Guid BranchId, IReadOnlyCollection<TicketLine> Lines);
+    private sealed record TicketRequest(Guid RestaurantId,Guid OrderId, Guid BranchId, IReadOnlyCollection<TicketLine> Lines);
     private sealed record TicketLine(Guid ProductId, string Name, int Quantity, string PreparationStation);
     private sealed record TicketResponse(Guid TicketId);
 }

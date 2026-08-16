@@ -1,0 +1,17 @@
+ALTER TABLE kitchen_tickets ADD COLUMN organization_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+ALTER TABLE kitchen_tickets ALTER COLUMN organization_id DROP DEFAULT;
+ALTER TABLE kitchen_tickets ADD COLUMN preparation_station_code text NOT NULL DEFAULT 'legacy';
+ALTER TABLE kitchen_tickets ALTER COLUMN preparation_station_code DROP DEFAULT;
+ALTER TABLE kitchen_tickets ADD COLUMN request_fingerprint text NOT NULL DEFAULT repeat('0',64);
+ALTER TABLE kitchen_tickets ALTER COLUMN request_fingerprint DROP DEFAULT;
+ALTER TABLE kitchen_tickets ADD CONSTRAINT ck_kitchen_tickets_fingerprint CHECK(request_fingerprint ~ '^[0-9A-F]{64}$');
+ALTER TABLE kitchen_tickets DROP CONSTRAINT uq_kitchen_tickets_branch_ticket_number;
+ALTER TABLE kitchen_tickets ADD CONSTRAINT uq_kitchen_tickets_tenant_ticket_number UNIQUE(organization_id,restaurant_id,branch_id,ticket_number);
+ALTER TABLE kitchen_tickets DROP CONSTRAINT uq_kitchen_tickets_order_station_sequence;
+ALTER TABLE kitchen_tickets ADD CONSTRAINT uq_kitchen_tickets_tenant_order_station_sequence UNIQUE(organization_id,order_id,preparation_station_id,service_sequence);
+CREATE INDEX ix_kitchen_tickets_organization_branch_status ON kitchen_tickets(organization_id,branch_id,status,queued_at_utc,id);
+CREATE TABLE kitchen_audit_records(id uuid PRIMARY KEY,organization_id uuid NOT NULL,restaurant_id uuid NOT NULL,branch_id uuid NOT NULL,order_id uuid NOT NULL,kitchen_ticket_id uuid NOT NULL REFERENCES kitchen_tickets(id) ON DELETE RESTRICT,action text NOT NULL,actor_subject_id text NOT NULL,occurred_at_utc timestamptz NOT NULL,CONSTRAINT ck_kitchen_audit_action CHECK(action IN('kitchen.ticket.queued','kitchen.ticket.started','kitchen.ticket.ready','kitchen.ticket.completed','kitchen.ticket.cancelled')),CONSTRAINT ck_kitchen_audit_actor CHECK(char_length(btrim(actor_subject_id)) BETWEEN 1 AND 200 AND actor_subject_id !~ '[[:cntrl:]]'));
+CREATE INDEX ix_kitchen_audit_organization_time ON kitchen_audit_records(organization_id,occurred_at_utc DESC,id DESC);
+CREATE FUNCTION prevent_kitchen_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Kitchen audit/history is append-only'; END; $$;
+CREATE TRIGGER tr_kitchen_audit_append_only BEFORE UPDATE OR DELETE ON kitchen_audit_records FOR EACH ROW EXECUTE FUNCTION prevent_kitchen_audit_mutation();
+CREATE TRIGGER tr_kitchen_history_append_only BEFORE UPDATE OR DELETE ON kitchen_status_history FOR EACH ROW EXECUTE FUNCTION prevent_kitchen_audit_mutation();

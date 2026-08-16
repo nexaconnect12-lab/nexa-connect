@@ -107,6 +107,10 @@ It manages only `nexaconnect_payment_clean_it_<guid>`, invokes the actual runner
 
 `ReportingActivityVocabularyPostgresTests` applies Reporting migration 4 in an isolated schema and proves a Payment audit event persists through the real projection repository before destructive downgrade removes the incompatible projection and completed inbox marker, leaving the event eligible for controlled replay after re-upgrade. Set `NEXACONNECT_REPORTING_INTEGRATION_DB` and a safe environment to run it. This sixth coordinated acceptance also passed locally.
 
+Kitchen Phase 10 acceptance uses `NEXACONNECT_KITCHEN_INTEGRATION_DB`, the shared RabbitMQ opt-in/URI, and `NEXACONNECT_KITCHEN_CLEAN_INSTALL_ACCEPTANCE=1` with the disposable PostgreSQL administrator. `KitchenPostgresIntegrationTests` verifies multi-station identity, snapshot replay, lifecycle atomicity, append-only state, rollback, tenant isolation, and confirmed publication. `KitchenMigrationRunnerAcceptanceTests` manages only `nexaconnect_kitchen_clean_it_<guid>` and runs 0→3→2→3. The Reporting vocabulary suite also verifies migration-5 Kitchen projection and replay. All five coordinated cases passed locally; generated roles/databases were removed.
+
+Authorization migration-3 backfill acceptance uses `NEXACONNECT_AUTHORIZATION_CLEAN_INSTALL_ACCEPTANCE=1` and the same disposable PostgreSQL administrator in a safe environment. `AuthorizationMigrationRunnerAcceptanceTests` manages only `nexaconnect_authorization_clean_it_<guid>`, applies 0→2, seeds existing `tenant-admin` and `store-manager` roles, verifies 2→3 adds both Kitchen permissions to both roles, and verifies destructive 3→2 removes those permission associations.
+
 Run the Order tenant-authorization regression test with:
 
 ```powershell

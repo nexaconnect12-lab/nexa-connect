@@ -202,7 +202,7 @@ Open shift
 → Produce a daily sales and kitchen-time report
 ```
 
-The Catalog/Menu → Order → Inventory → Kitchen → Payment portion is implemented by the Order application workflow. It uses bounded-context ports and publishes `OrderSubmittedV1`, `InventoryReservedV1` or `InventoryReservationRejectedV1`, `KitchenTicketCreatedV1`, and `PaymentCompletedV1` or `PaymentFailedV1`. PostgreSQL repositories, RabbitMQ transport, transactional outbox delivery, authenticated HTTP adapters, idempotency, payment-failure compensation hooks, and the deployable Kitchen ticket create/cancel API are implemented. Production migration execution, provider credentials, and broader Kitchen Display workflow (station assignment, status transitions, and LAN/offline operation) remain operational work.
+The Catalog/Menu → Order → Inventory → Kitchen → Payment portion is implemented by the Order application workflow. Kitchen owns queued/in-progress/ready/completed/cancelled ticket transitions, exact Order creation/compensation, tenant operator authorization, append-only history/audit, and transactional lifecycle publication. Canonical station identity, item-level KDS queues, and LAN/offline execution remain planned.
 
 ## 9. Kitchen execution rules
 

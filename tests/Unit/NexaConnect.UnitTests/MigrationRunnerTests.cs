@@ -9,18 +9,18 @@ public sealed class MigrationRunnerTests
         var services = new Dictionary<string, int>(StringComparer.Ordinal)
         {
             ["PlatformDirectory"] = 3,
-            ["Authorization"] = 2,
+            ["Authorization"] = 3,
             ["Restaurant"] = 3,
             ["Catalog"] = 4,
             ["Inventory"] = 5,
             ["Order"] = 1,
-            ["Kitchen"] = 2,
+            ["Kitchen"] = 3,
             ["Customer"] = 1,
             ["Payment"] = 2,
             ["Notification"] = 2,
             ["POS"] = 3,
             ["Media"] = 4,
-            ["Reporting"] = 4
+            ["Reporting"] = 5
         };
 
         foreach ((string service, int expectedVersion) in services)
@@ -151,10 +151,26 @@ public sealed class MigrationRunnerTests
             CancellationToken.None);
         IReadOnlyList<AppliedMigration> applied = catalog.Migrations.Select(ToAppliedMigration).ToArray();
 
-        MigrationStep rollback = Assert.Single(catalog.CreatePlan(applied, 1));
+        MigrationStep rollback = Assert.Single(catalog.CreatePlan(applied.Take(2).ToArray(), 1));
         Assert.Equal(MigrationDirection.Down, rollback.Direction);
         Assert.Contains("notification.read", rollback.Migration.UpSql, StringComparison.Ordinal);
         Assert.Contains("DELETE FROM authorization_role_permissions", rollback.Migration.DownSql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Authorization_kitchen_permissions_backfill_existing_operational_roles()
+    {
+        MigrationCatalog catalog = await MigrationCatalog.LoadAsync(
+            Path.Combine(AppContext.BaseDirectory, "Scripts"),
+            "Authorization",
+            CancellationToken.None);
+
+        MigrationDefinition migration = Assert.Single(catalog.Migrations, item => item.Version == 3);
+        Assert.Contains("kitchen.ticket.read", migration.UpSql, StringComparison.Ordinal);
+        Assert.Contains("kitchen.ticket.transition", migration.UpSql, StringComparison.Ordinal);
+        Assert.Contains("tenant-admin", migration.UpSql, StringComparison.Ordinal);
+        Assert.Contains("store-manager", migration.UpSql, StringComparison.Ordinal);
+        Assert.Contains("DELETE FROM authorization_role_permissions", migration.DownSql, StringComparison.Ordinal);
     }
 
     [Fact]

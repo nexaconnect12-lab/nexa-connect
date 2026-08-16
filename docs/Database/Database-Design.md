@@ -22,6 +22,10 @@ Static validation has confirmed metadata parsing, create/drop parity, PostgreSQL
 
 Payment's complete five-test acceptance plus Reporting vocabulary persistence passed locally against PostgreSQL 17 and RabbitMQ. Its full-database case seeds a version-1 intent, invokes the actual runner through 0→2→1→2, verifies the legacy empty-organization marker and mechanical backfill/query boundary, immutable history/checksums, baseline outbox preservation, migration-2 organization/audit ownership, and real repository writes. Production backfill still requires authoritative Order ownership reconciliation. Migration 2 downgrade is behaviorally verified to reject cross-organization restaurant/idempotency collisions atomically until reconciled. Reporting migration 4 aligns product-audit check constraints. Generated databases and the temporary administrator were removed after the run.
 
+Kitchen migration 3 adds organization attribution, conflict fingerprints, station-distinct tenant uniqueness, append-only audit, and append-only protection for migration-1 status history while preserving migration-1 outbox and migration-2 inbox ownership. Legacy rows require Order-backed reconciliation. Kitchen 0→3→2→3 and Reporting migration-5 projection/replay passed against local PostgreSQL 17; RabbitMQ recovery confirmed Kitchen lifecycle/audit publication over a new connection.
+
+Authorization migration 3 backfills `kitchen.ticket.read` and `kitchen.ticket.transition` for existing `tenant-admin` and `store-manager` role assignments. It adds no tables or indexes; downgrade removes only those permission associations. Opt-in runner acceptance seeds pre-existing roles and verifies the 2→3→2 backfill/removal behavior in a disposable PostgreSQL database.
+
 ## 2. Database topology
 
 PostgreSQL is the standard transactional database technology. A single PostgreSQL cluster is acceptable for the initial deployment, but each service must have an independently owned database, role, connection string, migrations, and backup policy.
@@ -228,7 +232,7 @@ The following summaries describe the implemented version-1 ownership model. The 
 | Catalog | 20 | Menu, modifiers, pricing, availability, routing, media links, and outbox |
 | Inventory | 7 | Stock locations, balances, ledger, reservations, replenishment, inbox, and outbox |
 | Order | 9 | Orders, snapshots, lifecycle, returns, idempotency, and outbox |
-| Kitchen | 6 | Tickets, items, lifecycle, adjustments, inbox, and outbox |
+| Kitchen | 8 | Tickets, items, lifecycle, adjustments, processed/inbox state, outbox, and append-only audit |
 | Customer | 5 | Profiles, contacts, addresses, loyalty, and outbox |
 | Payment | 6 | Intents, provider transactions, refunds, reconciliation, outbox, and append-only product audit |
 | POS | 8 | Stores, terminals, shifts, cash, synchronization, and outbox |

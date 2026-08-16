@@ -1,0 +1,1 @@
+{"version":3,"name":"product_integration","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.8.0"}

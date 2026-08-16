@@ -45,8 +45,8 @@ public interface IInventoryReservationPort
 public interface IKitchenPort
 {
     Task<KitchenTicketResult> CreateTicketAsync(
-        Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken);
-    Task CancelTicketAsync(Guid orderId, Guid branchId, CancellationToken cancellationToken) => Task.CompletedTask;
+        Guid organizationId,Guid restaurantId,Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken);
+    Task CancelTicketAsync(Guid organizationId,Guid orderId, Guid branchId, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 public interface IPaymentPort
@@ -134,7 +134,7 @@ public sealed class PlaceOrderWorkflow(
         await PersistAsync(order, new InventoryReservedV1(
             Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, reservation.ReservationId.Value), cancellationToken);
 
-        KitchenTicketResult ticket = await kitchen.CreateTicketAsync(order.Id, order.BranchId, order.Lines, cancellationToken);
+        KitchenTicketResult ticket = await kitchen.CreateTicketAsync(order.OrganizationId,order.RestaurantId,order.Id, order.BranchId, order.Lines, cancellationToken);
         order.MarkKitchenAccepted();
         await PersistAsync(order, new KitchenTicketCreatedV1(
             Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, ticket.TicketId,
@@ -146,7 +146,7 @@ public sealed class PlaceOrderWorkflow(
         if (!paid.Completed || paid.PaymentId is null)
         {
             await inventory.ReleaseAsync(order.Id, order.BranchId, cancellationToken);
-            await kitchen.CancelTicketAsync(order.Id, order.BranchId, cancellationToken);
+            await kitchen.CancelTicketAsync(order.OrganizationId,order.Id, order.BranchId, cancellationToken);
             order.MarkPaymentFailed();
             await PersistAsync(order, new PaymentFailedV1(
                 Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id,

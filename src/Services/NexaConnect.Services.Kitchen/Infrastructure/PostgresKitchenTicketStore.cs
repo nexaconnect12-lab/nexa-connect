@@ -1,136 +1,28 @@
-using System.Security.Cryptography;
-using System.Text;
-using Microsoft.Extensions.Options;
-using NexaConnect.Services.Kitchen.Application;
-using Npgsql;
-
+using System.Text.Json;using NexaConnect.Contracts.IntegrationEvents;using NexaConnect.Services.Kitchen.Application;using NexaConnect.Services.Kitchen.Domain;using Npgsql;
 namespace NexaConnect.Services.Kitchen.Infrastructure;
-
-public sealed class PostgresKitchenTicketStore(
-    NpgsqlDataSource dataSource,
-    IOptions<KitchenOptions> options) : IKitchenTicketStore
+public sealed class PostgresKitchenTicketStore(NpgsqlDataSource dataSource):IKitchenTicketStore
 {
-    public async Task<KitchenTicket> CreateAsync(CreateKitchenTicket command, CancellationToken cancellationToken)
-    {
-        Validate(command);
-        Guid ticketId = Guid.NewGuid();
-        DateTimeOffset queuedAt = DateTimeOffset.UtcNow;
-        Guid stationId = StationId(command.Lines.First().PreparationStation);
-        string ticketNumber = $"K-{command.OrderId:N}";
-
-        await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken);
-        bool created;
-        await using (NpgsqlCommand insert = new(
-            """
-            INSERT INTO kitchen_tickets
-                (id, restaurant_id, branch_id, order_id, preparation_station_id, ticket_number,
-                 status, queued_at_utc, created_at_utc, updated_at_utc)
-            VALUES (@id, @restaurant, @branch, @order, @station, @number,
-                    'queued', @queued, @queued, @queued)
-            ON CONFLICT (order_id, preparation_station_id, service_sequence)
-            DO NOTHING
-            RETURNING id
-            """, connection, transaction))
-        {
-            insert.Parameters.AddWithValue("id", ticketId);
-            insert.Parameters.AddWithValue("restaurant", options.Value.RestaurantId);
-            insert.Parameters.AddWithValue("branch", command.BranchId);
-            insert.Parameters.AddWithValue("order", command.OrderId);
-            insert.Parameters.AddWithValue("station", stationId);
-            insert.Parameters.AddWithValue("number", ticketNumber);
-            insert.Parameters.AddWithValue("queued", queuedAt);
-            object? inserted = await insert.ExecuteScalarAsync(cancellationToken);
-            created = inserted is Guid;
-            if (created) ticketId = (Guid)inserted!;
-            else
-            {
-                await using NpgsqlCommand existing = new(
-                    "SELECT id FROM kitchen_tickets WHERE order_id=@order AND preparation_station_id=@station AND service_sequence=1",
-                    connection, transaction);
-                existing.Parameters.AddWithValue("order", command.OrderId);
-                existing.Parameters.AddWithValue("station", stationId);
-                ticketId = (Guid)(await existing.ExecuteScalarAsync(cancellationToken)
-                    ?? throw new InvalidOperationException("Existing Kitchen ticket could not be loaded."));
-            }
-        }
-
-        if (created)
-        {
-            foreach ((KitchenTicketLine line, int index) in command.Lines.Select((line, index) => (line, index)))
-        {
-            await using NpgsqlCommand item = new(
-                """
-                INSERT INTO kitchen_ticket_items
-                    (id, kitchen_ticket_id, order_line_id, product_id, item_name_snapshot,
-                     quantity, status, queued_at_utc, updated_at_utc)
-                VALUES (@id, @ticket, @line, @product, @name, @quantity, 'queued', @queued, @queued)
-                ON CONFLICT (kitchen_ticket_id, order_line_id) DO NOTHING
-                """, connection, transaction);
-            item.Parameters.AddWithValue("id", Guid.NewGuid());
-            item.Parameters.AddWithValue("ticket", ticketId);
-            item.Parameters.AddWithValue("line", LineId(command.OrderId, index));
-            item.Parameters.AddWithValue("product", line.ProductId);
-            item.Parameters.AddWithValue("name", line.Name.Trim());
-            item.Parameters.AddWithValue("quantity", line.Quantity);
-            item.Parameters.AddWithValue("queued", queuedAt);
-            await item.ExecuteNonQueryAsync(cancellationToken);
-        }
-        }
-
-        await transaction.CommitAsync(cancellationToken);
-        return new KitchenTicket(ticketId, command.OrderId, command.BranchId, KitchenTicketStatus.Queued, queuedAt, command.Lines.ToArray());
-    }
-
-    public async Task<KitchenTicket?> GetAsync(Guid ticketId, CancellationToken cancellationToken)
-    {
-        await using NpgsqlCommand command = dataSource.CreateCommand(
-            "SELECT order_id,branch_id,status,queued_at_utc FROM kitchen_tickets WHERE id=@id");
-        command.Parameters.AddWithValue("id", ticketId);
-        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken)) return null;
-        return new KitchenTicket(ticketId, reader.GetGuid(0), reader.GetGuid(1), ParseStatus(reader.GetString(2)),
-            reader.GetFieldValue<DateTimeOffset>(3), []);
-    }
-
-    public async Task<bool> CancelAsync(Guid orderId, CancellationToken cancellationToken)
-    {
-        await using NpgsqlCommand command = dataSource.CreateCommand(
-            "UPDATE kitchen_tickets SET status='cancelled',cancelled_at_utc=now(),updated_at_utc=now(),concurrency_version=concurrency_version+1 WHERE order_id=@order AND status <> 'cancelled'");
-        command.Parameters.AddWithValue("order", orderId);
-        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
-    }
-
-    private static void Validate(CreateKitchenTicket command)
-    {
-        if (command.OrderId == Guid.Empty || command.BranchId == Guid.Empty || command.Lines is null || command.Lines.Count == 0)
-            throw new ArgumentException("Order, branch, and at least one kitchen line are required.");
-        if (command.Lines.Any(line => line.ProductId == Guid.Empty || line.Quantity <= 0 ||
-            string.IsNullOrWhiteSpace(line.Name) || string.IsNullOrWhiteSpace(line.PreparationStation)))
-            throw new ArgumentException("Kitchen lines require a product, name, positive quantity, and preparation station.");
-        if (command.Lines.Select(line => line.PreparationStation.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count() != 1)
-            throw new ArgumentException("Kitchen tickets must contain one preparation station; split multi-station orders before calling this service.");
-    }
-
-    private static Guid StationId(string station)
-    {
-        byte[] hash = MD5.HashData(Encoding.UTF8.GetBytes(station.Trim().ToLowerInvariant()));
-        return new Guid(hash);
-    }
-
-    private static Guid LineId(Guid orderId, int index)
-    {
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes($"{orderId:D}:{index}"));
-        return new Guid(hash[..16]);
-    }
-
-    private static KitchenTicketStatus ParseStatus(string status) => status switch
-    {
-        "queued" => KitchenTicketStatus.Queued,
-        "in_progress" => KitchenTicketStatus.InProgress,
-        "ready" => KitchenTicketStatus.Ready,
-        "completed" => KitchenTicketStatus.Completed,
-        "cancelled" => KitchenTicketStatus.Cancelled,
-        _ => throw new InvalidOperationException($"Unknown kitchen ticket status '{status}'.")
-    };
+ public async Task<KitchenTicket> CreateAsync(Guid organizationId,CreateKitchenTicket command,KitchenMutationContext context,CancellationToken cancellationToken)
+ {
+  InMemoryKitchenTicketStore.Validate(organizationId,command,context);Guid stationId=InMemoryKitchenTicketStore.StationId(command.Lines.First().PreparationStation);string stationCode=command.Lines.First().PreparationStation.Trim().ToLowerInvariant(),fingerprint=InMemoryKitchenTicketStore.Fingerprint(command);Guid ticketId=Guid.NewGuid();DateTimeOffset now=DateTimeOffset.UtcNow;
+  await using var connection=await dataSource.OpenConnectionAsync(cancellationToken);await using var transaction=await connection.BeginTransactionAsync(cancellationToken);
+   await using(var insert=new NpgsqlCommand("INSERT INTO kitchen_tickets(id,organization_id,restaurant_id,branch_id,order_id,preparation_station_id,preparation_station_code,ticket_number,request_fingerprint,status,queued_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'queued',$10,$10,$10) ON CONFLICT(organization_id,order_id,preparation_station_id,service_sequence) DO NOTHING RETURNING id",connection,transaction)){insert.Parameters.AddWithValue(ticketId);insert.Parameters.AddWithValue(organizationId);insert.Parameters.AddWithValue(command.RestaurantId);insert.Parameters.AddWithValue(command.BranchId);insert.Parameters.AddWithValue(command.OrderId);insert.Parameters.AddWithValue(stationId);insert.Parameters.AddWithValue(stationCode);insert.Parameters.AddWithValue($"K-{command.OrderId:N}-{stationId:N}");insert.Parameters.AddWithValue(fingerprint);insert.Parameters.AddWithValue(now);if(await insert.ExecuteScalarAsync(cancellationToken) is not Guid)ticketId=Guid.Empty;}
+  if(ticketId==Guid.Empty){await using var existing=new NpgsqlCommand("SELECT id,request_fingerprint FROM kitchen_tickets WHERE organization_id=$1 AND order_id=$2 AND preparation_station_id=$3 AND service_sequence=1",connection,transaction);existing.Parameters.AddWithValue(organizationId);existing.Parameters.AddWithValue(command.OrderId);existing.Parameters.AddWithValue(stationId);await using var reader=await existing.ExecuteReaderAsync(cancellationToken);if(!await reader.ReadAsync(cancellationToken))throw new InvalidOperationException("Existing Kitchen ticket could not be loaded.");ticketId=reader.GetGuid(0);string persisted=reader.GetString(1);await reader.CloseAsync();if(persisted!=fingerprint)throw new KitchenConflictException("The Kitchen ticket identity is already associated with a different snapshot.");KitchenTicket replay=await LoadAsync(connection,transaction,organizationId,ticketId,cancellationToken)??throw new InvalidOperationException("Existing Kitchen ticket disappeared.");await transaction.CommitAsync(cancellationToken);return replay;}
+  foreach(var pair in InMemoryKitchenTicketStore.Normalize(command.Lines).Select((line,index)=>(line,index))){await using var item=new NpgsqlCommand("INSERT INTO kitchen_ticket_items(id,kitchen_ticket_id,order_line_id,product_id,item_name_snapshot,quantity,status,queued_at_utc,updated_at_utc) VALUES($1,$2,$3,$4,$5,$6,'queued',$7,$7)",connection,transaction);item.Parameters.AddWithValue(Guid.NewGuid());item.Parameters.AddWithValue(ticketId);item.Parameters.AddWithValue(LineId(command.OrderId,pair.index));item.Parameters.AddWithValue(pair.line.ProductId);item.Parameters.AddWithValue(pair.line.Name);item.Parameters.AddWithValue((decimal)pair.line.Quantity);item.Parameters.AddWithValue(now);await item.ExecuteNonQueryAsync(cancellationToken);}
+  var ticket=new KitchenTicket(ticketId,organizationId,command.RestaurantId,command.OrderId,command.BranchId,stationId,KitchenTicketStatus.Queued,1,now,InMemoryKitchenTicketStore.Normalize(command.Lines));
+  await InsertHistoryAsync(connection,transaction,ticketId,null,"queued",null,context,now,cancellationToken);await InsertAuditAndEventsAsync(connection,transaction,ticket,context,null,KitchenTicketStatus.Queued,null,now,cancellationToken);await transaction.CommitAsync(cancellationToken);return ticket;
+ }
+ public async Task<KitchenTicket?> GetAsync(Guid organizationId,Guid ticketId,CancellationToken cancellationToken){await using var connection=await dataSource.OpenConnectionAsync(cancellationToken);return await LoadAsync(connection,null,organizationId,ticketId,cancellationToken);}
+ public async Task<KitchenTicket> TransitionAsync(Guid organizationId,Guid ticketId,TransitionKitchenTicket command,KitchenMutationContext context,CancellationToken cancellationToken)
+  {InMemoryKitchenTicketStore.ValidateContext(context);await using var connection=await dataSource.OpenConnectionAsync(cancellationToken);await using var transaction=await connection.BeginTransactionAsync(cancellationToken);KitchenTicket ticket=await LoadForUpdateAsync(connection,transaction,organizationId,ticketId,cancellationToken)??throw new KeyNotFoundException();if(ticket.ConcurrencyVersion!=command.ExpectedConcurrencyVersion)throw new KitchenConflictException("Kitchen ticket concurrency version is stale.");KitchenTicketLifecycle.RequireTransition(ticket.Status,command.TargetStatus);if(ticket.Status==command.TargetStatus){await transaction.CommitAsync(cancellationToken);return ticket;}KitchenTicket updated=await ApplyTransitionAsync(connection,transaction,ticket,command.TargetStatus,command.ReasonCode,context,cancellationToken);await transaction.CommitAsync(cancellationToken);return updated;}
+ public async Task<bool> CancelAsync(Guid organizationId,Guid branchId,Guid orderId,KitchenMutationContext context,CancellationToken cancellationToken)
+ {InMemoryKitchenTicketStore.ValidateContext(context);await using var connection=await dataSource.OpenConnectionAsync(cancellationToken);await using var transaction=await connection.BeginTransactionAsync(cancellationToken);var ids=new List<Guid>();await using(var query=new NpgsqlCommand("SELECT id FROM kitchen_tickets WHERE organization_id=$1 AND branch_id=$2 AND order_id=$3 ORDER BY id FOR UPDATE",connection,transaction)){query.Parameters.AddWithValue(organizationId);query.Parameters.AddWithValue(branchId);query.Parameters.AddWithValue(orderId);await using var reader=await query.ExecuteReaderAsync(cancellationToken);while(await reader.ReadAsync(cancellationToken))ids.Add(reader.GetGuid(0));}foreach(Guid id in ids){KitchenTicket ticket=await LoadAsync(connection,transaction,organizationId,id,cancellationToken)??throw new InvalidOperationException("Kitchen ticket disappeared during cancellation.");KitchenTicketLifecycle.RequireTransition(ticket.Status,KitchenTicketStatus.Cancelled);if(ticket.Status!=KitchenTicketStatus.Cancelled)await ApplyTransitionAsync(connection,transaction,ticket,KitchenTicketStatus.Cancelled,"payment-failed",context,cancellationToken);}await transaction.CommitAsync(cancellationToken);return ids.Count>0;}
+ private static async Task<KitchenTicket> ApplyTransitionAsync(NpgsqlConnection c,NpgsqlTransaction t,KitchenTicket ticket,KitchenTicketStatus target,string? reason,KitchenMutationContext context,CancellationToken token){DateTimeOffset now=DateTimeOffset.UtcNow;string from=KitchenTicketLifecycle.ToCode(ticket.Status),to=KitchenTicketLifecycle.ToCode(target);await using(var update=new NpgsqlCommand("UPDATE kitchen_tickets SET status=$1,started_at_utc=CASE WHEN $1='in_progress' THEN $2 ELSE started_at_utc END,ready_at_utc=CASE WHEN $1='ready' THEN $2 ELSE ready_at_utc END,completed_at_utc=CASE WHEN $1='completed' THEN $2 ELSE completed_at_utc END,cancelled_at_utc=CASE WHEN $1='cancelled' THEN $2 ELSE cancelled_at_utc END,updated_at_utc=$2,concurrency_version=concurrency_version+1 WHERE id=$3 AND organization_id=$4 AND concurrency_version=$5",c,t)){update.Parameters.AddWithValue(to);update.Parameters.AddWithValue(now);update.Parameters.AddWithValue(ticket.TicketId);update.Parameters.AddWithValue(ticket.OrganizationId);update.Parameters.AddWithValue(ticket.ConcurrencyVersion);if(await update.ExecuteNonQueryAsync(token)!=1)throw new KitchenConflictException("Kitchen ticket concurrency version is stale.");}await using(var items=new NpgsqlCommand("UPDATE kitchen_ticket_items SET status=$1,started_at_utc=CASE WHEN $1='in_progress' THEN $2 ELSE started_at_utc END,ready_at_utc=CASE WHEN $1='ready' THEN $2 ELSE ready_at_utc END,completed_at_utc=CASE WHEN $1='completed' THEN $2 ELSE completed_at_utc END,cancelled_at_utc=CASE WHEN $1='cancelled' THEN $2 ELSE cancelled_at_utc END,updated_at_utc=$2,concurrency_version=concurrency_version+1 WHERE kitchen_ticket_id=$3",c,t)){items.Parameters.AddWithValue(to);items.Parameters.AddWithValue(now);items.Parameters.AddWithValue(ticket.TicketId);await items.ExecuteNonQueryAsync(token);}var updated=ticket with{Status=target,ConcurrencyVersion=ticket.ConcurrencyVersion+1};await InsertHistoryAsync(c,t,ticket.TicketId,from,to,reason,context,now,token);await InsertAuditAndEventsAsync(c,t,updated,context,ticket.Status,target,reason,now,token);return updated;}
+ private static async Task InsertHistoryAsync(NpgsqlConnection c,NpgsqlTransaction t,Guid ticket,string? from,string to,string? reason,KitchenMutationContext x,DateTimeOffset now,CancellationToken token){await using var q=new NpgsqlCommand("INSERT INTO kitchen_status_history(id,kitchen_ticket_id,entity_type,from_status,to_status,reason_code,changed_at_utc,changed_by) VALUES($1,$2,'ticket',$3,$4,$5,$6,$7)",c,t);q.Parameters.AddWithValue(Guid.NewGuid());q.Parameters.AddWithValue(ticket);q.Parameters.AddWithValue((object?)from??DBNull.Value);q.Parameters.AddWithValue(to);q.Parameters.AddWithValue((object?)Bound(reason,64)??DBNull.Value);q.Parameters.AddWithValue(now);q.Parameters.AddWithValue(x.ActorSubjectId.Trim());await q.ExecuteNonQueryAsync(token);}
+  private static async Task InsertAuditAndEventsAsync(NpgsqlConnection c,NpgsqlTransaction t,KitchenTicket ticket,KitchenMutationContext x,KitchenTicketStatus? from,KitchenTicketStatus to,string? reason,DateTimeOffset now,CancellationToken token){string toCode=KitchenTicketLifecycle.ToCode(to),action=$"kitchen.ticket.{(to==KitchenTicketStatus.InProgress?"started":toCode)}",requestCorrelation=x.RequestCorrelationId??x.CorrelationId.ToString("D");var audit=new PlatformAuditEventV1(Guid.NewGuid(),x.CorrelationId,now,x.ActorSubjectId.Trim(),ticket.OrganizationId,action,"kitchen-ticket",ticket.TicketId.ToString("D"),"succeeded");await using(var q=new NpgsqlCommand("INSERT INTO kitchen_audit_records(id,organization_id,restaurant_id,branch_id,order_id,kitchen_ticket_id,action,actor_subject_id,occurred_at_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",c,t)){q.Parameters.AddWithValue(audit.EventId);q.Parameters.AddWithValue(ticket.OrganizationId);q.Parameters.AddWithValue(ticket.RestaurantId);q.Parameters.AddWithValue(ticket.BranchId);q.Parameters.AddWithValue(ticket.OrderId);q.Parameters.AddWithValue(ticket.TicketId);q.Parameters.AddWithValue(action);q.Parameters.AddWithValue(audit.SubjectId);q.Parameters.AddWithValue(now);await q.ExecuteNonQueryAsync(token);}if(from is null){var e=new KitchenTicketQueuedV1(Guid.NewGuid(),x.CorrelationId,now,ticket.OrganizationId,ticket.RestaurantId,ticket.BranchId,ticket.OrderId,ticket.TicketId,ticket.PreparationStationId,1,toCode,requestCorrelation);await EnqueueAsync(c,t,e.EventId,"kitchen.ticket-queued.v1",ticket.TicketId,e,requestCorrelation,now,token);}else{var e=new KitchenTicketStatusChangedV1(Guid.NewGuid(),x.CorrelationId,now,ticket.OrganizationId,ticket.RestaurantId,ticket.BranchId,ticket.OrderId,ticket.TicketId,KitchenTicketLifecycle.ToCode(from.Value),toCode,ticket.ConcurrencyVersion,Bound(reason,64),requestCorrelation);await EnqueueAsync(c,t,e.EventId,"kitchen.ticket-status-changed.v1",ticket.TicketId,e,requestCorrelation,now,token);}await EnqueueAsync(c,t,audit.EventId,"kitchen.audit.v1",ticket.TicketId,audit,requestCorrelation,now,token);}
+  private static async Task EnqueueAsync(NpgsqlConnection c,NpgsqlTransaction t,Guid id,string type,Guid aggregate,object payload,string correlation,DateTimeOffset now,CancellationToken token){await using var q=new NpgsqlCommand("INSERT INTO outbox_messages(id,event_type,contract_version,aggregate_type,aggregate_id,payload,correlation_id,occurred_at_utc) VALUES($1,$2,1,'kitchen-ticket',$3,$4::jsonb,$5,$6)",c,t);q.Parameters.AddWithValue(id);q.Parameters.AddWithValue(type);q.Parameters.AddWithValue(aggregate);q.Parameters.AddWithValue(JsonSerializer.Serialize(payload));q.Parameters.AddWithValue(correlation);q.Parameters.AddWithValue(now);await q.ExecuteNonQueryAsync(token);}
+ private static async Task<KitchenTicket?> LoadForUpdateAsync(NpgsqlConnection c,NpgsqlTransaction t,Guid organization,Guid id,CancellationToken token)=>await LoadAsync(c,t,organization,id,token,true);
+ private static async Task<KitchenTicket?> LoadAsync(NpgsqlConnection c,NpgsqlTransaction? t,Guid organization,Guid id,CancellationToken token,bool forUpdate=false){string sql="SELECT restaurant_id,order_id,branch_id,preparation_station_id,preparation_station_code,status,concurrency_version,queued_at_utc FROM kitchen_tickets WHERE organization_id=$1 AND id=$2"+(forUpdate?" FOR UPDATE":"");await using var q=new NpgsqlCommand(sql,c,t);q.Parameters.AddWithValue(organization);q.Parameters.AddWithValue(id);await using var r=await q.ExecuteReaderAsync(token);if(!await r.ReadAsync(token))return null;Guid restaurant=r.GetGuid(0),order=r.GetGuid(1),branch=r.GetGuid(2),station=r.GetGuid(3);string stationCode=r.GetString(4),status=r.GetString(5);long version=r.GetInt64(6);DateTimeOffset queued=r.GetFieldValue<DateTimeOffset>(7);await r.CloseAsync();var lines=new List<KitchenTicketLine>();await using var items=new NpgsqlCommand("SELECT product_id,item_name_snapshot,quantity FROM kitchen_ticket_items WHERE kitchen_ticket_id=$1 ORDER BY queued_at_utc,id",c,t);items.Parameters.AddWithValue(id);await using var ir=await items.ExecuteReaderAsync(token);while(await ir.ReadAsync(token))lines.Add(new(ir.GetGuid(0),ir.GetString(1),decimal.ToInt32(ir.GetDecimal(2)),stationCode));return new(id,organization,restaurant,order,branch,station,KitchenTicketLifecycle.Parse(status),version,queued,lines);}
+ private static Guid LineId(Guid order,int index){byte[] hash=System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{order:D}:{index}"));return new Guid(hash[..16]);}
+ private static string? Bound(string? value,int max)=>string.IsNullOrWhiteSpace(value)?null:value.Trim()[..Math.Min(value.Trim().Length,max)];
 }

@@ -2,7 +2,7 @@
 
 ## Implemented foundation
 
-`NexaConnect.Observability` is the shared ASP.NET Core operational-telemetry library. Platform Directory, Platform Admin BFF, Customer BFF, Catalog, Inventory, Order, Payment, Customer, Authorization, and Restaurant adopt it. It provides:
+`NexaConnect.Observability` is the shared ASP.NET Core operational-telemetry library. Platform Directory, Platform Admin BFF, Customer BFF, Catalog, Inventory, Order, Kitchen, Payment, Customer, Authorization, and Restaurant adopt it. It provides:
 
 - structured JSON logs on stdout in every environment;
 - optional OTLP logs, traces, and metrics (the local stack stores logs only);
@@ -29,7 +29,7 @@ Logs are stored in Loki and queryable through Grafana. The Collector sends trace
 For Phase 4 debugging, send a safe identifier such as `X-Correlation-ID: phase4-manual-001`, then query Grafana Explore with:
 
 ```logql
-{service_name=~"nexaconnect-(customer-bff|catalog|inventory|order|payment|customer|authorization|restaurant|platform-directory)"} | CorrelationId="phase4-manual-001"
+{service_name=~"nexaconnect-(customer-bff|catalog|inventory|order|kitchen|payment|customer|authorization|restaurant|platform-directory)"} | CorrelationId="phase4-manual-001"
 ```
 
 Permission denials can be narrowed with `|= "Product permission"`. These events contain permission codes and UUID scopes, never subjects, tokens, customer profile data, payloads, or payment details.

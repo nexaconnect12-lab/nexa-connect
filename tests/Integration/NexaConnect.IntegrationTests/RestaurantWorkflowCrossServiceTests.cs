@@ -39,7 +39,7 @@ using KitchenProgram = KITCHEN::KitchenProgram;
 using KitchenStore = KITCHEN::NexaConnect.Services.Kitchen.Application.IKitchenTicketStore;
 using KitchenTicket = KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenTicket;
 using CreateKitchenTicket = KITCHEN::NexaConnect.Services.Kitchen.Application.CreateKitchenTicket;
-using KitchenTicketStatus = KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenTicketStatus;
+using KitchenTicketStatus = KITCHEN::NexaConnect.Services.Kitchen.Domain.KitchenTicketStatus;
 
 namespace NexaConnect.IntegrationTests;
 
@@ -321,23 +321,26 @@ internal sealed class RecordingKitchenStore : KitchenStore
 {
     private readonly ConcurrentDictionary<Guid, KitchenTicket> tickets = new();
 
-    public Task<KitchenTicket> CreateAsync(CreateKitchenTicket command, CancellationToken cancellationToken)
+    public Task<KitchenTicket> CreateAsync(Guid organizationId,CreateKitchenTicket command,KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenMutationContext context,CancellationToken cancellationToken)
     {
-        KitchenTicket ticket = new(Guid.NewGuid(), command.OrderId, command.BranchId,
-            KitchenTicketStatus.Queued, DateTimeOffset.UtcNow, []);
+        KitchenTicket ticket = new(Guid.NewGuid(),organizationId,command.RestaurantId,command.OrderId, command.BranchId,Guid.NewGuid(),
+            KitchenTicketStatus.Queued,1, DateTimeOffset.UtcNow, command.Lines);
         tickets[ticket.TicketId] = ticket;
         return Task.FromResult(ticket);
     }
 
-    public Task<KitchenTicket?> GetAsync(Guid ticketId, CancellationToken cancellationToken) =>
-        Task.FromResult(tickets.TryGetValue(ticketId, out KitchenTicket? ticket) ? ticket : null);
+    public Task<KitchenTicket?> GetAsync(Guid organizationId,Guid ticketId, CancellationToken cancellationToken) =>
+        Task.FromResult(tickets.TryGetValue(ticketId, out KitchenTicket? ticket)&&ticket.OrganizationId==organizationId ? ticket : null);
 
-    public Task<bool> CancelAsync(Guid orderId, CancellationToken cancellationToken)
+    public Task<KitchenTicket> TransitionAsync(Guid organizationId,Guid ticketId,KITCHEN::NexaConnect.Services.Kitchen.Application.TransitionKitchenTicket command,KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenMutationContext context,CancellationToken cancellationToken)
+    {if(!tickets.TryGetValue(ticketId,out KitchenTicket? ticket)||ticket.OrganizationId!=organizationId)throw new KeyNotFoundException();ticket=ticket with{Status=command.TargetStatus,ConcurrencyVersion=ticket.ConcurrencyVersion+1};tickets[ticketId]=ticket;return Task.FromResult(ticket);}
+
+    public Task<bool> CancelAsync(Guid organizationId,Guid branchId,Guid orderId,KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenMutationContext context,CancellationToken cancellationToken)
     {
         foreach ((Guid ticketId, KitchenTicket ticket) in tickets)
         {
-            if (ticket.OrderId != orderId) continue;
-            tickets[ticketId] = ticket with { Status = KitchenTicketStatus.Cancelled };
+            if (ticket.OrganizationId!=organizationId||ticket.BranchId!=branchId||ticket.OrderId != orderId) continue;
+            tickets[ticketId] = ticket with { Status = KitchenTicketStatus.Cancelled,ConcurrencyVersion=ticket.ConcurrencyVersion+1 };
             return Task.FromResult(true);
         }
         return Task.FromResult(false);

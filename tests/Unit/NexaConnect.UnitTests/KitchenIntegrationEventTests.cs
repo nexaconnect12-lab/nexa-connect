@@ -1,0 +1,3 @@
+using System.Text.Json;using NexaConnect.Contracts.IntegrationEvents;
+namespace NexaConnect.UnitTests;
+public sealed class KitchenIntegrationEventTests{[Fact]public void Status_contract_preserves_tenant_version_and_request_correlation(){var e=new KitchenTicketStatusChangedV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"queued","in_progress",2,null,"phase10-kitchen-001");var copy=JsonSerializer.Deserialize<KitchenTicketStatusChangedV1>(JsonSerializer.Serialize(e))!;Assert.Equal(e.OrganizationId,copy.OrganizationId);Assert.Equal(2,copy.ConcurrencyVersion);Assert.Equal("phase10-kitchen-001",copy.RequestCorrelationId);}}

@@ -123,7 +123,7 @@ public sealed class RestaurantWorkflowTests
         public int Calls { get; private set; }
 
         public Task<KitchenTicketResult> CreateTicketAsync(
-            Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
+            Guid organizationId, Guid restaurantId, Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
         {
             Calls++;
             return Task.FromResult(new KitchenTicketResult(Guid.NewGuid()));

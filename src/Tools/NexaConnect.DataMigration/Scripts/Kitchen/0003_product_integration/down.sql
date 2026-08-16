@@ -1,0 +1,14 @@
+DROP TRIGGER tr_kitchen_history_append_only ON kitchen_status_history;
+DROP TRIGGER tr_kitchen_audit_append_only ON kitchen_audit_records;
+DROP FUNCTION prevent_kitchen_audit_mutation();
+DROP TABLE kitchen_audit_records;
+DROP INDEX ix_kitchen_tickets_organization_branch_status;
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM kitchen_tickets GROUP BY order_id,preparation_station_id,service_sequence HAVING count(*)>1) THEN RAISE EXCEPTION 'Kitchen migration 3 downgrade requires tenant identity collisions to be reconciled'; END IF; END $$;
+ALTER TABLE kitchen_tickets DROP CONSTRAINT uq_kitchen_tickets_tenant_order_station_sequence;
+ALTER TABLE kitchen_tickets ADD CONSTRAINT uq_kitchen_tickets_order_station_sequence UNIQUE(order_id,preparation_station_id,service_sequence);
+ALTER TABLE kitchen_tickets DROP CONSTRAINT uq_kitchen_tickets_tenant_ticket_number;
+ALTER TABLE kitchen_tickets ADD CONSTRAINT uq_kitchen_tickets_branch_ticket_number UNIQUE(restaurant_id,branch_id,ticket_number);
+ALTER TABLE kitchen_tickets DROP CONSTRAINT ck_kitchen_tickets_fingerprint;
+ALTER TABLE kitchen_tickets DROP COLUMN request_fingerprint;
+ALTER TABLE kitchen_tickets DROP COLUMN preparation_station_code;
+ALTER TABLE kitchen_tickets DROP COLUMN organization_id;

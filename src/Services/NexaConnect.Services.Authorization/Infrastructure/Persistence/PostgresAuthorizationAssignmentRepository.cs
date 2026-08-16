@@ -92,7 +92,7 @@ public sealed class PostgresAuthorizationAssignmentRepository(NpgsqlDataSource d
             "order.place", "payment.intent.create", "payment.intent.read", "customer.profile.create",
             "customer.profile.read", "restaurant.branch.read", "restaurant.branch.manage",
             "restaurant.configuration.read", "restaurant.configuration.manage", "reporting.dashboard.read", "reporting.sales.read", "reporting.activity.read", "media.asset.read", "media.asset.manage", "notification.send", "notification.read",
-            "pos.shift.open", "pos.shift.close"
+            "pos.shift.open", "pos.shift.close", "kitchen.ticket.read", "kitchen.ticket.transition"
         ],
         "cashier" => ["catalog.menu.read", "inventory.stock.read", "inventory.reservation.create", "order.create", "order.read", "order.place", "payment.intent.create", "payment.intent.read", "customer.profile.read", "pos.shift.open", "pos.shift.close"],
         "inventory-controller" => ["inventory.stock.read", "inventory.stock.write", "inventory.reservation.create", "inventory.reservation.release"],

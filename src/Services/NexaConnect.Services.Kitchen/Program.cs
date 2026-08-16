@@ -1,37 +1,4 @@
-using NexaConnect.Infrastructure.Authentication;
-using NexaConnect.Infrastructure.Messaging;
-using NexaConnect.Services.Kitchen.Application;
-using NexaConnect.Services.Kitchen.Infrastructure;
-using Npgsql;
-
-var builder = WebApplication.CreateBuilder(args);
-NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
-
-builder.Services.AddControllers();
-builder.Services.AddOpenApi();
-builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
-builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "kitchen");
-builder.Services.Configure<KitchenOptions>(builder.Configuration.GetSection("Kitchen"));
-
-if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
-{
-    var connectionString = builder.Configuration.GetConnectionString("Kitchen")
-        ?? throw new InvalidOperationException("ConnectionStrings:Kitchen is required.");
-    builder.Services.AddSingleton(NpgsqlDataSource.Create(connectionString));
-    builder.Services.AddSingleton<IKitchenTicketStore, PostgresKitchenTicketStore>();
-    builder.Services.AddPostgresInbox(builder.Configuration, "Kitchen");
-}
-else
-{
-    builder.Services.AddSingleton<IKitchenTicketStore, InMemoryKitchenTicketStore>();
-}
-
-var app = builder.Build();
-if (app.Environment.IsDevelopment()) app.MapOpenApi();
-app.UseHttpsRedirection();
-app.UseAuthentication();
-app.UseAuthorization();
-app.MapControllers();
-app.Run();
-
-public sealed class KitchenProgram;
+using System.Text.Json.Serialization;using NexaConnect.Infrastructure.Authentication;using NexaConnect.Infrastructure.Authorization;using NexaConnect.Infrastructure.Messaging;using NexaConnect.Observability;using NexaConnect.Services.Kitchen.Application;using NexaConnect.Services.Kitchen.Application.Tenant;using NexaConnect.Services.Kitchen.Infrastructure;using Npgsql;using AuthenticationServiceCollectionExtensions=NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions;
+var builder=WebApplication.CreateBuilder(args);builder.AddNexaConnectObservability("nexaconnect-kitchen");AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration,builder.Environment);builder.Services.AddControllers().AddJsonOptions(options=>options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));builder.Services.AddMemoryCache();builder.Services.AddOpenApi();builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);builder.Services.AddNexaConnectDataProtection(builder.Configuration,builder.Environment,"kitchen");builder.Services.AddHttpClient<IServiceWorkloadTokenProvider,ServiceWorkloadTokenProvider>();builder.Services.AddHttpClient("KitchenPlatformDirectory",c=>c.BaseAddress=new Uri(builder.Configuration["Services:PlatformDirectory"]??throw new InvalidOperationException("Services:PlatformDirectory is required."))).AddNexaConnectCorrelationPropagation();builder.Services.AddHttpClient("KitchenRestaurant",c=>c.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]??throw new InvalidOperationException("Services:Restaurant is required."))).AddNexaConnectCorrelationPropagation();builder.Services.AddHttpClient<ProductAuthorizationClient>(c=>c.BaseAddress=new Uri(builder.Configuration["Services:Authorization"]??throw new InvalidOperationException("Services:Authorization is required."))).AddNexaConnectCorrelationPropagation();builder.Services.AddScoped<IKitchenTenantAuthorizer,HttpKitchenTenantAuthorizer>();
+if(builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL",StringComparison.OrdinalIgnoreCase)==true){string value=builder.Configuration.GetConnectionString("Kitchen")??throw new InvalidOperationException("ConnectionStrings:Kitchen is required.");builder.Services.AddSingleton(NpgsqlDataSource.Create(value));builder.Services.AddSingleton<IKitchenTicketStore,PostgresKitchenTicketStore>();builder.Services.AddPostgresInbox(builder.Configuration,"Kitchen");if(builder.Configuration.GetValue<bool>("Outbox:Enabled"))builder.Services.AddPostgresOutbox(builder.Configuration,"Kitchen");}else builder.Services.AddSingleton<IKitchenTicketStore,InMemoryKitchenTicketStore>();
+var app=builder.Build();app.UseNexaConnectRequestLogging();if(app.Environment.IsDevelopment())app.MapOpenApi();app.UseHttpsRedirection();app.UseAuthentication();app.UseAuthorization();app.MapControllers();app.Run();public sealed class KitchenProgram;

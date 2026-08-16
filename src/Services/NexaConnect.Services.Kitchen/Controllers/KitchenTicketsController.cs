@@ -1,39 +1,18 @@
-using Microsoft.AspNetCore.Mvc;
-using NexaConnect.Services.Kitchen.Application;
-
+using System.Security.Claims;using System.Security.Cryptography;using System.Text;using Microsoft.AspNetCore.Mvc;using NexaConnect.Contracts.Platform;using NexaConnect.Services.Kitchen.Application;using NexaConnect.Services.Kitchen.Application.Tenant;using NexaConnect.Services.Kitchen.Domain;
 namespace NexaConnect.Services.Kitchen.Controllers;
-
-[ApiController]
-[Route("api/kitchen/v1/tickets")]
-public sealed class KitchenTicketsController(IKitchenTicketStore tickets) : ControllerBase
+[ApiController][Route("api/kitchen/v1")]
+public sealed class KitchenTicketsController(IKitchenTicketStore tickets,IKitchenTenantAuthorizer tenantAuthorizer):ControllerBase
 {
-    [HttpPost]
-    public async Task<ActionResult<KitchenTicket>> Create(
-        CreateKitchenTicket command,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            KitchenTicket ticket = await tickets.CreateAsync(command, cancellationToken);
-            return CreatedAtAction(nameof(Get), new { ticketId = ticket.TicketId }, ticket);
-        }
-        catch (ArgumentException exception)
-        {
-            return BadRequest(new { error = exception.Message });
-        }
-    }
-
-    [HttpGet("{ticketId:guid}")]
-    public async Task<ActionResult<KitchenTicket>> Get(Guid ticketId, CancellationToken cancellationToken)
-    {
-        KitchenTicket? ticket = await tickets.GetAsync(ticketId, cancellationToken);
-        return ticket is null ? NotFound() : Ok(ticket);
-    }
-
-    [HttpPost("{orderId:guid}/cancel")]
-    public async Task<IActionResult> Cancel(Guid orderId, CancellationToken cancellationToken)
-    {
-        await tickets.CancelAsync(orderId, cancellationToken);
-        return NoContent();
-    }
+ [HttpPost("tickets")]
+ public async Task<ActionResult<KitchenTicket>> Create(CreateKitchenTicket command,CancellationToken token){if(!IsOrderWorkload())return Forbid();if(!TryOrganization(out Guid organization))return BadRequest(new{error="A valid organization context is required."});try{var ticket=await tickets.CreateAsync(organization,command,Context(),token);return CreatedAtAction(nameof(Get),new{branchId=ticket.BranchId,ticketId=ticket.TicketId},ticket);}catch(ArgumentException e){return BadRequest(new{error=e.Message});}catch(KitchenConflictException e){return Conflict(new{error=e.Message});}}
+ [HttpPost("tickets/{orderId:guid}/cancel")]
+ public async Task<IActionResult> Cancel(Guid orderId,[FromQuery]Guid branchId,CancellationToken token){if(!IsOrderWorkload())return Forbid();if(!TryOrganization(out Guid organization)||branchId==Guid.Empty)return BadRequest(new{error="Organization and branch context are required."});try{return await tickets.CancelAsync(organization,branchId,orderId,Context(),token)?NoContent():NotFound();}catch(KitchenConflictException e){return Conflict(new{error=e.Message});}}
+ [HttpGet("branches/{branchId:guid}/tickets/{ticketId:guid}")]
+ public async Task<ActionResult<KitchenTicket>> Get(Guid branchId,Guid ticketId,CancellationToken token){if(!TryOrganization(out Guid organization)||!await OperatorAccess(organization,branchId,ProductPermissions.KitchenTicketRead,token))return NotFound();var ticket=await tickets.GetAsync(organization,ticketId,token);return ticket is null||ticket.BranchId!=branchId?NotFound():Ok(ticket);}
+ [HttpPost("branches/{branchId:guid}/tickets/{ticketId:guid}/transitions")]
+ public async Task<ActionResult<KitchenTicket>> Transition(Guid branchId,Guid ticketId,TransitionKitchenTicket command,CancellationToken token){if(!TryOrganization(out Guid organization)||!await OperatorAccess(organization,branchId,ProductPermissions.KitchenTicketTransition,token))return Forbid();try{var ticket=await tickets.GetAsync(organization,ticketId,token);if(ticket is null||ticket.BranchId!=branchId)return NotFound();return Ok(await tickets.TransitionAsync(organization,ticketId,command,Context(),token));}catch(KeyNotFoundException){return NotFound();}catch(ArgumentException e){return BadRequest(new{error=e.Message});}catch(KitchenConflictException e){return Conflict(new{error=e.Message});}}
+ private bool IsOrderWorkload()=>string.Equals(User.FindFirstValue("azp"),"nexaconnect-order-service",StringComparison.Ordinal);
+ private bool TryOrganization(out Guid id)=>Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId],out id);
+ private async Task<bool> OperatorAccess(Guid organization,Guid branch,string permission,CancellationToken token)=>!IsOrderWorkload()&&string.Equals(Request.Headers[TenantContextHeaders.ApplicationCode],"nexa_connect",StringComparison.Ordinal)&&Request.Headers.TryGetValue("Authorization",out var authorization)&&await tenantAuthorizer.HasBranchAccessAsync(organization,branch,permission,authorization.ToString(),token);
+ private KitchenMutationContext Context(){string correlation=HttpContext.TraceIdentifier;Guid eventCorrelation=Guid.TryParse(correlation,out Guid id)?id:new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(correlation))[..16]);return new(IsOrderWorkload()?User.FindFirstValue("azp")??"nexaconnect-order-service":User.FindFirstValue("sub")??"kitchen-operator",eventCorrelation,correlation);}
 }

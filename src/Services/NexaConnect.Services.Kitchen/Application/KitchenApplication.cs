@@ -1,41 +1,17 @@
 namespace NexaConnect.Services.Kitchen.Application;
 
-public enum KitchenTicketStatus
-{
-    Queued,
-    InProgress,
-    Ready,
-    Completed,
-    Cancelled
-}
+using NexaConnect.Services.Kitchen.Domain;
 
-public sealed record KitchenTicketLine(
-    Guid ProductId,
-    string Name,
-    int Quantity,
-    string PreparationStation);
-
-public sealed record CreateKitchenTicket(
-    Guid OrderId,
-    Guid BranchId,
-    IReadOnlyCollection<KitchenTicketLine> Lines);
-
-public sealed record KitchenTicket(
-    Guid TicketId,
-    Guid OrderId,
-    Guid BranchId,
-    KitchenTicketStatus Status,
-    DateTimeOffset QueuedAtUtc,
-    IReadOnlyCollection<KitchenTicketLine> Lines);
+public sealed record KitchenTicketLine(Guid ProductId,string Name,int Quantity,string PreparationStation);
+public sealed record CreateKitchenTicket(Guid RestaurantId,Guid OrderId,Guid BranchId,IReadOnlyCollection<KitchenTicketLine> Lines);
+public sealed record KitchenMutationContext(string ActorSubjectId,Guid CorrelationId,string? RequestCorrelationId=null);
+public sealed record TransitionKitchenTicket(KitchenTicketStatus TargetStatus,long ExpectedConcurrencyVersion,string? ReasonCode=null);
+public sealed record KitchenTicket(Guid TicketId,Guid OrganizationId,Guid RestaurantId,Guid OrderId,Guid BranchId,Guid PreparationStationId,KitchenTicketStatus Status,long ConcurrencyVersion,DateTimeOffset QueuedAtUtc,IReadOnlyCollection<KitchenTicketLine> Lines);
 
 public interface IKitchenTicketStore
 {
-    Task<KitchenTicket> CreateAsync(CreateKitchenTicket command, CancellationToken cancellationToken);
-    Task<KitchenTicket?> GetAsync(Guid ticketId, CancellationToken cancellationToken);
-    Task<bool> CancelAsync(Guid orderId, CancellationToken cancellationToken);
-}
-
-public sealed class KitchenOptions
-{
-    public Guid RestaurantId { get; set; }
+ Task<KitchenTicket> CreateAsync(Guid organizationId,CreateKitchenTicket command,KitchenMutationContext context,CancellationToken cancellationToken);
+ Task<KitchenTicket?> GetAsync(Guid organizationId,Guid ticketId,CancellationToken cancellationToken);
+ Task<KitchenTicket> TransitionAsync(Guid organizationId,Guid ticketId,TransitionKitchenTicket command,KitchenMutationContext context,CancellationToken cancellationToken);
+ Task<bool> CancelAsync(Guid organizationId,Guid branchId,Guid orderId,KitchenMutationContext context,CancellationToken cancellationToken);
 }
