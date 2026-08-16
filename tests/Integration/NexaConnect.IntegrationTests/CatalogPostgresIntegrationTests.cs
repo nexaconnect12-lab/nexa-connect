@@ -93,13 +93,16 @@ public sealed class CatalogPostgresIntegrationTests : IAsyncLifetime
         try
         {
             string root = FindRepositoryRoot();
+            await using (var baselineOutbox = new NpgsqlCommand("CREATE TABLE outbox_messages(id uuid PRIMARY KEY,event_type text NOT NULL,contract_version integer NOT NULL,aggregate_type text NOT NULL,aggregate_id uuid NOT NULL,payload jsonb NOT NULL,correlation_id text NULL,causation_id text NULL,occurred_at_utc timestamptz NOT NULL,published_at_utc timestamptz NULL,retry_count integer NOT NULL DEFAULT 0,next_attempt_at_utc timestamptz NULL,last_error_category text NULL)", connection))
+                await baselineOutbox.ExecuteNonQueryAsync();
             await ExecuteScriptAsync(connection, Path.Combine(root, "src", "Tools", "NexaConnect.DataMigration", "Scripts", "Catalog", "0002_service_menu_items", "up.sql"));
             await ExecuteScriptAsync(connection, Path.Combine(root, "src", "Tools", "NexaConnect.DataMigration", "Scripts", "Catalog", "0003_tenant_boundaries", "up.sql"));
             string migration4 = Path.Combine(root, "src", "Tools", "NexaConnect.DataMigration", "Scripts", "Catalog", "0004_product_integration");
             await ExecuteScriptAsync(connection, Path.Combine(migration4, "up.sql"));
             Assert.NotNull(await new NpgsqlCommand("SELECT to_regclass('outbox_messages')::text", connection).ExecuteScalarAsync());
             await ExecuteScriptAsync(connection, Path.Combine(migration4, "down.sql"));
-            Assert.Equal(DBNull.Value, await new NpgsqlCommand("SELECT to_regclass('outbox_messages')::text", connection).ExecuteScalarAsync());
+            Assert.NotNull(await new NpgsqlCommand("SELECT to_regclass('outbox_messages')::text", connection).ExecuteScalarAsync());
+            Assert.Equal(DBNull.Value, await new NpgsqlCommand("SELECT to_regclass('catalog_audit_records')::text", connection).ExecuteScalarAsync());
             await ExecuteScriptAsync(connection, Path.Combine(migration4, "up.sql"));
             Assert.NotNull(await new NpgsqlCommand("SELECT to_regclass('catalog_audit_records')::text", connection).ExecuteScalarAsync());
         }

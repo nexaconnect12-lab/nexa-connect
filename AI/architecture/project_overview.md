@@ -4,9 +4,11 @@ Portal roadmap status: Phases 1-4, 6, and 7 are complete for their documented de
 
 Phase 4 tenant-API status: Platform Directory resolves authenticated membership and enabled product access; Catalog, Inventory, Order, Payment, and Customer enforce product-owned permission decisions and resource ownership before their customer use cases execute. Catalog and Inventory customer persistence paths use organization-leading predicates and composite tenant keys; portals remain database-free.
 
-Phase 10 Catalog status: PostgreSQL menu-item upserts now transactionally persist an append-only product audit record plus versioned menu-change and audit outbox messages. The shared RabbitMQ dispatcher is opt-in, and migration 4 provides the downgrade boundary for this durable publication history.
+Phase 10 Catalog status: PostgreSQL menu-item upserts now transactionally persist an append-only product audit record plus versioned menu-change and audit outbox messages. The shared RabbitMQ dispatcher is opt-in. Migration 1 owns the outbox and durable publication history; migration 4 owns the audit objects and its downgrade preserves the outbox.
 
-Phase 11 now includes opt-in live PostgreSQL atomic commit/rollback, append-only audit enforcement, retry state, and migration 4 downgrade/re-upgrade. Real RabbitMQ acceptance verifies an unreachable connection attempt, a Catalog commit made without a broker connection, and later publication over a new real connection with publisher confirms, persistent messages, isolated consumption, and publication timestamps. It does not exercise reconnection of an established dispatcher connection. The Catalog Phase 10 slice is closed; full migration 1-4 clean-install remains a production release gate.
+Phase 11 now includes opt-in live PostgreSQL atomic commit/rollback, append-only audit enforcement, retry state, and migration 4 downgrade/re-upgrade. Real RabbitMQ acceptance verifies an unreachable connection attempt, a Catalog commit made without a broker connection, and later publication over a new real connection with publisher confirms, persistent messages, isolated consumption, and publication timestamps. It does not exercise reconnection of an established dispatcher connection. The Catalog Phase 10 slice is closed; a successful production-like run of the full migration 1-4 acceptance remains a release gate.
+
+The Catalog full-database migration-runner acceptance is implemented for 0→4→3→4 with checksum/history, schema, and real repository verification. It also corrected migration ownership: version 1 owns `outbox_messages`, while version 4 owns only append-only Catalog audit objects and preserves the outbox on downgrade. It has not run successfully in the current local environment because the configured PostgreSQL administrator password is stale and the service migration identity correctly lacks `CREATEDB`; no role or password was changed.
 
 ## 1. Purpose
 
@@ -205,7 +207,7 @@ Product-specific realm roles remain separate:
 
 Owns products, categories, barcodes, tax classifications, price definitions, and product availability metadata.
 
-Its PostgreSQL menu-item mutation commits the tenant-scoped menu snapshot, append-only audit record, and `catalog.menu-item.changed.v1`/`catalog.audit.v1` outbox rows in one transaction. RabbitMQ dispatch is opt-in; the default in-memory adapter does not persist audit or publication state. Catalog migration 4 owns the audit/outbox schema and destructive downgrade boundary.
+Its PostgreSQL menu-item mutation commits the tenant-scoped menu snapshot, append-only audit record, and `catalog.menu-item.changed.v1`/`catalog.audit.v1` outbox rows in one transaction. RabbitMQ dispatch is opt-in; the default in-memory adapter does not persist audit or publication state. Catalog migration 1 owns the outbox schema; migration 4 owns only the audit schema and its destructive downgrade preserves outbox state.
 
 ### 5.3.1 Platform Directory Service
 

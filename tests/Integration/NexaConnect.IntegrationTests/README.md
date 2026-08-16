@@ -50,6 +50,15 @@ dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.Integrati
 
 The suite creates and removes unique schemas plus a unique RabbitMQ exchange and auto-delete queue. Never point it at production infrastructure.
 
+`CatalogMigrationRunnerAcceptanceTests` is the destructive opt-in full Catalog database lifecycle check. It requires `NEXACONNECT_CATALOG_CLEAN_INSTALL_ACCEPTANCE=1`, `NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB`, and a Development/Test environment. The supplied PostgreSQL identity must be allowed to create and drop databases. The test creates only a generated `nexaconnect_catalog_clean_it_<guid>` database, invokes the actual migration runner for versions 0→4→3→4, validates history checksums and migration-4 objects, exercises the real Catalog repository before and after downgrade/re-upgrade, and force-drops only the validated generated database during cleanup. Never supply production credentials.
+
+```powershell
+$env:NEXACONNECT_CATALOG_CLEAN_INSTALL_ACCEPTANCE = '1'
+$env:NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB = 'Host=localhost;Port=5432;Database=postgres;Username=<test-admin>;Password=<password>'
+$env:DOTNET_ENVIRONMENT = 'Testing'
+dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~CatalogMigrationRunnerAcceptanceTests
+```
+
 Run the Order tenant-authorization regression test with:
 
 ```powershell
