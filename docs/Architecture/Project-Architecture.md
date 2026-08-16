@@ -2,7 +2,9 @@
 
 Portal roadmap status: Phases 1-4, 6, and 7 are complete for their documented development scope; Phase 5 BFF hardening and the Phase 8 Customer Portal and Phase 9 Media functional slices are implemented. An opt-in Playwright harness joins the authenticated Customer Portal and Media lifecycle, but environment-specific execution, recovery, load, security validation, and production operational hardening remain release gates. Phase 10 product integration is partial, Phase 11 testing is continuous, and Phase 12 has a development foundation with production hardening planned.
 
-Phase 10 Catalog status: PostgreSQL menu-item upserts transactionally persist append-only product audit plus versioned menu-change and audit outbox messages. RabbitMQ dispatch is opt-in, preserving durable publication state while a broker is unavailable; migration 4 owns the corresponding upgrade and destructive downgrade boundary.
+Phase 10 Catalog status: PostgreSQL menu-item upserts transactionally persist append-only product audit plus versioned menu-change and audit outbox messages. RabbitMQ dispatch is opt-in; committed rows remain durable when dispatch is disabled or an established broker connection becomes unavailable, while enabling dispatch requires a successful startup connection. Migration 4 owns the corresponding upgrade and destructive downgrade boundary.
+
+Phase 11 includes opt-in Catalog component tests for that transaction boundary, forced rollback, append-only trigger, outbox-store retry state, and migration 4 downgrade/re-upgrade against isolated live PostgreSQL schemas. The suite does not cover a full Catalog clean install or contact RabbitMQ; both full clean-install and broker outage/recovery evidence remain environment-specific release gates.
 
 Phase 4 tenant-API status: Platform Directory resolves authenticated membership and enabled product access; Catalog, Inventory, Order, Payment, and Customer enforce product-owned permissions and resource ownership. Customer persistence paths are organization-scoped, and conflicting browser tenant identifiers fail closed. Portals remain database-free.
 

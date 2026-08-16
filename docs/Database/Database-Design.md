@@ -18,7 +18,7 @@ Catalog version 3 and Inventory version 4 temporarily assign the empty UUID to p
 
 Catalog version 4 adds `catalog_audit_records`, protected from update and delete by a database trigger, plus `outbox_messages` and its unpublished-message polling index. A PostgreSQL menu-item upsert, its audit row, and both versioned outbox messages commit in one transaction. The version-4 downgrade drops both tables and therefore destroys audit and undispatched publication history; producers must be stopped and the outbox drained before downgrade.
 
-Static validation has confirmed metadata parsing, create/drop parity, PostgreSQL identifier lengths, output packaging, and a clean migration-project build. The migration executable now understands versioned directories and explicit target versions. Live PostgreSQL clean-install, downgrade, and re-upgrade tests are still required before these scripts are production-executable.
+Static validation has confirmed metadata parsing, create/drop parity, PostgreSQL identifier lengths, output packaging, and a clean migration-project build. The migration executable now understands versioned directories and explicit target versions. Catalog migration 4 has opt-in isolated-schema live downgrade/re-upgrade coverage in the Phase 11 component suite. Full Catalog clean-install and live clean-install, downgrade, and re-upgrade evidence for the remaining catalogs are still required before production execution.
 
 ## 2. Database topology
 

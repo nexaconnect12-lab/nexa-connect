@@ -15,3 +15,5 @@ Configure `Services:Restaurant`, `WorkloadIdentity:Authority`, `WorkloadIdentity
 Structured request and dependency logs use service name `nexaconnect-catalog`; validated correlation IDs propagate to Platform Directory, Restaurant, and Authorization.
 JSON stdout is always enabled. Set `Observability__OtlpEnabled=true` and `Observability__OtlpEndpoint=http://localhost:4317` for Loki/Grafana; see the [observability guide](../../../docs/Deployment/Observability.md) for queries.
 For mutation debugging, query `{service_name="nexaconnect-catalog"} | CorrelationId="<validated-id>"`. Operational logs never contain event payloads, menu prices, request bodies, tokens, cookies, or arbitrary headers.
+
+Phase 11 component verification is in `CatalogPostgresIntegrationTests`. Set `NEXACONNECT_CATALOG_INTEGRATION_DB` and a Development/Test environment to run atomic commit/rollback, append-only trigger, outbox-store retry-state, and migration 4 downgrade/re-upgrade checks against isolated PostgreSQL schemas. This suite neither performs a full Catalog clean install nor contacts RabbitMQ; both checks remain release-environment work.

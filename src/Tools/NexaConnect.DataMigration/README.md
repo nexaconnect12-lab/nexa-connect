@@ -26,7 +26,7 @@ Every baseline migration contains `migration.json`, `up.sql`, and `down.sql`. Me
 
 The executable runner implements the versioned-directory contract. It discovers and validates linear service catalogs, retains the checksum-validated SQL content for execution, reports status, plans explicit target versions, executes paired upgrades and downgrades, serializes mutation with a PostgreSQL advisory lock, and protects transformative and destructive downgrades with explicit authorization flags.
 
-The baseline is still not approved for production execution until every service passes live clean-install, downgrade, and re-upgrade tests against PostgreSQL 17. Do not flatten or manually reorder the scripts.
+The baseline is still not approved for production execution until every service passes live clean-install, downgrade, and re-upgrade tests against PostgreSQL 17. Catalog migration 4 has opt-in isolated-schema downgrade/re-upgrade coverage in `CatalogPostgresIntegrationTests`; the suite does not exercise migration 1 or constitute a full Catalog clean install, and the remaining service catalogs still require release evidence. Do not flatten or manually reorder the scripts.
 
 ## Script ownership and layout
 
