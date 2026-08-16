@@ -34,6 +34,8 @@ For Phase 4 debugging, send a safe identifier such as `X-Correlation-ID: phase4-
 
 Permission denials can be narrowed with `|= "Product permission"`. These events contain permission codes and UUID scopes, never subjects, tokens, customer profile data, payloads, or payment details.
 
+Customer profile authorization can be narrowed with `{service_name="nexaconnect-customer"} |= "Customer authorization denied"`, `|= "Customer organization access lookup failed"`, or `|= "Customer organization access dependency failed"`, then correlated by `CorrelationId`. These events contain organization IDs, permission codes, and dependency status only; they exclude subjects, authorization values, and profile fields.
+
 Copy `.env.example` to `.env`, set a strong `GRAFANA_ADMIN_PASSWORD`, and start the stack:
 
 ```powershell

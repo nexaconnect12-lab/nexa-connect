@@ -12,7 +12,7 @@ The design will evolve with the domain model. Every schema change must remain ow
 
 ### 1.1 Baseline status
 
-Versioned migrations exist for 13 independently owned databases: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, Notification, POS, Media, and Reporting. Catalog version 3, Inventory version 4, and Payment version 2 add explicit organization columns and tenant-leading keys/indexes to simplified service tables used by customer APIs. Catalog, Inventory, and Payment version 1 own their transactional outbox state; later product-integration migrations add append-only audit and preserve those outboxes on downgrade. Each migration has metadata and paired upgrade and downgrade scripts.
+Versioned migrations exist for 13 independently owned databases: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, Notification, POS, Media, and Reporting. Catalog version 3, Inventory version 4, and Payment version 2 add explicit organization columns and tenant-leading keys/indexes to simplified service tables used by customer APIs. Catalog, Inventory, Customer, and Payment version 1 own their transactional outbox state; later product-integration migrations add append-only audit and preserve those outboxes on downgrade. Each migration has metadata and paired upgrade and downgrade scripts.
 
 Catalog version 3 and Inventory version 4 temporarily assign the empty UUID to pre-existing simplified-service rows because those legacy tables did not retain an organization identifier. Before enabling customer traffic, operators must backfill each row from the authoritative Restaurant branch scope and verify that no two organizations would collapse to the same legacy key. Downgrade is permitted only after the same collision check; otherwise the former branch/product or order/product primary key cannot be restored safely.
 
@@ -25,6 +25,8 @@ Payment's complete five-test acceptance plus Reporting vocabulary persistence pa
 Kitchen migration 3 adds organization attribution, conflict fingerprints, station-distinct tenant uniqueness, append-only audit, and append-only protection for migration-1 status history while preserving migration-1 outbox and migration-2 inbox ownership. Legacy rows require Order-backed reconciliation. Kitchen 0→3→2→3 and Reporting migration-5 projection/replay passed against local PostgreSQL 17; RabbitMQ recovery confirmed Kitchen lifecycle/audit publication over a new connection.
 
 Authorization migration 3 backfills `kitchen.ticket.read` and `kitchen.ticket.transition` for existing `tenant-admin` and `store-manager` role assignments. It adds no tables or indexes; downgrade removes only those permission associations. Opt-in runner acceptance seeds pre-existing roles and verifies the 2→3→2 backfill/removal behavior in a disposable PostgreSQL database.
+
+Customer migration 2 adds append-only audit that excludes profile fields while migration 1 remains the outbox owner. The audit retains a restricted actor subject for accountability. First creation transactionally persists one profile, one audit row, and `customer.profile-created.v1`/`customer.audit.v1`; matching retries do not republish. Reporting migration 6 accepts and replay-protects Customer audit vocabulary. Six coordinated PostgreSQL 17/RabbitMQ acceptances passed locally, including concurrent replay, atomic rollback, confirmed recovery publication, Reporting replay, and Customer 0→2→1→2. Generated acceptance infrastructure was removed afterward.
 
 ## 2. Database topology
 
@@ -233,7 +235,7 @@ The following summaries describe the implemented version-1 ownership model. The 
 | Inventory | 7 | Stock locations, balances, ledger, reservations, replenishment, inbox, and outbox |
 | Order | 9 | Orders, snapshots, lifecycle, returns, idempotency, and outbox |
 | Kitchen | 8 | Tickets, items, lifecycle, adjustments, processed/inbox state, outbox, and append-only audit |
-| Customer | 5 | Profiles, contacts, addresses, loyalty, and outbox |
+| Customer | 6 | Profiles, contacts, addresses, loyalty, outbox, and append-only audit |
 | Payment | 6 | Intents, provider transactions, refunds, reconciliation, outbox, and append-only product audit |
 | POS | 8 | Stores, terminals, shifts, cash, synchronization, and outbox |
 | Media | 4 | Assets, variants, processing attempts, and outbox |

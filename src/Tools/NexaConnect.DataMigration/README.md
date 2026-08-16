@@ -16,6 +16,8 @@ Kitchen version 3 adds tenant ownership, station snapshot fingerprints, multi-st
 
 Authorization version 3 backfills `kitchen.ticket.read` and `kitchen.ticket.transition` for existing `tenant-admin` and `store-manager` role assignments. Its destructive downgrade removes only those Kitchen permission rows.
 
+Customer version 2 adds append-only audit that excludes profile fields while preserving the outbox owned by version 1. Reporting version 6 accepts `customer.audit.v1` profile-created vocabulary and removes incompatible projections/inbox markers on destructive downgrade so retained source events can replay after re-upgrade. Six coordinated Customer acceptances passed locally against PostgreSQL 17 and RabbitMQ, including concurrent replay, atomic rollback, confirmed publication, Reporting replay, and the actual 0→2→1→2 runner.
+
 - `PlatformDirectory`
 - `Authorization`
 - `Restaurant`
@@ -34,7 +36,7 @@ Every baseline migration contains `migration.json`, `up.sql`, and `down.sql`. Me
 
 The executable runner implements the versioned-directory contract. It discovers and validates linear service catalogs, retains the checksum-validated SQL content for execution, reports status, plans explicit target versions, executes paired upgrades and downgrades, serializes mutation with a PostgreSQL advisory lock, and protects transformative and destructive downgrades with explicit authorization flags.
 
-The baseline is still not approved for production execution until every service passes live clean-install, downgrade, and re-upgrade tests against PostgreSQL 17. Catalog has opt-in 0→4→3→4 runner acceptance; Inventory has successful local 0→5→4→5 evidence; Payment has successful local 0→2→1→2 evidence. They validate history checksums and representative repository writes and require a disposable-database administrator. Catalog's configured administrator password remains stale. The normal migration owner correctly lacks `CREATEDB`; Inventory and Payment used and removed temporary local acceptance administrators. The remaining service catalogs still require recorded release evidence. Do not flatten or manually reorder the scripts.
+The baseline is still not approved for production execution until every service passes live clean-install, downgrade, and re-upgrade tests against PostgreSQL 17. Catalog has opt-in 0→4→3→4 runner acceptance; Inventory has successful local 0→5→4→5 evidence; Payment and Customer have successful local 0→2→1→2 evidence. They validate history checksums and representative repository writes and require a disposable-database administrator. Catalog's configured administrator password remains stale. The normal migration owner correctly lacks `CREATEDB`; Inventory, Payment, and Customer used and removed temporary local acceptance administrators. The remaining service catalogs still require recorded release evidence. Do not flatten or manually reorder the scripts.
 
 ## Script ownership and layout
 

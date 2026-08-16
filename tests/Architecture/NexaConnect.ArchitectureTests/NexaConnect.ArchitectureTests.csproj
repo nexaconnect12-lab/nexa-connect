@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Kitchen\NexaConnect.Services.Kitchen.csproj" />
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Customer\NexaConnect.Services.Customer.csproj" />
   </ItemGroup>
 
 </Project>

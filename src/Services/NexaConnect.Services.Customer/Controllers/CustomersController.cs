@@ -1,49 +1,71 @@
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using NexaConnect.Services.Customer.Application.Customers;
-using NexaConnect.Services.Customer.Application.Tenant;
 using NexaConnect.Contracts.Platform;
-using NexaConnect.Infrastructure.Authorization;
+using NexaConnect.Services.Customer.Domain;
 
 namespace NexaConnect.Services.Customer.Controllers;
 
 [ApiController]
 [Route("api/customer/v1/organizations/{organizationId:guid}/customers")]
-public sealed class CustomersController(ICustomers customers, ICustomerTenantAuthorizer tenantAuthorizer) : ControllerBase
+public sealed class CustomersController(
+    CustomerProfileService profiles,
+    ILogger<CustomersController> logger) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<CustomerProfile>> Create(
         Guid organizationId, CreateCustomerRequest request, CancellationToken cancellationToken)
     {
-        if (!await HasCustomerAccessAsync(organizationId, ProductPermissions.CustomerProfileCreate, cancellationToken))
-            return Forbid();
         try
         {
-            CustomerProfile customer = customers.Create(new CreateCustomer(organizationId, request.CustomerNumber, request.DisplayName, request.IdentitySubjectId));
+            CustomerProfile customer = await profiles.CreateAsync(
+                new CreateCustomer(organizationId, request.CustomerNumber, request.DisplayName, request.IdentitySubjectId),
+                RequestContext(), cancellationToken);
             return CreatedAtAction(nameof(Get), new { organizationId, id = customer.Id }, customer);
         }
+        catch (CustomerAccessDeniedException exception)
+        {
+            LogDenied(organizationId, exception.Permission);
+            return Forbid();
+        }
         catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
+        catch (CustomerIdempotencyConflictException exception) { return Conflict(new { error = exception.Message }); }
     }
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<CustomerProfile>> Get(Guid organizationId, Guid id, CancellationToken cancellationToken)
     {
-        if (!await HasCustomerAccessAsync(organizationId, ProductPermissions.CustomerProfileRead, cancellationToken))
+        try
+        {
+            CustomerProfile? customer = await profiles.GetAsync(organizationId, id, RequestContext(),
+                cancellationToken);
+            return customer is null ? NotFound() : Ok(customer);
+        }
+        catch (CustomerAccessDeniedException exception)
+        {
+            LogDenied(organizationId, exception.Permission);
             return NotFound();
-        CustomerProfile? customer = customers.Get(organizationId, id);
-        return customer is null ? NotFound() : Ok(customer);
+        }
     }
 
-    private async Task<bool> HasCustomerAccessAsync(
-        Guid routeOrganizationId, string permission, CancellationToken cancellationToken)
+    private CustomerRequestContext RequestContext()
     {
-        if (ServiceWorkloadPrincipal.IsTrusted(User)) return true;
-        return Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out Guid contextOrganizationId)
-            && contextOrganizationId == routeOrganizationId
-            && string.Equals(Request.Headers[TenantContextHeaders.ApplicationCode], "nexa_connect", StringComparison.Ordinal)
-            && Request.Headers.TryGetValue("Authorization", out var authorization)
-            && await tenantAuthorizer.HasOrganizationAccessAsync(
-                contextOrganizationId, permission, authorization.ToString(), cancellationToken);
+        string requestCorrelationId = HttpContext.TraceIdentifier;
+        Guid eventCorrelationId = Guid.TryParse(requestCorrelationId, out Guid parsed)
+            ? parsed
+            : new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(requestCorrelationId))[..16]);
+        Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out Guid contextOrganizationId);
+        return new CustomerRequestContext(contextOrganizationId,
+            Request.Headers[TenantContextHeaders.ApplicationCode].ToString(),
+            Request.Headers.Authorization.ToString(), User.FindFirstValue("sub") ?? "", eventCorrelationId,
+            requestCorrelationId);
     }
+
+    private void LogDenied(Guid organizationId, string permission) =>
+        logger.LogWarning("Customer authorization denied for organization {OrganizationId} and permission {Permission}.",
+            organizationId, permission);
 }
 
 public sealed record CreateCustomerRequest(string CustomerNumber, string DisplayName, string? IdentitySubjectId);

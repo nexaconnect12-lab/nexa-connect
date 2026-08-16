@@ -9,6 +9,8 @@ This project contains stable cross-context contracts only. `IntegrationEvents/Re
 
 These records are integration contracts, not domain entities. Each bounded context keeps its own aggregate and persistence model.
 
+`IntegrationEvents/CustomerProfileEvents.cs` defines `CustomerProfileCreatedV1`. It carries tenant/profile identifiers, status, concurrency version, and correlation only; Customer PII remains inside the Customer bounded context.
+
 `Platform/PlatformControlPlaneContracts.cs` defines the stable organization, membership, product registration, organization-product-access, and support-elevation contracts used by the Product Owner Portal and Customer Portal boundaries. `Platform/TenantContextContracts.cs` defines the server-derived tenant context passed from a BFF to a product application use case. These are transport contracts only; authorization decisions and aggregates remain owned by Platform Directory or the product bounded context.
 
 `IntegrationEvents/PlatformAuditEvents.cs` defines the versioned platform audit event contract. Audit events contain identifiers and outcomes, not access tokens, credentials, or sensitive payloads.

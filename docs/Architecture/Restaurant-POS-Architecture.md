@@ -99,6 +99,8 @@ The exact boundary between recipe management in Menu and stock depletion in Inve
 
 Owns optional customer profiles, contact preferences, loyalty identity, and customer-specific restaurant information. Anonymous QR ordering must not require creation of a permanent customer profile.
 
+The implemented profile-creation boundary is tenant-authorized and conflict-safe. PostgreSQL first creation atomically appends audit that excludes profile fields and publishes identifier/status-only lifecycle plus audit contracts; matching and concurrent retries do not republish. Names, profile identity subjects, contacts, addresses, preferences, and attributes remain Customer-owned and are excluded from Reporting audit payloads. A restricted actor subject is retained for accountability. Status transitions and detailed profile subresources remain planned.
+
 ### 4.9 Media
 
 Owns upload lifecycle, image metadata, processing state, generated variants, and object-storage keys. Image files remain in MinIO or S3-compatible object storage.

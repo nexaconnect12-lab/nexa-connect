@@ -15,12 +15,12 @@ public sealed class MigrationRunnerTests
             ["Inventory"] = 5,
             ["Order"] = 1,
             ["Kitchen"] = 3,
-            ["Customer"] = 1,
+            ["Customer"] = 2,
             ["Payment"] = 2,
             ["Notification"] = 2,
             ["POS"] = 3,
             ["Media"] = 4,
-            ["Reporting"] = 5
+            ["Reporting"] = 6
         };
 
         foreach ((string service, int expectedVersion) in services)
@@ -185,6 +185,20 @@ public sealed class MigrationRunnerTests
         Assert.Contains("DROP TABLE payment_audit_records", rollback.Migration.DownSql, StringComparison.Ordinal);
         Assert.Contains("DROP COLUMN organization_id", rollback.Migration.DownSql, StringComparison.Ordinal);
         Assert.Contains("HAVING count(*)>1", rollback.Migration.DownSql, StringComparison.Ordinal);
+        Assert.DoesNotContain("DROP TABLE outbox_messages", rollback.Migration.DownSql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Customer_product_integration_preserves_the_baseline_outbox_on_rollback()
+    {
+        MigrationCatalog catalog = await MigrationCatalog.LoadAsync(
+            Path.Combine(AppContext.BaseDirectory, "Scripts"), "Customer", CancellationToken.None);
+        IReadOnlyList<AppliedMigration> applied = catalog.Migrations.Select(ToAppliedMigration).ToArray();
+
+        MigrationStep rollback = Assert.Single(catalog.CreatePlan(applied, 1));
+        Assert.Equal(MigrationDirection.Down, rollback.Direction);
+        Assert.Contains("DROP TABLE customer_audit_records", rollback.Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("prevent_customer_audit_mutation", rollback.Migration.DownSql, StringComparison.Ordinal);
         Assert.DoesNotContain("DROP TABLE outbox_messages", rollback.Migration.DownSql, StringComparison.Ordinal);
     }
 

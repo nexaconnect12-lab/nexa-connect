@@ -5,6 +5,7 @@ using Npgsql;
 using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Services.Customer.Application.Tenant;
 using NexaConnect.Observability;
+using NexaConnect.Infrastructure.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-customer");
@@ -21,11 +22,14 @@ builder.Services.AddHttpClient<ICustomerTenantAuthorizer, HttpCustomerTenantAuth
     builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<ProductAuthorizationClient>(client => client.BaseAddress = new Uri(
     builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required."))).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<CustomerProfileService>();
 if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
 {
     builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Customer")
         ?? throw new InvalidOperationException("ConnectionStrings:Customer is required.")));
     builder.Services.AddSingleton<ICustomers, PostgresCustomers>();
+    if (builder.Configuration.GetValue<bool>("Outbox:Enabled"))
+        builder.Services.AddPostgresOutbox(builder.Configuration, "Customer");
 }
 else
 {
@@ -49,3 +53,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public sealed class CustomerProgram;

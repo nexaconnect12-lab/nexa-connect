@@ -1,6 +1,7 @@
 using NexaConnect.Services.Catalog.Application.Menu;
 using NexaConnect.Services.Catalog.Infrastructure;
 using NexaConnect.Services.Customer.Application.Customers;
+using NexaConnect.Services.Customer.Application.Tenant;
 using NexaConnect.Services.Customer.Infrastructure;
 using NexaConnect.Services.Inventory.Application.Reservations;
 using NexaConnect.Services.Inventory.Infrastructure;
@@ -89,14 +90,21 @@ public sealed class ServiceApplicationSliceTests
     }
 
     [Fact]
-    public void Customer_lookup_cannot_cross_organization_boundary()
+    public async Task Customer_lookup_cannot_cross_organization_boundary()
     {
-        var customers = new InMemoryCustomers();
+        var customers = new CustomerProfileService(new InMemoryCustomers(), new AllowCustomerTenantAuthorizer());
         Guid organization = Guid.NewGuid();
-        CustomerProfile customer = customers.Create(new CreateCustomer(organization, "C-1", "Ada", null));
+        CustomerProfile customer = await customers.CreateAsync(new CreateCustomer(organization, "C-1", "Ada", null),
+            new CustomerRequestContext(organization, "nexa_connect", "Bearer customer", "test-user", Guid.NewGuid(),
+                Guid.NewGuid().ToString("D")), default);
 
-        Assert.NotNull(customers.Get(organization, customer.Id));
-        Assert.Null(customers.Get(Guid.NewGuid(), customer.Id));
+        Assert.NotNull(await customers.GetAsync(organization, customer.Id,
+            new CustomerRequestContext(organization, "nexa_connect", "Bearer customer", "test-user", Guid.NewGuid(),
+                Guid.NewGuid().ToString("D")), default));
+        Guid otherOrganization = Guid.NewGuid();
+        Assert.Null(await customers.GetAsync(otherOrganization, customer.Id,
+            new CustomerRequestContext(otherOrganization, "nexa_connect", "Bearer customer", "test-user", Guid.NewGuid(),
+                Guid.NewGuid().ToString("D")), default));
     }
 
     [Fact]
@@ -108,5 +116,11 @@ public sealed class ServiceApplicationSliceTests
 
         Assert.Equal("email", message.Channel);
         Assert.Equal("queued", message.Status);
+    }
+
+    private sealed class AllowCustomerTenantAuthorizer : ICustomerTenantAuthorizer
+    {
+        public Task<bool> HasOrganizationAccessAsync(Guid organizationId, string permission,
+            string authorizationHeader, CancellationToken cancellationToken) => Task.FromResult(true);
     }
 }
