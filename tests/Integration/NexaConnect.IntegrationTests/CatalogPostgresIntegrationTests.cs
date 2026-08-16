@@ -4,7 +4,9 @@ using CatalogCreateMenuItem = CATALOG::NexaConnect.Services.Catalog.Application.
 using CatalogMenuMutationContext = CATALOG::NexaConnect.Services.Catalog.Application.Menu.MenuMutationContext;
 using CatalogRepository = CATALOG::NexaConnect.Services.Catalog.Infrastructure.PostgresMenuCatalog;
 using NexaConnect.Infrastructure.Messaging;
+using Microsoft.Extensions.Options;
 using Npgsql;
+using RabbitMQ.Client;
 
 namespace NexaConnect.IntegrationTests;
 
@@ -107,6 +109,62 @@ public sealed class CatalogPostgresIntegrationTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task Broker_outage_retains_rows_and_recovery_publishes_with_confirmations()
+    {
+        if (!DatabaseConfigured() || !RabbitMqConfigured(out string rabbitMqUri)) return;
+        Guid organizationId = Guid.NewGuid(); Guid branchId = Guid.NewGuid(); Guid productId = Guid.NewGuid(); Guid correlationId = Guid.NewGuid();
+        await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            var unavailable = new ConnectionFactory { Uri = new Uri("amqp://guest:guest@127.0.0.1:1"), RequestedConnectionTimeout = TimeSpan.FromSeconds(1) };
+            await using IConnection ignored = await unavailable.CreateConnectionAsync();
+        });
+
+        var repository = new CatalogRepository(dataSource!);
+        repository.AddForOrganizationBranch(organizationId, branchId,
+            new CatalogCreateMenuItem(productId, "Recovery Burger", 14m, "USD", "grill"),
+            new CatalogMenuMutationContext("phase11-recovery-user", correlationId));
+        await using (NpgsqlConnection verify = await dataSource!.OpenConnectionAsync())
+            Assert.Equal(2L, await ScalarAsync(verify, "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND published_at_utc IS NULL", productId));
+
+        string exchange = $"nexaconnect.catalog.phase11.{Guid.NewGuid():N}";
+        string queue = $"nexaconnect.catalog.phase11.{Guid.NewGuid():N}";
+        var factory = new ConnectionFactory { Uri = new Uri(rabbitMqUri) };
+        await using IConnection connection = await factory.CreateConnectionAsync();
+        await using IChannel channel = await connection.CreateChannelAsync();
+        try
+        {
+            await channel.ExchangeDeclareAsync(exchange, ExchangeType.Topic, durable: true, autoDelete: false);
+            await channel.QueueDeclareAsync(queue, durable: false, exclusive: true, autoDelete: true);
+            await channel.QueueBindAsync(queue, exchange, "catalog.#");
+            var transport = new RabbitMqOutboxTransport(connection, Options.Create(new OutboxOptions { Exchange = exchange }));
+            var store = new PostgresOutboxStore(dataSource!);
+            IReadOnlyList<OutboxMessage> pending = await store.ClaimBatchAsync(10, CancellationToken.None);
+            Assert.Equal(2, pending.Count(message => message.AggregateId == productId));
+            foreach (OutboxMessage message in pending.Where(message => message.AggregateId == productId))
+            {
+                await transport.PublishAsync(message, CancellationToken.None);
+                await store.MarkPublishedAsync(message.Id, CancellationToken.None);
+            }
+
+            var deliveries = new List<BasicGetResult>();
+            for (int attempt = 0; attempt < 20 && deliveries.Count < 2; attempt++)
+            {
+                BasicGetResult? delivery = await channel.BasicGetAsync(queue, autoAck: true);
+                if (delivery is not null) deliveries.Add(delivery); else await Task.Delay(100);
+            }
+            Assert.Equal(["catalog.audit.v1", "catalog.menu-item.changed.v1"], deliveries.Select(item => item.RoutingKey).Order().ToArray());
+            Assert.All(deliveries, delivery => Assert.True(delivery.BasicProperties.Persistent));
+            Assert.All(deliveries, delivery => Assert.Contains(correlationId.ToString("D"), System.Text.Encoding.UTF8.GetString(delivery.Body.Span), StringComparison.OrdinalIgnoreCase));
+            await using NpgsqlConnection published = await dataSource!.OpenConnectionAsync();
+            Assert.Equal(2L, await ScalarAsync(published, "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND published_at_utc IS NOT NULL", productId));
+        }
+        finally
+        {
+            await channel.ExchangeDeleteAsync(exchange, ifUnused: false);
+        }
+    }
+
     public async Task InitializeAsync()
     {
         if (string.IsNullOrWhiteSpace(configuredConnectionString) || !IsSafeEnvironment()) return;
@@ -130,6 +188,13 @@ public sealed class CatalogPostgresIntegrationTests : IAsyncLifetime
     {
         if (dataSource is not null && IsSafeEnvironment()) return true;
         Console.WriteLine("Catalog PostgreSQL tests require NEXACONNECT_CATALOG_INTEGRATION_DB and a Development/Test/Testing environment."); return false;
+    }
+
+    private static bool RabbitMqConfigured(out string connectionString)
+    {
+        connectionString = Environment.GetEnvironmentVariable("NEXACONNECT_RABBITMQ_INTEGRATION_URI") ?? string.Empty;
+        if (Environment.GetEnvironmentVariable("NEXACONNECT_RABBITMQ_ACCEPTANCE") == "1" && Uri.TryCreate(connectionString, UriKind.Absolute, out _)) return true;
+        Console.WriteLine("Catalog RabbitMQ recovery acceptance requires NEXACONNECT_RABBITMQ_ACCEPTANCE=1 and NEXACONNECT_RABBITMQ_INTEGRATION_URI."); return false;
     }
 
     private static bool IsSafeEnvironment()

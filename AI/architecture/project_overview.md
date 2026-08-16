@@ -6,7 +6,7 @@ Phase 4 tenant-API status: Platform Directory resolves authenticated membership 
 
 Phase 10 Catalog status: PostgreSQL menu-item upserts now transactionally persist an append-only product audit record plus versioned menu-change and audit outbox messages. The shared RabbitMQ dispatcher is opt-in, and migration 4 provides the downgrade boundary for this durable publication history.
 
-Phase 11 now includes an opt-in suite for live PostgreSQL atomic commit/rollback, append-only audit enforcement, outbox-store retry state, and migration 4 downgrade/re-upgrade in isolated schemas. It does not exercise RabbitMQ, and full Catalog clean-install plus broker outage/recovery evidence remain release-environment work.
+Phase 11 now includes opt-in live PostgreSQL atomic commit/rollback, append-only audit enforcement, retry state, and migration 4 downgrade/re-upgrade. Real RabbitMQ acceptance verifies an unreachable connection attempt, a Catalog commit made without a broker connection, and later publication over a new real connection with publisher confirms, persistent messages, isolated consumption, and publication timestamps. It does not exercise reconnection of an established dispatcher connection. The Catalog Phase 10 slice is closed; full migration 1-4 clean-install remains a production release gate.
 
 ## 1. Purpose
 

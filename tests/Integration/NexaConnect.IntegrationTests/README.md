@@ -10,7 +10,7 @@ Media provider acceptance is opt-in so normal test runs do not require container
 
 `InboxPersistenceTests` verifies durable consumer claims against PostgreSQL when `NEXACONNECT_INBOX_INTEGRATION_DB` is configured: duplicate deliveries are suppressed, failed claims are retried, and completed messages remain suppressed.
 
-`CatalogPostgresIntegrationTests` is the opt-in Phase 11 Catalog component suite. When `NEXACONNECT_CATALOG_INTEGRATION_DB` targets a disposable Development/Test PostgreSQL database, it creates isolated schemas and checks the menu/audit/two-event transaction, rollback on outbox-table failure, the append-only audit trigger, outbox-store failure/retry state, and migration 4 downgrade/re-upgrade using the checked-in migration 2-4 SQL scripts. It neither performs a migration-1-to-4 clean install nor contacts RabbitMQ; full clean-install and broker outage/recovery acceptance remain separate release-environment checks.
+`CatalogPostgresIntegrationTests` is the opt-in Phase 11 Catalog component suite. When `NEXACONNECT_CATALOG_INTEGRATION_DB` targets a disposable Development/Test PostgreSQL database, it creates isolated schemas and checks the menu/audit/two-event transaction, rollback on outbox-table failure, the append-only audit trigger, outbox-store failure/retry state, and migration 4 downgrade/re-upgrade using the checked-in migration 2-4 SQL scripts. With `NEXACONNECT_RABBITMQ_ACCEPTANCE=1` and `NEXACONNECT_RABBITMQ_INTEGRATION_URI`, it also verifies that a deliberately unreachable broker connection attempt fails, a subsequent Catalog mutation commits while no broker connection exists, and both outbox messages can later be published over a separately established real RabbitMQ connection. Publication uses the production transport's publisher confirms; the test verifies both routing keys are persistent, consumes them from an isolated queue, checks their correlation payloads, and verifies publication timestamps. It does not stop a running broker, prove automatic reconnection of an established dispatcher connection, or perform a migration-1-to-4 clean install.
 
 - `GatewayAuthenticationTests` verifies JWT validation, fallback authorization, role checks, and safe BFF return URLs.
 - `CatalogBranchAuthorizationTests` verifies a customer-portal Catalog read allows a branch only when the selected branch is owned by the selected organization; the test exercises the real Catalog HTTP boundary with controlled authorization dependencies.
@@ -42,11 +42,13 @@ Run the live Catalog Phase 11 component suite with:
 
 ```powershell
 $env:NEXACONNECT_CATALOG_INTEGRATION_DB = 'Host=localhost;Port=5432;Database=NexaConnect_Catalog;Username=nexaconnect_migration;Password=<migration-password>'
+$env:NEXACONNECT_RABBITMQ_ACCEPTANCE = '1'
+$env:NEXACONNECT_RABBITMQ_INTEGRATION_URI = 'amqp://<user>:<password>@localhost:5672/'
 $env:DOTNET_ENVIRONMENT = 'Testing'
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~CatalogPostgresIntegrationTests
 ```
 
-The suite creates and removes unique schemas. Never point it at production infrastructure.
+The suite creates and removes unique schemas plus a unique RabbitMQ exchange and auto-delete queue. Never point it at production infrastructure.
 
 Run the Order tenant-authorization regression test with:
 
