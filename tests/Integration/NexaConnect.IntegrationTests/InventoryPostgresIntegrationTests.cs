@@ -4,7 +4,10 @@ using InventoryMutationContext = INVENTORY::NexaConnect.Services.Inventory.Appli
 using InventoryRepository = INVENTORY::NexaConnect.Services.Inventory.Infrastructure.PostgresInventoryReservations;
 using ReservationLine = INVENTORY::NexaConnect.Services.Inventory.Application.Reservations.ReservationLine;
 using ReserveStock = INVENTORY::NexaConnect.Services.Inventory.Application.Reservations.ReserveStock;
+using Microsoft.Extensions.Options;
+using NexaConnect.Infrastructure.Messaging;
 using Npgsql;
+using RabbitMQ.Client;
 
 namespace NexaConnect.IntegrationTests;
 
@@ -114,6 +117,63 @@ public sealed class InventoryPostgresIntegrationTests : IAsyncLifetime
         finally { await new NpgsqlCommand($"DROP SCHEMA IF EXISTS \"{cycleSchema}\" CASCADE",connection).ExecuteNonQueryAsync(); }
     }
 
+    [Fact]
+    public async Task Broker_outage_retains_rows_and_recovery_publishes_with_confirmations()
+    {
+        if (!DatabaseConfigured() || !RabbitMqConfigured(out string rabbitMqUri)) return;
+        Guid organizationId=Guid.NewGuid(), branchId=Guid.NewGuid(), productId=Guid.NewGuid(), orderId=Guid.NewGuid(), correlationId=Guid.NewGuid();
+        await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            var unavailable=new ConnectionFactory { Uri=new Uri("amqp://guest:guest@127.0.0.1:1"), RequestedConnectionTimeout=TimeSpan.FromSeconds(1) };
+            await using IConnection ignored=await unavailable.CreateConnectionAsync();
+        });
+
+        var repository=new InventoryRepository(dataSource!);
+        var context=new InventoryMutationContext("inventory-recovery-test",correlationId);
+        repository.SetStock(organizationId,branchId,productId,10,context);
+        repository.Reserve(organizationId,new ReserveStock(orderId,branchId,[new ReservationLine(productId,3)]),context);
+        repository.Release(organizationId,orderId,context);
+        await using(NpgsqlConnection verify=await dataSource!.OpenConnectionAsync())
+            Assert.Equal(3L,await ScalarAsync(verify,"SELECT count(*) FROM outbox_messages WHERE correlation_id=$1 AND published_at_utc IS NULL",correlationId.ToString("D")));
+
+        string exchange=$"nexaconnect.inventory.phase11.{Guid.NewGuid():N}";
+        string queue=$"nexaconnect.inventory.phase11.{Guid.NewGuid():N}";
+        var factory=new ConnectionFactory { Uri=new Uri(rabbitMqUri) };
+        await using IConnection connection=await factory.CreateConnectionAsync();
+        await using IChannel channel=await connection.CreateChannelAsync();
+        try
+        {
+            await channel.ExchangeDeclareAsync(exchange,ExchangeType.Topic,durable:true,autoDelete:false);
+            await channel.QueueDeclareAsync(queue,durable:false,exclusive:true,autoDelete:true);
+            await channel.QueueBindAsync(queue,exchange,"inventory.#");
+            var transport=new RabbitMqOutboxTransport(connection,Options.Create(new OutboxOptions { Exchange=exchange }));
+            var store=new PostgresOutboxStore(dataSource!);
+            IReadOnlyList<OutboxMessage> pending=await store.ClaimBatchAsync(10,CancellationToken.None);
+            OutboxMessage[] lifecycleMessages=pending.Where(message=>message.CorrelationId==correlationId.ToString("D")).ToArray();
+            Assert.Equal(3,lifecycleMessages.Length);
+            foreach(OutboxMessage message in lifecycleMessages)
+            {
+                await transport.PublishAsync(message,CancellationToken.None);
+                await store.MarkPublishedAsync(message.Id,CancellationToken.None);
+            }
+
+            var deliveries=new List<BasicGetResult>();
+            for(int attempt=0;attempt<20&&deliveries.Count<3;attempt++)
+            {
+                BasicGetResult? delivery=await channel.BasicGetAsync(queue,autoAck:true);
+                if(delivery is not null)deliveries.Add(delivery);else await Task.Delay(100);
+            }
+            Assert.Equal(["inventory.reservation-created.v1","inventory.reservation-released.v1","inventory.stock-set.v1"],deliveries.Select(item=>item.RoutingKey).Order().ToArray());
+            Assert.All(deliveries,delivery=>Assert.True(delivery.BasicProperties.Persistent));
+            Assert.All(deliveries,delivery=>Assert.Equal(delivery.RoutingKey,delivery.BasicProperties.Type));
+            Assert.All(deliveries,delivery=>Assert.Equal("application/json",delivery.BasicProperties.ContentType));
+            Assert.All(deliveries,delivery=>Assert.Contains(correlationId.ToString("D"),System.Text.Encoding.UTF8.GetString(delivery.Body.Span),StringComparison.OrdinalIgnoreCase));
+            await using NpgsqlConnection published=await dataSource!.OpenConnectionAsync();
+            Assert.Equal(3L,await ScalarAsync(published,"SELECT count(*) FROM outbox_messages WHERE correlation_id=$1 AND published_at_utc IS NOT NULL",correlationId.ToString("D")));
+        }
+        finally { await channel.ExchangeDeleteAsync(exchange,ifUnused:false); }
+    }
+
     public async Task InitializeAsync()
     {
         if(string.IsNullOrWhiteSpace(configuredConnectionString)||!IsSafeEnvironment())return;
@@ -127,6 +187,7 @@ public sealed class InventoryPostgresIntegrationTests : IAsyncLifetime
     }
 
     private bool DatabaseConfigured(){if(dataSource is not null&&IsSafeEnvironment())return true;Console.WriteLine("Inventory PostgreSQL tests require NEXACONNECT_INVENTORY_INTEGRATION_DB and a Development/Test/Testing environment.");return false;}
+    private static bool RabbitMqConfigured(out string connectionString){connectionString=Environment.GetEnvironmentVariable("NEXACONNECT_RABBITMQ_INTEGRATION_URI")??string.Empty;if(Environment.GetEnvironmentVariable("NEXACONNECT_RABBITMQ_ACCEPTANCE")=="1"&&Uri.TryCreate(connectionString,UriKind.Absolute,out _))return true;Console.WriteLine("Inventory RabbitMQ recovery acceptance requires NEXACONNECT_RABBITMQ_ACCEPTANCE=1 and NEXACONNECT_RABBITMQ_INTEGRATION_URI.");return false;}
     private static bool IsSafeEnvironment(){string? environment=Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT")??Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")??Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");return environment is "Development" or "Test" or "Testing";}
     private static async Task<long> ScalarAsync(NpgsqlConnection connection,string sql,params object[] values){await using var command=new NpgsqlCommand(sql,connection);for(int i=0;i<values.Length;i++)command.Parameters.AddWithValue(values[i]);return(long)(await command.ExecuteScalarAsync()??0L);}
     private static async Task<decimal> DecimalAsync(NpgsqlConnection connection,string sql,params object[] values){await using var command=new NpgsqlCommand(sql,connection);for(int i=0;i<values.Length;i++)command.Parameters.AddWithValue(values[i]);return(decimal)(await command.ExecuteScalarAsync()??0m);}

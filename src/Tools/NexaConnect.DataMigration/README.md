@@ -6,7 +6,7 @@ The agreed migration contract is defined by [ADR-001](../../../docs/Architecture
 
 ## Implementation status
 
-Schema-first catalogs have been authored for 13 independently owned databases. Platform Directory version 2 adds support-elevation state and database-enforced append-only audit history. Inventory version 5 adds durable simplified-table reservation identity and its append-only product-audit table/trigger while preserving the outbox owned by version 1. All five opt-in isolated-schema tests passed against local real PostgreSQL; one directly executes 5→4→5 with repository scripts. That result does not exercise migration history/checksums or the full migration-runner 0→5 lifecycle, which remains required. Other services retain their independently versioned catalogs.
+Schema-first catalogs have been authored for 13 independently owned databases. Platform Directory version 2 adds support-elevation state and database-enforced append-only audit history. Inventory version 5 adds durable simplified-table reservation identity and its append-only product-audit table/trigger while preserving the outbox owned by version 1. Its full seven-test acceptance passed against local PostgreSQL 17 and RabbitMQ. The migration case invokes the actual runner for 0→5→4→5 and validates history checksums, schema ownership, downgrade preservation, and repository writes before and after re-upgrade. Other services retain their independently versioned catalogs.
 
 - `PlatformDirectory`
 - `Authorization`
@@ -26,7 +26,7 @@ Every baseline migration contains `migration.json`, `up.sql`, and `down.sql`. Me
 
 The executable runner implements the versioned-directory contract. It discovers and validates linear service catalogs, retains the checksum-validated SQL content for execution, reports status, plans explicit target versions, executes paired upgrades and downgrades, serializes mutation with a PostgreSQL advisory lock, and protects transformative and destructive downgrades with explicit authorization flags.
 
-The baseline is still not approved for production execution until every service passes live clean-install, downgrade, and re-upgrade tests against PostgreSQL 17. Catalog now has an opt-in full-database runner acceptance that executes 0→4→3→4 and validates history checksums plus representative repository writes. It requires a disposable-database administrator and has not run successfully in the current local environment because the configured PostgreSQL administrator password is stale and the migration owner correctly lacks `CREATEDB`; no role or password was changed. The remaining service catalogs still require release evidence. Do not flatten or manually reorder the scripts.
+The baseline is still not approved for production execution until every service passes live clean-install, downgrade, and re-upgrade tests against PostgreSQL 17. Catalog has opt-in 0→4→3→4 runner acceptance, and Inventory has successful local 0→5→4→5 runner evidence; both validate history checksums and representative repository writes. They require a disposable-database administrator. Catalog's test has not run successfully in the current local environment because its configured PostgreSQL administrator password is stale. The normal migration owner correctly lacks `CREATEDB`; Inventory used and removed a temporary local acceptance administrator. The remaining service catalogs still require recorded release evidence. Do not flatten or manually reorder the scripts.
 
 ## Script ownership and layout
 

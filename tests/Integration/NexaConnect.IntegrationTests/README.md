@@ -54,11 +54,13 @@ Run the live Inventory PostgreSQL transactional suite with:
 
 ```powershell
 $env:NEXACONNECT_INVENTORY_INTEGRATION_DB = 'Host=localhost;Port=5432;Database=NexaConnect_Inventory;Username=nexaconnect_migration;Password=<migration-password>'
+$env:NEXACONNECT_RABBITMQ_ACCEPTANCE = '1'
+$env:NEXACONNECT_RABBITMQ_INTEGRATION_URI = 'amqp://<user>:<password>@localhost:5672/'
 $env:DOTNET_ENVIRONMENT = 'Testing'
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~InventoryPostgresIntegrationTests
 ```
 
-It creates and removes unique schemas. A local run against real PostgreSQL completed all five tests successfully, covering atomic outbox/audit writes and rollback, tenant isolation, concurrent same-order and competing-order behavior, idempotent release, append-only audit, and migration 5 downgrade/re-upgrade through the checked-in repository scripts. This suite does not use RabbitMQ and does not invoke the migration runner for a 0→5 lifecycle. Without both the connection string and a safe environment, each test returns before opening PostgreSQL; a green result from such a skipped-by-return run is not live-database evidence. Never point it at production infrastructure.
+It creates and removes unique schemas. All six component cases passed locally against PostgreSQL 17 and RabbitMQ, covering atomic outbox/audit writes and rollback, tenant isolation, concurrent same-order and competing-order behavior, idempotent release, append-only audit, checked-in migration-5 scripts, an unreachable connection attempt, broker-independent stock/reservation/release commits, and later confirmed persistent publication of all three routing keys over a new real connection and isolated queue. It does not stop a running broker or prove automatic reconnection of an established dispatcher. Without the connection string and safe environment, tests return before opening PostgreSQL; a green return-gated result is not live evidence. Never point it at production infrastructure.
 
 `CatalogMigrationRunnerAcceptanceTests` is the destructive opt-in full Catalog database lifecycle check. It requires `NEXACONNECT_CATALOG_CLEAN_INSTALL_ACCEPTANCE=1`, `NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB`, and a Development/Test environment. The supplied PostgreSQL identity must be allowed to create and drop databases. The test creates only a generated `nexaconnect_catalog_clean_it_<guid>` database, invokes the actual migration runner for versions 0→4→3→4, validates history checksums and migration-4 objects, exercises the real Catalog repository before and after downgrade/re-upgrade, and force-drops only the validated generated database during cleanup. Never supply production credentials.
 
@@ -67,6 +69,17 @@ $env:NEXACONNECT_CATALOG_CLEAN_INSTALL_ACCEPTANCE = '1'
 $env:NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB = 'Host=localhost;Port=5432;Database=postgres;Username=<test-admin>;Password=<password>'
 $env:DOTNET_ENVIRONMENT = 'Testing'
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~CatalogMigrationRunnerAcceptanceTests
+```
+
+`InventoryMigrationRunnerAcceptanceTests` applies the same destructive opt-in boundary to Inventory. It invokes the actual runner for 0→5→4→5, verifies checksums and representative ownership across all five migrations, proves migration 5 removes only its audit/reservation-identity objects, confirms baseline outbox and simplified inventory rows survive, and exercises the real repository before and after re-upgrade. It manages only `nexaconnect_inventory_clean_it_<guid>` databases and requires a Development/Test administrator with create/drop permission.
+
+The migration-runner case passed locally against PostgreSQL 17 together with the six Inventory component cases. The generated database and temporary administrator were removed after the run.
+
+```powershell
+$env:NEXACONNECT_INVENTORY_CLEAN_INSTALL_ACCEPTANCE = '1'
+$env:NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB = 'Host=localhost;Port=5432;Database=postgres;Username=<test-admin>;Password=<password>'
+$env:DOTNET_ENVIRONMENT = 'Testing'
+dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~InventoryMigrationRunnerAcceptanceTests
 ```
 
 Run the Order tenant-authorization regression test with:
