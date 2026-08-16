@@ -16,11 +16,11 @@ public sealed class MigrationRunnerTests
             ["Order"] = 1,
             ["Kitchen"] = 2,
             ["Customer"] = 1,
-            ["Payment"] = 1,
+            ["Payment"] = 2,
             ["Notification"] = 2,
             ["POS"] = 3,
             ["Media"] = 4,
-            ["Reporting"] = 3
+            ["Reporting"] = 4
         };
 
         foreach ((string service, int expectedVersion) in services)
@@ -155,6 +155,21 @@ public sealed class MigrationRunnerTests
         Assert.Equal(MigrationDirection.Down, rollback.Direction);
         Assert.Contains("notification.read", rollback.Migration.UpSql, StringComparison.Ordinal);
         Assert.Contains("DELETE FROM authorization_role_permissions", rollback.Migration.DownSql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Payment_product_integration_preserves_the_baseline_outbox_on_rollback()
+    {
+        MigrationCatalog catalog = await MigrationCatalog.LoadAsync(
+            Path.Combine(AppContext.BaseDirectory, "Scripts"), "Payment", CancellationToken.None);
+        IReadOnlyList<AppliedMigration> applied = catalog.Migrations.Select(ToAppliedMigration).ToArray();
+
+        MigrationStep rollback = Assert.Single(catalog.CreatePlan(applied, 1));
+        Assert.Equal(MigrationDirection.Down, rollback.Direction);
+        Assert.Contains("DROP TABLE payment_audit_records", rollback.Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("DROP COLUMN organization_id", rollback.Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("HAVING count(*)>1", rollback.Migration.DownSql, StringComparison.Ordinal);
+        Assert.DoesNotContain("DROP TABLE outbox_messages", rollback.Migration.DownSql, StringComparison.Ordinal);
     }
 
     [Fact]

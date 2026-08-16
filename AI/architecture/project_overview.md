@@ -4,6 +4,8 @@ Portal roadmap status: Phases 1-4, 6, and 7 are complete for their documented de
 
 Inventory Phase 10 publication is implemented for tenant-scoped stock set, reservation create, and release: those PostgreSQL mutations commit versioned integration events and safe audit state through the migration-1 outbox and migration-5 reservation-identity/audit boundary. Trusted unscoped PostgreSQL paths remain legacy/non-publishing. A transaction-scoped organization/order lock makes concurrent active-order retries return the persisted reservation identity without double-decrementing stock. All seven opt-in acceptances passed locally against PostgreSQL 17 and RabbitMQ, including confirmed persistent publication of all three events and the actual migration runner's 0→5→4→5 lifecycle. The broker case uses a new recovery connection and does not prove established-dispatcher reconnection. The Inventory Phase 10 slice is closed.
 
+Payment intent creation now uses domain validation, mandatory organization context, organization-leading PostgreSQL lookup, conflict-safe idempotency, append-only local audit, and transactional `payment.intent-created.v1`/`payment.audit.v1` publication through the migration-1 outbox. Only the exact Order workload bypasses customer authorization, and it propagates aggregate organization/restaurant/branch context. Reporting migration 4 aligns its database constraints with the Payment route/vocabulary. Five Payment acceptances plus live Reporting projection compatibility passed locally against PostgreSQL 17 and RabbitMQ, including seeded legacy-intent backfill mechanics, downgrade collision refusal, and the actual Payment runner's 0→2→1→2 lifecycle. Authoritative production backfill still requires Order reconciliation. The intent-creation Phase 10 slice is closed; provider authorization, capture, refunds, and reconciliation remain planned.
+
 Phase 4 tenant-API status: Platform Directory resolves authenticated membership and enabled product access; Catalog, Inventory, Order, Payment, and Customer enforce product-owned permission decisions and resource ownership before their customer use cases execute. Catalog and Inventory customer persistence paths use organization-leading predicates and composite tenant keys; portals remain database-free.
 
 Phase 10 Catalog status: PostgreSQL menu-item upserts now transactionally persist an append-only product audit record plus versioned menu-change and audit outbox messages. The shared RabbitMQ dispatcher is opt-in. Migration 1 owns the outbox and durable publication history; migration 4 owns the audit objects and its downgrade preserves the outbox.
@@ -331,7 +333,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned migrations exist for all 13 service databases and currently define 109 tables and 123 explicit indexes. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned migrations exist for all 13 service databases and currently define 110 tables and 125 explicit indexes. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Rules:
 

@@ -7,6 +7,7 @@ using NexaConnect.Infrastructure.Http;
 using NexaConnect.Services.Payment.Application.Tenant;
 using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Observability;
+using NexaConnect.Infrastructure.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-payment");
@@ -42,6 +43,8 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Payment")
         ?? throw new InvalidOperationException("ConnectionStrings:Payment is required.")));
     builder.Services.AddSingleton<IPaymentIntents, PostgresPaymentIntents>();
+    if (builder.Configuration.GetValue<bool>("Outbox:Enabled"))
+        builder.Services.AddPostgresOutbox(builder.Configuration, "Payment");
 }
 else
 {

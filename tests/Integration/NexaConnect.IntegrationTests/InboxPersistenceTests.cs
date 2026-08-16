@@ -10,11 +10,9 @@ public sealed class InboxPersistenceTests : IAsyncLifetime
     private NpgsqlDataSource? dataSource;
     private string? schema;
 
-    [Fact]
+    [InboxDatabaseFact]
     public async Task Duplicate_is_suppressed_and_failed_claim_is_retryable()
     {
-        if (!DatabaseConfigured()) return;
-
         var store = new PostgresInboxStore(dataSource!);
         Guid messageId = Guid.NewGuid();
 
@@ -26,6 +24,19 @@ public sealed class InboxPersistenceTests : IAsyncLifetime
 
         await store.MarkCompletedAsync(messageId, "reporting.projection", CancellationToken.None);
         Assert.False(await store.TryClaimAsync(messageId, "reporting.projection", TimeSpan.FromMinutes(1), CancellationToken.None));
+    }
+
+    [InboxDatabaseFact]
+    public async Task Concurrent_claimers_allow_exactly_one_processing_lease()
+    {
+        var store = new PostgresInboxStore(dataSource!);
+        Guid messageId = Guid.NewGuid();
+
+        InboxClaimResult[] results = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ =>
+            store.ClaimAsync(messageId, "reporting.concurrent", TimeSpan.FromMinutes(1), CancellationToken.None)));
+
+        Assert.Equal(1, results.Count(result => result == InboxClaimResult.Claimed));
+        Assert.Equal(9, results.Count(result => result == InboxClaimResult.Busy));
     }
 
     public async Task InitializeAsync()
@@ -51,8 +62,6 @@ public sealed class InboxPersistenceTests : IAsyncLifetime
         await dataSource.DisposeAsync();
     }
 
-    private bool DatabaseConfigured() => dataSource is not null && IsSafeEnvironment();
-
     private static bool IsSafeEnvironment()
     {
         string? environment = Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT")
@@ -74,4 +83,17 @@ public sealed class InboxPersistenceTests : IAsyncLifetime
             CONSTRAINT pk_inbox_messages PRIMARY KEY (message_id, consumer_name)
         );
         """;
+}
+
+public sealed class InboxDatabaseFactAttribute : FactAttribute
+{
+    public InboxDatabaseFactAttribute()
+    {
+        string? environment = Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("NEXACONNECT_INBOX_INTEGRATION_DB"))
+            || environment is not ("Development" or "Test" or "Testing"))
+            Skip = "NEXACONNECT_INBOX_INTEGRATION_DB and a Development/Test/Testing environment are required.";
+    }
 }

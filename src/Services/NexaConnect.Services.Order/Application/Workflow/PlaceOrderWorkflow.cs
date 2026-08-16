@@ -52,7 +52,8 @@ public interface IKitchenPort
 public interface IPaymentPort
 {
     Task<PaymentResult> AuthorizeAsync(
-        Guid orderId, decimal amount, string currency, string method, CancellationToken cancellationToken);
+        Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, decimal amount, string currency, string method,
+        CancellationToken cancellationToken);
 }
 
 public interface IOrderRepository
@@ -140,7 +141,8 @@ public sealed class PlaceOrderWorkflow(
             order.Lines.Select(ToSnapshot).ToArray()), cancellationToken);
 
         PaymentResult paid = await payment.AuthorizeAsync(
-            order.Id, order.TotalAmount, order.Currency, command.PaymentMethod, cancellationToken);
+            order.OrganizationId, order.RestaurantId,
+            order.BranchId, order.Id, order.TotalAmount, order.Currency, command.PaymentMethod, cancellationToken);
         if (!paid.Completed || paid.PaymentId is null)
         {
             await inventory.ReleaseAsync(order.Id, order.BranchId, cancellationToken);

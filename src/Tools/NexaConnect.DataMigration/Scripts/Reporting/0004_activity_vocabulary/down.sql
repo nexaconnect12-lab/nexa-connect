@@ -1,0 +1,6 @@
+DELETE FROM inbox_messages WHERE consumer_name='reporting.activity.v1' AND message_id IN (SELECT event_id FROM activity_records WHERE action NOT IN ('customer-membership.changed','branch.created','branch.updated','branch.configuration.updated','media.asset.created','media.asset.deleted') OR resource_type NOT IN ('organization-membership','branch','branch-configuration','media-asset'));
+DELETE FROM activity_records WHERE action NOT IN ('customer-membership.changed','branch.created','branch.updated','branch.configuration.updated','media.asset.created','media.asset.deleted') OR resource_type NOT IN ('organization-membership','branch','branch-configuration','media-asset');
+ALTER TABLE activity_records DROP CONSTRAINT ck_activity_records_action;
+ALTER TABLE activity_records ADD CONSTRAINT ck_activity_records_action CHECK (action IN ('customer-membership.changed','branch.created','branch.updated','branch.configuration.updated','media.asset.created','media.asset.deleted'));
+ALTER TABLE activity_records DROP CONSTRAINT ck_activity_records_resource;
+ALTER TABLE activity_records ADD CONSTRAINT ck_activity_records_resource CHECK (resource_type IN ('organization-membership','branch','branch-configuration','media-asset'));

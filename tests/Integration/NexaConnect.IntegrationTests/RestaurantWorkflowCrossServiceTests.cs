@@ -95,6 +95,7 @@ public sealed class RestaurantWorkflowCrossServiceTests : IClassFixture<Restaura
         Assert.Equal(4m, Assert.Single(stock).AvailableQuantity);
         Assert.True(fixture.Kitchen.WasCreated(result.OrderId));
         Assert.Equal(result.OrderId, fixture.Payments.Intents.LastIntent?.OrderId);
+        Assert.Equal(RestaurantWorkflowServiceFixture.OrganizationId, fixture.Payments.Intents.LastIntent?.OrganizationId);
         Assert.Equal(1, fixture.Payments.Intents.CreateCount);
 
         // Durable idempotency replay is covered by OrderOutboxReplayPersistenceTests;
@@ -353,16 +354,18 @@ internal sealed class RecordingPaymentIntents : PaymentIntents
     public PaymentIntent? LastIntent { get; private set; }
     public int CreateCount { get; private set; }
 
-    public PaymentIntent Create(CreatePaymentIntent command)
+    public PaymentIntent Create(Guid organizationId, CreatePaymentIntent command,
+        PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentMutationContext context)
     {
-        LastIntent = new PaymentIntent(Guid.NewGuid(), command.RestaurantId, command.BranchId, command.OrderId,
+        LastIntent = new PaymentIntent(Guid.NewGuid(), organizationId, command.RestaurantId, command.BranchId, command.OrderId,
             command.Amount, command.Currency.ToUpperInvariant(), command.PaymentMethod.ToLowerInvariant(), "pending", DateTimeOffset.UtcNow);
         intents[LastIntent.Id] = LastIntent;
         CreateCount++;
         return LastIntent;
     }
 
-    public PaymentIntent? Get(Guid id) => intents.GetValueOrDefault(id);
+    public PaymentIntent? Get(Guid organizationId, Guid id) =>
+        intents.TryGetValue(id, out PaymentIntent? intent) && intent.OrganizationId == organizationId ? intent : null;
     public void Reset()
     {
         intents.Clear();

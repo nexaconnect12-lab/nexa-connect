@@ -14,13 +14,13 @@ Create one directory per owning service and one subdirectory per sequential migr
 | Order | 1 | 9 |
 | Kitchen | 2 | 7 |
 | Customer | 1 | 5 |
-| Payment | 1 | 5 |
+| Payment | 2 | 6 |
 | Notification | 2 | 4 |
 | POS | 3 | 8 |
 | Media | 4 | 6 |
-| Reporting | 3 | 9 |
+| Reporting | 4 | 9 |
 
-The current 13-service catalog contains 109 tables and 123 explicit indexes. Counts include service-owned technical tables such as outboxes, inboxes, idempotency records, audit history, and projection checkpoints.
+The current 13-service catalog contains 110 tables and 125 explicit indexes. Counts include service-owned technical tables such as outboxes, inboxes, idempotency records, audit history, and projection checkpoints.
 
 Versions must be linear, sortable, immutable, independently owned by one service, and transactional. Non-transactional migrations are not supported because schema mutation and migration-history recording must remain atomic.
 

@@ -64,6 +64,20 @@ public sealed record PaymentFailedV1(
     Guid OrderId,
     string Reason) : IIntegrationEvent;
 
+public sealed record PaymentIntentCreatedV1(
+    Guid EventId,
+    Guid CorrelationId,
+    DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId,
+    Guid RestaurantId,
+    Guid BranchId,
+    Guid OrderId,
+    Guid PaymentIntentId,
+    decimal Amount,
+    string Currency,
+    string PaymentMethod,
+    string Status) : IIntegrationEvent;
+
 public sealed record NotificationQueuedV1(
     Guid EventId,
     Guid CorrelationId,

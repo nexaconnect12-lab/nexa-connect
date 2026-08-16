@@ -102,10 +102,12 @@ public sealed class PostgresInboxStore(NpgsqlDataSource dataSource) : IDurableIn
         if (string.IsNullOrWhiteSpace(consumerName)) throw new ArgumentException("Inbox consumer name is required.");
         if (lease <= TimeSpan.Zero) throw new ArgumentException("Inbox lease must be positive.");
 
-        const string sql = """
+        const string insertSql = """
             INSERT INTO inbox_messages (message_id, consumer_name, status, attempts, locked_until_utc)
             VALUES ($1, $2, 'queued', 0, NULL)
             ON CONFLICT (message_id, consumer_name) DO NOTHING;
+            """;
+        const string claimSql = """
             UPDATE inbox_messages
             SET status = 'processing', attempts = attempts + 1,
                 locked_until_utc = now() + ($3 * interval '1 second'), last_error_category = NULL
@@ -115,12 +117,32 @@ public sealed class PostgresInboxStore(NpgsqlDataSource dataSource) : IDurableIn
             RETURNING message_id;
             """;
         await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue(messageId);
-        command.Parameters.AddWithValue(consumerName.Trim());
-        command.Parameters.AddWithValue(lease.TotalSeconds);
-        if(await command.ExecuteScalarAsync(cancellationToken) is Guid)return InboxClaimResult.Claimed;
-        await using var status=new NpgsqlCommand("SELECT status FROM inbox_messages WHERE message_id=$1 AND consumer_name=$2;",connection);status.Parameters.AddWithValue(messageId);status.Parameters.AddWithValue(consumerName.Trim());return (string?)await status.ExecuteScalarAsync(cancellationToken)=="completed"?InboxClaimResult.Completed:InboxClaimResult.Busy;
+        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var insert = new NpgsqlCommand(insertSql, connection, transaction))
+        {
+            insert.Parameters.AddWithValue(messageId);
+            insert.Parameters.AddWithValue(consumerName.Trim());
+            await insert.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await using (var claim = new NpgsqlCommand(claimSql, connection, transaction))
+        {
+            claim.Parameters.AddWithValue(messageId);
+            claim.Parameters.AddWithValue(consumerName.Trim());
+            claim.Parameters.AddWithValue(lease.TotalSeconds);
+            if (await claim.ExecuteScalarAsync(cancellationToken) is Guid)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return InboxClaimResult.Claimed;
+            }
+        }
+        await using var status = new NpgsqlCommand("SELECT status FROM inbox_messages WHERE message_id=$1 AND consumer_name=$2;", connection, transaction);
+        status.Parameters.AddWithValue(messageId);
+        status.Parameters.AddWithValue(consumerName.Trim());
+        InboxClaimResult result = (string?)await status.ExecuteScalarAsync(cancellationToken) == "completed"
+            ? InboxClaimResult.Completed
+            : InboxClaimResult.Busy;
+        await transaction.CommitAsync(cancellationToken);
+        return result;
     }
 
     public Task MarkCompletedAsync(Guid messageId, string consumerName, CancellationToken cancellationToken) => ExecuteAsync(

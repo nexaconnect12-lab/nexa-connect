@@ -135,7 +135,8 @@ public sealed class RestaurantWorkflowTests
         public int Calls { get; private set; }
 
         public Task<PaymentResult> AuthorizeAsync(
-            Guid orderId, decimal amount, string currency, string method, CancellationToken cancellationToken)
+            Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, decimal amount, string currency,
+            string method, CancellationToken cancellationToken)
         {
             Calls++;
             return Task.FromResult(completed

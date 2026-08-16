@@ -1,29 +1,57 @@
 using System.Collections.Concurrent;
 using NexaConnect.Services.Payment.Application.Intents;
+using NexaConnect.Services.Payment.Domain;
 
 namespace NexaConnect.Services.Payment.Infrastructure;
 
 public sealed class InMemoryPaymentIntents : IPaymentIntents
 {
-    private readonly ConcurrentDictionary<Guid, PaymentIntent> intents = new();
-    private readonly ConcurrentDictionary<(Guid RestaurantId, string Key), Guid> idempotency = new();
+    private readonly Dictionary<Guid, PaymentIntent> intents = [];
+    private readonly Dictionary<(Guid OrganizationId, Guid RestaurantId, string Key), Guid> idempotency = [];
+    private readonly object gate = new();
 
-    public PaymentIntent Create(CreatePaymentIntent command)
+    public PaymentIntent Create(Guid organizationId, CreatePaymentIntent command, PaymentMutationContext context)
     {
-        if (command.RestaurantId == Guid.Empty || command.BranchId == Guid.Empty || command.OrderId == Guid.Empty ||
-            string.IsNullOrWhiteSpace(command.IdempotencyKey) || command.Amount <= 0 || string.IsNullOrWhiteSpace(command.Currency))
-            throw new ArgumentException("Restaurant, branch, order, idempotency key, amount, and currency are required.");
-        if (!Enum.TryParse<PaymentMethod>(command.PaymentMethod, true, out _))
-            throw new ArgumentException("Payment method must be cash, card, wallet, bank_transfer, or other.");
-        if (idempotency.TryGetValue((command.RestaurantId, command.IdempotencyKey), out Guid existingId))
-            return intents[existingId];
-        var intent = new PaymentIntent(Guid.NewGuid(), command.RestaurantId, command.BranchId, command.OrderId,
-            command.Amount, command.Currency.Trim().ToUpperInvariant(), command.PaymentMethod.ToLowerInvariant(), "pending", DateTimeOffset.UtcNow);
-        if (idempotency.TryAdd((command.RestaurantId, command.IdempotencyKey), intent.Id)) intents[intent.Id] = intent;
-        return intents[idempotency[(command.RestaurantId, command.IdempotencyKey)]];
+        ValidateContext(context);
+        PaymentIntentAggregate candidate = PaymentIntentAggregate.Create(organizationId, command.RestaurantId, command.BranchId,
+            command.OrderId, command.IdempotencyKey, command.Amount, command.Currency, command.PaymentMethod, DateTimeOffset.UtcNow);
+        var key = (organizationId, command.RestaurantId, candidate.IdempotencyKey);
+        lock (gate)
+        {
+            if (idempotency.TryGetValue(key, out Guid existingId))
+            {
+                PaymentIntent existing = intents[existingId];
+                EnsureSameRequest(existing, candidate);
+                return existing;
+            }
+            PaymentIntent intent = ToResult(candidate);
+            intents[intent.Id] = intent;
+            idempotency[key] = intent.Id;
+            return intent;
+        }
     }
 
-    public PaymentIntent? Get(Guid id) => intents.GetValueOrDefault(id);
+    public PaymentIntent? Get(Guid organizationId, Guid id)
+    {
+        lock (gate) return intents.TryGetValue(id, out PaymentIntent? intent) && intent.OrganizationId == organizationId ? intent : null;
+    }
 
-    private enum PaymentMethod { cash, card, wallet, bank_transfer, other }
+    private static void ValidateContext(PaymentMutationContext context)
+    {
+        if (context is null || string.IsNullOrWhiteSpace(context.ActorSubjectId) || context.ActorSubjectId.Length > 200
+            || context.ActorSubjectId.Any(char.IsControl) || context.CorrelationId == Guid.Empty)
+            throw new ArgumentException("A valid mutation actor and correlation identifier are required.");
+    }
+
+    private static void EnsureSameRequest(PaymentIntent existing, PaymentIntentAggregate candidate)
+    {
+        if (existing.BranchId != candidate.BranchId || existing.OrderId != candidate.OrderId || existing.Amount != candidate.Amount
+            || !string.Equals(existing.Currency, candidate.Currency, StringComparison.Ordinal)
+            || !string.Equals(existing.PaymentMethod, candidate.PaymentMethod, StringComparison.Ordinal))
+            throw new PaymentIdempotencyConflictException("The idempotency key is already associated with a different payment request.");
+    }
+
+    private static PaymentIntent ToResult(PaymentIntentAggregate intent) => new(intent.Id, intent.OrganizationId,
+        intent.RestaurantId, intent.BranchId, intent.OrderId, intent.Amount, intent.Currency, intent.PaymentMethod,
+        intent.Status, intent.CreatedAtUtc);
 }

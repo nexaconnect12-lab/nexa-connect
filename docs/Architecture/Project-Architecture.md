@@ -4,6 +4,8 @@ Portal roadmap status: Phases 1-4, 6, and 7 are complete for their documented de
 
 Inventory transactionally records tenant-scoped stock-set, reservation-created, and reservation-released contracts with append-only audit state. Migration 1 owns its outbox; migration 5 owns durable simplified-table reservation identity and product audit. A transaction-scoped organization/order lock serializes concurrent retries, and release publishes/restores only once. Trusted unscoped PostgreSQL paths remain legacy/non-publishing. All seven opt-in acceptances passed locally against PostgreSQL 17 and RabbitMQ, including confirmed persistent publication of all three events and the actual migration runner's 0→5→4→5 lifecycle. The broker case uses a new recovery connection rather than proving established-dispatcher reconnection. The Inventory Phase 10 slice is closed.
 
+Payment intent creation requires organization context for customer and trusted Order calls; only the exact Order workload bypasses customer authorization. Domain validation bounds and normalizes the financial request, organization-leading PostgreSQL persistence rejects conflicting idempotency reuse, and a new intent atomically commits local append-only audit plus `payment.intent-created.v1` and `payment.audit.v1` through the migration-1 outbox. Reporting migration 4 accepts the Payment route/vocabulary at both Application and database boundaries. Five Payment acceptances plus live Reporting compatibility passed locally against PostgreSQL 17 and RabbitMQ, including legacy backfill mechanics, downgrade collision refusal, and the actual runner's 0→2→1→2 lifecycle. Authoritative production backfill still requires Order reconciliation. Provider authorization, capture, refunds, and reconciliation remain planned.
+
 Phase 10 Catalog status: PostgreSQL menu-item upserts transactionally persist append-only product audit plus versioned menu-change and audit outbox messages. RabbitMQ dispatch is opt-in; committed rows remain durable when dispatch is disabled or an established broker connection becomes unavailable, while enabling dispatch requires a successful startup connection. Migration 1 owns the outbox; migration 4 owns the audit objects and its destructive downgrade preserves outbox state.
 
 Phase 11 includes opt-in Catalog component tests for that transaction boundary, forced rollback, append-only trigger, retry state, and migration 4 downgrade/re-upgrade against isolated live PostgreSQL schemas. Real RabbitMQ acceptance verifies an unreachable connection attempt, a Catalog commit without a broker connection, and later publication over a newly established real connection using production publisher confirms, persistent messages, isolated queue consumption, and publication timestamps. It does not stop a broker or exercise automatic reconnection of an established dispatcher connection. This closes the Catalog Phase 10 integration slice; a successful production-like run of the full migration acceptance remains a release gate.
@@ -227,6 +229,8 @@ Owns customer profiles, addresses, contact preferences, loyalty identifiers, and
 
 Owns payment intents, provider transactions, payment status, refunds, and reconciliation references. It must not store sensitive card data unless the deployment is designed and certified for that purpose.
 
+The implemented intent-creation slice uses a small Domain aggregate for validation and normalization, an Application-owned repository contract, and Infrastructure-owned PostgreSQL/outbox persistence. Payment migration 2 adds organization attribution and append-only audit while migration 1 remains the outbox owner. Matching idempotent retries return the original intent without republishing; materially different reuse fails with conflict. Capture/refund/provider workflows are not enabled.
+
 ### 5.8 Kitchen Service
 
 Owns preparation tickets, station-specific preparation snapshots, ticket status transitions, and payment-failure cancellation. It receives order-line snapshots through its authenticated HTTP API and never recalculates commercial totals or reads the Order database directly.
@@ -325,7 +329,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 109 tables and 123 explicit indexes; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 110 tables and 125 explicit indexes; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Database creation is a provisioning concern, not a service migration. Local Docker initialization creates the 13 catalog databases, one migration owner, and separate restricted runtime roles before service migrations are applied. Production uses the equivalent infrastructure-as-code and secret-management workflow.
 

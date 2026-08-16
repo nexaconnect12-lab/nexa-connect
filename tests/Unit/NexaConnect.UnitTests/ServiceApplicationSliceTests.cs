@@ -41,12 +41,51 @@ public sealed class ServiceApplicationSliceTests
     public void Payment_intent_is_idempotent_for_restaurant_and_key()
     {
         var payments = new InMemoryPaymentIntents();
+        Guid organizationId = Guid.NewGuid();
         var command = new CreatePaymentIntent(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "checkout-1", 10m, "USD", "cash");
+        var context = new PaymentMutationContext("test-user", Guid.NewGuid());
 
-        PaymentIntent first = payments.Create(command);
-        PaymentIntent second = payments.Create(command);
+        PaymentIntent first = payments.Create(organizationId, command, context);
+        PaymentIntent second = payments.Create(organizationId, command, context);
 
         Assert.Equal(first.Id, second.Id);
+    }
+
+    [Fact]
+    public void Payment_idempotency_key_rejects_a_different_request()
+    {
+        var payments = new InMemoryPaymentIntents();
+        Guid organizationId = Guid.NewGuid();
+        var command = new CreatePaymentIntent(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "checkout-1", 10m, "USD", "cash");
+        var context = new PaymentMutationContext("test-user", Guid.NewGuid());
+        payments.Create(organizationId, command, context);
+
+        Assert.Throws<PaymentIdempotencyConflictException>(() =>
+            payments.Create(organizationId, command with { Amount = 11m }, context));
+    }
+
+    [Theory]
+    [InlineData(1.23456)]
+    [InlineData(1000000000000000.0)]
+    public void Payment_rejects_amounts_outside_database_precision(decimal amount)
+    {
+        var payments = new InMemoryPaymentIntents();
+        var command = new CreatePaymentIntent(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "checkout-1", amount, "USD", "cash");
+
+        Assert.Throws<ArgumentException>(() => payments.Create(Guid.NewGuid(), command,
+            new PaymentMutationContext("test-user", Guid.NewGuid())));
+    }
+
+    [Fact]
+    public void Payment_rejects_actor_outside_audit_contract()
+    {
+        var payments = new InMemoryPaymentIntents();
+        var command = new CreatePaymentIntent(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "checkout-1", 10m, "USD", "cash");
+
+        Assert.Throws<ArgumentException>(() => payments.Create(Guid.NewGuid(), command,
+            new PaymentMutationContext("actor\nspoof", Guid.NewGuid())));
+        Assert.Throws<ArgumentException>(() => payments.Create(Guid.NewGuid(), command,
+            new PaymentMutationContext(new string('a', 201), Guid.NewGuid())));
     }
 
     [Fact]

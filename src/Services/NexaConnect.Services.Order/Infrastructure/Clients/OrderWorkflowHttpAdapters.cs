@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using NexaConnect.Services.Order.Application.Workflow;
 using NexaConnect.Services.Order.Domain;
+using NexaConnect.Contracts.Platform;
 
 namespace NexaConnect.Services.Order.Infrastructure.Clients;
 
@@ -82,17 +83,19 @@ public sealed class HttpKitchenPort(HttpClient client) : IKitchenPort
     private sealed record TicketResponse(Guid TicketId);
 }
 
-public sealed class HttpPaymentPort(HttpClient client, IConfiguration configuration) : IPaymentPort
+public sealed class HttpPaymentPort(HttpClient client) : IPaymentPort
 {
     public async Task<PaymentResult> AuthorizeAsync(
-        Guid orderId, decimal amount, string currency, string method, CancellationToken cancellationToken)
+        Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, decimal amount, string currency, string method,
+        CancellationToken cancellationToken)
     {
-        Guid restaurantId = configuration.GetValue<Guid>("Workflow:RestaurantId");
-        Guid branchId = configuration.GetValue<Guid>("Workflow:BranchId");
-        using HttpResponseMessage response = await client.PostAsJsonAsync(
-            "api/payment/v1/intents",
-            new PaymentRequest(restaurantId, branchId, orderId, $"order:{orderId:D}", amount, currency, method),
-            cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/payment/v1/intents")
+        {
+            Content = JsonContent.Create(new PaymentRequest(restaurantId, branchId, orderId, $"order:{orderId:D}", amount, currency, method))
+        };
+        request.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId, organizationId.ToString("D"));
+        request.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode, "nexa_connect");
+        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
             return new PaymentResult(false, null, await response.Content.ReadAsStringAsync(cancellationToken));
         PaymentResponse? payment = await response.Content.ReadFromJsonAsync<PaymentResponse>(cancellationToken);

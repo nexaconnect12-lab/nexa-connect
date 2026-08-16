@@ -8,7 +8,7 @@ Media provider acceptance is opt-in so normal test runs do not require container
 
 `RestaurantWorkflowCrossServiceTests` verifies the public Catalog -> Order -> Inventory -> Kitchen -> Payment workflow over independent HTTP service boundaries. Catalog and Inventory are seeded through their APIs, Order uses its production HTTP adapters, Payment is recorded through its service API, and the deployed Kitchen API is hosted through its real `WebApplicationFactory` boundary with a controlled store. The test asserts the paid order, inventory decrement, kitchen ticket, and payment intent.
 
-`InboxPersistenceTests` verifies durable consumer claims against PostgreSQL when `NEXACONNECT_INBOX_INTEGRATION_DB` is configured: duplicate deliveries are suppressed, failed claims are retried, and completed messages remain suppressed.
+`InboxPersistenceTests` verifies durable consumer claims against PostgreSQL when `NEXACONNECT_INBOX_INTEGRATION_DB` is configured: duplicate deliveries are suppressed, failed claims are retried, completed messages remain suppressed, and ten concurrent claimers yield exactly one processing lease. Missing configuration is reported as skipped.
 
 `CatalogPostgresIntegrationTests` is the opt-in Phase 11 Catalog component suite. When `NEXACONNECT_CATALOG_INTEGRATION_DB` targets a disposable Development/Test PostgreSQL database, it creates isolated schemas and checks the menu/audit/two-event transaction, rollback on outbox-table failure, the append-only audit trigger, outbox-store failure/retry state, and migration 4 downgrade/re-upgrade using the checked-in migration 2-4 SQL scripts. With `NEXACONNECT_RABBITMQ_ACCEPTANCE=1` and `NEXACONNECT_RABBITMQ_INTEGRATION_URI`, it also verifies that a deliberately unreachable broker connection attempt fails, a subsequent Catalog mutation commits while no broker connection exists, and both outbox messages can later be published over a separately established real RabbitMQ connection. Publication uses the production transport's publisher confirms; the test verifies both routing keys are persistent, consumes them from an isolated queue, checks their correlation payloads, and verifies publication timestamps. It does not stop a running broker, prove automatic reconnection of an established dispatcher connection, or perform a migration-1-to-4 clean install.
 
@@ -81,6 +81,31 @@ $env:NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB = 'Host=localhost;Port=5432;Datab
 $env:DOTNET_ENVIRONMENT = 'Testing'
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~InventoryMigrationRunnerAcceptanceTests
 ```
+
+Run the Payment Phase 10 PostgreSQL/RabbitMQ component acceptance with:
+
+```powershell
+$env:NEXACONNECT_PAYMENT_INTEGRATION_DB = 'Host=localhost;Port=5432;Database=NexaConnect_Payment;Username=nexaconnect_migration;Password=<migration-password>'
+$env:NEXACONNECT_RABBITMQ_ACCEPTANCE = '1'
+$env:NEXACONNECT_RABBITMQ_INTEGRATION_URI = 'amqp://<user>:<password>@localhost:5672/'
+$env:DOTNET_ENVIRONMENT = 'Testing'
+dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~PaymentPostgresIntegrationTests
+```
+
+The four component cases use isolated resources and verify atomic intent/audit/two-event commit and rollback, organization-leading reads, append-only audit, concurrent matching idempotency, conflicting-key rejection, and confirmed persistent publication over a new recovery connection. Missing opt-in configuration is reported as skipped rather than passed. They do not perform provider authorization or prove established-dispatcher reconnection.
+
+Run the destructive Payment migration lifecycle only with a disposable Development/Test administrator:
+
+```powershell
+$env:NEXACONNECT_PAYMENT_CLEAN_INSTALL_ACCEPTANCE = '1'
+$env:NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB = 'Host=localhost;Port=5432;Database=postgres;Username=<test-admin>;Password=<password>'
+$env:DOTNET_ENVIRONMENT = 'Testing'
+dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~PaymentMigrationRunnerAcceptanceTests
+```
+
+It manages only `nexaconnect_payment_clean_it_<guid>`, invokes the actual runner for 0→1→2→1→2, seeds a version-1 intent, verifies the empty-organization upgrade marker and mechanical backfill/query boundary, and checks checksums, migration ownership, baseline outbox/intent preservation, repository writes, and atomic refusal of a colliding downgrade. The test does not establish authoritative production ownership; operators must reconcile against Order. All five Payment acceptances passed locally against PostgreSQL 17 and RabbitMQ; generated infrastructure was removed afterward.
+
+`ReportingActivityVocabularyPostgresTests` applies Reporting migration 4 in an isolated schema and proves a Payment audit event persists through the real projection repository before destructive downgrade removes the incompatible projection and completed inbox marker, leaving the event eligible for controlled replay after re-upgrade. Set `NEXACONNECT_REPORTING_INTEGRATION_DB` and a safe environment to run it. This sixth coordinated acceptance also passed locally.
 
 Run the Order tenant-authorization regression test with:
 

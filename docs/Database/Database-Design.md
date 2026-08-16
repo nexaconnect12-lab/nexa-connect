@@ -12,13 +12,15 @@ The design will evolve with the domain model. Every schema change must remain ow
 
 ### 1.1 Baseline status
 
-Versioned migrations exist for 13 independently owned databases: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, Notification, POS, Media, and Reporting. Catalog version 3 and Inventory version 4 add explicit organization columns, composite tenant keys, and tenant-leading indexes to the simplified service tables used by customer APIs. Catalog and Inventory version 1 own their transactional outbox state; Catalog version 4 adds its append-only audit state, while Inventory version 5 adds persisted simplified-table reservation identity plus append-only audit state. Inventory version 5 downgrade removes its audit objects and reservation identity column but preserves the version-1 outbox. Each migration has metadata and paired upgrade and downgrade scripts.
+Versioned migrations exist for 13 independently owned databases: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, Notification, POS, Media, and Reporting. Catalog version 3, Inventory version 4, and Payment version 2 add explicit organization columns and tenant-leading keys/indexes to simplified service tables used by customer APIs. Catalog, Inventory, and Payment version 1 own their transactional outbox state; later product-integration migrations add append-only audit and preserve those outboxes on downgrade. Each migration has metadata and paired upgrade and downgrade scripts.
 
 Catalog version 3 and Inventory version 4 temporarily assign the empty UUID to pre-existing simplified-service rows because those legacy tables did not retain an organization identifier. Before enabling customer traffic, operators must backfill each row from the authoritative Restaurant branch scope and verify that no two organizations would collapse to the same legacy key. Downgrade is permitted only after the same collision check; otherwise the former branch/product or order/product primary key cannot be restored safely.
 
 Catalog version 1 creates `outbox_messages` and its unpublished-message polling index. Version 4 adds `catalog_audit_records`, protected from update and delete by a database trigger. A PostgreSQL menu-item upsert, its audit row, and both versioned outbox messages commit in one transaction. The version-4 downgrade drops only the audit objects and preserves the outbox and undispatched publication history; producers must still be stopped because version-3 application code cannot create the audit records expected by the current mutation path.
 
 Static validation has confirmed metadata parsing, create/drop parity, PostgreSQL identifier lengths, output packaging, and a clean migration-project build. The migration executable now understands versioned directories and explicit target versions. Catalog has opt-in isolated-schema migration-4 coverage and implemented full-database runner acceptance for 0→4→3→4. Inventory's complete seven-test acceptance passed locally against PostgreSQL 17 and RabbitMQ. Its full-database case invokes the actual runner for 0→5→4→5, validates checksums and representative objects from migrations 1-5, proves migration-5 downgrade preservation, and exercises repository writes before and after re-upgrade. Catalog's configured administrator password remains stale; Inventory used a generated temporary administrator and database that were removed after the successful run. Successful live runner evidence remains required for Catalog and the other unaccepted service catalogs before production execution.
+
+Payment's complete five-test acceptance plus Reporting vocabulary persistence passed locally against PostgreSQL 17 and RabbitMQ. Its full-database case seeds a version-1 intent, invokes the actual runner through 0→2→1→2, verifies the legacy empty-organization marker and mechanical backfill/query boundary, immutable history/checksums, baseline outbox preservation, migration-2 organization/audit ownership, and real repository writes. Production backfill still requires authoritative Order ownership reconciliation. Migration 2 downgrade is behaviorally verified to reject cross-organization restaurant/idempotency collisions atomically until reconciled. Reporting migration 4 aligns product-audit check constraints. Generated databases and the temporary administrator were removed after the run.
 
 ## 2. Database topology
 
@@ -228,7 +230,7 @@ The following summaries describe the implemented version-1 ownership model. The 
 | Order | 9 | Orders, snapshots, lifecycle, returns, idempotency, and outbox |
 | Kitchen | 6 | Tickets, items, lifecycle, adjustments, inbox, and outbox |
 | Customer | 5 | Profiles, contacts, addresses, loyalty, and outbox |
-| Payment | 5 | Intents, provider transactions, refunds, reconciliation, and outbox |
+| Payment | 6 | Intents, provider transactions, refunds, reconciliation, outbox, and append-only product audit |
 | POS | 8 | Stores, terminals, shifts, cash, synchronization, and outbox |
 | Media | 4 | Assets, variants, processing attempts, and outbox |
 | Reporting | 7 | Rebuildable facts, checkpoints, and consumer deduplication |
@@ -343,7 +345,7 @@ Image binaries belong in MinIO or S3-compatible object storage. PostgreSQL store
 - `shift_cash_facts` — shift totals, tenders, cash movements, and variance measures.
 - `projection_checkpoints` — last processed event position for each reporting projector.
 
-Reporting tables are rebuildable projections. Migration 3 adds bounded `activity_records`, keyed by event ID and indexed for tenant cursor reads. Platform Directory membership and Restaurant branch/configuration transactions insert audit plus outbox event atomically. Reporting deduplicates through `inbox_messages` and acknowledges RabbitMQ after handling. Retention/archive and a full replay checkpoint remain unimplemented; broker retention and source outboxes are the current recovery inputs.
+Reporting tables are rebuildable projections. Migration 3 adds bounded `activity_records`, keyed by event ID and indexed for tenant cursor reads; migration 4 expands database-enforced vocabulary for approved Catalog, Media, Notification, and Payment audit contracts. Participating owning services insert local audit plus outbox events atomically. Reporting deduplicates through `inbox_messages` and acknowledges RabbitMQ after handling. Migration-4 downgrade deletes incompatible projections and their completed inbox markers, requiring retained source events for controlled replay after re-upgrade. Retention/archive and a full replay checkpoint remain unimplemented; broker retention and source outboxes are the current recovery inputs.
 
 ## 7. Branch-local data
 

@@ -1,0 +1,66 @@
+extern alias PAYMENT;
+extern alias MIGRATIONS;
+
+using PaymentCreateIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.CreatePaymentIntent;
+using PaymentMutationContext = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentMutationContext;
+using PaymentRepository = PAYMENT::NexaConnect.Services.Payment.Infrastructure.PostgresPaymentIntents;
+using MigrationApplication = MIGRATIONS::MigrationApplication;
+using Npgsql;
+
+namespace NexaConnect.IntegrationTests;
+
+[Collection("Payment migration runner acceptance")]
+public sealed class PaymentMigrationRunnerAcceptanceTests
+{
+    [PaymentMigrationAcceptanceFact]
+    public async Task Empty_database_upgrades_to_2_downgrades_to_1_and_re_upgrades_to_2()
+    {
+        string adminConnectionString=Environment.GetEnvironmentVariable("NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB")!;
+        string databaseName=$"nexaconnect_payment_clean_it_{Guid.NewGuid():N}";ValidateDatabaseName(databaseName);
+        var adminBuilder=new NpgsqlConnectionStringBuilder(adminConnectionString){Database="postgres"};await using NpgsqlDataSource adminDataSource=NpgsqlDataSource.Create(adminBuilder.ConnectionString);await CreateDatabaseAsync(adminDataSource,databaseName);
+        string? previous=Environment.GetEnvironmentVariable("NEXACONNECT_PAYMENT_DB");
+        try
+        {
+            var paymentBuilder=new NpgsqlConnectionStringBuilder(adminConnectionString){Database=databaseName};Environment.SetEnvironmentVariable("NEXACONNECT_PAYMENT_DB",paymentBuilder.ConnectionString);string scriptsRoot=Path.Combine(FindRepositoryRoot(),"src","Tools","NexaConnect.DataMigration","Scripts");
+            Assert.Equal(0,await RunMigrationAsync(scriptsRoot,1));await using NpgsqlDataSource paymentDataSource=NpgsqlDataSource.Create(paymentBuilder.ConnectionString);Guid legacyIntentId=await SeedLegacyIntentAsync(paymentDataSource);
+            Assert.Equal(0,await RunMigrationAsync(scriptsRoot,2));await AssertHistoryAsync(paymentDataSource,[1,2]);await AssertSchema2Async(paymentDataSource);await BackfillLegacyIntentAsync(paymentDataSource,legacyIntentId);await ExerciseRepositoryAsync(paymentDataSource);
+            Assert.Equal(0,await RunMigrationAsync(scriptsRoot,1,destructive:true));await AssertHistoryAsync(paymentDataSource,[1]);await AssertSchema1Async(paymentDataSource);
+            Assert.Equal(0,await RunMigrationAsync(scriptsRoot,2));await AssertHistoryAsync(paymentDataSource,[1,2]);await AssertSchema2Async(paymentDataSource);await ExerciseRepositoryAsync(paymentDataSource);
+            await InsertDowngradeCollisionAsync(paymentDataSource);
+            Assert.NotEqual(0,await RunMigrationAsync(scriptsRoot,1,destructive:true));
+            await AssertHistoryAsync(paymentDataSource,[1,2]);await AssertSchema2Async(paymentDataSource);
+        }
+        finally{Environment.SetEnvironmentVariable("NEXACONNECT_PAYMENT_DB",previous);await DropDatabaseAsync(adminDataSource,databaseName);}
+    }
+
+    private static Task<int> RunMigrationAsync(string scriptsRoot,int target,bool destructive=false){var arguments=new List<string>{"--service","Payment","--scripts-root",scriptsRoot,"--target",target.ToString(),"--application-version","0.7.0","--confirm"};if(destructive)arguments.AddRange(["--allow-destructive","--backup-verified"]);return MigrationApplication.RunAsync(arguments.ToArray());}
+    private static async Task AssertHistoryAsync(NpgsqlDataSource dataSource,int[] expected){await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();await using var command=new NpgsqlCommand("SELECT version,metadata_checksum_sha256,up_checksum_sha256,down_checksum_sha256 FROM public.nexaconnect_schema_migrations ORDER BY version",connection);await using NpgsqlDataReader reader=await command.ExecuteReaderAsync();var actual=new List<int>();while(await reader.ReadAsync()){actual.Add(reader.GetInt32(0));Assert.All([reader.GetString(1),reader.GetString(2),reader.GetString(3)],checksum=>Assert.Matches("^[0-9A-F]{64}$",checksum));}Assert.Equal(expected,actual);}
+    private static async Task AssertSchema2Async(NpgsqlDataSource dataSource){await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();foreach(string table in new[]{"payment_intents","provider_transactions","refunds","reconciliation_records","outbox_messages","payment_audit_records"})Assert.Equal(table,await ScalarTextAsync(connection,$"SELECT to_regclass('public.{table}')::text"));Assert.Equal("organization_id",await ScalarTextAsync(connection,"SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='payment_intents' AND column_name='organization_id' AND is_nullable='NO'"));Assert.Equal("ix_payment_intents_organization_id",await ScalarTextAsync(connection,"SELECT to_regclass('public.ix_payment_intents_organization_id')::text"));Assert.Equal(1L,await ScalarLongAsync(connection,"SELECT count(*) FROM pg_trigger WHERE tgname='tr_payment_audit_records_append_only' AND NOT tgisinternal"));Assert.Equal(1L,await ScalarLongAsync(connection,"SELECT count(*) FROM pg_proc WHERE proname='prevent_payment_audit_mutation' AND pg_function_is_visible(oid)"));}
+    private static async Task AssertSchema1Async(NpgsqlDataSource dataSource){await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();Assert.Equal("outbox_messages",await ScalarTextAsync(connection,"SELECT to_regclass('public.outbox_messages')::text"));Assert.Equal("payment_intents",await ScalarTextAsync(connection,"SELECT to_regclass('public.payment_intents')::text"));Assert.Null(await ScalarTextAsync(connection,"SELECT to_regclass('public.payment_audit_records')::text"));Assert.Null(await ScalarTextAsync(connection,"SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='payment_intents' AND column_name='organization_id'"));Assert.Equal(2L,await ScalarLongAsync(connection,"SELECT count(*) FROM outbox_messages"));Assert.Equal(2L,await ScalarLongAsync(connection,"SELECT count(*) FROM payment_intents"));}
+    private static async Task<Guid> SeedLegacyIntentAsync(NpgsqlDataSource dataSource){Guid id=Guid.NewGuid();await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();await using var command=new NpgsqlCommand("INSERT INTO payment_intents(id,restaurant_id,branch_id,order_id,idempotency_key,amount,currency,payment_method,status,created_at_utc,updated_at_utc) VALUES($1,$2,$3,$4,$5,10,'USD','cash','pending',now(),now())",connection);command.Parameters.AddWithValue(id);command.Parameters.AddWithValue(Guid.NewGuid());command.Parameters.AddWithValue(Guid.NewGuid());command.Parameters.AddWithValue(Guid.NewGuid());command.Parameters.AddWithValue($"legacy-{Guid.NewGuid():N}");await command.ExecuteNonQueryAsync();return id;}
+    private static async Task BackfillLegacyIntentAsync(NpgsqlDataSource dataSource,Guid id){await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();Assert.Equal(Guid.Empty,await ScalarGuidAsync(connection,"SELECT organization_id FROM payment_intents WHERE id=$1",id));Guid organizationId=Guid.NewGuid();await using var update=new NpgsqlCommand("UPDATE payment_intents SET organization_id=$1 WHERE id=$2",connection);update.Parameters.AddWithValue(organizationId);update.Parameters.AddWithValue(id);await update.ExecuteNonQueryAsync();var repository=new PaymentRepository(dataSource);Assert.NotNull(repository.Get(organizationId,id));}
+    private static async Task InsertDowngradeCollisionAsync(NpgsqlDataSource dataSource){Guid restaurantId=Guid.NewGuid();string key=$"collision-{Guid.NewGuid():N}";await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();await using var command=new NpgsqlCommand("INSERT INTO payment_intents(id,organization_id,restaurant_id,branch_id,order_id,idempotency_key,amount,currency,payment_method,status,created_at_utc,updated_at_utc) VALUES($1,$2,$3,$4,$5,$6,10,'USD','cash','pending',now(),now()),($7,$8,$3,$9,$10,$6,10,'USD','cash','pending',now(),now())",connection);command.Parameters.AddWithValue(Guid.NewGuid());command.Parameters.AddWithValue(Guid.NewGuid());command.Parameters.AddWithValue(restaurantId);command.Parameters.AddWithValue(Guid.NewGuid());command.Parameters.AddWithValue(Guid.NewGuid());command.Parameters.AddWithValue(key);command.Parameters.AddWithValue(Guid.NewGuid());command.Parameters.AddWithValue(Guid.NewGuid());command.Parameters.AddWithValue(Guid.NewGuid());command.Parameters.AddWithValue(Guid.NewGuid());await command.ExecuteNonQueryAsync();}
+    private static async Task ExerciseRepositoryAsync(NpgsqlDataSource dataSource){Guid organizationId=Guid.NewGuid(),correlationId=Guid.NewGuid();var repository=new PaymentRepository(dataSource);var intent=repository.Create(organizationId,new PaymentCreateIntent(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),$"migration-{Guid.NewGuid():N}",15m,"USD","cash"),new PaymentMutationContext("migration-acceptance",correlationId));await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();Assert.Equal(1L,await ScalarLongAsync(connection,"SELECT count(*) FROM payment_intents WHERE organization_id=$1 AND id=$2",organizationId,intent.Id));Assert.Equal(1L,await ScalarLongAsync(connection,"SELECT count(*) FROM payment_audit_records WHERE payment_intent_id=$1",intent.Id));Assert.Equal(2L,await ScalarLongAsync(connection,"SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND correlation_id=$2",intent.Id,correlationId.ToString("D")));}
+    private static async Task<string?> ScalarTextAsync(NpgsqlConnection connection,string sql){object? value=await new NpgsqlCommand(sql,connection).ExecuteScalarAsync();return value is null or DBNull?null:Convert.ToString(value,System.Globalization.CultureInfo.InvariantCulture);}
+    private static async Task<long> ScalarLongAsync(NpgsqlConnection connection,string sql,params object[] values){await using var command=new NpgsqlCommand(sql,connection);for(int i=0;i<values.Length;i++)command.Parameters.AddWithValue(values[i]);return Convert.ToInt64(await command.ExecuteScalarAsync(),System.Globalization.CultureInfo.InvariantCulture);}
+    private static async Task<Guid> ScalarGuidAsync(NpgsqlConnection connection,string sql,params object[] values){await using var command=new NpgsqlCommand(sql,connection);for(int i=0;i<values.Length;i++)command.Parameters.AddWithValue(values[i]);return(Guid)(await command.ExecuteScalarAsync()??Guid.Empty);}
+    private static async Task CreateDatabaseAsync(NpgsqlDataSource dataSource,string name){await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();string quoted=new NpgsqlCommandBuilder().QuoteIdentifier(name);await new NpgsqlCommand($"CREATE DATABASE {quoted}",connection).ExecuteNonQueryAsync();}
+    private static async Task DropDatabaseAsync(NpgsqlDataSource dataSource,string name){ValidateDatabaseName(name);await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();string quoted=new NpgsqlCommandBuilder().QuoteIdentifier(name);await new NpgsqlCommand($"DROP DATABASE IF EXISTS {quoted} WITH (FORCE)",connection).ExecuteNonQueryAsync();}
+    private static void ValidateDatabaseName(string name){if(!System.Text.RegularExpressions.Regex.IsMatch(name,"^nexaconnect_payment_clean_it_[a-f0-9]{32}$"))throw new InvalidOperationException("Refusing to manage a database outside the Payment acceptance naming boundary.");}
+    private static string FindRepositoryRoot(){DirectoryInfo? directory=new(AppContext.BaseDirectory);while(directory is not null&&!File.Exists(Path.Combine(directory.FullName,"NexaConnect.sln")))directory=directory.Parent;return directory?.FullName??throw new DirectoryNotFoundException("Could not locate the NexaConnect repository root.");}
+}
+
+[CollectionDefinition("Payment migration runner acceptance",DisableParallelization=true)]
+public sealed class PaymentMigrationRunnerAcceptanceCollection;
+
+public sealed class PaymentMigrationAcceptanceFactAttribute : FactAttribute
+{
+    public PaymentMigrationAcceptanceFactAttribute()
+    {
+        string connection=Environment.GetEnvironmentVariable("NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB")??string.Empty;
+        string? environment=Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT")??Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")??Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        bool valid=false;try{_=new NpgsqlConnectionStringBuilder(connection);valid=!string.IsNullOrWhiteSpace(connection);}catch(ArgumentException){}
+        if(Environment.GetEnvironmentVariable("NEXACONNECT_PAYMENT_CLEAN_INSTALL_ACCEPTANCE")!="1"||environment is not ("Development" or "Test" or "Testing")||!valid)
+            Skip="Payment clean-install acceptance requires its opt-in flag, administrator connection, and a safe environment.";
+    }
+}
