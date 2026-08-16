@@ -12,9 +12,11 @@ The design will evolve with the domain model. Every schema change must remain ow
 
 ### 1.1 Baseline status
 
-Versioned migrations exist for 13 independently owned databases: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, Notification, POS, Media, and Reporting. Catalog version 3 and Inventory version 4 add explicit organization columns, composite tenant keys, and tenant-leading indexes to the simplified service tables used by customer APIs. Each migration has metadata and paired upgrade and downgrade scripts.
+Versioned migrations exist for 13 independently owned databases: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, Notification, POS, Media, and Reporting. Catalog version 3 and Inventory version 4 add explicit organization columns, composite tenant keys, and tenant-leading indexes to the simplified service tables used by customer APIs. Catalog version 4 adds append-only audit and transactional outbox state. Each migration has metadata and paired upgrade and downgrade scripts.
 
 Catalog version 3 and Inventory version 4 temporarily assign the empty UUID to pre-existing simplified-service rows because those legacy tables did not retain an organization identifier. Before enabling customer traffic, operators must backfill each row from the authoritative Restaurant branch scope and verify that no two organizations would collapse to the same legacy key. Downgrade is permitted only after the same collision check; otherwise the former branch/product or order/product primary key cannot be restored safely.
+
+Catalog version 4 adds `catalog_audit_records`, protected from update and delete by a database trigger, plus `outbox_messages` and its unpublished-message polling index. A PostgreSQL menu-item upsert, its audit row, and both versioned outbox messages commit in one transaction. The version-4 downgrade drops both tables and therefore destroys audit and undispatched publication history; producers must be stopped and the outbox drained before downgrade.
 
 Static validation has confirmed metadata parsing, create/drop parity, PostgreSQL identifier lengths, output packaging, and a clean migration-project build. The migration executable now understands versioned directories and explicit target versions. Live PostgreSQL clean-install, downgrade, and re-upgrade tests are still required before these scripts are production-executable.
 

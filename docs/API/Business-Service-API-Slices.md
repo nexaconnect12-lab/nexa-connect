@@ -6,7 +6,7 @@ The former weather scaffold endpoints have been replaced with initial bounded-co
 
 | Service | Routes | Current persistence |
 | --- | --- | --- |
-| Catalog | `GET` and `POST /api/catalog/v1/branches/{branchId}/menu-items` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory |
+| Catalog | `GET` and `POST /api/catalog/v1/branches/{branchId}/menu-items` | PostgreSQL menu, append-only audit, and transactional outbox state; otherwise non-durable in-memory. Outbox dispatch is optional. |
 | Inventory | `GET /api/inventory/v1/branches/{branchId}/stock`, `PUT .../stock/{productId}`, `POST .../reservations` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory |
 | Order | `POST` and `GET /api/order/v1/orders`; `POST /api/order/v1/workflows/place` | PostgreSQL aggregate, idempotency, and transactional outbox when `Persistence:Provider=PostgreSQL`; otherwise in-memory |
 | Payment | `POST` and `GET /api/payment/v1/intents` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory, with restaurant/idempotency-key deduplication |
@@ -40,6 +40,8 @@ Customer profile routes require the protected organization header to match the r
 The Customer BFF exposes `POST /bff/customer/orders/branches/{branchId}/place`. It derives `OrganizationId` from the protected tenant selection and `BranchId` from the route, forwards the server-held bearer token and tenant headers to Order, and accepts only the customer order fields (`RestaurantId`, `Currency`, `PaymentMethod`, `IdempotencyKey`, `Lines`, with optional `OrderId` and `CorrelationId`). Browser-supplied organization or branch fields are not trusted.
 
 Catalog, Inventory, and Payment use PostgreSQL adapters when `Persistence:Provider=PostgreSQL` and otherwise use their in-memory adapters. Notification migration 2 additionally supplies organization/source-event scoping, product audit, inbox deduplication, and a transactional outbox; its in-memory/provider adapters are explicitly non-durable. Order has a PostgreSQL aggregate repository, idempotency store, transactional outbox, and optional HTTP workflow adapters. No controller contains SQL or direct persistence access.
+
+Catalog migration 4 transactionally records each PostgreSQL menu-item upsert with `catalog.menu-item.changed.v1` and `catalog.audit.v1`. The menu event contains the commercial and preparation snapshot required by downstream consumers; the audit event contains identifiers and outcome only. The rows are committed whether or not dispatch is enabled. In PostgreSQL mode, `Outbox:Enabled=true` starts the shared RabbitMQ dispatcher and requires `Outbox:ConnectionString`.
 
 Notification tenant calls require `notification.send` or `notification.read`, active Platform Directory access, and an Authorization decision. `NotificationRequestedV1` is the asynchronous request contract and `NotificationQueuedV1` confirms durable acceptance. Its consumer uses a lease-based inbox plus a unique source event, so broker redelivery cannot queue the same request twice. Recipient and body are contract data and must never be written to operational logs.
 

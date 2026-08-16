@@ -5,6 +5,7 @@ using NexaConnect.Services.Catalog.Infrastructure;
 using Npgsql;
 using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Observability;
+using NexaConnect.Infrastructure.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-catalog");
@@ -23,6 +24,7 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     var dataSource = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("Catalog") ?? throw new InvalidOperationException("ConnectionStrings:Catalog is required.")).Build();
     builder.Services.AddSingleton(dataSource);
     builder.Services.AddSingleton<IMenuCatalog, PostgresMenuCatalog>();
+    if (builder.Configuration.GetValue<bool>("Outbox:Enabled")) builder.Services.AddPostgresOutbox(builder.Configuration, "Catalog");
 }
 else builder.Services.AddSingleton<IMenuCatalog, InMemoryMenuCatalog>();
 builder.Services.AddHttpClient<ICatalogTenantAuthorizer, HttpOrganizationAccessChecker>(client =>

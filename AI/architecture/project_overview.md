@@ -4,6 +4,8 @@ Portal roadmap status: Phases 1-4, 6, and 7 are complete for their documented de
 
 Phase 4 tenant-API status: Platform Directory resolves authenticated membership and enabled product access; Catalog, Inventory, Order, Payment, and Customer enforce product-owned permission decisions and resource ownership before their customer use cases execute. Catalog and Inventory customer persistence paths use organization-leading predicates and composite tenant keys; portals remain database-free.
 
+Phase 10 Catalog status: PostgreSQL menu-item upserts now transactionally persist an append-only product audit record plus versioned menu-change and audit outbox messages. The shared RabbitMQ dispatcher is opt-in, and migration 4 provides the downgrade boundary for this durable publication history.
+
 ## 1. Purpose
 
 NexaConnect is a restaurant operating platform that supports staff POS terminals, touch-screen self-service kiosks, kitchen ordering and display, customer QR ordering, reporting, and external integrations. Restaurant branches must continue approved operations during internet or cloud outages and synchronize safely after recovery. The architecture separates business capabilities into independently maintainable services while keeping the initial implementation practical for a small team.
@@ -200,6 +202,8 @@ Product-specific realm roles remain separate:
 ### 5.3 Catalog Service
 
 Owns products, categories, barcodes, tax classifications, price definitions, and product availability metadata.
+
+Its PostgreSQL menu-item mutation commits the tenant-scoped menu snapshot, append-only audit record, and `catalog.menu-item.changed.v1`/`catalog.audit.v1` outbox rows in one transaction. RabbitMQ dispatch is opt-in; the default in-memory adapter does not persist audit or publication state. Catalog migration 4 owns the audit/outbox schema and destructive downgrade boundary.
 
 ### 5.3.1 Platform Directory Service
 

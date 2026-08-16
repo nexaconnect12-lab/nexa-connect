@@ -8,7 +8,7 @@ Shared projects may contain immutable integration-event DTOs, tenant header name
 
 | Product service | Current Phase 10 foundation | Remaining exit work |
 | --- | --- | --- |
-| Catalog | Product-owned menu interfaces and PostgreSQL repository; tenant/branch authorization; API and Customer BFF contract; versioned migrations | Publish menu-change/audit events transactionally and prove rollback/component behavior |
+| Catalog | Product-owned menu interfaces and PostgreSQL repository; tenant/branch authorization; API and Customer BFF contract; `CatalogMenuItemChangedV1`; append-only product audit; transactional outbox; paired migration 4 upgrade/downgrade scripts | Prove the transaction and append-only constraint against PostgreSQL, and capture downgrade/re-upgrade plus broker recovery evidence before closing the slice |
 | Customer | Product-owned profile interface/repository; organization authorization and API contract; migration baseline | Add profile lifecycle integration/audit events and transactional outbox |
 | Inventory | Product-owned stock/reservation interfaces; branch authorization; PostgreSQL repository; durable inbox for consumed workflow messages | Complete transactional stock/reservation publication and product audit coverage |
 | Kitchen | Product-owned ticket interface/store; authenticated workload API; PostgreSQL repository and durable inbox | Add product audit/publication for ticket transitions and tenant-aware operator contracts when exposed beyond trusted workloads |
@@ -20,7 +20,7 @@ Shared projects may contain immutable integration-event DTOs, tenant header name
 | Reporting | Product-owned read/query ports; tenant authorization; Customer BFF/API; idempotent audit-event projection through durable inbox; PostgreSQL projections | Keep projection compatibility/rebuild and rollback evidence current as producers expand |
 | Restaurant | Product-owned hierarchy/configuration ports and repositories; tenant/platform policies; Platform Admin and Customer BFF/API contracts; audit integration events and outbox; reversible migrations | Extend the same pattern to future restaurant workflows without weakening organization-leading predicates |
 
-Notification is the first newly closed vertical slice in this phase. The table deliberately leaves the phase marked partial: it prevents a migration/table scaffold from being mistaken for complete cross-service integration and gives each remaining service a reviewable exit condition.
+Notification is the first newly closed vertical slice in this phase. Catalog now has its transactional publication implementation, contract serialization test, and migration-catalog coverage, but remains open until PostgreSQL transaction/constraint, downgrade/re-upgrade, and broker-recovery behavior is proven. The table deliberately leaves the phase marked partial: it prevents a migration/table scaffold from being mistaken for complete cross-service integration and gives each remaining service a reviewable exit condition.
 
 ## Rollout order
 

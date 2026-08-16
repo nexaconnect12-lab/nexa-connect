@@ -3,6 +3,7 @@ using NexaConnect.Contracts.Platform;
 using NexaConnect.Services.Catalog.Application.Menu;
 using NexaConnect.Services.Catalog.Application.Tenant;
 using NexaConnect.Infrastructure.Authorization;
+using System.Security.Claims;
 
 namespace NexaConnect.Services.Catalog.Controllers;
 
@@ -47,9 +48,12 @@ public sealed class MenuController(IMenuCatalog catalog, ICatalogTenantAuthorize
         }
         try
         {
+            string actor = User.FindFirstValue("sub") ?? User.FindFirstValue("azp") ?? "trusted-workload";
+            Guid correlationId = Guid.TryParse(HttpContext.TraceIdentifier, out Guid parsedCorrelationId) ? parsedCorrelationId : Guid.NewGuid();
+            var context = new MenuMutationContext(actor, correlationId);
             MenuItem item = customerOrganizationId is Guid organization
-                ? catalog.AddForOrganizationBranch(organization, branchId, command)
-                : catalog.Add(branchId, command);
+                ? catalog.AddForOrganizationBranch(organization, branchId, command, context)
+                : catalog.Add(branchId, command, context);
             return CreatedAtAction(nameof(Get), new { branchId }, item);
         }
         catch (ArgumentException exception)

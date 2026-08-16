@@ -2,13 +2,16 @@
 
 Owns branch menu items and price/preparation snapshots. The current API exposes `GET` and `POST /api/catalog/v1/branches/{branchId}/menu-items` through Application-owned `IMenuCatalog` and an Infrastructure adapter. Catalog uses the in-memory adapter by default; set `Persistence:Provider=PostgreSQL` and `ConnectionStrings:Catalog` to use the durable menu-item repository.
 
+In PostgreSQL mode, every menu-item upsert transactionally appends an immutable Catalog audit record and two outbox messages: `catalog.menu-item.changed.v1` carries the tenant, branch, product, price, availability, and preparation snapshot; `catalog.audit.v1` carries only scoped identifiers, action, actor, and outcome. These rows are always committed with the menu mutation. Enable dispatch with `Outbox:Enabled=true` and configure `Outbox:ConnectionString` with the RabbitMQ URI; enabling dispatch attempts the broker connection during service startup. When dispatch is disabled, or after an established broker connection becomes temporarily unavailable, committed rows remain for later retry. The in-memory adapter is intentionally non-durable and does not publish events.
+
 Customer Portal requests must include the validated `nexa_connect` tenant context headers. Catalog verifies organization access through Platform Directory, validates the Restaurant branch scope, and requires `catalog.menu.read` or `catalog.menu.write` from Authorization. Customer queries and writes include `organization_id`; migration 3 makes organization, branch, and product the composite key. Browser-selected IDs are never authorization proof.
 
 `GET /api/catalog/v1/internal/organizations/{organizationId}/products/{productId}/exists` is restricted to trusted workload identities and performs an organization-leading existence lookup for Media owner validation. It returns no product details, uses `404` for an absent or cross-tenant product, and emits a safe structured denial event for untrusted callers.
 
-Migration 3 marks legacy rows with the empty organization UUID. Backfill those rows from Restaurant branch ownership before customer traffic or downgrade; verify legacy-key uniqueness before restoring version 2.
+Migration 3 marks legacy rows with the empty organization UUID. Backfill those rows from Restaurant branch ownership before customer traffic or downgrade; verify legacy-key uniqueness before restoring version 2. Migration 4 adds append-only audit and transactional outbox tables; downgrading to version 3 deletes undispatched events and audit history, so disable producers and drain the outbox first.
 
 Configure `Services:Restaurant`, `WorkloadIdentity:Authority`, `WorkloadIdentity:ClientId`, and the secret `WorkloadIdentity:ClientSecret` in deployment configuration. The Restaurant scope endpoint accepts the catalog and POS service workload policies; customer access tokens are not forwarded to that endpoint.
 
 Structured request and dependency logs use service name `nexaconnect-catalog`; validated correlation IDs propagate to Platform Directory, Restaurant, and Authorization.
 JSON stdout is always enabled. Set `Observability__OtlpEnabled=true` and `Observability__OtlpEndpoint=http://localhost:4317` for Loki/Grafana; see the [observability guide](../../../docs/Deployment/Observability.md) for queries.
+For mutation debugging, query `{service_name="nexaconnect-catalog"} | CorrelationId="<validated-id>"`. Operational logs never contain event payloads, menu prices, request bodies, tokens, cookies, or arbitrary headers.

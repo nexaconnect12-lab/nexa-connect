@@ -82,3 +82,16 @@ public sealed record NotificationRequestedV1(
     string Subject,
     string Body,
     string SourceService) : IIntegrationEvent;
+
+public sealed record CatalogMenuItemChangedV1(
+    Guid EventId,
+    Guid CorrelationId,
+    DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId,
+    Guid BranchId,
+    Guid ProductId,
+    string Name,
+    decimal UnitPrice,
+    string Currency,
+    string PreparationStation,
+    bool Available) : IIntegrationEvent;
