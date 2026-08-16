@@ -21,6 +21,9 @@ public sealed class InMemoryInventoryReservations : IInventoryReservations
         stock[(branchId, productId)] = quantity;
         return new StockItem(productId, quantity);
     }
+    public StockItem SetStock(Guid organizationId,Guid branchId,Guid productId,decimal quantity,InventoryMutationContext? context=null)=>SetStock(branchId,productId,quantity);
+    public StockReservation Reserve(Guid organizationId,ReserveStock command,InventoryMutationContext? context=null)=>Reserve(command);
+    public void Release(Guid organizationId,Guid orderId,InventoryMutationContext? context=null)=>Release(orderId);
 
     public StockReservation Reserve(ReserveStock command)
     {

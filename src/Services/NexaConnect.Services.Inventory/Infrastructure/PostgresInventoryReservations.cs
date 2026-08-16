@@ -1,5 +1,6 @@
 using Npgsql;
 using NexaConnect.Services.Inventory.Application.Reservations;
+using NexaConnect.Contracts.IntegrationEvents;using System.Text.Json;
 
 namespace NexaConnect.Services.Inventory.Infrastructure;
 
@@ -20,10 +21,11 @@ public sealed class PostgresInventoryReservations(NpgsqlDataSource dataSource) :
         if (branchId == Guid.Empty || productId == Guid.Empty || quantity < 0) throw new ArgumentException("Branch, product, and a non-negative quantity are required.");
         using var command = dataSource.CreateCommand("INSERT INTO inventory_stock (branch_id,product_id,available_quantity) VALUES (@branch,@product,@quantity) ON CONFLICT (branch_id,product_id) DO UPDATE SET available_quantity=EXCLUDED.available_quantity"); command.Parameters.AddWithValue("branch", branchId); command.Parameters.AddWithValue("product", productId); command.Parameters.AddWithValue("quantity", quantity); command.ExecuteNonQuery(); return new StockItem(productId, quantity);
     }
-    public StockItem SetStock(Guid organizationId, Guid branchId, Guid productId, decimal quantity)
+    public StockItem SetStock(Guid organizationId, Guid branchId, Guid productId, decimal quantity,InventoryMutationContext? context=null)
     {
         if (organizationId == Guid.Empty || branchId == Guid.Empty || productId == Guid.Empty || quantity < 0) throw new ArgumentException("Organization, branch, product, and a non-negative quantity are required.");
-        using var command = dataSource.CreateCommand("INSERT INTO inventory_stock (organization_id,branch_id,product_id,available_quantity) VALUES (@organization,@branch,@product,@quantity) ON CONFLICT (organization_id,branch_id,product_id) DO UPDATE SET available_quantity=EXCLUDED.available_quantity"); command.Parameters.AddWithValue("organization", organizationId); command.Parameters.AddWithValue("branch", branchId); command.Parameters.AddWithValue("product", productId); command.Parameters.AddWithValue("quantity", quantity); command.ExecuteNonQuery(); return new StockItem(productId, quantity);
+        context=Require(context);DateTimeOffset now=DateTimeOffset.UtcNow;var evt=new InventoryStockSetV1(Guid.NewGuid(),context.CorrelationId,now,organizationId,branchId,productId,quantity);
+        using var connection=dataSource.OpenConnection();using var transaction=connection.BeginTransaction();using var command=new NpgsqlCommand("INSERT INTO inventory_stock (organization_id,branch_id,product_id,available_quantity) VALUES (@organization,@branch,@product,@quantity) ON CONFLICT (organization_id,branch_id,product_id) DO UPDATE SET available_quantity=EXCLUDED.available_quantity",connection,transaction); command.Parameters.AddWithValue("organization", organizationId); command.Parameters.AddWithValue("branch", branchId); command.Parameters.AddWithValue("product", productId); command.Parameters.AddWithValue("quantity", quantity); command.ExecuteNonQuery();Audit(connection,transaction,organizationId,branchId,productId,"inventory.stock.set",context,now);Enqueue(connection,transaction,evt.EventId,"inventory.stock-set.v1",productId,evt,context,now);transaction.Commit();return new StockItem(productId, quantity);
     }
     public StockReservation Reserve(ReserveStock command)
     {
@@ -38,9 +40,10 @@ public sealed class PostgresInventoryReservations(NpgsqlDataSource dataSource) :
         }
         transaction.Commit(); return new StockReservation(Guid.NewGuid(), command.OrderId, command.BranchId, command.Lines);
     }
-    public StockReservation Reserve(Guid organizationId, ReserveStock command)
+    public StockReservation Reserve(Guid organizationId, ReserveStock command,InventoryMutationContext? context=null)
     {
-        using var connection = dataSource.OpenConnection(); using var transaction = connection.BeginTransaction();
+        context=Require(context);using var connection = dataSource.OpenConnection(); using var transaction = connection.BeginTransaction();
+        using(var existing=new NpgsqlCommand("SELECT 1 FROM inventory_reservation_lines WHERE organization_id=@organization AND order_id=@order AND released_at_utc IS NULL LIMIT 1",connection,transaction)){existing.Parameters.AddWithValue("organization",organizationId);existing.Parameters.AddWithValue("order",command.OrderId);if(existing.ExecuteScalar() is not null){transaction.Rollback();return new StockReservation(command.OrderId,command.OrderId,command.BranchId,command.Lines);}}
         foreach (var line in command.Lines)
         {
             using var update = new NpgsqlCommand("UPDATE inventory_stock SET available_quantity=available_quantity-@quantity WHERE organization_id=@organization AND branch_id=@branch AND product_id=@product AND available_quantity>=@quantity", connection, transaction); update.Parameters.AddWithValue("quantity", line.Quantity); update.Parameters.AddWithValue("organization", organizationId); update.Parameters.AddWithValue("branch", command.BranchId); update.Parameters.AddWithValue("product", line.ProductId); if (update.ExecuteNonQuery() != 1) throw new InvalidOperationException($"Insufficient stock for product {line.ProductId}.");
@@ -49,7 +52,7 @@ public sealed class PostgresInventoryReservations(NpgsqlDataSource dataSource) :
         {
             using var insert = new NpgsqlCommand("INSERT INTO inventory_reservation_lines (organization_id,order_id,branch_id,product_id,quantity) VALUES (@organization,@order,@branch,@product,@quantity) ON CONFLICT (organization_id,order_id,product_id) DO UPDATE SET quantity=EXCLUDED.quantity", connection, transaction); insert.Parameters.AddWithValue("organization", organizationId); insert.Parameters.AddWithValue("order", command.OrderId); insert.Parameters.AddWithValue("branch", command.BranchId); insert.Parameters.AddWithValue("product", line.ProductId); insert.Parameters.AddWithValue("quantity", line.Quantity); insert.ExecuteNonQuery();
         }
-        transaction.Commit(); return new StockReservation(Guid.NewGuid(), command.OrderId, command.BranchId, command.Lines);
+        Guid reservationId=Guid.NewGuid();DateTimeOffset now=DateTimeOffset.UtcNow;var evt=new InventoryReservationCreatedV1(Guid.NewGuid(),context.CorrelationId,now,organizationId,command.BranchId,command.OrderId,reservationId,command.Lines.Select(x=>new InventoryReservationLineV1(x.ProductId,x.Quantity)).ToArray());Audit(connection,transaction,organizationId,command.BranchId,command.OrderId,"inventory.reservation.created",context,now);Enqueue(connection,transaction,evt.EventId,"inventory.reservation-created.v1",command.OrderId,evt,context,now);transaction.Commit(); return new StockReservation(reservationId, command.OrderId, command.BranchId, command.Lines);
     }
     public void Release(Guid orderId)
     {
@@ -57,9 +60,12 @@ public sealed class PostgresInventoryReservations(NpgsqlDataSource dataSource) :
         command.Parameters.AddWithValue("order", orderId);
         command.ExecuteNonQuery();
     }
-    public void Release(Guid organizationId, Guid orderId)
+    public void Release(Guid organizationId, Guid orderId,InventoryMutationContext? context=null)
     {
-        using var command = dataSource.CreateCommand("UPDATE inventory_stock s SET available_quantity=s.available_quantity+r.quantity FROM inventory_reservation_lines r WHERE r.organization_id=@organization AND r.order_id=@order AND s.organization_id=r.organization_id AND r.branch_id=s.branch_id AND r.product_id=s.product_id AND r.released_at_utc IS NULL; UPDATE inventory_reservation_lines SET released_at_utc=now() WHERE organization_id=@organization AND order_id=@order AND released_at_utc IS NULL");
-        command.Parameters.AddWithValue("organization", organizationId); command.Parameters.AddWithValue("order", orderId); command.ExecuteNonQuery();
+        context=Require(context);using var connection=dataSource.OpenConnection();using var transaction=connection.BeginTransaction();using var command = new NpgsqlCommand("UPDATE inventory_stock s SET available_quantity=s.available_quantity+r.quantity FROM inventory_reservation_lines r WHERE r.organization_id=@organization AND r.order_id=@order AND s.organization_id=r.organization_id AND r.branch_id=s.branch_id AND r.product_id=s.product_id AND r.released_at_utc IS NULL; UPDATE inventory_reservation_lines SET released_at_utc=now() WHERE organization_id=@organization AND order_id=@order AND released_at_utc IS NULL",connection,transaction);
+        command.Parameters.AddWithValue("organization", organizationId); command.Parameters.AddWithValue("order", orderId); int affected=command.ExecuteNonQuery();if(affected>0){DateTimeOffset now=DateTimeOffset.UtcNow;var evt=new InventoryReservationReleasedV1(Guid.NewGuid(),context.CorrelationId,now,organizationId,orderId);Audit(connection,transaction,organizationId,Guid.Empty,orderId,"inventory.reservation.released",context,now);Enqueue(connection,transaction,evt.EventId,"inventory.reservation-released.v1",orderId,evt,context,now);}transaction.Commit();
     }
+    private static InventoryMutationContext Require(InventoryMutationContext? c)=>c is null||string.IsNullOrWhiteSpace(c.ActorSubjectId)||c.CorrelationId==Guid.Empty?throw new ArgumentException("Mutation actor and correlation identifier are required."):c;
+    private static void Audit(NpgsqlConnection c,NpgsqlTransaction t,Guid o,Guid b,Guid resource,string action,InventoryMutationContext x,DateTimeOffset now){using var q=new NpgsqlCommand("INSERT INTO inventory_audit_records(id,organization_id,branch_id,resource_id,action,actor_subject_id,occurred_at_utc) VALUES($1,$2,$3,$4,$5,$6,$7)",c,t);q.Parameters.AddWithValue(Guid.NewGuid());q.Parameters.AddWithValue(o);q.Parameters.AddWithValue(b);q.Parameters.AddWithValue(resource);q.Parameters.AddWithValue(action);q.Parameters.AddWithValue(x.ActorSubjectId);q.Parameters.AddWithValue(now);q.ExecuteNonQuery();}
+    private static void Enqueue(NpgsqlConnection c,NpgsqlTransaction t,Guid id,string type,Guid aggregate,object payload,InventoryMutationContext x,DateTimeOffset now){using var q=new NpgsqlCommand("INSERT INTO outbox_messages(id,event_type,contract_version,aggregate_type,aggregate_id,payload,correlation_id,occurred_at_utc) VALUES($1,$2,1,'inventory',$3,$4::jsonb,$5,$6)",c,t);q.Parameters.AddWithValue(id);q.Parameters.AddWithValue(type);q.Parameters.AddWithValue(aggregate);q.Parameters.AddWithValue(JsonSerializer.Serialize(payload));q.Parameters.AddWithValue(x.CorrelationId.ToString("D"));q.Parameters.AddWithValue(now);q.ExecuteNonQuery();}
 }

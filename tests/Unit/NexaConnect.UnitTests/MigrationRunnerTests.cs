@@ -12,7 +12,7 @@ public sealed class MigrationRunnerTests
             ["Authorization"] = 2,
             ["Restaurant"] = 3,
             ["Catalog"] = 4,
-            ["Inventory"] = 4,
+            ["Inventory"] = 5,
             ["Order"] = 1,
             ["Kitchen"] = 2,
             ["Customer"] = 1,

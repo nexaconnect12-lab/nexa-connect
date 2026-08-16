@@ -33,6 +33,7 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     builder.Services.AddSingleton(dataSource);
     builder.Services.AddSingleton<IInventoryReservations, PostgresInventoryReservations>();
     builder.Services.AddPostgresInbox(builder.Configuration, "Inventory");
+    if(builder.Configuration.GetValue<bool>("Outbox:Enabled"))builder.Services.AddPostgresOutbox(builder.Configuration,"Inventory");
 }
 else builder.Services.AddSingleton<IInventoryReservations, InMemoryInventoryReservations>();
 

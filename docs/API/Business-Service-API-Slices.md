@@ -7,7 +7,7 @@ The former weather scaffold endpoints have been replaced with initial bounded-co
 | Service | Routes | Current persistence |
 | --- | --- | --- |
 | Catalog | `GET` and `POST /api/catalog/v1/branches/{branchId}/menu-items` | PostgreSQL menu, append-only audit, and transactional outbox state; otherwise non-durable in-memory. Outbox dispatch is optional. |
-| Inventory | `GET /api/inventory/v1/branches/{branchId}/stock`, `PUT .../stock/{productId}`, `POST .../reservations` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory |
+| Inventory | `GET /api/inventory/v1/branches/{branchId}/stock`, `PUT .../stock/{productId}`, `POST .../reservations` | PostgreSQL stock/reservations and durable inbox; tenant-scoped PostgreSQL writes also atomically append product audit and outbox records. Trusted unscoped paths remain legacy/non-publishing; otherwise persistence is non-durable in-memory. |
 | Order | `POST` and `GET /api/order/v1/orders`; `POST /api/order/v1/workflows/place` | PostgreSQL aggregate, idempotency, and transactional outbox when `Persistence:Provider=PostgreSQL`; otherwise in-memory |
 | Payment | `POST` and `GET /api/payment/v1/intents` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory, with restaurant/idempotency-key deduplication |
 | Customer | `POST` and `GET /api/customer/v1/organizations/{organizationId}/customers` | PostgreSQL adapter when `Persistence:Provider=PostgreSQL`; otherwise in-memory, with organization boundary checks |

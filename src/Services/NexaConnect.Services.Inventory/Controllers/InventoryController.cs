@@ -3,6 +3,7 @@ using NexaConnect.Services.Inventory.Application.Reservations;
 using NexaConnect.Services.Inventory.Application.Tenant;
 using NexaConnect.Contracts.Platform;
 using NexaConnect.Infrastructure.Authorization;
+using System.Security.Claims;
 
 namespace NexaConnect.Services.Inventory.Controllers;
 
@@ -23,7 +24,7 @@ public sealed class InventoryController(IInventoryReservations inventory, IInven
     {
         Guid? organizationId = await GetCustomerOrganizationAsync(branchId, ProductPermissions.InventoryStockWrite, cancellationToken);
         if (organizationId == Guid.Empty) return Forbid();
-        try { return Ok(organizationId is Guid tenant ? inventory.SetStock(tenant, branchId, productId, request.Quantity) : inventory.SetStock(branchId, productId, request.Quantity)); }
+        try { return Ok(organizationId is Guid tenant ? inventory.SetStock(tenant, branchId, productId, request.Quantity, MutationContext()) : inventory.SetStock(branchId, productId, request.Quantity)); }
         catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
     }
 
@@ -35,7 +36,7 @@ public sealed class InventoryController(IInventoryReservations inventory, IInven
         try
         {
             return Created($"/api/inventory/v1/reservations/{request.OrderId}",
-                organizationId is Guid tenant ? inventory.Reserve(tenant, new ReserveStock(request.OrderId, branchId, request.Lines)) : inventory.Reserve(new ReserveStock(request.OrderId, branchId, request.Lines)));
+                organizationId is Guid tenant ? inventory.Reserve(tenant, new ReserveStock(request.OrderId, branchId, request.Lines), MutationContext()) : inventory.Reserve(new ReserveStock(request.OrderId, branchId, request.Lines)));
         }
         catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
         catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
@@ -46,7 +47,7 @@ public sealed class InventoryController(IInventoryReservations inventory, IInven
     {
         Guid? organizationId = await GetCustomerOrganizationAsync(branchId, ProductPermissions.InventoryReservationRelease, cancellationToken);
         if (organizationId == Guid.Empty) return Forbid();
-        if (organizationId is Guid tenant) inventory.Release(tenant, orderId); else inventory.Release(orderId);
+        if (organizationId is Guid tenant) inventory.Release(tenant, orderId, MutationContext()); else inventory.Release(orderId);
         return NoContent();
     }
 
@@ -65,6 +66,7 @@ public sealed class InventoryController(IInventoryReservations inventory, IInven
         if (!Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out Guid organizationId)) return Guid.Empty;
         return await HasCustomerAccessAsync(branchId, permission, cancellationToken) ? organizationId : Guid.Empty;
     }
+    private InventoryMutationContext MutationContext()=>new(User.FindFirstValue("sub")??User.FindFirstValue("azp")??"trusted-workload",Guid.TryParse(HttpContext.TraceIdentifier,out Guid id)?id:Guid.NewGuid());
 }
 
 public sealed record SetStockRequest(decimal Quantity);

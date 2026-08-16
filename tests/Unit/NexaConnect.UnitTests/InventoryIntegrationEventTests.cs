@@ -1,0 +1,3 @@
+using System.Text.Json;using NexaConnect.Contracts.IntegrationEvents;
+namespace NexaConnect.UnitTests;
+public sealed class InventoryIntegrationEventTests{[Fact]public void Reservation_contract_preserves_tenant_and_lines(){var e=new InventoryReservationCreatedV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),[new(Guid.NewGuid(),2)]);var copy=JsonSerializer.Deserialize<InventoryReservationCreatedV1>(JsonSerializer.Serialize(e))!;Assert.Equal(e.OrganizationId,copy.OrganizationId);Assert.Single(copy.Lines);Assert.Equal(2,copy.Lines.First().Quantity);}}

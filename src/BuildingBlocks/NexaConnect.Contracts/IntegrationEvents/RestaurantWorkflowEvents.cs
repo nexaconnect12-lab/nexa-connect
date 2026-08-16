@@ -95,3 +95,8 @@ public sealed record CatalogMenuItemChangedV1(
     string Currency,
     string PreparationStation,
     bool Available) : IIntegrationEvent;
+
+public sealed record InventoryStockSetV1(Guid EventId,Guid CorrelationId,DateTimeOffset OccurredAtUtc,Guid OrganizationId,Guid BranchId,Guid ProductId,decimal AvailableQuantity) : IIntegrationEvent;
+public sealed record InventoryReservationCreatedV1(Guid EventId,Guid CorrelationId,DateTimeOffset OccurredAtUtc,Guid OrganizationId,Guid BranchId,Guid OrderId,Guid ReservationId,IReadOnlyCollection<InventoryReservationLineV1> Lines) : IIntegrationEvent;
+public sealed record InventoryReservationReleasedV1(Guid EventId,Guid CorrelationId,DateTimeOffset OccurredAtUtc,Guid OrganizationId,Guid OrderId) : IIntegrationEvent;
+public sealed record InventoryReservationLineV1(Guid ProductId,decimal Quantity);
