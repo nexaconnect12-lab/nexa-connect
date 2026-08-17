@@ -82,6 +82,15 @@ $env:DOTNET_ENVIRONMENT = 'Testing'
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~InventoryMigrationRunnerAcceptanceTests
 ```
 
+`PosMigrationRunnerAcceptanceTests` manages only generated `nexaconnect_pos_clean_it_<guid>` databases and invokes the actual POS runner for 0→3→2→3. It validates migration checksums/history, all baseline tables, shift authorization columns/indexes, migration-3 removal/reapply, retained cash/replay rows, and real shift/cash repository behavior before and after re-upgrade. The case passed locally against PostgreSQL 17 and removed its generated database.
+
+```powershell
+$env:NEXACONNECT_POS_CLEAN_INSTALL_ACCEPTANCE = '1'
+$env:NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB = 'Host=localhost;Port=5432;Database=postgres;Username=<test-admin>;Password=<password>'
+$env:DOTNET_ENVIRONMENT = 'Testing'
+dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~PosMigrationRunnerAcceptanceTests
+```
+
 Run the Payment Phase 10 PostgreSQL/RabbitMQ component acceptance with:
 
 ```powershell
