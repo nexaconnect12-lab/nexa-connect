@@ -43,7 +43,12 @@ public sealed class CashSessionsController(CashSessionApplicationService cashSes
         try
         {
             await cashSessions.RecordMovementAsync(
-                new RecordCashMovementCommand(cashSessionId, request.MovementType, request.Amount, request.ReasonCode),
+                new RecordCashMovementCommand(
+                    cashSessionId,
+                    request.MovementType,
+                    request.Amount,
+                    request.ReasonCode,
+                    GetClientOperationId()),
                 subject,
                 cancellationToken);
             return Accepted();
@@ -87,6 +92,14 @@ public sealed class CashSessionsController(CashSessionApplicationService cashSes
             ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? "";
         return User.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(subject);
+    }
+
+    private Guid? GetClientOperationId()
+    {
+        string value = Request.Headers["X-Client-Operation-Id"].ToString();
+        return Guid.TryParse(value, out Guid operationId) && operationId != Guid.Empty
+            ? operationId
+            : null;
     }
 }
 

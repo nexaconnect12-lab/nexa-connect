@@ -361,12 +361,14 @@ internal sealed class InMemoryCashSessionStore : ICashSessionStore
         return Task.FromResult(id);
     }
 
-    public Task RecordMovementAsync(
+    public Task<bool> RecordMovementAsync(
         Guid cashSessionId,
         string movementType,
         decimal amount,
         string recordedBy,
         string? reasonCode,
+        Guid? clientOperationId,
+        string payloadHash,
         CancellationToken cancellationToken)
     {
         if (!_sessions.TryGetValue(cashSessionId, out CashSessionState? session) || session.Closed)
@@ -376,7 +378,7 @@ internal sealed class InMemoryCashSessionStore : ICashSessionStore
 
         decimal signedAmount = movementType is "sale" or "pay_in" or "float_adjustment" ? amount : -amount;
         _sessions[cashSessionId] = session with { ExpectedAmount = session.ExpectedAmount + signedAmount };
-        return Task.CompletedTask;
+        return Task.FromResult(true);
     }
 
     public Task CloseAsync(Guid cashSessionId, decimal actualClosingAmount, CancellationToken cancellationToken)

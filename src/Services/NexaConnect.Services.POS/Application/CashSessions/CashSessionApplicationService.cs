@@ -1,17 +1,22 @@
 namespace NexaConnect.Services.POS.Application.CashSessions;
 
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+
 public sealed record OpenCashSessionCommand(Guid ShiftId, Guid StoreId, string? Currency, decimal OpeningAmount);
 
 public sealed record RecordCashMovementCommand(
     Guid CashSessionId,
     string MovementType,
     decimal Amount,
-    string? ReasonCode);
+    string? ReasonCode,
+    Guid? ClientOperationId = null);
 
 public interface ICashSessionStore
 {
     Task<Guid> OpenAsync(Guid shiftId, Guid storeId, string currency, decimal openingAmount, CancellationToken cancellationToken);
-    Task RecordMovementAsync(Guid cashSessionId, string movementType, decimal amount, string recordedBy, string? reasonCode, CancellationToken cancellationToken);
+    Task<bool> RecordMovementAsync(Guid cashSessionId, string movementType, decimal amount, string recordedBy, string? reasonCode, Guid? clientOperationId, string payloadHash, CancellationToken cancellationToken);
     Task CloseAsync(Guid cashSessionId, decimal actualClosingAmount, CancellationToken cancellationToken);
 }
 
@@ -67,7 +72,13 @@ public sealed class CashSessionApplicationService(ICashSessionStore store)
                 command.Amount,
                 subject,
                 command.ReasonCode,
+                command.ClientOperationId,
+                ComputeMovementHash(command),
                 cancellationToken);
+        }
+        catch (DuplicateSyncOperationException exception)
+        {
+            throw new CashSessionConflictException(exception.Message, exception);
         }
         catch (InvalidOperationException exception)
         {
@@ -104,8 +115,19 @@ public sealed class CashSessionApplicationService(ICashSessionStore store)
             throw new CashSessionAuthorizationException();
         }
     }
+
+    private static string ComputeMovementHash(RecordCashMovementCommand command)
+    {
+        string value = string.Join('\n',
+            command.CashSessionId.ToString("D"),
+            command.MovementType,
+            command.Amount.ToString("0.####", CultureInfo.InvariantCulture),
+            command.ReasonCode?.Trim() ?? "");
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+    }
 }
 
 public sealed class CashSessionValidationException(string message) : Exception(message);
 public sealed class CashSessionAuthorizationException() : Exception("An authenticated POS subject is required.");
 public sealed class CashSessionConflictException(string message, Exception innerException) : Exception(message, innerException);
+public sealed class DuplicateSyncOperationException(string message) : Exception(message);

@@ -52,6 +52,8 @@ A successful open returns `200 OK` with `{ "cashSessionId": "...", "openedBy": "
 
 Supported movement types are `sale`, `refund`, `pay_in`, `pay_out`, and `float_adjustment`. A successful record returns `202 Accepted`.
 
+Offline POS replay may include `X-Client-Operation-Id: <uuid>`. PostgreSQL mode stores the operation in `sync_operations` under the cash session's terminal and commits that marker with the cash movement. Replaying the same operation id and same normalized movement payload returns `202 Accepted` without inserting a duplicate movement; reusing the operation id for a different payload returns `409 Conflict`.
+
 `POST /api/pos/v1/cash-sessions/{cashSessionId}/close` closes the session and calculates the variance from the opening amount and movements:
 
 ```json

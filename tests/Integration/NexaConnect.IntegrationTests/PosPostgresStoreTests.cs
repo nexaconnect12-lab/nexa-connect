@@ -4,6 +4,7 @@ using Npgsql;
 using Shift = POS::NexaConnect.Services.POS.Domain.Shifts.Shift;
 using ShiftStatus = POS::NexaConnect.Services.POS.Domain.Shifts.ShiftStatus;
 using ShiftConflictException = POS::NexaConnect.Services.POS.Application.Shifts.ShiftConflictException;
+using CashStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.PostgresCashSessionStore;
 using ShiftStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.PostgresShiftStore;
 
 namespace NexaConnect.IntegrationTests;
@@ -78,6 +79,31 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
 
         await Assert.ThrowsAsync<ShiftConflictException>(
             () => _store.CreateAsync(second, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Cash_movement_replay_with_client_operation_id_is_idempotent()
+    {
+        if (!DatabaseConfigured()) return;
+        Guid restaurantId = Guid.NewGuid();
+        Guid branchId = Guid.NewGuid();
+        Guid storeId = Guid.NewGuid();
+        Guid terminalId = Guid.NewGuid();
+        await InsertStoreAndTerminalAsync(restaurantId, branchId, storeId, terminalId, "active", "active");
+        Shift shift = Shift.Open(Guid.NewGuid(), storeId, terminalId, "cashier-1", "SHIFT-CASH-1", Guid.NewGuid(), DateTimeOffset.UtcNow);
+        await _store!.CreateAsync(shift, CancellationToken.None);
+        var cashStore = new CashStore(_dataSource!);
+        Guid cashSessionId = await cashStore.OpenAsync(shift.Id, storeId, "USD", 10m, CancellationToken.None);
+        Guid operationId = Guid.NewGuid();
+
+        Assert.True(await cashStore.RecordMovementAsync(
+            cashSessionId, "sale", 5m, "cashier-1", null, operationId, "hash-1", CancellationToken.None));
+        Assert.False(await cashStore.RecordMovementAsync(
+            cashSessionId, "sale", 5m, "cashier-1", null, operationId, "hash-1", CancellationToken.None));
+        await Assert.ThrowsAsync<POS::NexaConnect.Services.POS.Application.CashSessions.DuplicateSyncOperationException>(() =>
+            cashStore.RecordMovementAsync(cashSessionId, "sale", 6m, "cashier-1", null, operationId, "hash-2", CancellationToken.None));
+
+        Assert.Equal(1, await CountCashMovementsAsync(cashSessionId));
     }
 
     public async Task InitializeAsync()
@@ -197,6 +223,16 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
         await command.ExecuteNonQueryAsync();
     }
 
+    private async Task<int> CountCashMovementsAsync(Guid cashSessionId)
+    {
+        await using NpgsqlConnection connection = await _dataSource!.OpenConnectionAsync();
+        await using var command = new NpgsqlCommand(
+            "SELECT count(*) FROM cash_movements WHERE cash_session_id = $1;",
+            connection);
+        command.Parameters.AddWithValue(cashSessionId);
+        return Convert.ToInt32(await command.ExecuteScalarAsync());
+    }
+
     private const string SchemaSql = """
         CREATE TABLE stores
         (
@@ -211,6 +247,7 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
             id uuid PRIMARY KEY, restaurant_id uuid NOT NULL, store_id uuid NOT NULL,
             code text NOT NULL, device_type text NOT NULL, registration_status text NOT NULL,
             registered_at_utc timestamptz NULL, revoked_at_utc timestamptz NULL,
+            last_seen_at_utc timestamptz NULL, last_sync_at_utc timestamptz NULL,
             created_at_utc timestamptz NOT NULL, updated_at_utc timestamptz NOT NULL,
             concurrency_version bigint NOT NULL DEFAULT 1
         );
@@ -225,5 +262,29 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
             CONSTRAINT uq_shifts_store_shift_number UNIQUE (store_id, shift_number)
         );
         CREATE UNIQUE INDEX uq_shifts_terminal_open ON shifts (terminal_id) WHERE status IN ('open', 'closing');
+        CREATE TABLE cash_sessions
+        (
+            id uuid PRIMARY KEY, store_id uuid NOT NULL, shift_id uuid NOT NULL,
+            currency char(3) NOT NULL, opening_amount numeric(19,4) NOT NULL,
+            expected_closing_amount numeric(19,4) NULL, actual_closing_amount numeric(19,4) NULL,
+            variance_amount numeric(19,4) NULL, status text NOT NULL,
+            opened_at_utc timestamptz NOT NULL, closed_at_utc timestamptz NULL,
+            created_at_utc timestamptz NOT NULL, updated_at_utc timestamptz NOT NULL,
+            concurrency_version bigint NOT NULL DEFAULT 1
+        );
+        CREATE TABLE cash_movements
+        (
+            id uuid PRIMARY KEY, cash_session_id uuid NOT NULL, movement_type text NOT NULL,
+            amount numeric(19,4) NOT NULL, order_id uuid NULL, payment_id uuid NULL,
+            reason_code text NULL, occurred_at_utc timestamptz NOT NULL, recorded_by text NOT NULL
+        );
+        CREATE TABLE sync_operations
+        (
+            id uuid PRIMARY KEY, terminal_id uuid NOT NULL, client_operation_id uuid NOT NULL,
+            operation_type text NOT NULL, payload_hash text NOT NULL, status text NOT NULL,
+            response_status integer NULL, response_reference_id uuid NULL, error_code text NULL,
+            received_at_utc timestamptz NOT NULL, completed_at_utc timestamptz NULL,
+            CONSTRAINT uq_sync_operations_terminal_client_operation UNIQUE (terminal_id, client_operation_id)
+        );
         """;
 }

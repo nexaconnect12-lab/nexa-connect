@@ -13,6 +13,8 @@ The POS service owns terminals, stores, shifts, and server-side POS operations. 
 
 All listed endpoints require an authenticated bearer token with the `nexaconnect-api` audience. Missing authentication context is rejected. Shift and terminal-enrollment operations reject invalid branch/store/terminal scope and denied authorization. Concurrent terminal or shift-number conflicts return `409`; a stale close returns `409` rather than overwriting another change. If Restaurant or Authorization is unavailable, shift and terminal-enrollment operations return `503` without exposing provider details.
 
+Cash movement replay supports the POS offline outbox header `X-Client-Operation-Id`. When present, PostgreSQL records the terminal-scoped operation in `sync_operations` and commits it with the movement. Retrying the same operation id and payload is accepted without duplicating the cash movement; reusing the id with a different movement returns `409`.
+
 ## Configuration
 
 - `ConnectionStrings:POS` — the POS-owned PostgreSQL database.
@@ -21,7 +23,7 @@ All listed endpoints require an authenticated bearer token with the `nexaconnect
 - `Services:Restaurant` — the Restaurant API used to resolve branch scope.
 - `Services:Authorization` — the Authorization API used to evaluate product permissions.
 
-Runtime database access is implemented behind POS Application-owned persistence ports and Infrastructure adapters. Shift, cash-session, and terminal-enrollment validation and workflow orchestration live in Application services; controllers retain transport authentication context and HTTP mapping, while raw SQL remains parameterized and isolated to Infrastructure.
+Runtime database access is implemented behind POS Application-owned persistence ports and Infrastructure adapters. Shift, cash-session, terminal-enrollment, and replay-idempotency validation and workflow orchestration live in Application services; controllers retain transport authentication context and HTTP mapping, while raw SQL remains parameterized and isolated to Infrastructure.
 
 Production requests must use HTTPS. The service rejects cleartext HTTP requests outside Development and Testing; until an allow-listed forwarded-header configuration is deployed, TLS must terminate at the POS process itself.
 

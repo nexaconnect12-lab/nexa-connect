@@ -36,14 +36,35 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
         return id;
     }
 
-    public async Task RecordMovementAsync(
+    public async Task<bool> RecordMovementAsync(
         Guid cashSessionId,
         string movementType,
         decimal amount,
         string recordedBy,
         string? reasonCode,
+        Guid? clientOperationId,
+        string payloadHash,
         CancellationToken cancellationToken)
     {
+        await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        if (clientOperationId is not null)
+        {
+            SyncOperationStatus status = await RecordSyncOperationAsync(
+                connection,
+                transaction,
+                cashSessionId,
+                clientOperationId.Value,
+                payloadHash,
+                cancellationToken);
+            if (status == SyncOperationStatus.Completed)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return false;
+            }
+        }
+
         const string sql = """
             INSERT INTO cash_movements
                 (id, cash_session_id, movement_type, amount, reason_code, occurred_at_utc, recorded_by)
@@ -51,18 +72,115 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
             FROM cash_sessions session
             WHERE session.id = $6 AND session.status = 'open';
             """;
-        await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue(Guid.NewGuid());
-        command.Parameters.AddWithValue(movementType);
-        command.Parameters.AddWithValue(amount);
-        command.Parameters.AddWithValue((object?)reasonCode ?? DBNull.Value);
-        command.Parameters.AddWithValue(recordedBy);
-        command.Parameters.AddWithValue(cashSessionId);
-        if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+        await using (var command = new NpgsqlCommand(sql, connection, transaction))
+        {
+            command.Parameters.AddWithValue(Guid.NewGuid());
+            command.Parameters.AddWithValue(movementType);
+            command.Parameters.AddWithValue(amount);
+            command.Parameters.AddWithValue((object?)reasonCode ?? DBNull.Value);
+            command.Parameters.AddWithValue(recordedBy);
+            command.Parameters.AddWithValue(cashSessionId);
+            if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            {
+                throw new InvalidOperationException("The cash session is not open.");
+            }
+        }
+
+        if (clientOperationId is not null)
+        {
+            const string completeSql = """
+                WITH session_terminal AS (
+                    SELECT shift.terminal_id
+                    FROM cash_sessions session
+                    JOIN shifts shift ON shift.id = session.shift_id AND shift.store_id = session.store_id
+                    WHERE session.id = $2
+                )
+                UPDATE sync_operations
+                SET status = 'completed', response_status = 202, completed_at_utc = now()
+                WHERE client_operation_id = $1
+                  AND terminal_id = (SELECT terminal_id FROM session_terminal);
+
+                WITH session_terminal AS (
+                    SELECT shift.terminal_id
+                    FROM cash_sessions session
+                    JOIN shifts shift ON shift.id = session.shift_id AND shift.store_id = session.store_id
+                    WHERE session.id = $2
+                )
+                UPDATE terminals
+                SET last_seen_at_utc = now(), last_sync_at_utc = now(), updated_at_utc = now(),
+                    concurrency_version = concurrency_version + 1
+                WHERE id = (SELECT terminal_id FROM session_terminal);
+                """;
+            await using var complete = new NpgsqlCommand(completeSql, connection, transaction);
+            complete.Parameters.AddWithValue(clientOperationId.Value);
+            complete.Parameters.AddWithValue(cashSessionId);
+            await complete.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    private static async Task<SyncOperationStatus> RecordSyncOperationAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid cashSessionId,
+        Guid clientOperationId,
+        string payloadHash,
+        CancellationToken cancellationToken)
+    {
+        const string insertSql = """
+            WITH session_terminal AS (
+                SELECT shift.terminal_id
+                FROM cash_sessions session
+                JOIN shifts shift ON shift.id = session.shift_id AND shift.store_id = session.store_id
+                WHERE session.id = $1
+            )
+            INSERT INTO sync_operations
+                (id, terminal_id, client_operation_id, operation_type, payload_hash, status, received_at_utc)
+            SELECT $4, terminal_id, $2, 'cash-movement.recorded', $3, 'received', now()
+            FROM session_terminal
+            ON CONFLICT (terminal_id, client_operation_id) DO NOTHING;
+            """;
+        await using (var insert = new NpgsqlCommand(insertSql, connection, transaction))
+        {
+            insert.Parameters.AddWithValue(cashSessionId);
+            insert.Parameters.AddWithValue(clientOperationId);
+            insert.Parameters.AddWithValue(payloadHash);
+            insert.Parameters.AddWithValue(Guid.NewGuid());
+            if (await insert.ExecuteNonQueryAsync(cancellationToken) == 0)
+            {
+                // The row may already exist, or the cash session may be unknown. The locked read below distinguishes them.
+            }
+        }
+
+        const string readSql = """
+            SELECT operation.payload_hash, operation.status
+            FROM sync_operations operation
+            JOIN cash_sessions session ON session.id = $1
+            JOIN shifts shift ON shift.id = session.shift_id AND shift.store_id = session.store_id
+            WHERE operation.terminal_id = shift.terminal_id AND operation.client_operation_id = $2
+            FOR UPDATE OF operation;
+            """;
+        await using var read = new NpgsqlCommand(readSql, connection, transaction);
+        read.Parameters.AddWithValue(cashSessionId);
+        read.Parameters.AddWithValue(clientOperationId);
+        await using NpgsqlDataReader reader = await read.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
         {
             throw new InvalidOperationException("The cash session is not open.");
         }
+
+        string storedHash = reader.GetString(0);
+        string status = reader.GetString(1);
+        if (!string.Equals(storedHash, payloadHash, StringComparison.Ordinal))
+        {
+            throw new DuplicateSyncOperationException("The client operation id was already used with a different cash movement payload.");
+        }
+
+        return string.Equals(status, "completed", StringComparison.Ordinal)
+            ? SyncOperationStatus.Completed
+            : SyncOperationStatus.Received;
     }
 
     public async Task CloseAsync(
@@ -88,5 +206,11 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
         {
             throw new InvalidOperationException("The cash session is missing or already closed.");
         }
+    }
+
+    private enum SyncOperationStatus
+    {
+        Received,
+        Completed
     }
 }
