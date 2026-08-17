@@ -30,6 +30,8 @@ Authorization migration 3 backfills `kitchen.ticket.read` and `kitchen.ticket.tr
 
 Customer migration 2 adds append-only audit that excludes profile fields while migration 1 remains the outbox owner. The audit retains a restricted actor subject for accountability. First creation transactionally persists one profile, one audit row, and `customer.profile-created.v1`/`customer.audit.v1`; matching retries do not republish. Reporting migration 6 accepts and replay-protects Customer audit vocabulary. Six coordinated PostgreSQL 17/RabbitMQ acceptances passed locally, including concurrent replay, atomic rollback, confirmed recovery publication, Reporting replay, and Customer 0→2→1→2. Generated acceptance infrastructure was removed afterward.
 
+POS cash replay has seven successful isolated-schema PostgreSQL 17 tests. They prove exact/concurrent operation deduplication, rollback of the sync marker when movement insertion fails, terminal and shift-subject denial, active terminal scoping, shift persistence/concurrency, and duplicate-open conflict. Each test creates and removes its own schema. Full POS migration-runner 0→3→2→3 evidence remains required.
+
 ## 2. Database topology
 
 PostgreSQL is the standard transactional database technology. A single PostgreSQL cluster is acceptable for the initial deployment, but each service must have an independently owned database, role, connection string, migrations, and backup policy.

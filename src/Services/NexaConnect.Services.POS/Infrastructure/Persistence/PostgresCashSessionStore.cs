@@ -102,22 +102,35 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
                 SET status = 'completed', response_status = 202, completed_at_utc = now()
                 WHERE client_operation_id = $1
                   AND terminal_id = (SELECT terminal_id FROM session_terminal);
+                """;
+            await using (var complete = new NpgsqlCommand(completeSql, connection, transaction))
+            {
+                complete.Parameters.AddWithValue(clientOperationId.Value);
+                complete.Parameters.AddWithValue(cashSessionId);
+                if (await complete.ExecuteNonQueryAsync(cancellationToken) != 1)
+                {
+                    throw new InvalidOperationException("The POS sync operation could not be completed.");
+                }
+            }
 
+            const string updateTerminalSql = """
                 WITH session_terminal AS (
                     SELECT shift.terminal_id
                     FROM cash_sessions session
                     JOIN shifts shift ON shift.id = session.shift_id AND shift.store_id = session.store_id
-                    WHERE session.id = $2
+                    WHERE session.id = $1
                 )
                 UPDATE terminals
                 SET last_seen_at_utc = now(), last_sync_at_utc = now(), updated_at_utc = now(),
                     concurrency_version = concurrency_version + 1
                 WHERE id = (SELECT terminal_id FROM session_terminal);
                 """;
-            await using var complete = new NpgsqlCommand(completeSql, connection, transaction);
-            complete.Parameters.AddWithValue(clientOperationId.Value);
-            complete.Parameters.AddWithValue(cashSessionId);
-            await complete.ExecuteNonQueryAsync(cancellationToken);
+            await using var updateTerminal = new NpgsqlCommand(updateTerminalSql, connection, transaction);
+            updateTerminal.Parameters.AddWithValue(cashSessionId);
+            if (await updateTerminal.ExecuteNonQueryAsync(cancellationToken) != 1)
+            {
+                throw new InvalidOperationException("The POS terminal synchronization checkpoint could not be updated.");
+            }
         }
 
         await transaction.CommitAsync(cancellationToken);

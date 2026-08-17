@@ -31,3 +31,7 @@ Production requests must use HTTPS. The service rejects cleartext HTTP requests 
 For local development, start the service with the `https` launch profile (`https://localhost:7120` and `http://localhost:5225`) and run the Restaurant and Authorization services at their configured development addresses.
 
 POS emits structured JSON request logs and safe cash replay accepted/replayed/denied/conflict events without request bodies, tokens, or cash values. In Grafana Explore, query `{service_name="nexaconnect-pos"} |= "POS offline cash movement"`, then narrow by `CorrelationId`, `CashSessionId`, `TerminalId`, or `ClientOperationId`.
+
+## Verification
+
+Set `NEXACONNECT_ENVIRONMENT=Testing` and `NEXACONNECT_POS_INTEGRATION_DB` to a non-production PostgreSQL database whose role may create and drop isolated schemas, then run `dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter "FullyQualifiedName~PosPostgresStoreTests"`. Seven cases passed locally against PostgreSQL 17. Without both opt-in values, the cases report skipped rather than passed. The tests remove their generated schemas; they do not provide the still-required 0→3→2→3 full migration-runner evidence.
