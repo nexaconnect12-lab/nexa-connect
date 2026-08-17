@@ -17,10 +17,10 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
     private string? _schema;
     private ShiftStore? _store;
 
-    [Fact]
+    [PosPostgresFact]
     public async Task Terminal_scope_requires_active_matching_store_and_branch()
     {
-        if (!DatabaseConfigured()) return;
+        RequireDatabase();
         Guid restaurantId = Guid.NewGuid();
         Guid branchId = Guid.NewGuid();
         Guid storeId = Guid.NewGuid();
@@ -37,10 +37,10 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
             branchId, storeId, terminalId, restaurantId, CancellationToken.None));
     }
 
-    [Fact]
+    [PosPostgresFact]
     public async Task Create_find_and_optimistic_close_persist_shift_state()
     {
-        if (!DatabaseConfigured()) return;
+        RequireDatabase();
         Guid restaurantId = Guid.NewGuid();
         Guid branchId = Guid.NewGuid();
         Guid storeId = Guid.NewGuid();
@@ -63,10 +63,10 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
         Assert.False(await _store.TryCloseAsync(shift, CancellationToken.None));
     }
 
-    [Fact]
+    [PosPostgresFact]
     public async Task Duplicate_open_terminal_is_mapped_to_conflict()
     {
-        if (!DatabaseConfigured()) return;
+        RequireDatabase();
         Guid restaurantId = Guid.NewGuid();
         Guid branchId = Guid.NewGuid();
         Guid storeId = Guid.NewGuid();
@@ -81,10 +81,10 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
             () => _store.CreateAsync(second, CancellationToken.None));
     }
 
-    [Fact]
+    [PosPostgresFact]
     public async Task Cash_movement_replay_with_client_operation_id_is_idempotent()
     {
-        if (!DatabaseConfigured()) return;
+        RequireDatabase();
         Guid restaurantId = Guid.NewGuid();
         Guid branchId = Guid.NewGuid();
         Guid storeId = Guid.NewGuid();
@@ -97,13 +97,64 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
         Guid operationId = Guid.NewGuid();
 
         Assert.True(await cashStore.RecordMovementAsync(
-            cashSessionId, "sale", 5m, "cashier-1", null, operationId, "hash-1", CancellationToken.None));
+            cashSessionId, "sale", 5m, "cashier-1", null, operationId, terminalId, "hash-1", CancellationToken.None));
         Assert.False(await cashStore.RecordMovementAsync(
-            cashSessionId, "sale", 5m, "cashier-1", null, operationId, "hash-1", CancellationToken.None));
+            cashSessionId, "sale", 5m, "cashier-1", null, operationId, terminalId, "hash-1", CancellationToken.None));
         await Assert.ThrowsAsync<POS::NexaConnect.Services.POS.Application.CashSessions.DuplicateSyncOperationException>(() =>
-            cashStore.RecordMovementAsync(cashSessionId, "sale", 6m, "cashier-1", null, operationId, "hash-2", CancellationToken.None));
+            cashStore.RecordMovementAsync(cashSessionId, "sale", 6m, "cashier-1", null, operationId, terminalId, "hash-2", CancellationToken.None));
 
         Assert.Equal(1, await CountCashMovementsAsync(cashSessionId));
+    }
+
+    [PosPostgresFact]
+    public async Task Concurrent_cash_movement_replay_commits_once()
+    {
+        RequireDatabase();
+        var setup = await CreateOpenCashSessionAsync("SHIFT-CASH-CONCURRENT");
+        Guid operationId = Guid.NewGuid();
+
+        bool[] results = await Task.WhenAll(
+            setup.Store.RecordMovementAsync(setup.CashSessionId, "sale", 5m, "cashier-1", null,
+                operationId, setup.TerminalId, "concurrent-hash", CancellationToken.None),
+            setup.Store.RecordMovementAsync(setup.CashSessionId, "sale", 5m, "cashier-1", null,
+                operationId, setup.TerminalId, "concurrent-hash", CancellationToken.None));
+
+        Assert.Single(results, value => value);
+        Assert.Single(results, value => !value);
+        Assert.Equal(1, await CountCashMovementsAsync(setup.CashSessionId));
+        Assert.Equal(1, await CountSyncOperationsAsync(operationId));
+    }
+
+    [PosPostgresFact]
+    public async Task Failed_cash_movement_rolls_back_sync_operation()
+    {
+        RequireDatabase();
+        var setup = await CreateOpenCashSessionAsync("SHIFT-CASH-ROLLBACK");
+        await setup.Store.CloseAsync(setup.CashSessionId, 10m, CancellationToken.None);
+        Guid operationId = Guid.NewGuid();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => setup.Store.RecordMovementAsync(
+            setup.CashSessionId, "sale", 5m, "cashier-1", null,
+            operationId, setup.TerminalId, "rollback-hash", CancellationToken.None));
+
+        Assert.Equal(0, await CountCashMovementsAsync(setup.CashSessionId));
+        Assert.Equal(0, await CountSyncOperationsAsync(operationId));
+    }
+
+    [PosPostgresFact]
+    public async Task Cash_movement_replay_rejects_wrong_terminal_or_shift_subject()
+    {
+        RequireDatabase();
+        var setup = await CreateOpenCashSessionAsync("SHIFT-CASH-SCOPE");
+
+        await Assert.ThrowsAsync<POS::NexaConnect.Services.POS.Application.CashSessions.CashSessionReplayAuthorizationException>(() =>
+            setup.Store.RecordMovementAsync(setup.CashSessionId, "sale", 5m, "cashier-1", null,
+                Guid.NewGuid(), Guid.NewGuid(), "scope-hash", CancellationToken.None));
+        await Assert.ThrowsAsync<POS::NexaConnect.Services.POS.Application.CashSessions.CashSessionReplayAuthorizationException>(() =>
+            setup.Store.RecordMovementAsync(setup.CashSessionId, "sale", 5m, "another-cashier", null,
+                Guid.NewGuid(), setup.TerminalId, "subject-hash", CancellationToken.None));
+
+        Assert.Equal(0, await CountCashMovementsAsync(setup.CashSessionId));
     }
 
     public async Task InitializeAsync()
@@ -149,16 +200,13 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
         await _dataSource.DisposeAsync();
     }
 
-    private bool DatabaseConfigured()
+    private void RequireDatabase()
     {
         if (_dataSource is null || !IsSafeEnvironment())
         {
-            Console.WriteLine(
-                "POS PostgreSQL tests require NEXACONNECT_POS_INTEGRATION_DB and a Development/Test/Testing environment.");
-            return false;
+            throw new InvalidOperationException(
+                "POS PostgreSQL test configuration disappeared after test discovery.");
         }
-
-        return true;
     }
 
     private static bool IsSafeEnvironment()
@@ -233,6 +281,30 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
         return Convert.ToInt32(await command.ExecuteScalarAsync());
     }
 
+    private async Task<int> CountSyncOperationsAsync(Guid operationId)
+    {
+        await using NpgsqlConnection connection = await _dataSource!.OpenConnectionAsync();
+        await using var command = new NpgsqlCommand(
+            "SELECT count(*) FROM sync_operations WHERE client_operation_id = $1;",
+            connection);
+        command.Parameters.AddWithValue(operationId);
+        return Convert.ToInt32(await command.ExecuteScalarAsync());
+    }
+
+    private async Task<(CashStore Store, Guid CashSessionId, Guid TerminalId)> CreateOpenCashSessionAsync(string shiftNumber)
+    {
+        Guid restaurantId = Guid.NewGuid();
+        Guid branchId = Guid.NewGuid();
+        Guid storeId = Guid.NewGuid();
+        Guid terminalId = Guid.NewGuid();
+        await InsertStoreAndTerminalAsync(restaurantId, branchId, storeId, terminalId, "active", "active");
+        Shift shift = Shift.Open(Guid.NewGuid(), storeId, terminalId, "cashier-1", shiftNumber, Guid.NewGuid(), DateTimeOffset.UtcNow);
+        await _store!.CreateAsync(shift, CancellationToken.None);
+        var cashStore = new CashStore(_dataSource!);
+        Guid cashSessionId = await cashStore.OpenAsync(shift.Id, storeId, "USD", 10m, CancellationToken.None);
+        return (cashStore, cashSessionId, terminalId);
+    }
+
     private const string SchemaSql = """
         CREATE TABLE stores
         (
@@ -287,4 +359,22 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
             CONSTRAINT uq_sync_operations_terminal_client_operation UNIQUE (terminal_id, client_operation_id)
         );
         """;
+}
+
+public sealed class PosPostgresFactAttribute : FactAttribute
+{
+    public PosPostgresFactAttribute()
+    {
+        string? environment = Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        bool safeEnvironment = string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(environment, "Test", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(environment, "Testing", StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("NEXACONNECT_POS_INTEGRATION_DB"))
+            || !safeEnvironment)
+        {
+            Skip = "Requires NEXACONNECT_POS_INTEGRATION_DB and a Development/Test/Testing environment.";
+        }
+    }
 }

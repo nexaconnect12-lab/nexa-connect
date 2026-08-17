@@ -143,9 +143,10 @@ public sealed class PosShiftApiTests : IClassFixture<PosShiftApiFactory>
         var opened = await open.Content.ReadFromJsonAsync<CashSessionResponse>();
         Assert.NotNull(opened);
 
-        HttpResponseMessage movement = await client.PostAsJsonAsync(
-            $"/api/pos/v1/cash-sessions/{opened!.CashSessionId:D}/movements",
-            new { movementType = "pay_in", amount = 25m, reasonCode = "FLOAT" });
+        HttpResponseMessage movement = await ReplayCashMovementAsync(
+            client,
+            opened!.CashSessionId,
+            Guid.NewGuid());
         Assert.Equal(HttpStatusCode.Accepted, movement.StatusCode);
 
         HttpResponseMessage close = await client.PostAsJsonAsync(
@@ -153,6 +154,57 @@ public sealed class PosShiftApiTests : IClassFixture<PosShiftApiFactory>
             new { actualClosingAmount = 125m });
         Assert.Equal(HttpStatusCode.NoContent, close.StatusCode);
         Assert.True(_factory.CashSessions.WasClosed(opened.CashSessionId));
+    }
+
+    [Fact]
+    public async Task Cash_movement_replay_rejects_malformed_or_incomplete_headers()
+    {
+        _factory.Reset();
+        using var client = AuthenticatedClient();
+        Guid cashSessionId = await OpenCashSessionAsync(client);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"/api/pos/v1/cash-sessions/{cashSessionId:D}/movements")
+        {
+            Content = JsonContent.Create(new { movementType = "sale", amount = 5m, reasonCode = "SALE" })
+        };
+        request.Headers.Add("X-Client-Operation-Id", "not-a-uuid");
+
+        using HttpResponseMessage response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(0, _factory.CashSessions.MovementCount(cashSessionId));
+    }
+
+    [Fact]
+    public async Task Cash_movement_requires_operation_and_terminal_headers()
+    {
+        _factory.Reset();
+        using var client = AuthenticatedClient();
+        Guid cashSessionId = await OpenCashSessionAsync(client);
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            $"/api/pos/v1/cash-sessions/{cashSessionId:D}/movements",
+            new { movementType = "sale", amount = 5m, reasonCode = "SALE" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(0, _factory.CashSessions.MovementCount(cashSessionId));
+    }
+
+    [Fact]
+    public async Task Cash_movement_replay_is_idempotent_at_api_boundary()
+    {
+        _factory.Reset();
+        using var client = AuthenticatedClient();
+        Guid cashSessionId = await OpenCashSessionAsync(client);
+        Guid operationId = Guid.NewGuid();
+
+        using HttpResponseMessage first = await ReplayCashMovementAsync(client, cashSessionId, operationId);
+        using HttpResponseMessage replay = await ReplayCashMovementAsync(client, cashSessionId, operationId);
+
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, replay.StatusCode);
+        Assert.Equal(1, _factory.CashSessions.MovementCount(cashSessionId));
     }
 
     [Fact]
@@ -176,6 +228,32 @@ public sealed class PosShiftApiTests : IClassFixture<PosShiftApiFactory>
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", _factory.CreateToken());
         return client;
+    }
+
+    private static async Task<Guid> OpenCashSessionAsync(HttpClient client)
+    {
+        HttpResponseMessage response = await client.PostAsJsonAsync(
+            "/api/pos/v1/cash-sessions/open",
+            new { shiftId = Guid.NewGuid(), storeId = PosShiftApiFactory.StoreId, currency = "USD", openingAmount = 100m });
+        response.EnsureSuccessStatusCode();
+        var opened = await response.Content.ReadFromJsonAsync<CashSessionResponse>();
+        return opened!.CashSessionId;
+    }
+
+    private static Task<HttpResponseMessage> ReplayCashMovementAsync(
+        HttpClient client,
+        Guid cashSessionId,
+        Guid operationId)
+    {
+        var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"/api/pos/v1/cash-sessions/{cashSessionId:D}/movements")
+        {
+            Content = JsonContent.Create(new { movementType = "sale", amount = 5m, reasonCode = "SALE" })
+        };
+        request.Headers.Add("X-Client-Operation-Id", operationId.ToString("D"));
+        request.Headers.Add("X-Nexa-Terminal-Id", PosShiftApiFactory.TerminalId.ToString("D"));
+        return client.SendAsync(request);
     }
 
     private static object Request(string shiftNumber = "SHIFT-001") => new
@@ -348,6 +426,7 @@ internal sealed class InMemoryTerminalStore : ITerminalStore
 internal sealed class InMemoryCashSessionStore : ICashSessionStore
 {
     private readonly Dictionary<Guid, CashSessionState> _sessions = [];
+    private readonly Dictionary<(Guid TerminalId, Guid OperationId), string> _operations = [];
 
     public Task<Guid> OpenAsync(
         Guid shiftId,
@@ -368,6 +447,7 @@ internal sealed class InMemoryCashSessionStore : ICashSessionStore
         string recordedBy,
         string? reasonCode,
         Guid? clientOperationId,
+        Guid? terminalId,
         string payloadHash,
         CancellationToken cancellationToken)
     {
@@ -376,8 +456,27 @@ internal sealed class InMemoryCashSessionStore : ICashSessionStore
             throw new InvalidOperationException("The cash session is not open.");
         }
 
+        if (clientOperationId is not null && terminalId is not null)
+        {
+            var key = (terminalId.Value, clientOperationId.Value);
+            if (_operations.TryGetValue(key, out string? storedHash))
+            {
+                if (!string.Equals(storedHash, payloadHash, StringComparison.Ordinal))
+                {
+                    throw new POS::NexaConnect.Services.POS.Application.CashSessions.DuplicateSyncOperationException(
+                        "The client operation id was already used with a different cash movement payload.");
+                }
+                return Task.FromResult(false);
+            }
+            _operations[key] = payloadHash;
+        }
+
         decimal signedAmount = movementType is "sale" or "pay_in" or "float_adjustment" ? amount : -amount;
-        _sessions[cashSessionId] = session with { ExpectedAmount = session.ExpectedAmount + signedAmount };
+        _sessions[cashSessionId] = session with
+        {
+            ExpectedAmount = session.ExpectedAmount + signedAmount,
+            MovementCount = session.MovementCount + 1
+        };
         return Task.FromResult(true);
     }
 
@@ -395,14 +494,24 @@ internal sealed class InMemoryCashSessionStore : ICashSessionStore
     public bool WasClosed(Guid cashSessionId) =>
         _sessions.TryGetValue(cashSessionId, out CashSessionState? session) && session.Closed;
 
-    public void Reset() => _sessions.Clear();
+    public int MovementCount(Guid cashSessionId) =>
+        _sessions.TryGetValue(cashSessionId, out CashSessionState? session)
+            ? session.MovementCount
+            : 0;
+
+    public void Reset()
+    {
+        _sessions.Clear();
+        _operations.Clear();
+    }
 
     private sealed record CashSessionState(
         Guid ShiftId,
         Guid StoreId,
         decimal OpeningAmount,
         decimal ExpectedAmount,
-        bool Closed);
+        bool Closed,
+        int MovementCount = 0);
 }
 
 internal sealed class InMemoryShiftStore : IShiftStore

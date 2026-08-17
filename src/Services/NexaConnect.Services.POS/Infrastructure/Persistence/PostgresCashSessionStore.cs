@@ -43,6 +43,7 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
         string recordedBy,
         string? reasonCode,
         Guid? clientOperationId,
+        Guid? terminalId,
         string payloadHash,
         CancellationToken cancellationToken)
     {
@@ -56,6 +57,8 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
                 transaction,
                 cashSessionId,
                 clientOperationId.Value,
+                terminalId!.Value,
+                recordedBy,
                 payloadHash,
                 cancellationToken);
             if (status == SyncOperationStatus.Completed)
@@ -126,6 +129,8 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
         NpgsqlTransaction transaction,
         Guid cashSessionId,
         Guid clientOperationId,
+        Guid terminalId,
+        string recordedBy,
         string payloadHash,
         CancellationToken cancellationToken)
     {
@@ -135,10 +140,12 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
                 FROM cash_sessions session
                 JOIN shifts shift ON shift.id = session.shift_id AND shift.store_id = session.store_id
                 WHERE session.id = $1
+                  AND shift.terminal_id = $4
+                  AND shift.employee_identity_subject_id = $5
             )
             INSERT INTO sync_operations
                 (id, terminal_id, client_operation_id, operation_type, payload_hash, status, received_at_utc)
-            SELECT $4, terminal_id, $2, 'cash-movement.recorded', $3, 'received', now()
+            SELECT $6, terminal_id, $2, 'cash-movement.recorded', $3, 'received', now()
             FROM session_terminal
             ON CONFLICT (terminal_id, client_operation_id) DO NOTHING;
             """;
@@ -147,6 +154,8 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
             insert.Parameters.AddWithValue(cashSessionId);
             insert.Parameters.AddWithValue(clientOperationId);
             insert.Parameters.AddWithValue(payloadHash);
+            insert.Parameters.AddWithValue(terminalId);
+            insert.Parameters.AddWithValue(recordedBy);
             insert.Parameters.AddWithValue(Guid.NewGuid());
             if (await insert.ExecuteNonQueryAsync(cancellationToken) == 0)
             {
@@ -159,16 +168,21 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
             FROM sync_operations operation
             JOIN cash_sessions session ON session.id = $1
             JOIN shifts shift ON shift.id = session.shift_id AND shift.store_id = session.store_id
-            WHERE operation.terminal_id = shift.terminal_id AND operation.client_operation_id = $2
+            WHERE operation.terminal_id = shift.terminal_id
+              AND operation.client_operation_id = $2
+              AND shift.terminal_id = $3
+              AND shift.employee_identity_subject_id = $4
             FOR UPDATE OF operation;
             """;
         await using var read = new NpgsqlCommand(readSql, connection, transaction);
         read.Parameters.AddWithValue(cashSessionId);
         read.Parameters.AddWithValue(clientOperationId);
+        read.Parameters.AddWithValue(terminalId);
+        read.Parameters.AddWithValue(recordedBy);
         await using NpgsqlDataReader reader = await read.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
         {
-            throw new InvalidOperationException("The cash session is not open.");
+            throw new CashSessionReplayAuthorizationException();
         }
 
         string storedHash = reader.GetString(0);

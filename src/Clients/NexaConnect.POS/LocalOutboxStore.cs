@@ -11,7 +11,10 @@ public sealed record LocalOutboxOperation(
     string PayloadJson,
     DateTimeOffset CreatedAtUtc,
     int Attempts,
-    DateTimeOffset? LastAttemptAtUtc);
+    DateTimeOffset? LastAttemptAtUtc,
+    int? TerminalFailureStatusCode = null,
+    DateTimeOffset? TerminalFailureAtUtc = null,
+    Guid? TerminalId = null);
 
 public sealed class LocalOutboxStore
 {
@@ -29,19 +32,28 @@ public sealed class LocalOutboxStore
                 ? JsonSerializer.Deserialize<List<LocalOutboxOperation>>(File.ReadAllText(_path)) ?? []
                 : [];
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
-            return [];
+            throw new InvalidDataException(
+                "The POS offline queue is corrupt and must be recovered before operations continue.",
+                exception);
         }
     }
 
-    public void Enqueue(string operationType, string relativeUri, string method, string payloadJson)
+    public LocalOutboxOperation Enqueue(
+        string operationType,
+        string relativeUri,
+        string method,
+        string payloadJson,
+        Guid? terminalId = null)
     {
         var operations = Load().ToList();
-        operations.Add(new LocalOutboxOperation(
+        var operation = new LocalOutboxOperation(
             Guid.NewGuid(), operationType, relativeUri, method, payloadJson,
-            DateTimeOffset.UtcNow, 0, null));
+            DateTimeOffset.UtcNow, 0, null, TerminalId: terminalId);
+        operations.Add(operation);
         Save(operations);
+        return operation;
     }
 
     public void MarkAttempted(Guid operationId)
@@ -53,6 +65,27 @@ public sealed class LocalOutboxStore
 
     public void Remove(Guid operationId) => Save(
         Load().Where(operation => operation.OperationId != operationId).ToList());
+
+    public void MarkTerminalFailure(Guid operationId, int statusCode)
+    {
+        Save(Load().Select(operation => operation.OperationId == operationId
+            ? operation with
+            {
+                TerminalFailureStatusCode = statusCode,
+                TerminalFailureAtUtc = DateTimeOffset.UtcNow
+            }
+            : operation).ToList());
+    }
+
+    public int RetryTerminalFailures()
+    {
+        IReadOnlyList<LocalOutboxOperation> operations = Load();
+        int retried = operations.Count(operation => operation.TerminalFailureStatusCode is not null);
+        Save(operations.Select(operation => operation.TerminalFailureStatusCode is null
+            ? operation
+            : operation with { TerminalFailureStatusCode = null, TerminalFailureAtUtc = null }).ToList());
+        return retried;
+    }
 
     private void Save(IReadOnlyList<LocalOutboxOperation> operations)
     {

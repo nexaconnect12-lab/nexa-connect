@@ -92,9 +92,20 @@ public sealed class PosApiClient : IDisposable
         return await response.Content.ReadFromJsonAsync<CashSessionResult>(cancellationToken) ?? throw new InvalidDataException("Empty cash-session response.");
     }
 
-    public async Task RecordCashMovementAsync(PosTokenSet token, Guid cashSessionId, string movementType, decimal amount, string? reasonCode, CancellationToken cancellationToken = default)
+    public async Task RecordCashMovementAsync(
+        PosTokenSet token,
+        Guid cashSessionId,
+        Guid terminalId,
+        Guid clientOperationId,
+        string movementType,
+        decimal amount,
+        string? reasonCode,
+        CancellationToken cancellationToken = default)
     {
-        using var request = CreateRequest(HttpMethod.Post, $"api/pos/v1/cash-sessions/{cashSessionId:D}/movements", token); request.Content = JsonContent.Create(new { movementType, amount, reasonCode });
+        using var request = CreateRequest(HttpMethod.Post, $"api/pos/v1/cash-sessions/{cashSessionId:D}/movements", token);
+        request.Headers.Add("X-Client-Operation-Id", clientOperationId.ToString("D"));
+        request.Headers.Add("X-Nexa-Terminal-Id", terminalId.ToString("D"));
+        request.Content = JsonContent.Create(new { movementType, amount, reasonCode });
         using var response = await _httpClient.SendAsync(request, cancellationToken); await EnsureSuccessAsync(response, "Cash movement could not be recorded.");
     }
 

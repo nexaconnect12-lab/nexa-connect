@@ -11,12 +11,13 @@ public sealed record RecordCashMovementCommand(
     string MovementType,
     decimal Amount,
     string? ReasonCode,
-    Guid? ClientOperationId = null);
+    Guid? ClientOperationId = null,
+    Guid? TerminalId = null);
 
 public interface ICashSessionStore
 {
     Task<Guid> OpenAsync(Guid shiftId, Guid storeId, string currency, decimal openingAmount, CancellationToken cancellationToken);
-    Task<bool> RecordMovementAsync(Guid cashSessionId, string movementType, decimal amount, string recordedBy, string? reasonCode, Guid? clientOperationId, string payloadHash, CancellationToken cancellationToken);
+    Task<bool> RecordMovementAsync(Guid cashSessionId, string movementType, decimal amount, string recordedBy, string? reasonCode, Guid? clientOperationId, Guid? terminalId, string payloadHash, CancellationToken cancellationToken);
     Task CloseAsync(Guid cashSessionId, decimal actualClosingAmount, CancellationToken cancellationToken);
 }
 
@@ -52,7 +53,7 @@ public sealed class CashSessionApplicationService(ICashSessionStore store)
         }
     }
 
-    public async Task RecordMovementAsync(
+    public async Task<bool> RecordMovementAsync(
         RecordCashMovementCommand command,
         string subject,
         CancellationToken cancellationToken)
@@ -63,22 +64,31 @@ public sealed class CashSessionApplicationService(ICashSessionStore store)
         {
             throw new CashSessionValidationException("Cash session, movement type, and a positive amount are required.");
         }
+        if (command.ClientOperationId is null || command.TerminalId is null)
+        {
+            throw new CashSessionValidationException("Client operation and terminal identifiers are required for cash movements.");
+        }
 
         try
         {
-            await store.RecordMovementAsync(
+            return await store.RecordMovementAsync(
                 command.CashSessionId,
                 command.MovementType,
                 command.Amount,
                 subject,
                 command.ReasonCode,
                 command.ClientOperationId,
+                command.TerminalId,
                 ComputeMovementHash(command),
                 cancellationToken);
         }
         catch (DuplicateSyncOperationException exception)
         {
             throw new CashSessionConflictException(exception.Message, exception);
+        }
+        catch (CashSessionReplayAuthorizationException)
+        {
+            throw;
         }
         catch (InvalidOperationException exception)
         {
@@ -129,5 +139,6 @@ public sealed class CashSessionApplicationService(ICashSessionStore store)
 
 public sealed class CashSessionValidationException(string message) : Exception(message);
 public sealed class CashSessionAuthorizationException() : Exception("An authenticated POS subject is required.");
+public sealed class CashSessionReplayAuthorizationException() : Exception("The offline operation does not belong to this terminal and shift subject.");
 public sealed class CashSessionConflictException(string message, Exception innerException) : Exception(message, innerException);
 public sealed class DuplicateSyncOperationException(string message) : Exception(message);

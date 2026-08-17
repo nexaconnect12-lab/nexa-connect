@@ -14,7 +14,7 @@ The design will evolve with the domain model. Every schema change must remain ow
 
 Versioned migrations exist for 13 independently owned databases: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Order, Kitchen, Customer, Payment, Notification, POS, Media, and Reporting. Catalog version 3, Inventory version 4, and Payment version 2 add explicit organization columns and tenant-leading keys/indexes to simplified service tables used by customer APIs. Catalog, Inventory, Customer, and Payment version 1 own their transactional outbox state; later product-integration migrations add append-only audit and preserve those outboxes on downgrade. Each migration has metadata and paired upgrade and downgrade scripts.
 
-POS version 1 owns `sync_operations` and `sync_checkpoints` in addition to stores, terminals, shifts, cash sessions, cash movements, and its outbox. The first server-side synchronization behavior uses `sync_operations` for terminal-scoped cash-movement replay dedupe: the operation marker and movement insert commit in one PostgreSQL transaction, exact retries are accepted without another movement row, and mismatched payload reuse is rejected.
+POS version 1 owns `sync_operations` and `sync_checkpoints` in addition to stores, terminals, shifts, cash sessions, cash movements, and its outbox. The first server-side synchronization behavior uses `sync_operations` for terminal-scoped cash-movement replay dedupe: terminal and shift-subject ownership are checked before mutation, the operation marker and movement insert commit in one PostgreSQL transaction, exact and concurrent retries are accepted without another movement row, failed movement insertion rolls back the marker, and mismatched payload reuse is rejected.
 
 Catalog version 3 and Inventory version 4 temporarily assign the empty UUID to pre-existing simplified-service rows because those legacy tables did not retain an organization identifier. Before enabling customer traffic, operators must backfill each row from the authoritative Restaurant branch scope and verify that no two organizations would collapse to the same legacy key. Downgrade is permitted only after the same collision check; otherwise the former branch/product or order/product primary key cannot be restored safely.
 
@@ -357,7 +357,7 @@ Reporting tables are rebuildable projections. Migration 3 adds bounded `activity
 
 ## 7. Branch-local data
 
-POS terminals and self-service kiosks use SQLite for local configuration, allowed cached menu data, pending commands, synchronization checkpoints, and a durable outbox. POS additionally retains active shift state; kiosk local storage must clear customer-session data after completion or timeout.
+The production design requires POS terminals and self-service kiosks to use SQLite for local configuration, allowed cached menu data, pending commands, synchronization checkpoints, and a durable outbox. The current WPF POS cash-replay scaffold uses an atomically replaced JSON queue and therefore does not yet satisfy the SQLite, corruption-recovery, or atomic local business-state/outbox boundary. POS additionally retains active shift state; kiosk local storage must clear customer-session data after completion or timeout.
 
 The branch edge service requires a durable local store for active branch orders, kitchen tickets, device state, acknowledgements, and cloud synchronization. PostgreSQL versus SQLite for the edge remains an architecture decision based on hardware, concurrency, support, backup, and upgrade requirements.
 
