@@ -17,10 +17,10 @@ public sealed class MigrationRunnerTests
             ["Kitchen"] = 3,
             ["Customer"] = 2,
             ["Payment"] = 2,
-            ["Notification"] = 2,
+            ["Notification"] = 3,
             ["POS"] = 3,
             ["Media"] = 4,
-            ["Reporting"] = 6
+            ["Reporting"] = 7
         };
 
         foreach ((string service, int expectedVersion) in services)
@@ -134,12 +134,20 @@ public sealed class MigrationRunnerTests
             CancellationToken.None);
         IReadOnlyList<AppliedMigration> applied = catalog.Migrations.Select(ToAppliedMigration).ToArray();
 
-        MigrationStep rollback = Assert.Single(catalog.CreatePlan(applied, 1));
-        Assert.Equal(MigrationDirection.Down, rollback.Direction);
-        Assert.Contains("DROP TABLE outbox_messages", rollback.Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("DROP TABLE inbox_messages", rollback.Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("DROP TABLE notification_audit_records", rollback.Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("prevent_notification_audit_mutation", rollback.Migration.DownSql, StringComparison.Ordinal);
+        IReadOnlyList<MigrationStep> rollback = catalog.CreatePlan(applied, 1);
+        Assert.Collection(rollback,
+            delivery =>
+            {
+                Assert.Equal(3, delivery.Migration.Version);
+                Assert.Contains("DROP TABLE notification_delivery_attempts", delivery.Migration.DownSql, StringComparison.Ordinal);
+            },
+            integration =>
+            {
+                Assert.Equal(2, integration.Migration.Version);
+                Assert.Contains("DROP TABLE outbox_messages", integration.Migration.DownSql, StringComparison.Ordinal);
+                Assert.Contains("DROP TABLE inbox_messages", integration.Migration.DownSql, StringComparison.Ordinal);
+                Assert.Contains("prevent_notification_audit_mutation", integration.Migration.DownSql, StringComparison.Ordinal);
+            });
     }
 
     [Fact]

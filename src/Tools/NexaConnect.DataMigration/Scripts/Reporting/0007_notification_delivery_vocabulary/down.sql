@@ -1,0 +1,4 @@
+DELETE FROM inbox_messages WHERE consumer_name='reporting.activity.v1' AND message_id IN(SELECT event_id FROM activity_records WHERE action IN('notification.delivery.accepted','notification.delivered','notification.delivery.failed'));
+DELETE FROM activity_records WHERE action IN('notification.delivery.accepted','notification.delivered','notification.delivery.failed');
+ALTER TABLE activity_records DROP CONSTRAINT ck_activity_records_action;
+ALTER TABLE activity_records ADD CONSTRAINT ck_activity_records_action CHECK(action IN('customer-membership.changed','branch.created','branch.updated','branch.configuration.updated','catalog.menu-item.changed','media.asset.created','media.asset.quarantined','media.asset.deleted','media.asset.upload-expired','notification.queued','payment.intent.created','kitchen.ticket.queued','kitchen.ticket.started','kitchen.ticket.ready','kitchen.ticket.completed','kitchen.ticket.cancelled','customer.profile.created'));

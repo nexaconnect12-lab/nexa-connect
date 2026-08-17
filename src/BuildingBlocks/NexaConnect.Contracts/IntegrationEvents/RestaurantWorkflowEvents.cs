@@ -47,8 +47,8 @@ public sealed record KitchenTicketCreatedV1(
     Guid TicketId,
     IReadOnlyList<OrderLineSnapshot> Lines) : IIntegrationEvent;
 
-public sealed record KitchenTicketQueuedV1(Guid EventId,Guid CorrelationId,DateTimeOffset OccurredAtUtc,Guid OrganizationId,Guid RestaurantId,Guid BranchId,Guid OrderId,Guid TicketId,Guid PreparationStationId,int ServiceSequence,string Status,string? RequestCorrelationId=null):IIntegrationEvent;
-public sealed record KitchenTicketStatusChangedV1(Guid EventId,Guid CorrelationId,DateTimeOffset OccurredAtUtc,Guid OrganizationId,Guid RestaurantId,Guid BranchId,Guid OrderId,Guid TicketId,string FromStatus,string ToStatus,long ConcurrencyVersion,string? ReasonCode,string? RequestCorrelationId=null):IIntegrationEvent;
+public sealed record KitchenTicketQueuedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc, Guid OrganizationId, Guid RestaurantId, Guid BranchId, Guid OrderId, Guid TicketId, Guid PreparationStationId, int ServiceSequence, string Status, string? RequestCorrelationId = null) : IIntegrationEvent;
+public sealed record KitchenTicketStatusChangedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc, Guid OrganizationId, Guid RestaurantId, Guid BranchId, Guid OrderId, Guid TicketId, string FromStatus, string ToStatus, long ConcurrencyVersion, string? ReasonCode, string? RequestCorrelationId = null) : IIntegrationEvent;
 
 public sealed record PaymentCompletedV1(
     Guid EventId,
@@ -89,6 +89,9 @@ public sealed record NotificationQueuedV1(
     Guid OrganizationId,
     string Channel) : IIntegrationEvent;
 
+public sealed record NotificationDeliveryStatusChangedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid NotificationId, Guid OrganizationId, string Channel, string Status, string ProviderCode, string RequestCorrelationId) : IIntegrationEvent;
+
 public sealed record NotificationRequestedV1(
     Guid EventId,
     Guid CorrelationId,
@@ -113,7 +116,7 @@ public sealed record CatalogMenuItemChangedV1(
     string PreparationStation,
     bool Available) : IIntegrationEvent;
 
-public sealed record InventoryStockSetV1(Guid EventId,Guid CorrelationId,DateTimeOffset OccurredAtUtc,Guid OrganizationId,Guid BranchId,Guid ProductId,decimal AvailableQuantity) : IIntegrationEvent;
-public sealed record InventoryReservationCreatedV1(Guid EventId,Guid CorrelationId,DateTimeOffset OccurredAtUtc,Guid OrganizationId,Guid BranchId,Guid OrderId,Guid ReservationId,IReadOnlyCollection<InventoryReservationLineV1> Lines) : IIntegrationEvent;
-public sealed record InventoryReservationReleasedV1(Guid EventId,Guid CorrelationId,DateTimeOffset OccurredAtUtc,Guid OrganizationId,Guid OrderId) : IIntegrationEvent;
-public sealed record InventoryReservationLineV1(Guid ProductId,decimal Quantity);
+public sealed record InventoryStockSetV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc, Guid OrganizationId, Guid BranchId, Guid ProductId, decimal AvailableQuantity) : IIntegrationEvent;
+public sealed record InventoryReservationCreatedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc, Guid OrganizationId, Guid BranchId, Guid OrderId, Guid ReservationId, IReadOnlyCollection<InventoryReservationLineV1> Lines) : IIntegrationEvent;
+public sealed record InventoryReservationReleasedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc, Guid OrganizationId, Guid OrderId) : IIntegrationEvent;
+public sealed record InventoryReservationLineV1(Guid ProductId, decimal Quantity);

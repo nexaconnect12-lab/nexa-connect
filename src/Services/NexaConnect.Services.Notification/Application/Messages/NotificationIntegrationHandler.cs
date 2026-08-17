@@ -21,7 +21,9 @@ public sealed class NotificationIntegrationHandler(IDurableInboxStore inbox, INo
 
         try
         {
-            sender.Send(new SendNotification(message.OrganizationId, message.Channel, message.Recipient, message.Subject, message.Body, message.EventId), $"service:{message.SourceService}");
+            sender.Send(new SendNotification(message.OrganizationId, message.Channel, message.Recipient, message.Subject,
+                message.Body, message.EventId), new NotificationMutationContext($"service:{message.SourceService}",
+                message.CorrelationId, message.CorrelationId.ToString("D")));
             await inbox.MarkCompletedAsync(message.EventId, Consumer, cancellationToken);
             return NotificationHandlingResult.Processed;
         }

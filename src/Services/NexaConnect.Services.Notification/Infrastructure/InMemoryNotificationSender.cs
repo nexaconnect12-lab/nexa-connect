@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using NexaConnect.Services.Notification.Application.Messages;
+using NexaConnect.Services.Notification.Domain;
 
 namespace NexaConnect.Services.Notification.Infrastructure;
 
@@ -7,13 +8,13 @@ public sealed class InMemoryNotificationSender : INotificationSender
 {
     private readonly ConcurrentDictionary<Guid, NotificationMessage> notifications = new();
 
-    public NotificationMessage Send(SendNotification command, string actorSubjectId)
+    public NotificationMessage Send(SendNotification command, NotificationMutationContext context)
     {
-        if (command.OrganizationId == Guid.Empty || string.IsNullOrWhiteSpace(actorSubjectId) || string.IsNullOrWhiteSpace(command.Channel) || string.IsNullOrWhiteSpace(command.Recipient) ||
-            string.IsNullOrWhiteSpace(command.Subject) || string.IsNullOrWhiteSpace(command.Body))
-            throw new ArgumentException("Channel, recipient, subject, and body are required.");
-        var notification = new NotificationMessage(Guid.NewGuid(), command.OrganizationId, command.Channel.Trim().ToLowerInvariant(), command.Recipient.Trim(),
-            command.Subject.Trim(), command.Body, "queued", DateTimeOffset.UtcNow);
+        NotificationAggregate.ValidateActor(context.ActorSubjectId);
+        var normalized = NotificationAggregate.Normalize(command.OrganizationId, command.Channel, command.Recipient,
+            command.Subject, command.Body);
+        var notification = new NotificationMessage(Guid.NewGuid(), command.OrganizationId, normalized.Channel,
+            normalized.Recipient, normalized.Subject, normalized.Body, "queued", DateTimeOffset.UtcNow);
         notifications[notification.Id] = notification;
         return notification;
     }

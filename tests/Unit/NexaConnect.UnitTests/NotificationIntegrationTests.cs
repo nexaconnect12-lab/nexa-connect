@@ -25,7 +25,8 @@ public sealed class NotificationIntegrationTests
     {
         var sender = new InMemoryNotificationSender();
         Guid organizationId = Guid.NewGuid();
-        NotificationMessage result = sender.Send(new(organizationId, "email", "operator@example.test", "Subject", "Body"), "actor");
+        NotificationMessage result = sender.Send(new(organizationId, "email", "operator@example.test", "Subject", "Body"),
+            new NotificationMutationContext("actor", Guid.NewGuid(), Guid.NewGuid().ToString("D")));
 
         Assert.NotNull(sender.Get(organizationId, result.Id));
         Assert.Null(sender.Get(Guid.NewGuid(), result.Id));

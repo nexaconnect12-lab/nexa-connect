@@ -113,6 +113,16 @@ Authorization migration-3 backfill acceptance uses `NEXACONNECT_AUTHORIZATION_CL
 
 Customer profile integration acceptance uses `NEXACONNECT_CUSTOMER_INTEGRATION_DB` in a safe environment. `CustomerPostgresIntegrationTests` proves first-create/audit/two-event atomicity, matching and conflicting concurrent replay, tenant-leading reads, profile-field exclusion, append-only audit, forced outbox rollback, and confirmed RabbitMQ recovery publication when `NEXACONNECT_RABBITMQ_ACCEPTANCE=1` and `NEXACONNECT_RABBITMQ_INTEGRATION_URI` are set. `ReportingActivityVocabularyPostgresTests` verifies migration-6 projection removal and replay. Set `NEXACONNECT_CUSTOMER_CLEAN_INSTALL_ACCEPTANCE=1` plus the disposable PostgreSQL administrator to run `CustomerMigrationRunnerAcceptanceTests`; it manages only `nexaconnect_customer_clean_it_<guid>` and invokes the actual runner for 0→2→1→2 while proving profile/outbox preservation. `CustomerHttpBoundaryTests` verifies real-host `401`/`403`/`404` and successful create/read route behavior. All six coordinated live cases plus the HTTP boundary test passed locally; the generated database and temporary administrator were removed. Retained details are in [Phase 10 Customer profile-creation evidence](../../../docs/Architecture/Evidence/Phase-10-Customer-Profile-Creation.md).
 
+Notification provider-delivery acceptance uses `NEXACONNECT_NOTIFICATION_INTEGRATION_DB` in Development/Test. `NotificationDeliveryPostgresTests` verifies accepted-to-delivered receipt reconciliation, content-free lifecycle events, conflicting cross-tenant replay, bounded transient failure, migration-3 downgrade/reapply, expired-lease recovery, and atomic rollback when lifecycle outbox insertion fails. With `NEXACONNECT_RABBITMQ_ACCEPTANCE=1` and `NEXACONNECT_RABBITMQ_INTEGRATION_URI`, it also proves an unreachable connection attempt followed by confirmed persistent publication over a new connection. `NEXACONNECT_NOTIFICATION_CLEAN_INSTALL_ACCEPTANCE=1` plus a disposable `NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB` runs the actual migration runner for 0→3→2→3 in a generated `nexaconnect_notification_clean_it_<guid>` database. `ReportingActivityVocabularyPostgresTests` verifies migration-7 projection removal/replay, and `NotificationHttpBoundaryTests` verifies the real HTTP boundary. Eight coordinated Notification cases, Reporting replay, and HTTP coverage passed locally against PostgreSQL 17 and RabbitMQ 4; generated infrastructure was removed. See [Notification provider-delivery evidence](../../../docs/Architecture/Evidence/Phase-10-Notification-Provider-Delivery.md).
+
+```powershell
+$env:NEXACONNECT_ENVIRONMENT='Testing'
+$env:NEXACONNECT_NOTIFICATION_INTEGRATION_DB='Host=localhost;Database=notification_test;Username=postgres;Password=...;SSL Mode=Disable'
+$env:NEXACONNECT_RABBITMQ_ACCEPTANCE='1'
+$env:NEXACONNECT_RABBITMQ_INTEGRATION_URI='amqp://guest:guest@localhost:5672'
+dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~NotificationDeliveryPostgresTests
+```
+
 Run the Order tenant-authorization regression test with:
 
 ```powershell
