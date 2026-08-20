@@ -96,12 +96,20 @@ public sealed class HttpPaymentPort(HttpClient client) : IPaymentPort
         if (!response.IsSuccessStatusCode)
             return new PaymentResult(false, null, await response.Content.ReadAsStringAsync(cancellationToken));
         PaymentResponse? payment = await response.Content.ReadFromJsonAsync<PaymentResponse>(cancellationToken);
-        return payment is null
-            ? new PaymentResult(false, null, "Payment returned an empty response.")
-            : new PaymentResult(payment.Status is "authorized" or "captured" or "pending", payment.Id, null);
+        if (payment is null) return new PaymentResult(false, null, "Payment returned an empty response.");
+        using var authorize = new HttpRequestMessage(HttpMethod.Post, $"api/payment/v1/intents/{payment.Id:D}/authorize");
+        authorize.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId, organizationId.ToString("D"));
+        authorize.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode, "nexa_connect");
+        using HttpResponseMessage authorization = await client.SendAsync(authorize, cancellationToken);
+        if (!authorization.IsSuccessStatusCode)
+            return new PaymentResult(false, payment.Id, $"Payment authorization failed with {(int)authorization.StatusCode}.");
+        PaymentResponse? authorized = await authorization.Content.ReadFromJsonAsync<PaymentResponse>(cancellationToken);
+        return authorized?.Status == "authorized"
+            ? new PaymentResult(true, authorized.Id, null)
+            : new PaymentResult(false, payment.Id, authorized?.FailureCode ?? "Payment authorization was not approved.");
     }
 
     private sealed record PaymentRequest(Guid RestaurantId, Guid BranchId, Guid OrderId, string IdempotencyKey,
         decimal Amount, string Currency, string PaymentMethod);
-    private sealed record PaymentResponse(Guid Id, string Status);
+    private sealed record PaymentResponse(Guid Id, string Status, string? FailureCode = null);
 }

@@ -35,6 +35,9 @@ using PaymentProgram = PAYMENT::PaymentProgram;
 using PaymentIntents = PAYMENT::NexaConnect.Services.Payment.Application.Intents.IPaymentIntents;
 using PaymentIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentIntent;
 using CreatePaymentIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.CreatePaymentIntent;
+using PaymentAuthorizationService = PAYMENT::NexaConnect.Services.Payment.Application.Intents.IPaymentAuthorizationService;
+using PaymentAuthorizationLease = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentAuthorizationLease;
+using PaymentMutationContext = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentMutationContext;
 using KitchenProgram = KITCHEN::KitchenProgram;
 using KitchenStore = KITCHEN::NexaConnect.Services.Kitchen.Application.IKitchenTicketStore;
 using KitchenTicket = KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenTicket;
@@ -170,6 +173,8 @@ public sealed class PaymentFactory : WebApplicationFactory<PaymentProgram>
         {
             services.RemoveAll<PaymentIntents>();
             services.AddSingleton<PaymentIntents>(Intents);
+            services.RemoveAll<PaymentAuthorizationService>();
+            services.AddSingleton<PaymentAuthorizationService>(new SuccessfulPaymentAuthorizationService(Intents));
         });
     }
 
@@ -369,10 +374,38 @@ internal sealed class RecordingPaymentIntents : PaymentIntents
 
     public PaymentIntent? Get(Guid organizationId, Guid id) =>
         intents.TryGetValue(id, out PaymentIntent? intent) && intent.OrganizationId == organizationId ? intent : null;
+    public PaymentAuthorizationLease BeginAuthorization(Guid organizationId, Guid id, PaymentMutationContext context)
+    {
+        PaymentIntent intent = Get(organizationId, id) ?? throw new KeyNotFoundException();
+        intent = intent with { Status = "authorizing", ConcurrencyVersion = intent.ConcurrencyVersion + 1 };
+        intents[id] = intent;
+        return new PaymentAuthorizationLease(intent, true);
+    }
+    public PaymentIntent CompleteAuthorization(Guid organizationId, Guid id, long expectedVersion, bool succeeded,
+        string? providerAuthorizationId, string? failureCode, PaymentMutationContext context)
+    {
+        PaymentIntent intent = Get(organizationId, id) ?? throw new KeyNotFoundException();
+        intent = intent with { Status = succeeded ? "authorized" : "failed", ConcurrencyVersion = intent.ConcurrencyVersion + 1,
+            ProviderAuthorizationId = providerAuthorizationId, FailureCode = failureCode };
+        intents[id] = intent;
+        LastIntent = intent;
+        return intent;
+    }
     public void Reset()
     {
         intents.Clear();
         LastIntent = null;
         CreateCount = 0;
+    }
+}
+
+internal sealed class SuccessfulPaymentAuthorizationService(RecordingPaymentIntents intents) : PaymentAuthorizationService
+{
+    public Task<PaymentIntent?> AuthorizeAsync(Guid organizationId, Guid id, PaymentMutationContext context,
+        CancellationToken cancellationToken)
+    {
+        PaymentAuthorizationLease lease = intents.BeginAuthorization(organizationId, id, context);
+        return Task.FromResult<PaymentIntent?>(intents.CompleteAuthorization(organizationId, id,
+            lease.Intent.ConcurrencyVersion, true, $"test-{id:N}", null, context));
     }
 }

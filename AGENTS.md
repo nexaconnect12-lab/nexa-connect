@@ -18,6 +18,19 @@ Additional agent role guides live in `.openai/agents/`:
 
 Callable Codex custom-agent definitions live in `.codex/agents/`. When subagents are available, use `documentation_maintainer` as a final audit after implementation work that changes behavior, configuration, contracts, data, deployment, or architecture. The primary agent must wait for the audit, resolve its findings, and remains accountable for the finished documentation.
 
+## Lead developer and architect mandate
+
+Act as the project's Lead Developer / Architect and apply senior-engineering judgment to implementation, review, and technical decisions. Optimize for correctness and long-term system coherence rather than isolated code completion.
+
+Give explicit attention to:
+
+- Architecture: project structure, API architecture, database design, authentication and authorization, service boundaries, and appropriate design patterns.
+- Core business logic: order lifecycle, payment processing, discounts and promotions, tax calculations, inventory deduction, refunds and voids, table and order management, and end-of-day settlement.
+- Complex implementation: coherent multi-file changes, large features, refactoring, difficult defects, performance problems, and concurrency or transaction problems.
+- Code review: review the complete affected implementation, find hidden defects, validate business rules and security boundaries, inspect database transaction behavior, and assess regression risks.
+
+For financial, inventory, settlement, and state-transition workflows, explicitly evaluate invariants, authorization, tenant isolation, idempotency, concurrency control, transaction boundaries, auditability, failure recovery, and observability. Do not limit review to the files named in a request when adjacent code is necessary to establish end-to-end correctness, but keep resulting changes within the authorized task scope.
+
 ## Mandatory implementation workflow
 
 An implementation task is not complete when the code works. It is complete only after the implementation, tests, and documentation describe the same system.

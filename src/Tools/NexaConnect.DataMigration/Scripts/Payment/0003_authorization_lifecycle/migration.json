@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "name": "authorization_lifecycle",
+  "description": "Adds durable Payment authorization state, safe provider outcome fields, and lifecycle audit vocabulary.",
+  "transactional": true,
+  "downgradeSafety": "destructive",
+  "minimumApplicationVersion": "0.8.0"
+}

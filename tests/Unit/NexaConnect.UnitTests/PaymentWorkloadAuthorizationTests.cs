@@ -58,6 +58,10 @@ public sealed class PaymentWorkloadAuthorizationTests
                 command.Amount, command.Currency, command.PaymentMethod, "pending", DateTimeOffset.UtcNow);
         }
         public PaymentIntent? Get(Guid organizationId, Guid id) => null;
+        public PaymentAuthorizationLease BeginAuthorization(Guid organizationId, Guid id, PaymentMutationContext context) =>
+            throw new NotSupportedException();
+        public PaymentIntent CompleteAuthorization(Guid organizationId, Guid id, long expectedVersion, bool succeeded,
+            string? providerAuthorizationId, string? failureCode, PaymentMutationContext context) => throw new NotSupportedException();
     }
 
     private sealed class DenyTenantAuthorizer : IPaymentTenantAuthorizer

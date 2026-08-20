@@ -1,0 +1,1 @@
+{"version":8,"name":"payment_authorization_vocabulary","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.8.0"}

@@ -81,6 +81,18 @@ public sealed record PaymentIntentCreatedV1(
     string PaymentMethod,
     string Status) : IIntegrationEvent;
 
+public sealed record PaymentAuthorizationStartedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid RestaurantId, Guid BranchId, Guid OrderId, Guid PaymentIntentId, decimal Amount,
+    string Currency) : IIntegrationEvent;
+
+public sealed record PaymentAuthorizedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid RestaurantId, Guid BranchId, Guid OrderId, Guid PaymentIntentId, decimal Amount,
+    string Currency, string PaymentMethod) : IIntegrationEvent;
+
+public sealed record PaymentAuthorizationFailedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid RestaurantId, Guid BranchId, Guid OrderId, Guid PaymentIntentId,
+    string FailureCode) : IIntegrationEvent;
+
 public sealed record NotificationQueuedV1(
     Guid EventId,
     Guid CorrelationId,

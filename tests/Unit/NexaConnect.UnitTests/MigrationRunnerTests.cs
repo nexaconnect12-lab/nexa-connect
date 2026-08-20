@@ -16,11 +16,11 @@ public sealed class MigrationRunnerTests
             ["Order"] = 1,
             ["Kitchen"] = 3,
             ["Customer"] = 2,
-            ["Payment"] = 2,
+            ["Payment"] = 3,
             ["Notification"] = 3,
             ["POS"] = 3,
             ["Media"] = 4,
-            ["Reporting"] = 7
+            ["Reporting"] = 8
         };
 
         foreach ((string service, int expectedVersion) in services)
@@ -188,12 +188,14 @@ public sealed class MigrationRunnerTests
             Path.Combine(AppContext.BaseDirectory, "Scripts"), "Payment", CancellationToken.None);
         IReadOnlyList<AppliedMigration> applied = catalog.Migrations.Select(ToAppliedMigration).ToArray();
 
-        MigrationStep rollback = Assert.Single(catalog.CreatePlan(applied, 1));
-        Assert.Equal(MigrationDirection.Down, rollback.Direction);
-        Assert.Contains("DROP TABLE payment_audit_records", rollback.Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("DROP COLUMN organization_id", rollback.Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("HAVING count(*)>1", rollback.Migration.DownSql, StringComparison.Ordinal);
-        Assert.DoesNotContain("DROP TABLE outbox_messages", rollback.Migration.DownSql, StringComparison.Ordinal);
+        IReadOnlyList<MigrationStep> rollback = catalog.CreatePlan(applied, 1);
+        Assert.Equal([3, 2], rollback.Select(step => step.Migration.Version).ToArray());
+        Assert.All(rollback, step => Assert.Equal(MigrationDirection.Down, step.Direction));
+        Assert.Contains("provider_authorization_id", rollback[0].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("DROP TABLE payment_audit_records", rollback[1].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("DROP COLUMN organization_id", rollback[1].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("HAVING count(*)>1", rollback[1].Migration.DownSql, StringComparison.Ordinal);
+        Assert.All(rollback, step => Assert.DoesNotContain("DROP TABLE outbox_messages", step.Migration.DownSql, StringComparison.Ordinal));
     }
 
     [Fact]

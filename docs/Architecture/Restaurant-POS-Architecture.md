@@ -85,7 +85,7 @@ Owns POS terminals and kiosks, shifts, cash sessions, cash movements, receipt nu
 
 ### 4.6 Payment
 
-Owns payment intents, cash payments, card-provider references, split payments, tips, refunds, reconciliation, and payment idempotency.
+Owns payment intents, authorization state, cash payments, card-provider references, split payments, tips, refunds, reconciliation, and payment idempotency. The implemented authorization slice commits a concurrency-controlled lease before provider I/O and records a sanitized terminal result in a separate transaction; Order accepts only the authorized result. Capture, void, refund, reconciliation, and abandoned-lease recovery remain planned.
 
 Cash can normally be accepted offline. Card payments may be accepted offline only when the payment terminal and provider explicitly support an approved store-and-forward workflow.
 

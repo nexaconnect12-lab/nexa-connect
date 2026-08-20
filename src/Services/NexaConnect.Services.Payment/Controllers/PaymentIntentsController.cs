@@ -9,7 +9,8 @@ namespace NexaConnect.Services.Payment.Controllers;
 
 [ApiController]
 [Route("api/payment/v1/intents")]
-public sealed class PaymentIntentsController(IPaymentIntents intents, IPaymentTenantAuthorizer tenantAuthorizer) : ControllerBase
+public sealed class PaymentIntentsController(IPaymentIntents intents, IPaymentTenantAuthorizer tenantAuthorizer,
+    IPaymentAuthorizationService? authorizationService = null) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<PaymentIntent>> Create(CreatePaymentIntent command, CancellationToken cancellationToken)
@@ -39,6 +40,26 @@ public sealed class PaymentIntentsController(IPaymentIntents intents, IPaymentTe
         if (intent is null) return NotFound();
         return await HasCustomerAccessAsync(organizationId, intent.RestaurantId, intent.BranchId, intent.OrderId,
             ProductPermissions.PaymentIntentRead, cancellationToken) ? Ok(intent) : NotFound();
+    }
+
+    [HttpPost("{id:guid}/authorize")]
+    public async Task<ActionResult<PaymentIntent>> Authorize(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetOrganization(out Guid organizationId)) return NotFound();
+        if (!ServiceWorkloadPrincipal.IsTrusted(User)
+            || !string.Equals(User.FindFirstValue("azp"), "nexaconnect-order-service", StringComparison.Ordinal))
+            return Forbid();
+        if (authorizationService is null) return Problem("Payment authorization is unavailable.", statusCode: 503);
+        try
+        {
+            Guid correlationId = Guid.TryParse(HttpContext.TraceIdentifier, out Guid parsed) ? parsed : Guid.NewGuid();
+            PaymentIntent? result = await authorizationService.AuthorizeAsync(organizationId, id,
+                new PaymentMutationContext("nexaconnect-order-service", correlationId), cancellationToken);
+            return result is null ? NotFound() : Ok(result);
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (PaymentConcurrencyException exception) { return Conflict(new { error = exception.Message }); }
+        catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
     }
 
     private async Task<bool> HasCustomerAccessAsync(Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, string permission,

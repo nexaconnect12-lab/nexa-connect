@@ -20,7 +20,7 @@ public sealed class HttpPaymentProvider(HttpClient client, IOptions<PaymentProvi
             new ProviderAuthorizationRequest(intent.Id, intent.OrderId, intent.Amount, intent.Currency, intent.PaymentMethod),
             cancellationToken);
         if (!response.IsSuccessStatusCode)
-            return new ProviderAuthorizationResult(false, null, await response.Content.ReadAsStringAsync(cancellationToken));
+            return new ProviderAuthorizationResult(false, null, $"provider_http_{(int)response.StatusCode}");
         ProviderAuthorizationResponse? result = await response.Content.ReadFromJsonAsync<ProviderAuthorizationResponse>(cancellationToken);
         return result is { Succeeded: true, ProviderTransactionId: not null }
             ? new ProviderAuthorizationResult(true, result.ProviderTransactionId, null)

@@ -76,6 +76,23 @@ public sealed class PaymentPostgresIntegrationTests : IAsyncLifetime
         Assert.Equal(0L,await ScalarAsync(verify,"SELECT count(*) FROM payment_audit_records WHERE organization_id=$1 AND order_id=$2",organizationId,orderId));
     }
 
+    [PaymentDatabaseFact]
+    public async Task Authorization_lease_and_result_are_concurrency_safe_and_transactional()
+    {
+        Guid organizationId=Guid.NewGuid(),correlationId=Guid.NewGuid();var repository=new PaymentRepository(dataSource!);
+        var intent=repository.Create(organizationId,new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"authorization",30m,"USD","card"),new("order-service",correlationId));
+
+        var first=repository.BeginAuthorization(organizationId,intent.Id,new("order-service",correlationId));
+        var replay=repository.BeginAuthorization(organizationId,intent.Id,new("order-service",Guid.NewGuid()));
+        Assert.True(first.Acquired);Assert.False(replay.Acquired);Assert.Equal("authorizing",replay.Intent.Status);
+        var authorized=repository.CompleteAuthorization(organizationId,intent.Id,first.Intent.ConcurrencyVersion,true,"provider-auth-1",null,new("order-service",correlationId));
+        Assert.Equal("authorized",authorized.Status);Assert.Equal("provider-auth-1",authorized.ProviderAuthorizationId);
+
+        await using NpgsqlConnection connection=await dataSource!.OpenConnectionAsync();
+        Assert.Equal(3L,await ScalarAsync(connection,"SELECT count(*) FROM payment_audit_records WHERE payment_intent_id=$1",intent.Id));
+        Assert.Equal(6L,await ScalarAsync(connection,"SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1",intent.Id));
+    }
+
     [PaymentRabbitMqFact]
     public async Task Broker_outage_retains_rows_and_recovery_publishes_with_confirmations()
     {
@@ -110,7 +127,7 @@ public sealed class PaymentPostgresIntegrationTests : IAsyncLifetime
     private static async Task<long> ScalarAsync(NpgsqlConnection connection,string sql,params object[] values){await using var command=new NpgsqlCommand(sql,connection);for(int i=0;i<values.Length;i++)command.Parameters.AddWithValue(values[i]);return(long)(await command.ExecuteScalarAsync()??0L);}
 
     private const string SchemaSql="""
-        CREATE TABLE payment_intents(id uuid PRIMARY KEY,organization_id uuid NOT NULL,restaurant_id uuid NOT NULL,branch_id uuid NOT NULL,order_id uuid NOT NULL,idempotency_key text NOT NULL,amount numeric(19,4) NOT NULL CHECK(amount>0),currency char(3) NOT NULL,payment_method text NOT NULL,status text NOT NULL,expires_at_utc timestamptz NULL,authorized_at_utc timestamptz NULL,captured_at_utc timestamptz NULL,failed_at_utc timestamptz NULL,created_at_utc timestamptz NOT NULL,updated_at_utc timestamptz NOT NULL,concurrency_version bigint NOT NULL DEFAULT 1,CONSTRAINT uq_payment_intents_organization_restaurant_idempotency UNIQUE(organization_id,restaurant_id,idempotency_key));
+        CREATE TABLE payment_intents(id uuid PRIMARY KEY,organization_id uuid NOT NULL,restaurant_id uuid NOT NULL,branch_id uuid NOT NULL,order_id uuid NOT NULL,idempotency_key text NOT NULL,amount numeric(19,4) NOT NULL CHECK(amount>0),currency char(3) NOT NULL,payment_method text NOT NULL,status text NOT NULL,expires_at_utc timestamptz NULL,authorized_at_utc timestamptz NULL,captured_at_utc timestamptz NULL,failed_at_utc timestamptz NULL,created_at_utc timestamptz NOT NULL,updated_at_utc timestamptz NOT NULL,concurrency_version bigint NOT NULL DEFAULT 1,provider_authorization_id text NULL UNIQUE,failure_code text NULL,CONSTRAINT uq_payment_intents_organization_restaurant_idempotency UNIQUE(organization_id,restaurant_id,idempotency_key));
         CREATE TABLE payment_audit_records(id uuid PRIMARY KEY,organization_id uuid NOT NULL,restaurant_id uuid NOT NULL,branch_id uuid NOT NULL,order_id uuid NOT NULL,payment_intent_id uuid NOT NULL REFERENCES payment_intents(id),action text NOT NULL,actor_subject_id text NOT NULL CHECK(char_length(btrim(actor_subject_id)) BETWEEN 1 AND 200 AND actor_subject_id !~ '[[:cntrl:]]'),occurred_at_utc timestamptz NOT NULL);
         CREATE FUNCTION prevent_payment_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'payment_audit_records is append-only'; END; $$;
         CREATE TRIGGER tr_payment_audit_records_append_only BEFORE UPDATE OR DELETE ON payment_audit_records FOR EACH ROW EXECUTE FUNCTION prevent_payment_audit_mutation();
