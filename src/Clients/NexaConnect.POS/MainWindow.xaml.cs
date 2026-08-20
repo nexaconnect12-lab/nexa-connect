@@ -142,6 +142,11 @@ public partial class MainWindow : Window
     private async void CloseCash_Click(object sender, RoutedEventArgs e)
     {
         if (_authentication.CurrentToken is null || cashSessionId is null) return;
+        if (HasQueuedCashMovements(cashSessionId.Value))
+        {
+            StatusText.Text = "Replay or resolve all queued movements for this cash session before closing it.";
+            return;
+        }
         if (!decimal.TryParse(ClosingCashTextBox.Text, out var amount) || amount < 0) { StatusText.Text = "Enter a valid closing cash amount."; return; }
         try { SetBusy("Closing cash session…"); await _api.CloseCashSessionAsync(_authentication.CurrentToken, cashSessionId.Value, amount); cashSessionId = null; _localStore.ClearCashSession(); StatusText.Text = "Cash session is closed."; }
         catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Cash session could not be closed."; }
@@ -151,14 +156,55 @@ public partial class MainWindow : Window
     private async void RecordMovement_Click(object sender, RoutedEventArgs e)
     {
         if (_authentication.CurrentToken is null || cashSessionId is null) return;
+        if (_configuration.TerminalId == Guid.Empty) { StatusText.Text = "Configure a valid terminal identifier first."; return; }
         if (!decimal.TryParse(MovementAmountTextBox.Text, out var amount) || amount <= 0) { StatusText.Text = "Enter a positive movement amount."; return; }
         var type = (MovementTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "sale";
         var reason = MovementReasonTextBox.Text.Trim();
-        try { SetBusy("Recording cash movement…"); await _api.RecordCashMovementAsync(_authentication.CurrentToken, cashSessionId.Value, type, amount, reason); StatusText.Text = "Cash movement recorded."; }
+        LocalOutboxOperation operation;
+        try
+        {
+            operation = outbox.Enqueue(
+                "cash-movement",
+                $"api/pos/v1/cash-sessions/{cashSessionId.Value:D}/movements",
+                "POST",
+                JsonSerializer.Serialize(new { movementType = type, amount, reasonCode = reason }),
+                _configuration.TerminalId);
+        }
+        catch
+        {
+            StatusText.Text = "Cash movement was not sent because it could not be saved to the offline queue.";
+            UpdateOperationalState();
+            return;
+        }
+
+        try
+        {
+            UpdateOperationalState();
+            SetBusy("Recording cash movement…");
+            await _api.RecordCashMovementAsync(
+                _authentication.CurrentToken,
+                cashSessionId.Value,
+                _configuration.TerminalId,
+                operation.OperationId,
+                type,
+                amount,
+                reason);
+            outbox.Remove(operation.OperationId);
+            StatusText.Text = "Cash movement recorded.";
+        }
         catch (Exception exception)
         {
-            outbox.Enqueue("cash-movement", $"api/pos/v1/cash-sessions/{cashSessionId.Value:D}/movements", "POST", JsonSerializer.Serialize(new { movementType = type, amount, reasonCode = reason }));
-            StatusText.Text = exception is PosApiException api ? $"{api.Message} Movement queued for replay." : "Cash movement queued for replay.";
+            if (exception is PosApiException { StatusCode: 400 or 403 or 409 } api)
+            {
+                outbox.MarkTerminalFailure(operation.OperationId, api.StatusCode);
+                StatusText.Text = $"{api.Message} Movement retained as rejected for operator review.";
+            }
+            else
+            {
+                StatusText.Text = exception is PosApiException transientApi
+                    ? $"{transientApi.Message} Movement remains queued for replay."
+                    : "Cash movement remains queued for replay.";
+            }
         }
         finally { UpdateOperationalState(); }
     }
@@ -177,6 +223,22 @@ public partial class MainWindow : Window
         try { SetBusy("Replaying offline operations…"); var replayed = await new PosOutboxReplayer(_configuration, outbox).ReplayAsync(_authentication.CurrentToken); StatusText.Text = $"Replayed {replayed} offline operation(s)."; }
         catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Offline replay stopped; operations remain queued."; }
         finally { UpdateOperationalState(); }
+    }
+
+    private void RetryRejectedOutbox_Click(object sender, RoutedEventArgs e)
+    {
+        if (_authentication.CurrentToken is null
+            || _authentication.CurrentToken.ExpiresAtUtc <= DateTimeOffset.UtcNow)
+        {
+            StatusText.Text = "Sign in before retrying rejected offline operations.";
+            UpdateOperationalState();
+            return;
+        }
+        int retried = outbox.RetryTerminalFailures();
+        StatusText.Text = retried == 0
+            ? "There are no rejected offline operations to retry."
+            : $"Returned {retried} rejected offline operation(s) to the replay queue.";
+        UpdateOperationalState();
     }
 
     private void MenuList_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -234,6 +296,8 @@ public partial class MainWindow : Window
         SignInButton.IsEnabled = false;
         OpenShiftButton.IsEnabled = false;
         CloseShiftButton.IsEnabled = false;
+        CloseCashButton.IsEnabled = false;
+        RecordMovementButton.IsEnabled = false;
     }
 
     private void UpdateOperationalState()
@@ -248,11 +312,15 @@ public partial class MainWindow : Window
         LoadMenuButton.IsEnabled = signedIn && hasActiveShift;
         PlaceOrderButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is not null && cart.Count > 0;
         OpenCashButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is null;
-        CloseCashButton.IsEnabled = signedIn && cashSessionId is not null;
+        CloseCashButton.IsEnabled = signedIn && cashSessionId is not null
+            && !HasQueuedCashMovements(cashSessionId.Value);
         RecordMovementButton.IsEnabled = signedIn && cashSessionId is not null;
         EnrollTerminalButton.IsEnabled = signedIn;
-        ReplayOutboxButton.IsEnabled = signedIn && outbox.Load().Count > 0;
-        OutboxStatusText.Text = $"Offline queue: {outbox.Load().Count}";
+        IReadOnlyList<LocalOutboxOperation> operations = outbox.Load();
+        int rejected = operations.Count(operation => operation.TerminalFailureStatusCode is not null);
+        ReplayOutboxButton.IsEnabled = signedIn && operations.Count > rejected;
+        RetryRejectedOutboxButton.IsEnabled = signedIn && rejected > 0;
+        OutboxStatusText.Text = $"Offline queue: {operations.Count - rejected} pending, {rejected} rejected";
         SessionText.Text = signedIn ? (hasActiveShift ? "Signed in · Shift open" : "Signed in · Open a shift") : "Signed out";
         ActiveShiftText.Text = hasActiveShift
             ? $"Active shift: {_activeShift!.ShiftNumber} ({_activeShift.ShiftId:D})"
@@ -261,6 +329,14 @@ public partial class MainWindow : Window
 
     private void OnStatusChanged(object? sender, string status) =>
         Dispatcher.Invoke(() => StatusText.Text = status);
+
+    private bool HasQueuedCashMovements(Guid sessionId)
+    {
+        string path = $"api/pos/v1/cash-sessions/{sessionId:D}/movements";
+        return outbox.Load().Any(operation =>
+            string.Equals(operation.OperationType, "cash-movement", StringComparison.Ordinal)
+            && string.Equals(operation.RelativeUri, path, StringComparison.OrdinalIgnoreCase));
+    }
 
     protected override void OnClosed(EventArgs e)
     {

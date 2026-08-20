@@ -2,13 +2,14 @@ namespace NexaConnect.Services.Order.Domain;
 
 public enum OrderStatus
 {
-    Draft,
-    Submitted,
-    InventoryReserved,
-    KitchenAccepted,
-    Paid,
-    PaymentFailed,
-    Rejected
+    Draft = 0,
+    Submitted = 1,
+    InventoryReserved = 2,
+    KitchenAccepted = 3,
+    Paid = 4,
+    PaymentFailed = 5,
+    Rejected = 6,
+    PaymentPending = 7
 }
 
 public sealed record OrderLine(
@@ -85,8 +86,9 @@ public sealed class OrderAggregate
     public void Submit() => Transition(OrderStatus.Draft, OrderStatus.Submitted);
     public void MarkInventoryReserved() => Transition(OrderStatus.Submitted, OrderStatus.InventoryReserved);
     public void MarkKitchenAccepted() => Transition(OrderStatus.InventoryReserved, OrderStatus.KitchenAccepted);
-    public void MarkPaid() => Transition(OrderStatus.KitchenAccepted, OrderStatus.Paid);
-    public void MarkPaymentFailed() => Transition(OrderStatus.KitchenAccepted, OrderStatus.PaymentFailed);
+    public void MarkPaid() => Transition(Status is OrderStatus.KitchenAccepted or OrderStatus.PaymentPending ? Status : OrderStatus.KitchenAccepted, OrderStatus.Paid);
+    public void MarkPaymentPending() => Transition(OrderStatus.KitchenAccepted, OrderStatus.PaymentPending);
+    public void MarkPaymentFailed() => Transition(Status is OrderStatus.KitchenAccepted or OrderStatus.PaymentPending ? Status : OrderStatus.KitchenAccepted, OrderStatus.PaymentFailed);
     public void Reject() => Status = OrderStatus.Rejected;
 
     private void Transition(OrderStatus expected, OrderStatus next)

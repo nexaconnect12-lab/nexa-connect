@@ -86,6 +86,27 @@ public sealed class RestaurantWorkflowTests
     }
 
     [Fact]
+    public async Task PlaceOrder_keeps_inventory_and_kitchen_when_payment_outcome_is_uncertain()
+    {
+        Guid productId = Guid.NewGuid();
+        var inventory = new FakeInventory(true);
+        var kitchen = new FakeKitchen();
+        var events = new RecordingPublisher();
+        var repository = new InMemoryOrderRepository();
+        var workflow = new PlaceOrderWorkflow(
+            new FakeCatalog(new CatalogMenuItem(productId, "Pasta", 15m, "USD", true, "kitchen")),
+            inventory, kitchen, new FakePayment(false, "unknown"), repository, events);
+
+        PlaceOrderResult result = await workflow.ExecuteAsync(new PlaceOrderCommand(
+            Guid.NewGuid(), Guid.NewGuid(), [new PlaceOrderLine(productId, 1)], "USD", "card"), CancellationToken.None);
+
+        Assert.Equal(OrderStatus.PaymentPending, result.Status);
+        Assert.Equal(0, inventory.ReleaseCalls);
+        Assert.Equal(0, kitchen.CancelCalls);
+        Assert.Contains(events.Events, @event => @event is PaymentAuthorizationUncertainV1);
+    }
+
+    [Fact]
     public void Order_aggregate_rejects_invalid_transition()
     {
         var order = OrderAggregate.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
@@ -107,6 +128,7 @@ public sealed class RestaurantWorkflowTests
     private sealed class FakeInventory(bool reserved) : IInventoryReservationPort
     {
         public int Calls { get; private set; }
+        public int ReleaseCalls { get; private set; }
 
         public Task<InventoryReservationResult> ReserveAsync(
             Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
@@ -116,11 +138,18 @@ public sealed class RestaurantWorkflowTests
                 ? new InventoryReservationResult(true, Guid.NewGuid(), null)
                 : new InventoryReservationResult(false, null, "insufficient stock"));
         }
+
+        public Task ReleaseAsync(Guid orderId, Guid branchId, CancellationToken cancellationToken)
+        {
+            ReleaseCalls++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeKitchen : IKitchenPort
     {
         public int Calls { get; private set; }
+        public int CancelCalls { get; private set; }
 
         public Task<KitchenTicketResult> CreateTicketAsync(
             Guid organizationId, Guid restaurantId, Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
@@ -128,9 +157,15 @@ public sealed class RestaurantWorkflowTests
             Calls++;
             return Task.FromResult(new KitchenTicketResult(Guid.NewGuid()));
         }
+
+        public Task CancelTicketAsync(Guid organizationId, Guid orderId, Guid branchId, CancellationToken cancellationToken)
+        {
+            CancelCalls++;
+            return Task.CompletedTask;
+        }
     }
 
-    private sealed class FakePayment(bool completed) : IPaymentPort
+    private sealed class FakePayment(bool completed, string outcome = "authorized") : IPaymentPort
     {
         public int Calls { get; private set; }
 
@@ -141,7 +176,7 @@ public sealed class RestaurantWorkflowTests
             Calls++;
             return Task.FromResult(completed
                 ? new PaymentResult(true, Guid.NewGuid(), null)
-                : new PaymentResult(false, null, "declined"));
+                : new PaymentResult(false, Guid.NewGuid(), outcome == "unknown" ? "provider timeout" : "declined", outcome));
         }
     }
 

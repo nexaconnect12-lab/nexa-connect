@@ -33,11 +33,37 @@ public sealed class PosCashSessionApplicationTests
         Assert.False(store.MovementRecorded);
     }
 
+    [Fact]
+    public async Task Movement_passes_client_operation_id_and_stable_payload_hash_to_store()
+    {
+        var operationId = Guid.NewGuid();
+        var terminalId = Guid.NewGuid();
+        var store = new FakeCashSessionStore();
+        var service = new CashSessionApplicationService(store);
+        var command = new RecordCashMovementCommand(
+            Guid.Parse("10000000-0000-0000-0000-000000000001"),
+            "sale",
+            12.50m,
+            "cash-sale",
+            operationId,
+            terminalId);
+
+        await service.RecordMovementAsync(command, "cashier-1", CancellationToken.None);
+
+        Assert.True(store.MovementRecorded);
+        Assert.Equal(operationId, store.ClientOperationId);
+        Assert.Equal(terminalId, store.TerminalId);
+        Assert.Equal(64, store.PayloadHash?.Length);
+    }
+
     private sealed class FakeCashSessionStore : ICashSessionStore
     {
         public Guid SessionId { get; } = Guid.NewGuid();
         public string? Currency { get; private set; }
         public bool MovementRecorded { get; private set; }
+        public Guid? ClientOperationId { get; private set; }
+        public Guid? TerminalId { get; private set; }
+        public string? PayloadHash { get; private set; }
 
         public Task<Guid> OpenAsync(Guid shiftId, Guid storeId, string currency, decimal openingAmount, CancellationToken cancellationToken)
         {
@@ -45,10 +71,13 @@ public sealed class PosCashSessionApplicationTests
             return Task.FromResult(SessionId);
         }
 
-        public Task RecordMovementAsync(Guid cashSessionId, string movementType, decimal amount, string recordedBy, string? reasonCode, CancellationToken cancellationToken)
+        public Task<bool> RecordMovementAsync(Guid cashSessionId, string movementType, decimal amount, string recordedBy, string? reasonCode, Guid? clientOperationId, Guid? terminalId, string payloadHash, CancellationToken cancellationToken)
         {
             MovementRecorded = true;
-            return Task.CompletedTask;
+            ClientOperationId = clientOperationId;
+            TerminalId = terminalId;
+            PayloadHash = payloadHash;
+            return Task.FromResult(true);
         }
 
         public Task CloseAsync(Guid cashSessionId, decimal actualClosingAmount, CancellationToken cancellationToken) =>

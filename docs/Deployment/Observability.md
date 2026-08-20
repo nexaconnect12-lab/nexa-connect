@@ -2,7 +2,7 @@
 
 ## Implemented foundation
 
-`NexaConnect.Observability` is the shared ASP.NET Core operational-telemetry library. Platform Directory, Platform Admin BFF, Customer BFF, Catalog, Inventory, Order, Kitchen, Payment, Customer, Authorization, and Restaurant adopt it. It provides:
+`NexaConnect.Observability` is the shared ASP.NET Core operational-telemetry library. Platform Directory, Platform Admin BFF, Customer BFF, Catalog, Inventory, Order, Kitchen, Payment, Customer, POS, Authorization, and Restaurant adopt it. It provides:
 
 - structured JSON logs on stdout in every environment;
 - optional OTLP logs, traces, and metrics (the local stack stores logs only);
@@ -35,6 +35,8 @@ For Phase 4 debugging, send a safe identifier such as `X-Correlation-ID: phase4-
 Permission denials can be narrowed with `|= "Product permission"`. These events contain permission codes and UUID scopes, never subjects, tokens, customer profile data, payloads, or payment details.
 
 Customer profile authorization can be narrowed with `{service_name="nexaconnect-customer"} |= "Customer authorization denied"`, `|= "Customer organization access lookup failed"`, or `|= "Customer organization access dependency failed"`, then correlated by `CorrelationId`. These events contain organization IDs, permission codes, and dependency status only; they exclude subjects, authorization values, and profile fields.
+
+POS offline cash replay can be narrowed with `{service_name="nexaconnect-pos"} |= "POS offline cash movement"`, then correlated by `CorrelationId`. The events contain cash-session, terminal, and client-operation UUIDs and the accepted/replayed/denied/conflict outcome; they exclude subjects, tokens, request bodies, reason codes, and cash values.
 
 Copy `.env.example` to `.env`, set a strong `GRAFANA_ADMIN_PASSWORD`, and start the stack:
 

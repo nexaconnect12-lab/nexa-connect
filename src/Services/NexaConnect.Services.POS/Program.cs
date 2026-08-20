@@ -1,4 +1,5 @@
 using NexaConnect.Infrastructure.Authentication;
+using NexaConnect.Observability;
 using NexaConnect.Services.POS.Application.CashSessions;
 using NexaConnect.Services.POS.Application.Shifts;
 using NexaConnect.Services.POS.Application.Terminals;
@@ -9,9 +10,8 @@ using NexaConnect.Services.POS.Infrastructure.Restaurant;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddNexaConnectObservability("nexaconnect-pos");
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
-builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
 
 // Add services to the container.
 
@@ -23,9 +23,9 @@ builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Env
 builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("POS")
     ?? throw new InvalidOperationException("ConnectionStrings:POS is required.")));
 builder.Services.AddMemoryCache();
-builder.Services.AddHttpClient<PosWorkloadTokenProvider>();
-builder.Services.AddHttpClient<RestaurantHierarchyClient>();
-builder.Services.AddHttpClient("Authorization");
+builder.Services.AddHttpClient<PosWorkloadTokenProvider>().AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient<RestaurantHierarchyClient>().AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient("Authorization").AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<IShiftStore, PostgresShiftStore>();
 builder.Services.AddScoped<ICashSessionStore, PostgresCashSessionStore>();
 builder.Services.AddScoped<ITerminalStore, PostgresTerminalStore>();
@@ -37,6 +37,7 @@ builder.Services.AddScoped<TerminalEnrollmentApplicationService>();
 builder.Services.AddSingleton(TimeProvider.System);
 
 var app = builder.Build();
+app.UseNexaConnectRequestLogging();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing"))

@@ -7,7 +7,9 @@ namespace NexaConnect.Services.POS.Controllers;
 
 [ApiController]
 [Route("api/pos/v1/cash-sessions")]
-public sealed class CashSessionsController(CashSessionApplicationService cashSessions) : ControllerBase
+public sealed class CashSessionsController(
+    CashSessionApplicationService cashSessions,
+    ILogger<CashSessionsController> logger) : ControllerBase
 {
     [HttpPost("open")]
     public async Task<IActionResult> OpenAsync(OpenCashSessionRequest request, CancellationToken cancellationToken)
@@ -39,13 +41,37 @@ public sealed class CashSessionsController(CashSessionApplicationService cashSes
         CancellationToken cancellationToken)
     {
         if (!TryGetSubject(out string subject)) return Unauthorized();
+        if (!TryGetReplayIdentifiers(out Guid? operationId, out Guid? terminalId))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "X-Client-Operation-Id and X-Nexa-Terminal-Id are required and must both be valid non-empty UUIDs.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
 
         try
         {
-            await cashSessions.RecordMovementAsync(
-                new RecordCashMovementCommand(cashSessionId, request.MovementType, request.Amount, request.ReasonCode),
+            bool created = await cashSessions.RecordMovementAsync(
+                new RecordCashMovementCommand(
+                    cashSessionId,
+                    request.MovementType,
+                    request.Amount,
+                    request.ReasonCode,
+                    operationId,
+                    terminalId),
                 subject,
                 cancellationToken);
+            if (operationId is not null)
+            {
+                logger.LogInformation(
+                    created
+                        ? "POS offline cash movement accepted for cash session {CashSessionId}, terminal {TerminalId}, operation {ClientOperationId}."
+                        : "POS offline cash movement replay accepted for cash session {CashSessionId}, terminal {TerminalId}, operation {ClientOperationId}.",
+                    cashSessionId,
+                    terminalId,
+                    operationId);
+            }
             return Accepted();
         }
         catch (CashSessionValidationException exception)
@@ -54,7 +80,24 @@ public sealed class CashSessionsController(CashSessionApplicationService cashSes
         }
         catch (CashSessionConflictException exception)
         {
+            if (operationId is not null)
+            {
+                logger.LogWarning(
+                    "POS offline cash movement conflict for cash session {CashSessionId}, terminal {TerminalId}, operation {ClientOperationId}.",
+                    cashSessionId,
+                    terminalId,
+                    operationId);
+            }
             return Conflict(new ProblemDetails { Title = exception.Message, Status = StatusCodes.Status409Conflict });
+        }
+        catch (CashSessionReplayAuthorizationException)
+        {
+            logger.LogWarning(
+                "POS offline cash movement denied for cash session {CashSessionId}, terminal {TerminalId}, operation {ClientOperationId}.",
+                cashSessionId,
+                terminalId,
+                operationId);
+            return Forbid();
         }
     }
 
@@ -87,6 +130,26 @@ public sealed class CashSessionsController(CashSessionApplicationService cashSes
             ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? "";
         return User.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(subject);
+    }
+
+    private bool TryGetReplayIdentifiers(out Guid? operationId, out Guid? terminalId)
+    {
+        operationId = null;
+        terminalId = null;
+        bool hasOperation = Request.Headers.TryGetValue("X-Client-Operation-Id", out var operationValues);
+        bool hasTerminal = Request.Headers.TryGetValue("X-Nexa-Terminal-Id", out var terminalValues);
+        if (!hasOperation || !hasTerminal
+            || !Guid.TryParse(operationValues.ToString(), out Guid parsedOperation)
+            || parsedOperation == Guid.Empty
+            || !Guid.TryParse(terminalValues.ToString(), out Guid parsedTerminal)
+            || parsedTerminal == Guid.Empty)
+        {
+            return false;
+        }
+
+        operationId = parsedOperation;
+        terminalId = parsedTerminal;
+        return true;
     }
 }
 

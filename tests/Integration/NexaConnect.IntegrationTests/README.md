@@ -82,6 +82,15 @@ $env:DOTNET_ENVIRONMENT = 'Testing'
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~InventoryMigrationRunnerAcceptanceTests
 ```
 
+`PosMigrationRunnerAcceptanceTests` manages only generated `nexaconnect_pos_clean_it_<guid>` databases and invokes the actual POS runner for 0→3→2→3. It validates migration checksums/history, all baseline tables, shift authorization columns/indexes, migration-3 removal/reapply, retained cash/replay rows, and real shift/cash repository behavior before and after re-upgrade. The case passed locally against PostgreSQL 17 and removed its generated database.
+
+```powershell
+$env:NEXACONNECT_POS_CLEAN_INSTALL_ACCEPTANCE = '1'
+$env:NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB = 'Host=localhost;Port=5432;Database=postgres;Username=<test-admin>;Password=<password>'
+$env:DOTNET_ENVIRONMENT = 'Testing'
+dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~PosMigrationRunnerAcceptanceTests
+```
+
 Run the Payment Phase 10 PostgreSQL/RabbitMQ component acceptance with:
 
 ```powershell
@@ -92,7 +101,7 @@ $env:DOTNET_ENVIRONMENT = 'Testing'
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~PaymentPostgresIntegrationTests
 ```
 
-The four component cases use isolated resources and verify atomic intent/audit/two-event commit and rollback, organization-leading reads, append-only audit, concurrent matching idempotency, conflicting-key rejection, and confirmed persistent publication over a new recovery connection. Missing opt-in configuration is reported as skipped rather than passed. They do not perform provider authorization or prove established-dispatcher reconnection.
+The component cases use isolated resources and verify atomic intent/audit/two-event commit and rollback, organization-leading reads, append-only audit, concurrent matching idempotency, conflicting-key rejection, and confirmed persistent publication over a new recovery connection. Payment migration 4 adds lease/reconciliation fields and its clean-install acceptance runs 0→4→3→4. Missing opt-in configuration is reported as skipped rather than passed. Provider-stub timeout/reconciliation and established-dispatcher recovery remain release evidence.
 
 Run the destructive Payment migration lifecycle only with a disposable Development/Test administrator:
 
@@ -103,7 +112,7 @@ $env:DOTNET_ENVIRONMENT = 'Testing'
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~PaymentMigrationRunnerAcceptanceTests
 ```
 
-It manages only `nexaconnect_payment_clean_it_<guid>`, invokes the actual runner for 0→1→2→1→2, seeds a version-1 intent, verifies the empty-organization upgrade marker and mechanical backfill/query boundary, and checks checksums, migration ownership, baseline outbox/intent preservation, repository writes, and atomic refusal of a colliding downgrade. The test does not establish authoritative production ownership; operators must reconcile against Order. All five Payment acceptances passed locally against PostgreSQL 17 and RabbitMQ; generated infrastructure was removed afterward.
+It manages only `nexaconnect_payment_clean_it_<guid>`, invokes the actual runner for 0→1→4→1→4, seeds a version-1 intent, verifies the empty-organization upgrade marker and mechanical backfill/query boundary, and checks checksums, migration ownership, baseline outbox/intent preservation, repository writes, and atomic refusal of a colliding downgrade. The test does not establish authoritative production ownership; operators must reconcile against Order. Provider recovery and forced-termination evidence remain opt-in release gates.
 
 `ReportingActivityVocabularyPostgresTests` applies Reporting migration 4 in an isolated schema and proves a Payment audit event persists through the real projection repository before destructive downgrade removes the incompatible projection and completed inbox marker, leaving the event eligible for controlled replay after re-upgrade. Set `NEXACONNECT_REPORTING_INTEGRATION_DB` and a safe environment to run it. This sixth coordinated acceptance also passed locally.
 

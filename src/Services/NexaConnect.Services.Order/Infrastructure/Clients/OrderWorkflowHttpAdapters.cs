@@ -100,13 +100,26 @@ public sealed class HttpPaymentPort(HttpClient client) : IPaymentPort
         using var authorize = new HttpRequestMessage(HttpMethod.Post, $"api/payment/v1/intents/{payment.Id:D}/authorize");
         authorize.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId, organizationId.ToString("D"));
         authorize.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode, "nexa_connect");
-        using HttpResponseMessage authorization = await client.SendAsync(authorize, cancellationToken);
-        if (!authorization.IsSuccessStatusCode)
-            return new PaymentResult(false, payment.Id, $"Payment authorization failed with {(int)authorization.StatusCode}.");
-        PaymentResponse? authorized = await authorization.Content.ReadFromJsonAsync<PaymentResponse>(cancellationToken);
-        return authorized?.Status == "authorized"
-            ? new PaymentResult(true, authorized.Id, null)
-            : new PaymentResult(false, payment.Id, authorized?.FailureCode ?? "Payment authorization was not approved.");
+        HttpResponseMessage authorization;
+        try
+        {
+            authorization = await client.SendAsync(authorize, cancellationToken);
+        }
+        catch (HttpRequestException)
+        {
+            return new PaymentResult(false, payment.Id, "Payment provider outcome is unknown.", "unknown");
+        }
+        using (authorization)
+        {
+            if (!authorization.IsSuccessStatusCode)
+                return new PaymentResult(false, payment.Id, $"Payment authorization failed with {(int)authorization.StatusCode}.",
+                    (int)authorization.StatusCode >= 500 ? "unknown" : "failed");
+            PaymentResponse? authorized = await authorization.Content.ReadFromJsonAsync<PaymentResponse>(cancellationToken);
+            return authorized?.Status == "authorized"
+                ? new PaymentResult(true, authorized.Id, null)
+                : new PaymentResult(false, payment.Id, authorized?.FailureCode ?? "Payment authorization was not approved.",
+                    authorized?.Status is "authorizing" or "unknown" or "requires_action" ? authorized.Status : "failed");
+        }
     }
 
     private sealed record PaymentRequest(Guid RestaurantId, Guid BranchId, Guid OrderId, string IdempotencyKey,

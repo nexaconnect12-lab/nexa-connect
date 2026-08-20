@@ -18,6 +18,7 @@ public sealed class PosOutboxReplayer(PosClientConfiguration configuration, Loca
             {
                 break;
             }
+            if (operation.TerminalFailureStatusCode is not null) continue;
 
             using var request = new HttpRequestMessage(new HttpMethod(operation.Method), operation.RelativeUri)
             {
@@ -25,11 +26,34 @@ public sealed class PosOutboxReplayer(PosClientConfiguration configuration, Loca
             };
             request.Headers.Authorization = new AuthenticationHeaderValue(token.TokenType, token.AccessToken);
             request.Headers.Add("X-Client-Operation-Id", operation.OperationId.ToString("D"));
+            if (operation.TerminalId is not Guid terminalId || terminalId == Guid.Empty)
+            {
+                outbox.MarkTerminalFailure(operation.OperationId, 400);
+                continue;
+            }
+            request.Headers.Add("X-Nexa-Terminal-Id", terminalId.ToString("D"));
             outbox.MarkAttempted(operation.OperationId);
-            using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            HttpResponseMessage response;
+            try
+            {
+                response = await client.SendAsync(request, cancellationToken);
+            }
+            catch (HttpRequestException)
             {
                 break;
+            }
+            using (response)
+            {
+                if (!response.IsSuccessStatusCode)
+                {
+                    int statusCode = (int)response.StatusCode;
+                    if (statusCode is 400 or 403 or 409)
+                    {
+                        outbox.MarkTerminalFailure(operation.OperationId, statusCode);
+                        continue;
+                    }
+                    break;
+                }
             }
 
             outbox.Remove(operation.OperationId);

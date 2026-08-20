@@ -26,7 +26,7 @@ public sealed record CatalogMenuItem(
 
 public sealed record InventoryReservationResult(bool Reserved, Guid? ReservationId, string? Reason);
 public sealed record KitchenTicketResult(Guid TicketId);
-public sealed record PaymentResult(bool Completed, Guid? PaymentId, string? Reason);
+public sealed record PaymentResult(bool Completed, Guid? PaymentId, string? Reason, string Outcome = "authorized");
 public sealed record PlaceOrderResult(Guid OrderId, OrderStatus Status, decimal TotalAmount, string Currency);
 
 public interface IMenuCatalogPort
@@ -143,6 +143,14 @@ public sealed class PlaceOrderWorkflow(
         PaymentResult paid = await payment.AuthorizeAsync(
             order.OrganizationId, order.RestaurantId,
             order.BranchId, order.Id, order.TotalAmount, order.Currency, command.PaymentMethod, cancellationToken);
+        if (!paid.Completed && paid.Outcome is "unknown" or "authorizing" or "requires_action")
+        {
+            order.MarkPaymentPending();
+            await PersistAsync(order, new PaymentAuthorizationUncertainV1(
+                Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, paid.PaymentId,
+                paid.Reason ?? "Payment authorization requires reconciliation."), cancellationToken);
+            return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
+        }
         if (!paid.Completed || paid.PaymentId is null)
         {
             await inventory.ReleaseAsync(order.Id, order.BranchId, cancellationToken);

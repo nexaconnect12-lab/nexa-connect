@@ -1,0 +1,1 @@
+{"version":4,"name":"recoverable_authorization_leases","description":"Adds recoverable authorization lease ownership, bounded attempts, reconciliation timestamps, and uncertainty state.","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.9.0"}

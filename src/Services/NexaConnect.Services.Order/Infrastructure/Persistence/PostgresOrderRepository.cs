@@ -7,7 +7,7 @@ using NexaConnect.Services.Order.Domain;
 namespace NexaConnect.Services.Order.Infrastructure.Persistence;
 
 public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
-    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository
+    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderLookup
 {
     public async Task SaveAsync(OrderAggregate order, CancellationToken cancellationToken)
     {
@@ -94,6 +94,6 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         }
     }
 
-    private static string ToDbStatus(OrderStatus status) => status switch { OrderStatus.Paid => "completed", OrderStatus.PaymentFailed or OrderStatus.Rejected => "cancelled", OrderStatus.KitchenAccepted => "accepted", OrderStatus.InventoryReserved => "accepted", _ => status.ToString().ToLowerInvariant() };
-    private static void ApplyStatus(OrderAggregate order, string status) { if (status == "submitted") order.Submit(); else if (status == "accepted") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); } else if (status == "completed") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaid(); } else if (status == "cancelled") order.Reject(); }
+    private static string ToDbStatus(OrderStatus status) => status switch { OrderStatus.Paid => "completed", OrderStatus.PaymentFailed or OrderStatus.Rejected => "cancelled", OrderStatus.PaymentPending => "payment_pending", OrderStatus.KitchenAccepted => "accepted", OrderStatus.InventoryReserved => "accepted", _ => status.ToString().ToLowerInvariant() };
+    private static void ApplyStatus(OrderAggregate order, string status) { if (status == "submitted") order.Submit(); else if (status == "accepted") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); } else if (status == "payment_pending") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaymentPending(); } else if (status == "completed") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaid(); } else if (status == "cancelled") order.Reject(); }
 }

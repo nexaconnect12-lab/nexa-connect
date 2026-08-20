@@ -1,0 +1,1 @@
+{"version":9,"name":"payment_authorization_reconciliation","description":"Adds Reporting vocabulary for uncertain and reconciled Payment authorization outcomes.","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.9.0"}

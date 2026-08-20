@@ -57,15 +57,44 @@ public sealed class PaymentAuthorizationLifecycleTests
         Assert.Equal("authorizing", second.Intent.Status);
     }
 
+    [Fact]
+    public async Task Provider_timeout_is_unknown_and_reconciliation_can_authorize_without_a_second_authorize_call()
+    {
+        var intents = new InMemoryPaymentIntents();
+        var provider = new RecordingProvider(new(false, null, "provider_timeout", ProviderAuthorizationOutcome.Unknown),
+            new(ProviderAuthorizationOutcome.Authorized, "provider-auth-reconciled", null));
+        var service = new PaymentAuthorizationService(intents, provider);
+        Guid organizationId = Guid.NewGuid();
+        PaymentIntent intent = intents.Create(organizationId,
+            new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "authorize-unknown", 25m, "USD", "card"), Context());
+
+        PaymentIntent uncertain = (await service.AuthorizeAsync(organizationId, intent.Id, Context(), default))!;
+        PaymentIntent reconciled = (await service.ReconcileAsync(organizationId, intent.Id, Context(), default))!;
+
+        Assert.Equal("unknown", uncertain.Status);
+        Assert.Equal("authorized", reconciled.Status);
+        Assert.Equal("provider-auth-reconciled", reconciled.ProviderAuthorizationId);
+        Assert.Equal(1, provider.AuthorizationCalls);
+        Assert.Equal(1, provider.StatusCalls);
+    }
+
     private static PaymentMutationContext Context() => new("order-service", Guid.NewGuid());
 
-    private sealed class RecordingProvider(ProviderAuthorizationResult result) : IPaymentProvider
+    private sealed class RecordingProvider(ProviderAuthorizationResult result, ProviderAuthorizationStatus? status = null) : IPaymentProvider
     {
         public int Calls { get; private set; }
+        public int AuthorizationCalls => Calls;
+        public int StatusCalls { get; private set; }
         public Task<ProviderAuthorizationResult> AuthorizeAsync(PaymentIntent intent, CancellationToken cancellationToken)
         {
             Calls++;
             return Task.FromResult(result);
+        }
+
+        public Task<ProviderAuthorizationStatus> GetAuthorizationStatusAsync(PaymentIntent intent, CancellationToken cancellationToken)
+        {
+            StatusCalls++;
+            return Task.FromResult(status ?? new ProviderAuthorizationStatus(ProviderAuthorizationOutcome.Unknown, null, "provider_status_unknown"));
         }
     }
 }
