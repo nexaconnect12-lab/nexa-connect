@@ -50,6 +50,21 @@ Phase 11 now includes opt-in live Catalog PostgreSQL and RabbitMQ acceptance plu
 
 Payment intent creation remains closed. Authorization recovery adds explicit unknown outcomes, recoverable leases, bounded attempts, and provider status lookup. The immediate-capture slice adds an Order-only `authorized → capturing → captured|failed|capture_unknown` transition, Payment migration 5, Reporting migration 10, and Order `payment_pending` behavior for capture uncertainty. Provider calls remain outside database transactions and only `captured` makes the Order paid. Default automated coverage passes. Updated opt-in PostgreSQL authorization/capture, 0→5→1→5 migration, Reporting replay, provider, RabbitMQ, forced-termination, and capture-recovery evidence remain release gates. Delayed capture, void/refunds, settlement, and established-dispatcher reconnection remain outside this slice.
 
+### Recorded next implementation: Payment capture recovery
+
+This is approved roadmap intent only; it is not implemented. The next Payment slice should:
+
+1. Add provider capture-status lookup keyed by the existing Payment intent/provider idempotency identity.
+2. Add recoverable capture leases, expiry, bounded attempts, and reconciliation timestamps without holding a database transaction across provider I/O.
+3. Add a background recovery worker for `capturing` and `capture_unknown` intents.
+4. Resolve provider outcomes conservatively: captured finalizes Payment and Order; definitive failure triggers idempotent Inventory/Kitchen compensation; unresolved status keeps Order in `payment_pending`.
+5. Publish a versioned `PaymentCaptureReconciledV1` contract through Payment's transactional outbox and consume it through Order's durable, idempotent reconciliation boundary.
+6. Reserve Payment migration 6 and Reporting migration 11 for recovery persistence and projection vocabulary, with downgrade guards derived from the financial invariants.
+7. Cover concurrency, duplicate delivery, worker termination, delayed/dropped provider responses, tenant isolation, transaction rollback, Reporting replay, and `0→6→5→6` migration behavior.
+8. Require live PostgreSQL, RabbitMQ, provider-stub, recovery, and rollback-runbook evidence before closing the slice.
+
+Capture recovery precedes void/reversal, partial/full refunds, compensation-policy expansion, and end-of-day settlement. Those later slices must preserve authorization, tenant isolation, idempotency, immutable audit, explicit transaction boundaries, and accounting reconciliation.
+
 POS adds successful isolated-schema PostgreSQL 17 evidence for exact/concurrent cash replay, rollback, terminal/shift-subject denial, active terminal scope, shift persistence/concurrency, and duplicate-open conflict. The actual migration runner passed 0→3→2→3. Native SQLite/replay tests and broader operation synchronization remain open.
 
 Kitchen adds five coordinated PostgreSQL 17/RabbitMQ acceptances: multi-station identity, snapshot idempotency, tenant-leading lifecycle/history/audit/outbox atomicity and rollback, confirmed recovery publication, Reporting migration-5 replay, and Kitchen 0→3→2→3. Unit coverage protects legal transitions and exact Order workload creation. The ticket-level Phase 10 slice is closed; item/KDS/offline workflows remain outside this evidence.

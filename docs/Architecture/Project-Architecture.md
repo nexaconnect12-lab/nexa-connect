@@ -239,6 +239,8 @@ Owns payment intents, provider transactions, payment status, refunds, and reconc
 
 The Payment lifecycle uses a small Domain aggregate for validation and normalization, Application-owned repository/provider ports, and Infrastructure-owned PostgreSQL/outbox/provider adapters. Migration 2 adds organization attribution and append-only audit while migration 1 remains the outbox owner; migrations 3-4 add recoverable authorization and migration 5 adds immediate capture. Matching idempotent intent retries return the original without republishing. Capture is Order-only, uses separate local transactions around provider I/O, and sends the intent ID as the provider idempotency key; only `captured` makes Order paid. Capture recovery, void, refunds, and settlement are not enabled.
 
+The recorded next Payment implementation is capture recovery, not yet delivered: provider status lookup, recoverable capture leases, a bounded recovery worker, conservative resolution of `capturing`/`capture_unknown`, transactional `PaymentCaptureReconciledV1` publication, durable Order reconciliation, Payment migration 6, Reporting migration 11, and production-like recovery/migration evidence. Capture recovery must be completed before void/reversal, refunds, compensation-policy expansion, or end-of-day settlement. See `Portal-Implementation-Phases.md` for the ordered acceptance plan.
+
 ### 5.8 Kitchen Service
 
 Owns preparation tickets, station-specific preparation snapshots, ticket status transitions, and payment-failure cancellation. It receives order-line snapshots through its authenticated HTTP API and never recalculates commercial totals or reads the Order database directly.
