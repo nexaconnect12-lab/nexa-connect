@@ -12,7 +12,8 @@ public sealed record PaymentIntent(Guid Id, Guid OrganizationId, Guid Restaurant
     [property: JsonIgnore] string? LeaseOwner = null,
     [property: JsonIgnore] DateTimeOffset? LeaseExpiresAtUtc = null,
     [property: JsonIgnore] int AuthorizationAttemptCount = 0,
-    [property: JsonIgnore] DateTimeOffset? LastReconciledAtUtc = null);
+    [property: JsonIgnore] DateTimeOffset? LastReconciledAtUtc = null,
+    [property: JsonIgnore] string? ProviderCaptureId = null);
 public sealed record PaymentAuthorizationLease(PaymentIntent Intent, bool Acquired);
 public sealed record PaymentAuthorizationClaim(PaymentIntent Intent, bool Claimed);
 
@@ -36,10 +37,21 @@ public interface IPaymentIntents
         ProviderAuthorizationOutcome outcome, string? providerAuthorizationId, string? failureCode, PaymentMutationContext context)
         => throw new NotSupportedException("Payment authorization reconciliation is not supported by this store.");
     IReadOnlyCollection<PaymentIntent> FindExpiredAuthorizations() => [];
+    PaymentAuthorizationLease BeginCapture(Guid organizationId, Guid id, PaymentMutationContext context)
+        => throw new NotSupportedException("Payment capture is not supported by this store.");
+    PaymentIntent CompleteCapture(Guid organizationId, Guid id, long expectedVersion, ProviderCaptureOutcome outcome,
+        string? providerCaptureId, string? failureCode, PaymentMutationContext context)
+        => throw new NotSupportedException("Payment capture is not supported by this store.");
 }
 
 public interface IPaymentAuthorizationService
 {
     Task<PaymentIntent?> AuthorizeAsync(Guid organizationId, Guid id, PaymentMutationContext context,
+        CancellationToken cancellationToken);
+}
+
+public interface IPaymentCaptureService
+{
+    Task<PaymentIntent?> CaptureAsync(Guid organizationId, Guid id, PaymentMutationContext context,
         CancellationToken cancellationToken);
 }

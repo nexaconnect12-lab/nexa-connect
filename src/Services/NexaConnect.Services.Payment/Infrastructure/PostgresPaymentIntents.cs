@@ -67,7 +67,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
     public PaymentIntent? Get(Guid organizationId, Guid id)
     {
         const string sql = """
-            SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc
+            SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc,provider_capture_id
             FROM payment_intents WHERE organization_id=$1 AND id=$2;
             """;
         using NpgsqlConnection connection = dataSource.OpenConnection();
@@ -224,6 +224,44 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
         return reconciled;
     }
 
+    public PaymentAuthorizationLease BeginCapture(Guid organizationId, Guid id, PaymentMutationContext context)
+    {
+        ValidateContext(context); DateTimeOffset now = DateTimeOffset.UtcNow;
+        using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
+        PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
+        if (intent.Status is "captured" or "capturing" or "capture_unknown") { transaction.Commit(); return new(intent, false); }
+        if (intent.Status != "authorized") throw new InvalidOperationException("Only an authorized payment intent can be captured.");
+        using (var command = new NpgsqlCommand("UPDATE payment_intents SET status='capturing',failure_code=NULL,updated_at_utc=$1,concurrency_version=concurrency_version+1 WHERE organization_id=$2 AND id=$3 AND concurrency_version=$4", connection, transaction))
+        { command.Parameters.AddWithValue(now); command.Parameters.AddWithValue(organizationId); command.Parameters.AddWithValue(id); command.Parameters.AddWithValue(intent.ConcurrencyVersion); if (command.ExecuteNonQuery()!=1) throw new PaymentConcurrencyException("The payment intent changed before capture started."); }
+        PaymentIntent capturing = ReadForUpdate(connection, transaction, organizationId, id)!;
+        AppendLifecycle(connection, transaction, capturing, "payment.capture.started", context, now,
+            new PaymentCaptureStartedV1(Guid.NewGuid(), context.CorrelationId, now, organizationId, capturing.OrderId, id, capturing.Amount, capturing.Currency));
+        transaction.Commit(); return new(capturing, true);
+    }
+
+    public PaymentIntent CompleteCapture(Guid organizationId, Guid id, long expectedVersion, ProviderCaptureOutcome outcome,
+        string? providerCaptureId, string? failureCode, PaymentMutationContext context)
+    {
+        ValidateContext(context);
+        if (outcome == ProviderCaptureOutcome.Captured && string.IsNullOrWhiteSpace(providerCaptureId)) throw new ArgumentException("A successful capture requires a provider reference.");
+        DateTimeOffset now = DateTimeOffset.UtcNow; using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
+        PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
+        if (intent.Status == "captured") { transaction.Commit(); return intent; }
+        if (intent.Status != "capturing" || intent.ConcurrencyVersion != expectedVersion) throw new PaymentConcurrencyException("The payment intent changed while capture was in progress.");
+        string status = outcome switch { ProviderCaptureOutcome.Captured => "captured", ProviderCaptureOutcome.Failed => "failed", _ => "capture_unknown" };
+        using (var command = new NpgsqlCommand("UPDATE payment_intents SET status=$1,provider_capture_id=$2,failure_code=$3,captured_at_utc=CASE WHEN $1='captured' THEN $4 ELSE NULL END,failed_at_utc=CASE WHEN $1='failed' THEN $4 ELSE failed_at_utc END,updated_at_utc=$4,concurrency_version=concurrency_version+1 WHERE organization_id=$5 AND id=$6 AND concurrency_version=$7", connection, transaction))
+        { command.Parameters.AddWithValue(status); command.Parameters.AddWithValue((object?)(outcome==ProviderCaptureOutcome.Captured?providerCaptureId!.Trim():null)??DBNull.Value); command.Parameters.AddWithValue((object?)(outcome==ProviderCaptureOutcome.Captured?null:failureCode??"provider_capture_failed")??DBNull.Value); command.Parameters.AddWithValue(now); command.Parameters.AddWithValue(organizationId); command.Parameters.AddWithValue(id); command.Parameters.AddWithValue(expectedVersion); if(command.ExecuteNonQuery()!=1)throw new PaymentConcurrencyException("The payment intent changed while capture completed."); }
+        PaymentIntent completed = ReadForUpdate(connection, transaction, organizationId, id)!;
+        IIntegrationEvent integrationEvent = outcome switch
+        {
+            ProviderCaptureOutcome.Captured => new PaymentCapturedV1(Guid.NewGuid(), context.CorrelationId, now, organizationId, completed.OrderId, id, completed.Amount, completed.Currency),
+            ProviderCaptureOutcome.Failed => new PaymentCaptureFailedV1(Guid.NewGuid(), context.CorrelationId, now, organizationId, completed.OrderId, id, completed.FailureCode ?? "provider_capture_failed"),
+            _ => new PaymentCaptureUncertainV1(Guid.NewGuid(), context.CorrelationId, now, organizationId, completed.OrderId, id, completed.FailureCode ?? "provider_status_unknown")
+        };
+        AppendLifecycle(connection, transaction, completed, outcome switch { ProviderCaptureOutcome.Captured=>"payment.capture.succeeded",ProviderCaptureOutcome.Failed=>"payment.capture.failed",_=>"payment.capture.uncertain"}, context, now, integrationEvent);
+        transaction.Commit(); return completed;
+    }
+
     private static PaymentIntent Read(NpgsqlDataReader reader) => new(reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2),
         reader.GetGuid(3), reader.GetGuid(4), reader.GetDecimal(5), reader.GetString(6), reader.GetString(7), reader.GetString(8),
         reader.GetFieldValue<DateTimeOffset>(9), reader.FieldCount > 10 ? reader.GetInt64(10) : 1,
@@ -232,11 +270,12 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
         reader.FieldCount > 13 && !reader.IsDBNull(13) ? reader.GetString(13) : null,
         reader.FieldCount > 14 && !reader.IsDBNull(14) ? reader.GetFieldValue<DateTimeOffset>(14) : null,
         reader.FieldCount > 15 && !reader.IsDBNull(15) ? reader.GetInt32(15) : 0,
-        reader.FieldCount > 16 && !reader.IsDBNull(16) ? reader.GetFieldValue<DateTimeOffset>(16) : null);
+        reader.FieldCount > 16 && !reader.IsDBNull(16) ? reader.GetFieldValue<DateTimeOffset>(16) : null,
+        reader.FieldCount > 17 && !reader.IsDBNull(17) ? reader.GetString(17) : null);
 
     private static PaymentIntent? ReadForUpdate(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid organizationId, Guid id)
     {
-        using var command = new NpgsqlCommand("SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc FROM payment_intents WHERE organization_id=$1 AND id=$2 FOR UPDATE", connection, transaction);
+        using var command = new NpgsqlCommand("SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc,provider_capture_id FROM payment_intents WHERE organization_id=$1 AND id=$2 FOR UPDATE", connection, transaction);
         command.Parameters.AddWithValue(organizationId); command.Parameters.AddWithValue(id);
         using NpgsqlDataReader reader = command.ExecuteReader(); return reader.Read() ? Read(reader) : null;
     }
@@ -244,7 +283,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
     private static PaymentIntent? ReadExisting(NpgsqlConnection connection, NpgsqlTransaction transaction,
         Guid organizationId, Guid restaurantId, string idempotencyKey)
     {
-        using var command = new NpgsqlCommand("SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc FROM payment_intents WHERE organization_id=$1 AND restaurant_id=$2 AND idempotency_key=$3", connection, transaction);
+        using var command = new NpgsqlCommand("SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc,provider_capture_id FROM payment_intents WHERE organization_id=$1 AND restaurant_id=$2 AND idempotency_key=$3", connection, transaction);
         command.Parameters.AddWithValue(organizationId); command.Parameters.AddWithValue(restaurantId); command.Parameters.AddWithValue(idempotencyKey);
         using NpgsqlDataReader reader = command.ExecuteReader(); return reader.Read() ? Read(reader) : null;
     }
@@ -278,6 +317,10 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
             PaymentAuthorizationFailedV1 => "payment.authorization-failed.v1",
             PaymentAuthorizationUncertainV1 => "payment.authorization-uncertain.v1",
             PaymentAuthorizationReconciledV1 => "payment.authorization-reconciled.v1",
+            PaymentCaptureStartedV1 => "payment.capture-started.v1",
+            PaymentCapturedV1 => "payment.captured.v1",
+            PaymentCaptureFailedV1 => "payment.capture-failed.v1",
+            PaymentCaptureUncertainV1 => "payment.capture-uncertain.v1",
             _ => throw new InvalidOperationException("Unsupported payment lifecycle event.")
         };
         Enqueue(connection, transaction, integrationEvent.EventId, eventType, intent.Id, integrationEvent, context.CorrelationId, occurredAt);

@@ -36,6 +36,8 @@ using PaymentIntents = PAYMENT::NexaConnect.Services.Payment.Application.Intents
 using PaymentIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentIntent;
 using CreatePaymentIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.CreatePaymentIntent;
 using PaymentAuthorizationService = PAYMENT::NexaConnect.Services.Payment.Application.Intents.IPaymentAuthorizationService;
+using PaymentCaptureService = PAYMENT::NexaConnect.Services.Payment.Application.Intents.IPaymentCaptureService;
+using ProviderCaptureOutcome = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderCaptureOutcome;
 using PaymentAuthorizationLease = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentAuthorizationLease;
 using PaymentMutationContext = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentMutationContext;
 using KitchenProgram = KITCHEN::KitchenProgram;
@@ -175,6 +177,8 @@ public sealed class PaymentFactory : WebApplicationFactory<PaymentProgram>
             services.AddSingleton<PaymentIntents>(Intents);
             services.RemoveAll<PaymentAuthorizationService>();
             services.AddSingleton<PaymentAuthorizationService>(new SuccessfulPaymentAuthorizationService(Intents));
+            services.RemoveAll<PaymentCaptureService>();
+            services.AddSingleton<PaymentCaptureService>(new SuccessfulPaymentCaptureService(Intents));
         });
     }
 
@@ -391,12 +395,22 @@ internal sealed class RecordingPaymentIntents : PaymentIntents
         LastIntent = intent;
         return intent;
     }
+    public PaymentAuthorizationLease BeginCapture(Guid organizationId, Guid id, PaymentMutationContext context)
+    { PaymentIntent intent=Get(organizationId,id)??throw new KeyNotFoundException(); intent=intent with{Status="capturing",ConcurrencyVersion=intent.ConcurrencyVersion+1};intents[id]=intent;return new(intent,true); }
+    public PaymentIntent CompleteCapture(Guid organizationId,Guid id,long expectedVersion,ProviderCaptureOutcome outcome,string? providerCaptureId,string? failureCode,PaymentMutationContext context)
+    { PaymentIntent intent=Get(organizationId,id)??throw new KeyNotFoundException();intent=intent with{Status=outcome==ProviderCaptureOutcome.Captured?"captured":"failed",ProviderCaptureId=providerCaptureId,ConcurrencyVersion=intent.ConcurrencyVersion+1};intents[id]=intent;LastIntent=intent;return intent; }
     public void Reset()
     {
         intents.Clear();
         LastIntent = null;
         CreateCount = 0;
     }
+}
+
+internal sealed class SuccessfulPaymentCaptureService(RecordingPaymentIntents intents) : PaymentCaptureService
+{
+    public Task<PaymentIntent?> CaptureAsync(Guid organizationId,Guid id,PaymentMutationContext context,CancellationToken cancellationToken)
+    {PaymentAuthorizationLease lease=intents.BeginCapture(organizationId,id,context);return Task.FromResult<PaymentIntent?>(intents.CompleteCapture(organizationId,id,lease.Intent.ConcurrencyVersion,ProviderCaptureOutcome.Captured,$"capture-{id:N}",null,context));}
 }
 
 internal sealed class SuccessfulPaymentAuthorizationService(RecordingPaymentIntents intents) : PaymentAuthorizationService

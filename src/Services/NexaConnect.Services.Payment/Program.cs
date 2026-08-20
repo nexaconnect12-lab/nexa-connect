@@ -34,6 +34,7 @@ builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Env
 builder.Services.Configure<PaymentProviderOptions>(builder.Configuration.GetSection("PaymentProvider"));
 builder.Services.AddScoped<PaymentAuthorizationService>();
 builder.Services.AddScoped<IPaymentAuthorizationService>(services => services.GetRequiredService<PaymentAuthorizationService>());
+builder.Services.AddScoped<IPaymentCaptureService, PaymentCaptureService>();
 builder.Services.AddTransient<RetryingHttpMessageHandler>();
 builder.Services.AddHttpClient<IPaymentProvider, HttpPaymentProvider>((services, client) =>
 {

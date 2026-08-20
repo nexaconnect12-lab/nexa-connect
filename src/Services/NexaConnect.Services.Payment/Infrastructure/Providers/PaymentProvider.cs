@@ -22,11 +22,16 @@ public sealed record ProviderAuthorizationResult(bool Succeeded, string? Provide
 public sealed record ProviderAuthorizationStatus(ProviderAuthorizationOutcome Outcome, string? ProviderTransactionId,
     string? FailureReason);
 
+public enum ProviderCaptureOutcome { Captured, Failed, Unknown }
+public sealed record ProviderCaptureResult(ProviderCaptureOutcome Outcome, string? ProviderTransactionId, string? FailureReason);
+
 public interface IPaymentProvider
 {
     Task<ProviderAuthorizationResult> AuthorizeAsync(PaymentIntent intent, CancellationToken cancellationToken);
     Task<ProviderAuthorizationStatus> GetAuthorizationStatusAsync(PaymentIntent intent, CancellationToken cancellationToken)
         => Task.FromResult(new ProviderAuthorizationStatus(ProviderAuthorizationOutcome.Unknown, null, "provider_status_unavailable"));
+    Task<ProviderCaptureResult> CaptureAsync(PaymentIntent intent, CancellationToken cancellationToken)
+        => Task.FromResult(new ProviderCaptureResult(ProviderCaptureOutcome.Unknown, null, "provider_capture_unavailable"));
 }
 
 public sealed class HttpPaymentProvider(HttpClient client, IOptions<PaymentProviderOptions> options) : IPaymentProvider
@@ -71,9 +76,29 @@ public sealed class HttpPaymentProvider(HttpClient client, IOptions<PaymentProvi
         return new ProviderAuthorizationStatus(outcome, result.ProviderTransactionId, result.FailureReason);
     }
 
+    public async Task<ProviderCaptureResult> CaptureAsync(PaymentIntent intent, CancellationToken cancellationToken)
+    {
+        using HttpRequestMessage request = new(HttpMethod.Post, options.Value.CapturePath)
+        {
+            Content = JsonContent.Create(
+                new ProviderCaptureRequest(intent.Id, intent.ProviderAuthorizationId!, intent.Amount, intent.Currency))
+        };
+        request.Headers.TryAddWithoutValidation("Idempotency-Key", intent.Id.ToString("D"));
+        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return new ProviderCaptureResult(response.StatusCode is >= System.Net.HttpStatusCode.InternalServerError
+                ? ProviderCaptureOutcome.Unknown : ProviderCaptureOutcome.Failed, null, $"provider_http_{(int)response.StatusCode}");
+        ProviderCaptureResponse? result = await response.Content.ReadFromJsonAsync<ProviderCaptureResponse>(cancellationToken);
+        return result is { Succeeded: true, ProviderTransactionId: not null }
+            ? new ProviderCaptureResult(ProviderCaptureOutcome.Captured, result.ProviderTransactionId, null)
+            : new ProviderCaptureResult(ProviderCaptureOutcome.Failed, null, result?.FailureReason ?? "provider_capture_failed");
+    }
+
     private sealed record ProviderAuthorizationRequest(Guid PaymentIntentId, Guid OrderId, decimal Amount, string Currency, string PaymentMethod);
     private sealed record ProviderAuthorizationResponse(bool Succeeded, string? ProviderTransactionId, string? FailureReason);
     private sealed record ProviderAuthorizationStatusResponse(string? Status, string? ProviderTransactionId, string? FailureReason);
+    private sealed record ProviderCaptureRequest(Guid PaymentIntentId, string ProviderAuthorizationId, decimal Amount, string Currency);
+    private sealed record ProviderCaptureResponse(bool Succeeded, string? ProviderTransactionId, string? FailureReason);
 }
 
 public sealed class PaymentProviderOptions
@@ -81,6 +106,7 @@ public sealed class PaymentProviderOptions
     public string BaseUrl { get; set; } = "https://payment-provider.invalid/";
     public string AuthorizationPath { get; set; } = "v1/authorizations";
     public string AuthorizationStatusPath { get; set; } = "v1/authorizations";
+    public string CapturePath { get; set; } = "v1/captures";
     public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromMinutes(2);
     public int MaximumAuthorizationAttempts { get; set; } = 3;
     public TimeSpan RecoveryInterval { get; set; } = TimeSpan.FromSeconds(30);

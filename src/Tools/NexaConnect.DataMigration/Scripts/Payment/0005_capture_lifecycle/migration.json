@@ -1,0 +1,1 @@
+{"version":5,"name":"capture_lifecycle","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.9.0"}

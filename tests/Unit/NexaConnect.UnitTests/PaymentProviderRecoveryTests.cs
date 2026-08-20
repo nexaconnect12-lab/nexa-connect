@@ -44,6 +44,21 @@ public sealed class PaymentProviderRecoveryTests
         Assert.Equal("provider_status_missing", result.FailureReason);
     }
 
+    [Fact]
+    public async Task Capture_uses_payment_intent_as_provider_idempotency_key()
+    {
+        var handler = new StubHandler(HttpStatusCode.OK,
+            new { succeeded = true, providerTransactionId = "capture-ref-1" });
+        var client = new HttpClient(handler) { BaseAddress = new Uri("https://provider.test/") };
+        var provider = new HttpPaymentProvider(client, Options.Create(new PaymentProviderOptions()));
+        PaymentIntent intent = Intent() with { Status = "capturing", ProviderAuthorizationId = "authorization-ref-1" };
+
+        ProviderCaptureResult result = await provider.CaptureAsync(intent, CancellationToken.None);
+
+        Assert.Equal(ProviderCaptureOutcome.Captured, result.Outcome);
+        Assert.Equal(intent.Id.ToString("D"), handler.IdempotencyKey);
+    }
+
     private static HttpPaymentProvider CreateProvider(HttpStatusCode statusCode, object? body)
     {
         var handler = new StubHandler(statusCode, body);
@@ -56,8 +71,13 @@ public sealed class PaymentProviderRecoveryTests
 
     private sealed class StubHandler(HttpStatusCode statusCode, object? body) : HttpMessageHandler
     {
+        public string? IdempotencyKey { get; private set; }
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            IdempotencyKey = request.Headers.TryGetValues("Idempotency-Key", out IEnumerable<string>? values)
+                ? values.Single()
+                : null;
             var response = new HttpResponseMessage(statusCode);
             if (body is not null) response.Content = JsonContent.Create(body);
             await Task.Yield();

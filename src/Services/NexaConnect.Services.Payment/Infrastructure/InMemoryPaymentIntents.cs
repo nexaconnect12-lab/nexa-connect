@@ -150,6 +150,48 @@ public sealed class InMemoryPaymentIntents(IOptions<PaymentProviderOptions>? opt
         lock (gate) return intents.Values.Where(intent => intent.Status == "unknown" || (intent.Status == "authorizing" && intent.LeaseExpiresAtUtc <= DateTimeOffset.UtcNow)).ToArray();
     }
 
+    public PaymentAuthorizationLease BeginCapture(Guid organizationId, Guid id, PaymentMutationContext context)
+    {
+        ValidateContext(context);
+        lock (gate)
+        {
+            if (!intents.TryGetValue(id, out PaymentIntent? intent) || intent.OrganizationId != organizationId)
+                throw new KeyNotFoundException("Payment intent was not found.");
+            if (intent.Status is "captured" or "capturing" or "capture_unknown")
+                return new PaymentAuthorizationLease(intent, false);
+            if (intent.Status != "authorized") throw new InvalidOperationException("Only an authorized payment intent can be captured.");
+            PaymentIntent capturing = intent with { Status = "capturing", FailureCode = null,
+                ConcurrencyVersion = intent.ConcurrencyVersion + 1 };
+            intents[id] = capturing;
+            return new PaymentAuthorizationLease(capturing, true);
+        }
+    }
+
+    public PaymentIntent CompleteCapture(Guid organizationId, Guid id, long expectedVersion, ProviderCaptureOutcome outcome,
+        string? providerCaptureId, string? failureCode, PaymentMutationContext context)
+    {
+        ValidateContext(context);
+        lock (gate)
+        {
+            if (!intents.TryGetValue(id, out PaymentIntent? intent) || intent.OrganizationId != organizationId)
+                throw new KeyNotFoundException("Payment intent was not found.");
+            if (intent.Status == "captured") return intent;
+            if (intent.Status != "capturing" || intent.ConcurrencyVersion != expectedVersion)
+                throw new PaymentConcurrencyException("The payment intent changed while capture was in progress.");
+            if (outcome == ProviderCaptureOutcome.Captured && string.IsNullOrWhiteSpace(providerCaptureId))
+                throw new ArgumentException("A successful capture requires a provider reference.");
+            PaymentIntent completed = intent with
+            {
+                Status = outcome switch { ProviderCaptureOutcome.Captured => "captured", ProviderCaptureOutcome.Failed => "failed", _ => "capture_unknown" },
+                ProviderCaptureId = outcome == ProviderCaptureOutcome.Captured ? providerCaptureId!.Trim() : null,
+                FailureCode = outcome == ProviderCaptureOutcome.Captured ? null : failureCode ?? "provider_capture_failed",
+                ConcurrencyVersion = intent.ConcurrencyVersion + 1
+            };
+            intents[id] = completed;
+            return completed;
+        }
+    }
+
     private static void ValidateContext(PaymentMutationContext context)
     {
         if (context is null || string.IsNullOrWhiteSpace(context.ActorSubjectId) || context.ActorSubjectId.Length > 200

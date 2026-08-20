@@ -99,6 +99,15 @@ public sealed record PaymentAuthorizationUncertainV1(Guid EventId, Guid Correlat
 public sealed record PaymentAuthorizationReconciledV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Outcome, string? FailureCode) : IIntegrationEvent;
 
+public sealed record PaymentCaptureStartedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, decimal Amount, string Currency) : IIntegrationEvent;
+public sealed record PaymentCapturedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, decimal Amount, string Currency) : IIntegrationEvent;
+public sealed record PaymentCaptureFailedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string FailureCode) : IIntegrationEvent;
+public sealed record PaymentCaptureUncertainV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string FailureCode) : IIntegrationEvent;
+
 public sealed record NotificationQueuedV1(
     Guid EventId,
     Guid CorrelationId,

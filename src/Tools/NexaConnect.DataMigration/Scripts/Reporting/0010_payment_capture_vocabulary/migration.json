@@ -1,0 +1,1 @@
+{"version":10,"name":"payment_capture_vocabulary","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.9.0"}

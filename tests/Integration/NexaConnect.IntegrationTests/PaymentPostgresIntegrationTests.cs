@@ -4,6 +4,8 @@ using PaymentCreateIntent = PAYMENT::NexaConnect.Services.Payment.Application.In
 using PaymentIdempotencyConflict = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentIdempotencyConflictException;
 using PaymentMutationContext = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentMutationContext;
 using PaymentRepository = PAYMENT::NexaConnect.Services.Payment.Infrastructure.PostgresPaymentIntents;
+using ProviderAuthorizationOutcome = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderAuthorizationOutcome;
+using ProviderCaptureOutcome = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderCaptureOutcome;
 using Microsoft.Extensions.Options;
 using NexaConnect.Infrastructure.Messaging;
 using Npgsql;
@@ -93,6 +95,22 @@ public sealed class PaymentPostgresIntegrationTests : IAsyncLifetime
         Assert.Equal(6L,await ScalarAsync(connection,"SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1",intent.Id));
     }
 
+    [PaymentDatabaseFact]
+    public async Task Capture_is_authorized_only_concurrency_safe_and_transactional()
+    {
+        Guid organization=Guid.NewGuid(),correlation=Guid.NewGuid();var repository=new PaymentRepository(dataSource!);
+        var intent=repository.Create(organization,new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"capture",40m,"USD","card"),new("order-service",correlation));
+        var authorization=repository.BeginAuthorization(organization,intent.Id,new("order-service",correlation));
+        var authorized=repository.CompleteAuthorization(organization,intent.Id,authorization.Intent.ConcurrencyVersion,ProviderAuthorizationOutcome.Authorized,"auth-capture",null,new("order-service",correlation));
+        var capture=repository.BeginCapture(organization,intent.Id,new("order-service",correlation));var replay=repository.BeginCapture(organization,intent.Id,new("order-service",Guid.NewGuid()));
+        Assert.True(capture.Acquired);Assert.False(replay.Acquired);Assert.Equal("capturing",replay.Intent.Status);
+        var captured=repository.CompleteCapture(organization,intent.Id,capture.Intent.ConcurrencyVersion,ProviderCaptureOutcome.Captured,"capture-1",null,new("order-service",correlation));
+        Assert.Equal("captured",captured.Status);Assert.Equal("capture-1",captured.ProviderCaptureId);
+        await using NpgsqlConnection connection=await dataSource!.OpenConnectionAsync();
+        Assert.Equal(5L,await ScalarAsync(connection,"SELECT count(*) FROM payment_audit_records WHERE payment_intent_id=$1",intent.Id));
+        Assert.Equal(10L,await ScalarAsync(connection,"SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1",intent.Id));
+    }
+
     [PaymentRabbitMqFact]
     public async Task Broker_outage_retains_rows_and_recovery_publishes_with_confirmations()
     {
@@ -127,7 +145,7 @@ public sealed class PaymentPostgresIntegrationTests : IAsyncLifetime
     private static async Task<long> ScalarAsync(NpgsqlConnection connection,string sql,params object[] values){await using var command=new NpgsqlCommand(sql,connection);for(int i=0;i<values.Length;i++)command.Parameters.AddWithValue(values[i]);return(long)(await command.ExecuteScalarAsync()??0L);}
 
     private const string SchemaSql="""
-        CREATE TABLE payment_intents(id uuid PRIMARY KEY,organization_id uuid NOT NULL,restaurant_id uuid NOT NULL,branch_id uuid NOT NULL,order_id uuid NOT NULL,idempotency_key text NOT NULL,amount numeric(19,4) NOT NULL CHECK(amount>0),currency char(3) NOT NULL,payment_method text NOT NULL,status text NOT NULL CHECK(status IN ('pending','authorizing','unknown','requires_action','authorized','failed')),expires_at_utc timestamptz NULL,authorized_at_utc timestamptz NULL,captured_at_utc timestamptz NULL,failed_at_utc timestamptz NULL,created_at_utc timestamptz NOT NULL,updated_at_utc timestamptz NOT NULL,concurrency_version bigint NOT NULL DEFAULT 1,provider_authorization_id text NULL UNIQUE,failure_code text NULL,lease_owner text NULL,lease_expires_at_utc timestamptz NULL,authorization_attempt_count integer NOT NULL DEFAULT 0,last_reconciled_at_utc timestamptz NULL,CONSTRAINT uq_payment_intents_organization_restaurant_idempotency UNIQUE(organization_id,restaurant_id,idempotency_key));
+        CREATE TABLE payment_intents(id uuid PRIMARY KEY,organization_id uuid NOT NULL,restaurant_id uuid NOT NULL,branch_id uuid NOT NULL,order_id uuid NOT NULL,idempotency_key text NOT NULL,amount numeric(19,4) NOT NULL CHECK(amount>0),currency char(3) NOT NULL,payment_method text NOT NULL,status text NOT NULL CHECK(status IN ('pending','authorizing','unknown','requires_action','authorized','capturing','capture_unknown','captured','failed')),expires_at_utc timestamptz NULL,authorized_at_utc timestamptz NULL,captured_at_utc timestamptz NULL,failed_at_utc timestamptz NULL,created_at_utc timestamptz NOT NULL,updated_at_utc timestamptz NOT NULL,concurrency_version bigint NOT NULL DEFAULT 1,provider_authorization_id text NULL UNIQUE,failure_code text NULL,lease_owner text NULL,lease_expires_at_utc timestamptz NULL,authorization_attempt_count integer NOT NULL DEFAULT 0,last_reconciled_at_utc timestamptz NULL,provider_capture_id text NULL UNIQUE,CONSTRAINT uq_payment_intents_organization_restaurant_idempotency UNIQUE(organization_id,restaurant_id,idempotency_key));
         CREATE TABLE payment_audit_records(id uuid PRIMARY KEY,organization_id uuid NOT NULL,restaurant_id uuid NOT NULL,branch_id uuid NOT NULL,order_id uuid NOT NULL,payment_intent_id uuid NOT NULL REFERENCES payment_intents(id),action text NOT NULL,actor_subject_id text NOT NULL CHECK(char_length(btrim(actor_subject_id)) BETWEEN 1 AND 200 AND actor_subject_id !~ '[[:cntrl:]]'),occurred_at_utc timestamptz NOT NULL);
         CREATE FUNCTION prevent_payment_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'payment_audit_records is append-only'; END; $$;
         CREATE TRIGGER tr_payment_audit_records_append_only BEFORE UPDATE OR DELETE ON payment_audit_records FOR EACH ROW EXECUTE FUNCTION prevent_payment_audit_mutation();

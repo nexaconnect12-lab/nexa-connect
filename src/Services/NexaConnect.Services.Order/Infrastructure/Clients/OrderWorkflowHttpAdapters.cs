@@ -115,10 +115,28 @@ public sealed class HttpPaymentPort(HttpClient client) : IPaymentPort
                 return new PaymentResult(false, payment.Id, $"Payment authorization failed with {(int)authorization.StatusCode}.",
                     (int)authorization.StatusCode >= 500 ? "unknown" : "failed");
             PaymentResponse? authorized = await authorization.Content.ReadFromJsonAsync<PaymentResponse>(cancellationToken);
-            return authorized?.Status == "authorized"
-                ? new PaymentResult(true, authorized.Id, null)
-                : new PaymentResult(false, payment.Id, authorized?.FailureCode ?? "Payment authorization was not approved.",
+            if (authorized?.Status != "authorized")
+                return new PaymentResult(false, payment.Id, authorized?.FailureCode ?? "Payment authorization was not approved.",
                     authorized?.Status is "authorizing" or "unknown" or "requires_action" ? authorized.Status : "failed");
+            using var capture = new HttpRequestMessage(HttpMethod.Post, $"api/payment/v1/intents/{payment.Id:D}/capture");
+            capture.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId, organizationId.ToString("D"));
+            capture.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode, "nexa_connect");
+            try
+            {
+                using HttpResponseMessage captureResponse = await client.SendAsync(capture, cancellationToken);
+                if (!captureResponse.IsSuccessStatusCode)
+                    return new PaymentResult(false, payment.Id, $"Payment capture failed with {(int)captureResponse.StatusCode}.",
+                        (int)captureResponse.StatusCode >= 500 ? "unknown" : "failed");
+                PaymentResponse? captured = await captureResponse.Content.ReadFromJsonAsync<PaymentResponse>(cancellationToken);
+                return captured?.Status == "captured"
+                    ? new PaymentResult(true, captured.Id, null, "captured")
+                    : new PaymentResult(false, payment.Id, captured?.FailureCode ?? "Payment capture was not completed.",
+                        captured?.Status is "capturing" or "capture_unknown" ? "unknown" : "failed");
+            }
+            catch (HttpRequestException)
+            {
+                return new PaymentResult(false, payment.Id, "Payment capture outcome is unknown.", "unknown");
+            }
         }
     }
 

@@ -1,0 +1,11 @@
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM payment_intents WHERE status IN('capturing','capture_unknown','captured') OR provider_capture_id IS NOT NULL) THEN RAISE EXCEPTION 'Payment migration 5 downgrade requires capture records to be reconciled first'; END IF; END $$;
+DROP INDEX uq_payment_intents_provider_capture;
+DROP TRIGGER tr_payment_audit_records_append_only ON payment_audit_records;
+ALTER TABLE payment_audit_records DROP CONSTRAINT ck_payment_audit_records_action;
+DELETE FROM payment_audit_records WHERE action LIKE 'payment.capture.%';
+ALTER TABLE payment_audit_records ADD CONSTRAINT ck_payment_audit_records_action CHECK (action IN ('payment.intent.created','payment.authorization.started','payment.authorization.succeeded','payment.authorization.failed','payment.authorization.uncertain','payment.authorization.reconciled'));
+CREATE TRIGGER tr_payment_audit_records_append_only BEFORE UPDATE OR DELETE ON payment_audit_records FOR EACH ROW EXECUTE FUNCTION prevent_payment_audit_mutation();
+ALTER TABLE payment_intents DROP CONSTRAINT ck_payment_intents_provider_capture;
+ALTER TABLE payment_intents DROP COLUMN provider_capture_id;
+ALTER TABLE payment_intents DROP CONSTRAINT ck_payment_intents_status;
+ALTER TABLE payment_intents ADD CONSTRAINT ck_payment_intents_status CHECK (status IN ('pending','authorizing','unknown','requires_action','authorized','captured','failed','cancelled','expired'));
