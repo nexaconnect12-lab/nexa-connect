@@ -49,10 +49,17 @@ builder.Services.AddSingleton<InMemoryIntegrationEventPublisher>();
 builder.Services.AddSingleton<IIntegrationEventPublisher>(services =>
     services.GetRequiredService<InMemoryIntegrationEventPublisher>());
 builder.Services.AddScoped<PlaceOrderWorkflow>();
+builder.Services.AddScoped<PaymentReconciliationApplicationService>();
 if (usePostgres)
 {
     builder.Services.AddPostgresOutbox(builder.Configuration, "Order");
     builder.Services.AddSingleton<IIntegrationEventPublisher, PostgresIntegrationEventPublisher>();
+}
+if (builder.Configuration.GetValue<bool>("PaymentReconciliationConsumer:Enabled"))
+{
+    if (!usePostgres || !builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
+        throw new InvalidOperationException("Payment reconciliation consumption requires PostgreSQL Order persistence and HTTP workflow adapters.");
+    builder.Services.AddPaymentReconciliationConsumer(builder.Configuration);
 }
 if (builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
 {

@@ -13,7 +13,7 @@ public interface IOrderApplicationService
     OrderAggregate? Get(Guid orderId);
 }
 
-public sealed class InMemoryOrderApplicationService : IOrderApplicationService, IOrderRepository
+public sealed class InMemoryOrderApplicationService : IOrderApplicationService, IOrderRepository, IOrderLookup
 {
     private readonly ConcurrentDictionary<Guid, OrderAggregate> orders = new();
 
@@ -31,6 +31,9 @@ public sealed class InMemoryOrderApplicationService : IOrderApplicationService, 
     }
 
     public OrderAggregate? Get(Guid orderId) => orders.GetValueOrDefault(orderId);
+
+    public Task<OrderAggregate?> GetAsync(Guid orderId, CancellationToken cancellationToken) =>
+        Task.FromResult(Get(orderId));
 
     public Task SaveAsync(OrderAggregate order, CancellationToken cancellationToken)
     {
