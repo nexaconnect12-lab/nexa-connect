@@ -98,6 +98,26 @@ public sealed class OrderPaymentCaptureReconciliationTests
         Assert.Null(repository.Event);
     }
 
+    [Fact]
+    public async Task Partial_compensation_failure_keeps_order_pending_and_redelivery_retries_safely()
+    {
+        var order=PendingOrder();
+        var repository=new RecordingRepository(order);
+        var inventory=new RecordingInventory();
+        var kitchen=new FailOnceKitchen();
+        var service=new PaymentReconciliationApplicationService(repository,inventory,kitchen,new InMemoryIntegrationEventPublisher());
+        PaymentCaptureReconciledV1 message=Capture(order,"failed","provider_capture_failed");
+
+        await Assert.ThrowsAsync<HttpRequestException>(()=>service.ApplyAsync(message,default));
+        Assert.Equal(OrderStatus.PaymentPending,order.Status);
+        Assert.Null(repository.Event);
+
+        Assert.True(await service.ApplyAsync(message,default));
+        Assert.Equal(OrderStatus.PaymentFailed,order.Status);
+        Assert.Equal(2,inventory.ReleaseCalls);
+        Assert.Equal(2,kitchen.CancelCalls);
+    }
+
     private static PaymentCaptureReconciledV1 Capture(OrderAggregate order, string outcome, string? failure = null) =>
         new(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow, order.OrganizationId, order.Id, Guid.NewGuid(),
             outcome, failure);
@@ -150,6 +170,18 @@ public sealed class OrderPaymentCaptureReconciliationTests
             CancellationToken cancellationToken)
         {
             CancelCalls++;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FailOnceKitchen : IKitchenPort
+    {
+        public int CancelCalls { get; private set; }
+        public Task<KitchenTicketResult> CreateTicketAsync(Guid organizationId,Guid restaurantId,Guid orderId,Guid branchId,IReadOnlyCollection<OrderLine> lines,CancellationToken cancellationToken)=>throw new NotSupportedException();
+        public Task CancelTicketAsync(Guid organizationId,Guid orderId,Guid branchId,CancellationToken cancellationToken)
+        {
+            CancelCalls++;
+            if(CancelCalls==1)throw new HttpRequestException("simulated partial compensation failure");
             return Task.CompletedTask;
         }
     }

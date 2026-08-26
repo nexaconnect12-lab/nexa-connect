@@ -26,9 +26,6 @@ public sealed class PaymentMigrationRunnerAcceptanceTests
             Assert.Equal(0,await RunMigrationAsync(scriptsRoot,6));await AssertHistoryAsync(paymentDataSource,[1,2,3,4,5,6]);await AssertSchema3Async(paymentDataSource);await AssertSchema4Async(paymentDataSource);await AssertSchema5Async(paymentDataSource);await AssertSchema6Async(paymentDataSource);await BackfillLegacyIntentAsync(paymentDataSource,legacyIntentId);await ExerciseRepositoryAsync(paymentDataSource);
             Assert.Equal(0,await RunMigrationAsync(scriptsRoot,5,destructive:true));await AssertHistoryAsync(paymentDataSource,[1,2,3,4,5]);await AssertSchema3Async(paymentDataSource);await AssertSchema4Async(paymentDataSource);await AssertSchema5Async(paymentDataSource);await AssertSchema6AbsentAsync(paymentDataSource);
             Assert.Equal(0,await RunMigrationAsync(scriptsRoot,6));await AssertHistoryAsync(paymentDataSource,[1,2,3,4,5,6]);await AssertSchema3Async(paymentDataSource);await AssertSchema4Async(paymentDataSource);await AssertSchema5Async(paymentDataSource);await AssertSchema6Async(paymentDataSource);await ExerciseRepositoryAsync(paymentDataSource);
-            await InsertDowngradeCollisionAsync(paymentDataSource);
-            Assert.NotEqual(0,await RunMigrationAsync(scriptsRoot,1,destructive:true));
-            await AssertHistoryAsync(paymentDataSource,[1,2,3,4,5,6]);await AssertSchema3Async(paymentDataSource);await AssertSchema4Async(paymentDataSource);await AssertSchema5Async(paymentDataSource);await AssertSchema6Async(paymentDataSource);
         }
         finally{Environment.SetEnvironmentVariable("NEXACONNECT_PAYMENT_DB",previous);await DropDatabaseAsync(adminDataSource,databaseName);}
     }

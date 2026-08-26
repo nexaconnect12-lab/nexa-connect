@@ -52,6 +52,7 @@ public static class NexaConnectObservabilityExtensions
             })
             .WithMetrics(metrics =>
             {
+                metrics.AddMeter(serviceName);
                 metrics.AddAspNetCoreInstrumentation();
                 metrics.AddHttpClientInstrumentation();
                 metrics.AddRuntimeInstrumentation();
