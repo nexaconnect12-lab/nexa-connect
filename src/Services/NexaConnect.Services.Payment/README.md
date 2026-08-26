@@ -18,4 +18,6 @@ The default build and test suite covers authorization, capture success/replay, c
 
 Structured logs use service name `nexaconnect-payment`; correlation IDs propagate to Platform Directory, Order, Restaurant, and Authorization.
 JSON stdout is always enabled. Enable OTLP with `Observability__OtlpEnabled=true`; use the [observability guide](../../../docs/Deployment/Observability.md) for the endpoint and queries.
+
+Capture recovery is enabled by default. During a controlled provider incident or rollback rehearsal, set `PaymentProvider__CaptureRecoveryEnabled=false` and restart Payment to pause capture-status lookups without disabling authorization recovery or altering durable capture state. Follow the [capture-recovery runbook](../../../docs/Deployment/Payment-Capture-Recovery-Runbook.md) before using this control.
 Capture recovery also exports claim, outcome, and failure counters through meter `nexaconnect-payment`. Operational thresholds and safe recovery procedures are documented in the [capture-recovery runbook](../../../docs/Deployment/Payment-Capture-Recovery-Runbook.md).

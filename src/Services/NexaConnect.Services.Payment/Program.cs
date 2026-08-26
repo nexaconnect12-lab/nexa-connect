@@ -48,7 +48,7 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
         ?? throw new InvalidOperationException("ConnectionStrings:Payment is required.")));
     builder.Services.AddSingleton<IPaymentIntents, PostgresPaymentIntents>();
     builder.Services.AddHostedService<PaymentAuthorizationRecoveryWorker>();
-    builder.Services.AddHostedService<PaymentCaptureRecoveryWorker>();
+    builder.Services.AddPaymentCaptureRecoveryWorker(builder.Configuration);
     if (builder.Configuration.GetValue<bool>("Outbox:Enabled"))
         builder.Services.AddPostgresOutbox(builder.Configuration, "Payment");
 }

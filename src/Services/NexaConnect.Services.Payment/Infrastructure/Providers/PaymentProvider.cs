@@ -137,4 +137,5 @@ public sealed class PaymentProviderOptions
     public int MaximumAuthorizationAttempts { get; set; } = 3;
     public int MaximumCaptureRecoveryAttempts { get; set; } = 3;
     public TimeSpan RecoveryInterval { get; set; } = TimeSpan.FromSeconds(30);
+    public bool CaptureRecoveryEnabled { get; set; } = true;
 }

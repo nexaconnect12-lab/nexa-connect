@@ -1,11 +1,43 @@
 using NexaConnect.Services.Payment.Application.Intents;
 using NexaConnect.Services.Payment.Infrastructure;
 using NexaConnect.Services.Payment.Infrastructure.Providers;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace NexaConnect.UnitTests;
 
 public sealed class PaymentCaptureLifecycleTests
 {
+    [Fact]
+    public void Capture_recovery_is_enabled_by_default_and_can_be_paused_explicitly()
+    {
+        var options = new PaymentProviderOptions();
+
+        Assert.True(options.CaptureRecoveryEnabled);
+        options.CaptureRecoveryEnabled = false;
+        Assert.False(options.CaptureRecoveryEnabled);
+    }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("true", true)]
+    [InlineData("false", false)]
+    public void Capture_recovery_worker_registration_honors_the_operational_switch(string? configured, bool expected)
+    {
+        var values = configured is null
+            ? new Dictionary<string, string?>()
+            : new Dictionary<string, string?> { ["PaymentProvider:CaptureRecoveryEnabled"] = configured };
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+        var services = new ServiceCollection();
+
+        services.AddPaymentCaptureRecoveryWorker(configuration);
+
+        Assert.Equal(expected, services.Any(descriptor =>
+            descriptor.ServiceType == typeof(IHostedService)
+            && descriptor.ImplementationType == typeof(PaymentCaptureRecoveryWorker)));
+    }
+
     [Fact]
     public async Task Authorized_intent_is_captured_once_and_replay_does_not_call_provider_twice()
     {
