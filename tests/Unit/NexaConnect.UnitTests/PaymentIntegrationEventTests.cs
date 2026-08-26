@@ -34,4 +34,16 @@ public sealed class PaymentIntegrationEventTests
         Assert.Equal(authorized.OrderId, copy.OrderId);
         Assert.Equal("provider_declined", failedCopy.FailureCode);
     }
+
+    [Fact]
+    public void Capture_reconciled_contract_preserves_terminal_or_conservative_outcome()
+    {
+        var message = new PaymentCaptureReconciledV1(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow,
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "captured", null);
+        PaymentCaptureReconciledV1 copy = JsonSerializer.Deserialize<PaymentCaptureReconciledV1>(JsonSerializer.Serialize(message))!;
+        Assert.Equal(message.OrganizationId, copy.OrganizationId);
+        Assert.Equal(message.OrderId, copy.OrderId);
+        Assert.Equal("captured", copy.Status);
+        Assert.Null(copy.FailureCode);
+    }
 }

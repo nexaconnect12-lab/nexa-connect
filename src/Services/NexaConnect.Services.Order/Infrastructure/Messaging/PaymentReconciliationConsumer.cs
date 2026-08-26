@@ -40,6 +40,7 @@ public sealed class PaymentReconciliationConsumer(
         await channel.QueueDeclareAsync(options.Value.Queue + ".dead", durable: true, exclusive: false, autoDelete: false,
             cancellationToken: stoppingToken);
         await channel.QueueBindAsync(options.Value.Queue, options.Value.Exchange, "payment.authorization-reconciled.v1", cancellationToken: stoppingToken);
+        await channel.QueueBindAsync(options.Value.Queue, options.Value.Exchange, "payment.capture-reconciled.v1", cancellationToken: stoppingToken);
         await channel.QueueBindAsync(options.Value.Queue + ".dead", options.Value.Exchange, "order.payment-reconciled.dead", cancellationToken: stoppingToken);
         await channel.BasicQosAsync(0, options.Value.PrefetchCount, false, stoppingToken);
         var consumer = new AsyncEventingBasicConsumer(channel);
@@ -53,8 +54,12 @@ public sealed class PaymentReconciliationConsumer(
         Guid? eventId = null;
         try
         {
-            PaymentAuthorizationReconciledV1 message = JsonSerializer.Deserialize<PaymentAuthorizationReconciledV1>(delivery.Body.Span)
-                ?? throw new JsonException("Payment reconciliation event is empty.");
+            IIntegrationEvent message = delivery.RoutingKey switch
+            {
+                "payment.authorization-reconciled.v1" => (IIntegrationEvent?)JsonSerializer.Deserialize<PaymentAuthorizationReconciledV1>(delivery.Body.Span),
+                "payment.capture-reconciled.v1" => (IIntegrationEvent?)JsonSerializer.Deserialize<PaymentCaptureReconciledV1>(delivery.Body.Span),
+                _ => throw new JsonException("Unsupported payment reconciliation routing key.")
+            } ?? throw new JsonException("Payment reconciliation event is empty.");
             eventId = message.EventId;
             InboxClaimResult claim = await inbox.ClaimAsync(message.EventId, Consumer, TimeSpan.FromMinutes(2), cancellationToken);
             if (claim == InboxClaimResult.Busy)
@@ -69,11 +74,16 @@ public sealed class PaymentReconciliationConsumer(
             }
             try
             {
-                await handler.ApplyAsync(message, cancellationToken);
+                _ = message switch
+                {
+                    PaymentAuthorizationReconciledV1 authorization => await handler.ApplyAsync(authorization, cancellationToken),
+                    PaymentCaptureReconciledV1 capture => await handler.ApplyAsync(capture, cancellationToken),
+                    _ => false
+                };
                 await inbox.MarkCompletedAsync(message.EventId, Consumer, cancellationToken);
                 await channel.BasicAckAsync(delivery.DeliveryTag, false, cancellationToken);
                 logger.LogInformation("Payment reconciliation event {EventId} was applied for organization {OrganizationId}",
-                    message.EventId, message.OrganizationId);
+                    message.EventId, GetOrganizationId(message));
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
@@ -92,6 +102,13 @@ public sealed class PaymentReconciliationConsumer(
             await channel.BasicNackAsync(delivery.DeliveryTag, false, true, cancellationToken);
         }
     }
+
+    private static Guid GetOrganizationId(IIntegrationEvent message) => message switch
+    {
+        PaymentAuthorizationReconciledV1 value => value.OrganizationId,
+        PaymentCaptureReconciledV1 value => value.OrganizationId,
+        _ => Guid.Empty
+    };
 }
 
 public static class PaymentReconciliationConsumerRegistration

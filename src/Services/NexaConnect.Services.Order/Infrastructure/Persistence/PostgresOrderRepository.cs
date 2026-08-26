@@ -26,7 +26,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
             VALUES (@id,@type,@version,@aggregate_type,@aggregate_id,@payload::jsonb,@correlation_id,@occurred_at)
             ON CONFLICT (id) DO NOTHING
             """, connection, transaction);
-        command.Parameters.AddWithValue("id", Guid.NewGuid());
+        command.Parameters.AddWithValue("id", integrationEvent.EventId);
         command.Parameters.AddWithValue("type", integrationEvent.GetType().Name);
         command.Parameters.AddWithValue("version", 1);
         command.Parameters.AddWithValue("aggregate_type", "Order");
@@ -73,12 +73,15 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
             INSERT INTO orders (id,restaurant_id,branch_id,order_number,currency,channel,service_type,subtotal_amount,total_amount,status,created_at_utc,created_by,updated_at_utc,updated_by)
             VALUES (@id,@restaurant,@branch,@number,@currency,@channel,@service,@subtotal,@total,@status,@now,'order-service',@now,'order-service')
             ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,total_amount=EXCLUDED.total_amount,updated_at_utc=EXCLUDED.updated_at_utc,updated_by=EXCLUDED.updated_by,concurrency_version=orders.concurrency_version+1
+            WHERE orders.status NOT IN ('completed','cancelled') OR orders.status=EXCLUDED.status
             """, connection, transaction);
         var now = DateTime.UtcNow;
         command.Parameters.AddWithValue("id", order.Id); command.Parameters.AddWithValue("restaurant", order.RestaurantId); command.Parameters.AddWithValue("branch", order.BranchId);
         command.Parameters.AddWithValue("number", order.OrderNumber); command.Parameters.AddWithValue("currency", order.Currency); command.Parameters.AddWithValue("channel", order.Channel); command.Parameters.AddWithValue("service", order.ServiceType);
         command.Parameters.AddWithValue("subtotal", order.TotalAmount); command.Parameters.AddWithValue("total", order.TotalAmount); command.Parameters.AddWithValue("status", ToDbStatus(order.Status)); command.Parameters.AddWithValue("now", now);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        int affected = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (affected == 0)
+            throw new InvalidOperationException($"Order {order.Id} has already reached a conflicting terminal state.");
         await using var delete = new NpgsqlCommand("DELETE FROM order_lines WHERE order_id=@id", connection, transaction); delete.Parameters.AddWithValue("id", order.Id); await delete.ExecuteNonQueryAsync(cancellationToken);
         for (var i = 0; i < order.Lines.Count; i++)
         {

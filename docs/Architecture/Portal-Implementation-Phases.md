@@ -48,11 +48,11 @@ The portal roadmap is no longer progressing as a single strictly sequential phas
 
 Phase 11 now includes opt-in live Catalog PostgreSQL and RabbitMQ acceptance plus a successful seven-test Inventory acceptance run against local PostgreSQL 17 and RabbitMQ. Inventory coverage includes outbox/audit rollback, tenancy, concurrency, idempotency, append-only audit, confirmed persistent publication of stock-set, reservation-created, and reservation-released events over a recovery connection, and the actual migration runner's 0→5→4→5 lifecycle in a validated disposable database. The broker cases do not prove automatic reconnection of an established dispatcher. Full service clean installs beyond the accepted slices, broader service-owned PostgreSQL controller coverage, load/security validation, and release-environment browser execution remain continuous work.
 
-Payment intent creation remains closed. Authorization recovery adds explicit unknown outcomes, recoverable leases, bounded attempts, and provider status lookup. The immediate-capture slice adds an Order-only `authorized → capturing → captured|failed|capture_unknown` transition, Payment migration 5, Reporting migration 10, and Order `payment_pending` behavior for capture uncertainty. Provider calls remain outside database transactions and only `captured` makes the Order paid. Default automated coverage passes. Updated opt-in PostgreSQL authorization/capture, 0→5→1→5 migration, Reporting replay, provider, RabbitMQ, forced-termination, and capture-recovery evidence remain release gates. Delayed capture, void/refunds, settlement, and established-dispatcher reconnection remain outside this slice.
+Payment intent creation, authorization recovery, immediate capture, and capture recovery are implemented. Capture recovery uses capture-specific PostgreSQL leases and bounded attempts, performs provider status lookup without holding a database transaction, and publishes transactional `PaymentCaptureReconciledV1` plus safe audit state through Payment migration 6. Order migration 2 durably consumes reconciliation and ensures authorization alone cannot mark an order paid: only `captured` completes it, definitive failure performs idempotent Inventory/Kitchen compensation, and uncertainty or exhausted recovery remains `payment_pending` for review. Reporting migration 11 accepts the reconciliation audit vocabulary. Default automated coverage passes. Opt-in live PostgreSQL, RabbitMQ, provider-stub, forced-termination, Reporting replay, and actual 0→6→5→6 migration evidence remain release gates. Delayed capture, void/refunds, settlement, and established-dispatcher reconnection remain outside this slice.
 
-### Recorded next implementation: Payment capture recovery
+### Implemented Payment capture recovery
 
-This is approved roadmap intent only; it is not implemented. The next Payment slice should:
+The recovery slice implements the following approved boundary:
 
 1. Add provider capture-status lookup keyed by the existing Payment intent/provider idempotency identity.
 2. Add recoverable capture leases, expiry, bounded attempts, and reconciliation timestamps without holding a database transaction across provider I/O.
@@ -63,7 +63,7 @@ This is approved roadmap intent only; it is not implemented. The next Payment sl
 7. Cover concurrency, duplicate delivery, worker termination, delayed/dropped provider responses, tenant isolation, transaction rollback, Reporting replay, and `0→6→5→6` migration behavior.
 8. Require live PostgreSQL, RabbitMQ, provider-stub, recovery, and rollback-runbook evidence before closing the slice.
 
-Capture recovery precedes void/reversal, partial/full refunds, compensation-policy expansion, and end-of-day settlement. Those later slices must preserve authorization, tenant isolation, idempotency, immutable audit, explicit transaction boundaries, and accounting reconciliation.
+The implementation is development-complete, but its live release evidence remains gated as described above. Capture recovery precedes void/reversal, partial/full refunds, compensation-policy expansion, and end-of-day settlement. Those later slices must preserve authorization, tenant isolation, idempotency, immutable audit, explicit transaction boundaries, and accounting reconciliation.
 
 POS adds successful isolated-schema PostgreSQL 17 evidence for exact/concurrent cash replay, rollback, terminal/shift-subject denial, active terminal scope, shift persistence/concurrency, and duplicate-open conflict. The actual migration runner passed 0→3→2→3. Native SQLite/replay tests and broader operation synchronization remain open.
 

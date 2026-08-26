@@ -107,6 +107,8 @@ public sealed record PaymentCaptureFailedV1(Guid EventId, Guid CorrelationId, Da
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string FailureCode) : IIntegrationEvent;
 public sealed record PaymentCaptureUncertainV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string FailureCode) : IIntegrationEvent;
+public sealed record PaymentCaptureReconciledV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Status, string? FailureCode) : IIntegrationEvent;
 
 public sealed record NotificationQueuedV1(
     Guid EventId,

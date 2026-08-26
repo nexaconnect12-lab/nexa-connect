@@ -101,7 +101,7 @@ $env:DOTNET_ENVIRONMENT = 'Testing'
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~PaymentPostgresIntegrationTests
 ```
 
-The component cases use isolated resources and verify atomic intent/audit/two-event commit and rollback, organization-leading reads, append-only audit, concurrent matching idempotency, conflicting-key rejection, and confirmed persistent publication over a new recovery connection. Payment migration 4 adds lease/reconciliation fields and its clean-install acceptance runs 0→4→3→4. Missing opt-in configuration is reported as skipped rather than passed. Provider-stub timeout/reconciliation and established-dispatcher recovery remain release evidence.
+The component cases use isolated resources and verify atomic intent/audit/outbox commit and rollback, organization-leading reads, append-only audit, concurrent matching idempotency, conflicting-key rejection, and confirmed persistent publication over a new recovery connection. Payment migrations 4 and 6 own authorization and capture recovery state; the clean-install acceptance targets 0→6→5→6. Missing opt-in configuration is reported as skipped rather than passed. Provider-stub delayed/dropped capture status, worker forced termination, Order duplicate/redelivery, Reporting migration-11 replay, and established-dispatcher recovery remain release evidence until executed in the target environment.
 
 Run the destructive Payment migration lifecycle only with a disposable Development/Test administrator:
 

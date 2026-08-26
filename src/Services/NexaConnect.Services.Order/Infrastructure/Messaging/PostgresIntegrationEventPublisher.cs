@@ -19,6 +19,7 @@ public sealed class PostgresIntegrationEventPublisher(IOutboxStore outbox) : IIn
             PaymentFailedV1 value => value.OrderId,
             PaymentAuthorizationUncertainV1 value => value.OrderId,
             PaymentAuthorizationReconciledV1 value => value.OrderId,
+            PaymentCaptureReconciledV1 value => value.OrderId,
             _ => throw new InvalidOperationException($"Unsupported integration event type {integrationEvent.GetType().Name}.")
         };
         var message = new OutboxMessage(

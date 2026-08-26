@@ -59,6 +59,18 @@ public sealed class PaymentProviderRecoveryTests
         Assert.Equal(intent.Id.ToString("D"), handler.IdempotencyKey);
     }
 
+    [Fact]
+    public async Task Capture_status_without_provider_reference_remains_unknown()
+    {
+        var provider = CreateProvider(HttpStatusCode.OK, new { status = "captured" });
+
+        ProviderCaptureResult result = await provider.GetCaptureStatusAsync(Intent(), CancellationToken.None);
+
+        Assert.Equal(ProviderCaptureOutcome.Unknown, result.Outcome);
+        Assert.Null(result.ProviderTransactionId);
+        Assert.Equal("provider_capture_status_unknown", result.FailureReason);
+    }
+
     private static HttpPaymentProvider CreateProvider(HttpStatusCode statusCode, object? body)
     {
         var handler = new StubHandler(statusCode, body);

@@ -34,6 +34,51 @@ public sealed class PaymentCaptureLifecycleTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.CaptureAsync(organization, intent.Id, Context(), default));
     }
 
+    [Fact]
+    public async Task Unknown_capture_is_reconciled_from_provider_status_without_repeating_capture()
+    {
+        var options = Microsoft.Extensions.Options.Options.Create(new PaymentProviderOptions
+            { LeaseDuration = TimeSpan.FromMilliseconds(1), MaximumCaptureRecoveryAttempts = 3 });
+        var store = new InMemoryPaymentIntents(options); Guid organization = Guid.NewGuid();
+        PaymentIntent authorized = CreateAuthorized(store, organization);
+        var provider = new RecoveryProvider();
+        var capture = new PaymentCaptureService(store, provider);
+        PaymentIntent uncertain = (await capture.CaptureAsync(organization, authorized.Id, Context(), default))!;
+        Assert.Equal("capture_unknown", uncertain.Status);
+
+        PaymentAuthorizationLease claim = store.ClaimExpiredCapture(organization, authorized.Id, Context());
+        Assert.True(claim.Acquired);
+        var recovery = new PaymentCaptureRecoveryService(store, provider);
+        PaymentIntent reconciled = await recovery.ReconcileAsync(organization, authorized.Id, Context(), default);
+
+        Assert.Equal("captured", reconciled.Status);
+        Assert.Equal("capture-recovered", reconciled.ProviderCaptureId);
+        Assert.Equal(1, provider.CaptureCalls);
+        Assert.Equal(1, provider.StatusCalls);
+        Assert.NotNull(reconciled.CaptureLastReconciledAtUtc);
+    }
+
+    [Fact]
+    public async Task Repeated_unknown_status_is_bounded_and_requires_operator_action()
+    {
+        var options = Microsoft.Extensions.Options.Options.Create(new PaymentProviderOptions
+            { LeaseDuration = TimeSpan.FromMilliseconds(1), MaximumCaptureRecoveryAttempts = 2 });
+        var store = new InMemoryPaymentIntents(options); Guid organization = Guid.NewGuid();
+        PaymentIntent authorized = CreateAuthorized(store, organization);
+        var provider = new AlwaysUnknownRecoveryProvider();
+        await new PaymentCaptureService(store, provider).CaptureAsync(organization, authorized.Id, Context(), default);
+        var recovery = new PaymentCaptureRecoveryService(store, provider);
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            Assert.True(store.ClaimExpiredCapture(organization, authorized.Id, Context()).Acquired);
+            await recovery.ReconcileAsync(organization, authorized.Id, Context(), default);
+        }
+        PaymentIntent result = store.Get(organization, authorized.Id)!;
+        Assert.Equal("requires_action", result.Status);
+        Assert.Equal("capture_attempts_exhausted", result.FailureCode);
+        Assert.Empty(store.FindExpiredCaptures());
+    }
+
     private static PaymentIntent CreateAuthorized(InMemoryPaymentIntents store, Guid organization)
     {
         PaymentIntent intent=store.Create(organization,new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid().ToString("N"),10m,"USD","card"),Context());
@@ -45,5 +90,23 @@ public sealed class PaymentCaptureLifecycleTests
     {
         public int Calls{get;private set;} public Task<ProviderAuthorizationResult> AuthorizeAsync(PaymentIntent intent,CancellationToken cancellationToken)=>throw new NotSupportedException();
         public Task<ProviderCaptureResult> CaptureAsync(PaymentIntent intent,CancellationToken cancellationToken){Calls++;return Task.FromResult(result);}
+    }
+    private sealed class RecoveryProvider : IPaymentProvider
+    {
+        public int CaptureCalls { get; private set; }
+        public int StatusCalls { get; private set; }
+        public Task<ProviderAuthorizationResult> AuthorizeAsync(PaymentIntent intent, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ProviderCaptureResult> CaptureAsync(PaymentIntent intent, CancellationToken cancellationToken)
+        { CaptureCalls++; return Task.FromResult(new ProviderCaptureResult(ProviderCaptureOutcome.Unknown, null, "provider_timeout")); }
+        public Task<ProviderCaptureResult> GetCaptureStatusAsync(PaymentIntent intent, CancellationToken cancellationToken)
+        { StatusCalls++; return Task.FromResult(new ProviderCaptureResult(ProviderCaptureOutcome.Captured, "capture-recovered", null)); }
+    }
+    private sealed class AlwaysUnknownRecoveryProvider : IPaymentProvider
+    {
+        public Task<ProviderAuthorizationResult> AuthorizeAsync(PaymentIntent intent, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ProviderCaptureResult> CaptureAsync(PaymentIntent intent, CancellationToken cancellationToken) =>
+            Task.FromResult(new ProviderCaptureResult(ProviderCaptureOutcome.Unknown, null, "provider_timeout"));
+        public Task<ProviderCaptureResult> GetCaptureStatusAsync(PaymentIntent intent, CancellationToken cancellationToken) =>
+            Task.FromResult(new ProviderCaptureResult(ProviderCaptureOutcome.Unknown, null, "provider_capture_status_unknown"));
     }
 }

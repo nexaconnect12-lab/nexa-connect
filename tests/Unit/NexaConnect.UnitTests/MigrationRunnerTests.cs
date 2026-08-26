@@ -13,14 +13,14 @@ public sealed class MigrationRunnerTests
             ["Restaurant"] = 3,
             ["Catalog"] = 4,
             ["Inventory"] = 5,
-            ["Order"] = 1,
+            ["Order"] = 2,
             ["Kitchen"] = 3,
             ["Customer"] = 2,
-            ["Payment"] = 5,
+            ["Payment"] = 6,
             ["Notification"] = 3,
             ["POS"] = 3,
             ["Media"] = 4,
-            ["Reporting"] = 10
+            ["Reporting"] = 11
         };
 
         foreach ((string service, int expectedVersion) in services)
@@ -189,13 +189,14 @@ public sealed class MigrationRunnerTests
         IReadOnlyList<AppliedMigration> applied = catalog.Migrations.Select(ToAppliedMigration).ToArray();
 
         IReadOnlyList<MigrationStep> rollback = catalog.CreatePlan(applied, 1);
-        Assert.Equal([5, 4, 3, 2], rollback.Select(step => step.Migration.Version).ToArray());
+        Assert.Equal([6, 5, 4, 3, 2], rollback.Select(step => step.Migration.Version).ToArray());
         Assert.All(rollback, step => Assert.Equal(MigrationDirection.Down, step.Direction));
-        Assert.Contains("provider_capture_id", rollback[0].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("provider_authorization_id", rollback[1].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("DROP TABLE payment_audit_records", rollback[3].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("DROP COLUMN organization_id", rollback[3].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("HAVING count(*)>1", rollback[3].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("capture_attempt_count", rollback[0].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("provider_capture_id", rollback[1].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("provider_authorization_id", rollback[2].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("DROP TABLE payment_audit_records", rollback[4].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("DROP COLUMN organization_id", rollback[4].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("HAVING count(*)>1", rollback[4].Migration.DownSql, StringComparison.Ordinal);
         Assert.All(rollback, step => Assert.DoesNotContain("DROP TABLE outbox_messages", step.Migration.DownSql, StringComparison.Ordinal));
     }
 

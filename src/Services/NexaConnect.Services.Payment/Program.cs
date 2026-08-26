@@ -35,6 +35,7 @@ builder.Services.Configure<PaymentProviderOptions>(builder.Configuration.GetSect
 builder.Services.AddScoped<PaymentAuthorizationService>();
 builder.Services.AddScoped<IPaymentAuthorizationService>(services => services.GetRequiredService<PaymentAuthorizationService>());
 builder.Services.AddScoped<IPaymentCaptureService, PaymentCaptureService>();
+builder.Services.AddScoped<PaymentCaptureRecoveryService>();
 builder.Services.AddTransient<RetryingHttpMessageHandler>();
 builder.Services.AddHttpClient<IPaymentProvider, HttpPaymentProvider>((services, client) =>
 {
@@ -47,6 +48,7 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
         ?? throw new InvalidOperationException("ConnectionStrings:Payment is required.")));
     builder.Services.AddSingleton<IPaymentIntents, PostgresPaymentIntents>();
     builder.Services.AddHostedService<PaymentAuthorizationRecoveryWorker>();
+    builder.Services.AddHostedService<PaymentCaptureRecoveryWorker>();
     if (builder.Configuration.GetValue<bool>("Outbox:Enabled"))
         builder.Services.AddPostgresOutbox(builder.Configuration, "Payment");
 }

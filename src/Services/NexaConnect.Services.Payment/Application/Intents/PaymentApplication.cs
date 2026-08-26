@@ -13,7 +13,11 @@ public sealed record PaymentIntent(Guid Id, Guid OrganizationId, Guid Restaurant
     [property: JsonIgnore] DateTimeOffset? LeaseExpiresAtUtc = null,
     [property: JsonIgnore] int AuthorizationAttemptCount = 0,
     [property: JsonIgnore] DateTimeOffset? LastReconciledAtUtc = null,
-    [property: JsonIgnore] string? ProviderCaptureId = null);
+    [property: JsonIgnore] string? ProviderCaptureId = null,
+    [property: JsonIgnore] string? CaptureLeaseOwner = null,
+    [property: JsonIgnore] DateTimeOffset? CaptureLeaseExpiresAtUtc = null,
+    [property: JsonIgnore] int CaptureAttemptCount = 0,
+    [property: JsonIgnore] DateTimeOffset? CaptureLastReconciledAtUtc = null);
 public sealed record PaymentAuthorizationLease(PaymentIntent Intent, bool Acquired);
 public sealed record PaymentAuthorizationClaim(PaymentIntent Intent, bool Claimed);
 
@@ -42,6 +46,12 @@ public interface IPaymentIntents
     PaymentIntent CompleteCapture(Guid organizationId, Guid id, long expectedVersion, ProviderCaptureOutcome outcome,
         string? providerCaptureId, string? failureCode, PaymentMutationContext context)
         => throw new NotSupportedException("Payment capture is not supported by this store.");
+    PaymentAuthorizationLease ClaimExpiredCapture(Guid organizationId, Guid id, PaymentMutationContext context)
+        => new(Get(organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found."), false);
+    PaymentIntent ReconcileCapture(Guid organizationId, Guid id, long expectedVersion, ProviderCaptureOutcome outcome,
+        string? providerCaptureId, string? failureCode, PaymentMutationContext context)
+        => throw new NotSupportedException("Payment capture reconciliation is not supported by this store.");
+    IReadOnlyCollection<PaymentIntent> FindExpiredCaptures() => [];
 }
 
 public interface IPaymentAuthorizationService

@@ -9,6 +9,8 @@ namespace NexaConnect.Services.Payment.Infrastructure;
 public sealed class InMemoryPaymentIntents(IOptions<PaymentProviderOptions>? options = null) : IPaymentIntents
 {
     private readonly TimeSpan leaseDuration = options?.Value.LeaseDuration > TimeSpan.Zero ? options.Value.LeaseDuration : TimeSpan.FromMinutes(2);
+    private readonly int maximumCaptureRecoveryAttempts = Math.Min(options?.Value.MaximumCaptureRecoveryAttempts > 0
+        ? options.Value.MaximumCaptureRecoveryAttempts : 3, 100);
     private readonly Dictionary<Guid, PaymentIntent> intents = [];
     private readonly Dictionary<(Guid OrganizationId, Guid RestaurantId, string Key), Guid> idempotency = [];
     private readonly object gate = new();
@@ -161,6 +163,7 @@ public sealed class InMemoryPaymentIntents(IOptions<PaymentProviderOptions>? opt
                 return new PaymentAuthorizationLease(intent, false);
             if (intent.Status != "authorized") throw new InvalidOperationException("Only an authorized payment intent can be captured.");
             PaymentIntent capturing = intent with { Status = "capturing", FailureCode = null,
+                CaptureLeaseOwner = context.ActorSubjectId.Trim(), CaptureLeaseExpiresAtUtc = DateTimeOffset.UtcNow.Add(leaseDuration),
                 ConcurrencyVersion = intent.ConcurrencyVersion + 1 };
             intents[id] = capturing;
             return new PaymentAuthorizationLease(capturing, true);
@@ -180,16 +183,82 @@ public sealed class InMemoryPaymentIntents(IOptions<PaymentProviderOptions>? opt
                 throw new PaymentConcurrencyException("The payment intent changed while capture was in progress.");
             if (outcome == ProviderCaptureOutcome.Captured && string.IsNullOrWhiteSpace(providerCaptureId))
                 throw new ArgumentException("A successful capture requires a provider reference.");
+            if (outcome == ProviderCaptureOutcome.Captured && !IsSafeProviderReference(providerCaptureId!))
+                throw new ArgumentException("The provider capture reference is invalid.");
             PaymentIntent completed = intent with
             {
                 Status = outcome switch { ProviderCaptureOutcome.Captured => "captured", ProviderCaptureOutcome.Failed => "failed", _ => "capture_unknown" },
                 ProviderCaptureId = outcome == ProviderCaptureOutcome.Captured ? providerCaptureId!.Trim() : null,
                 FailureCode = outcome == ProviderCaptureOutcome.Captured ? null : failureCode ?? "provider_capture_failed",
+                CaptureLeaseOwner = null, CaptureLeaseExpiresAtUtc = null,
                 ConcurrencyVersion = intent.ConcurrencyVersion + 1
             };
             intents[id] = completed;
             return completed;
         }
+    }
+
+    public PaymentAuthorizationLease ClaimExpiredCapture(Guid organizationId, Guid id, PaymentMutationContext context)
+    {
+        ValidateContext(context);
+        lock (gate)
+        {
+            if (!intents.TryGetValue(id, out PaymentIntent? intent) || intent.OrganizationId != organizationId)
+                throw new KeyNotFoundException("Payment intent was not found.");
+            if (intent.Status == "capturing" && intent.CaptureLeaseExpiresAtUtc > DateTimeOffset.UtcNow)
+                return new(intent, false);
+            if (intent.Status is not ("capturing" or "capture_unknown")) return new(intent, false);
+            PaymentIntent claimed = intent with
+            {
+                Status = "capturing",
+                CaptureLeaseOwner = context.ActorSubjectId.Trim(),
+                CaptureLeaseExpiresAtUtc = DateTimeOffset.UtcNow.Add(leaseDuration),
+                CaptureAttemptCount = intent.CaptureAttemptCount + 1,
+                ConcurrencyVersion = intent.ConcurrencyVersion + 1
+            };
+            intents[id] = claimed;
+            return new(claimed, true);
+        }
+    }
+
+    public PaymentIntent ReconcileCapture(Guid organizationId, Guid id, long expectedVersion, ProviderCaptureOutcome outcome,
+        string? providerCaptureId, string? failureCode, PaymentMutationContext context)
+    {
+        ValidateContext(context);
+        lock (gate)
+        {
+            if (!intents.TryGetValue(id, out PaymentIntent? intent) || intent.OrganizationId != organizationId)
+                throw new KeyNotFoundException("Payment intent was not found.");
+            if (intent.Status == "captured") return intent;
+            if (intent.Status != "capturing" || intent.ConcurrencyVersion != expectedVersion)
+                throw new PaymentConcurrencyException("The payment intent changed while capture reconciliation was in progress.");
+            if (outcome == ProviderCaptureOutcome.Captured && string.IsNullOrWhiteSpace(providerCaptureId))
+                throw new ArgumentException("A reconciled capture requires a provider reference.");
+            if (outcome == ProviderCaptureOutcome.Captured && !IsSafeProviderReference(providerCaptureId!))
+                throw new ArgumentException("The provider capture reference is invalid.");
+            bool exhausted = outcome == ProviderCaptureOutcome.Unknown && intent.CaptureAttemptCount >= maximumCaptureRecoveryAttempts;
+            PaymentIntent reconciled = intent with
+            {
+                Status = outcome == ProviderCaptureOutcome.Captured ? "captured"
+                    : outcome == ProviderCaptureOutcome.Failed ? "failed"
+                    : exhausted ? "requires_action" : "capture_unknown",
+                ProviderCaptureId = outcome == ProviderCaptureOutcome.Captured ? providerCaptureId!.Trim() : null,
+                FailureCode = outcome == ProviderCaptureOutcome.Captured ? null
+                    : exhausted ? "capture_attempts_exhausted" : failureCode ?? "provider_capture_status_unknown",
+                CaptureLeaseOwner = null, CaptureLeaseExpiresAtUtc = null,
+                CaptureLastReconciledAtUtc = DateTimeOffset.UtcNow,
+                ConcurrencyVersion = intent.ConcurrencyVersion + 1
+            };
+            intents[id] = reconciled;
+            return reconciled;
+        }
+    }
+
+    public IReadOnlyCollection<PaymentIntent> FindExpiredCaptures()
+    {
+        lock (gate)
+            return intents.Values.Where(intent => intent.Status == "capture_unknown"
+                || (intent.Status == "capturing" && intent.CaptureLeaseExpiresAtUtc <= DateTimeOffset.UtcNow)).ToArray();
     }
 
     private static void ValidateContext(PaymentMutationContext context)
@@ -198,6 +267,9 @@ public sealed class InMemoryPaymentIntents(IOptions<PaymentProviderOptions>? opt
             || context.ActorSubjectId.Any(char.IsControl) || context.CorrelationId == Guid.Empty)
             throw new ArgumentException("A valid mutation actor and correlation identifier are required.");
     }
+
+    private static bool IsSafeProviderReference(string value) => value.Trim().Length is >= 1 and <= 200
+        && !value.Any(char.IsControl);
 
     private static void EnsureSameRequest(PaymentIntent existing, PaymentIntentAggregate candidate)
     {

@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "name": "payment_capture_reconciliation",
+  "transactional": true,
+  "downgradeSafety": "destructive",
+  "minimumApplicationVersion": "0.10.0"
+}

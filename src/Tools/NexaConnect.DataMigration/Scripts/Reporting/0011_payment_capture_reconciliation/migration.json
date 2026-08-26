@@ -1,0 +1,1 @@
+{"version":11,"name":"payment_capture_reconciliation","description":"Adds Reporting activity vocabulary for definitive Payment capture reconciliation outcomes.","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.9.0"}

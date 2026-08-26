@@ -32,6 +32,8 @@ public interface IPaymentProvider
         => Task.FromResult(new ProviderAuthorizationStatus(ProviderAuthorizationOutcome.Unknown, null, "provider_status_unavailable"));
     Task<ProviderCaptureResult> CaptureAsync(PaymentIntent intent, CancellationToken cancellationToken)
         => Task.FromResult(new ProviderCaptureResult(ProviderCaptureOutcome.Unknown, null, "provider_capture_unavailable"));
+    Task<ProviderCaptureResult> GetCaptureStatusAsync(PaymentIntent intent, CancellationToken cancellationToken)
+        => Task.FromResult(new ProviderCaptureResult(ProviderCaptureOutcome.Unknown, null, "provider_capture_status_unavailable"));
 }
 
 public sealed class HttpPaymentProvider(HttpClient client, IOptions<PaymentProviderOptions> options) : IPaymentProvider
@@ -94,11 +96,34 @@ public sealed class HttpPaymentProvider(HttpClient client, IOptions<PaymentProvi
             : new ProviderCaptureResult(ProviderCaptureOutcome.Failed, null, result?.FailureReason ?? "provider_capture_failed");
     }
 
+    public async Task<ProviderCaptureResult> GetCaptureStatusAsync(PaymentIntent intent, CancellationToken cancellationToken)
+    {
+        using HttpResponseMessage response = await client.GetAsync(
+            $"{options.Value.CaptureStatusPath.TrimEnd('/')}/{intent.Id:D}", cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return new(ProviderCaptureOutcome.Unknown, null, "provider_capture_status_missing");
+        if (!response.IsSuccessStatusCode)
+            return new(ProviderCaptureOutcome.Unknown, null, $"provider_http_{(int)response.StatusCode}");
+        ProviderCaptureStatusResponse? result = await response.Content.ReadFromJsonAsync<ProviderCaptureStatusResponse>(cancellationToken);
+        ProviderCaptureOutcome outcome = result?.Status?.Trim().ToLowerInvariant() switch
+        {
+            "captured" when !string.IsNullOrWhiteSpace(result.ProviderTransactionId) => ProviderCaptureOutcome.Captured,
+            "failed" => ProviderCaptureOutcome.Failed,
+            _ => ProviderCaptureOutcome.Unknown
+        };
+        string? failureReason = outcome == ProviderCaptureOutcome.Unknown
+            ? result?.FailureReason ?? "provider_capture_status_unknown"
+            : result?.FailureReason;
+        return new(outcome, outcome == ProviderCaptureOutcome.Captured ? result!.ProviderTransactionId!.Trim() : null,
+            failureReason);
+    }
+
     private sealed record ProviderAuthorizationRequest(Guid PaymentIntentId, Guid OrderId, decimal Amount, string Currency, string PaymentMethod);
     private sealed record ProviderAuthorizationResponse(bool Succeeded, string? ProviderTransactionId, string? FailureReason);
     private sealed record ProviderAuthorizationStatusResponse(string? Status, string? ProviderTransactionId, string? FailureReason);
     private sealed record ProviderCaptureRequest(Guid PaymentIntentId, string ProviderAuthorizationId, decimal Amount, string Currency);
     private sealed record ProviderCaptureResponse(bool Succeeded, string? ProviderTransactionId, string? FailureReason);
+    private sealed record ProviderCaptureStatusResponse(string? Status, string? ProviderTransactionId, string? FailureReason);
 }
 
 public sealed class PaymentProviderOptions
@@ -107,7 +132,9 @@ public sealed class PaymentProviderOptions
     public string AuthorizationPath { get; set; } = "v1/authorizations";
     public string AuthorizationStatusPath { get; set; } = "v1/authorizations";
     public string CapturePath { get; set; } = "v1/captures";
+    public string CaptureStatusPath { get; set; } = "v1/captures";
     public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromMinutes(2);
     public int MaximumAuthorizationAttempts { get; set; } = 3;
+    public int MaximumCaptureRecoveryAttempts { get; set; } = 3;
     public TimeSpan RecoveryInterval { get; set; } = TimeSpan.FromSeconds(30);
 }
