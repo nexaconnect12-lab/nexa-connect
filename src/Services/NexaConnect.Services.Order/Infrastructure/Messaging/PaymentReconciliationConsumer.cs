@@ -41,6 +41,10 @@ public sealed class PaymentReconciliationConsumer(
             cancellationToken: stoppingToken);
         await channel.QueueBindAsync(options.Value.Queue, options.Value.Exchange, "payment.authorization-reconciled.v1", cancellationToken: stoppingToken);
         await channel.QueueBindAsync(options.Value.Queue, options.Value.Exchange, "payment.capture-reconciled.v1", cancellationToken: stoppingToken);
+        await channel.QueueBindAsync(options.Value.Queue, options.Value.Exchange, "payment.voided.v1", cancellationToken: stoppingToken);
+        await channel.QueueBindAsync(options.Value.Queue, options.Value.Exchange, "payment.void-failed.v1", cancellationToken: stoppingToken);
+        await channel.QueueBindAsync(options.Value.Queue, options.Value.Exchange, "payment.void-uncertain.v1", cancellationToken: stoppingToken);
+        await channel.QueueBindAsync(options.Value.Queue, options.Value.Exchange, "payment.void-reconciled.v1", cancellationToken: stoppingToken);
         await channel.QueueBindAsync(options.Value.Queue + ".dead", options.Value.Exchange, "order.payment-reconciled.dead", cancellationToken: stoppingToken);
         await channel.BasicQosAsync(0, options.Value.PrefetchCount, false, stoppingToken);
         var consumer = new AsyncEventingBasicConsumer(channel);
@@ -58,6 +62,10 @@ public sealed class PaymentReconciliationConsumer(
             {
                 "payment.authorization-reconciled.v1" => (IIntegrationEvent?)JsonSerializer.Deserialize<PaymentAuthorizationReconciledV1>(delivery.Body.Span),
                 "payment.capture-reconciled.v1" => (IIntegrationEvent?)JsonSerializer.Deserialize<PaymentCaptureReconciledV1>(delivery.Body.Span),
+                "payment.voided.v1" => (IIntegrationEvent?)JsonSerializer.Deserialize<PaymentVoidedV1>(delivery.Body.Span),
+                "payment.void-failed.v1" => (IIntegrationEvent?)JsonSerializer.Deserialize<PaymentVoidFailedV1>(delivery.Body.Span),
+                "payment.void-uncertain.v1" => (IIntegrationEvent?)JsonSerializer.Deserialize<PaymentVoidUncertainV1>(delivery.Body.Span),
+                "payment.void-reconciled.v1" => (IIntegrationEvent?)JsonSerializer.Deserialize<PaymentVoidReconciledV1>(delivery.Body.Span),
                 _ => throw new JsonException("Unsupported payment reconciliation routing key.")
             } ?? throw new JsonException("Payment reconciliation event is empty.");
             eventId = message.EventId;
@@ -78,6 +86,10 @@ public sealed class PaymentReconciliationConsumer(
                 {
                     PaymentAuthorizationReconciledV1 authorization => await handler.ApplyAsync(authorization, cancellationToken),
                     PaymentCaptureReconciledV1 capture => await handler.ApplyAsync(capture, cancellationToken),
+                    PaymentVoidedV1 value => await handler.ApplyAsync(value, cancellationToken),
+                    PaymentVoidFailedV1 value => await handler.ApplyAsync(value, cancellationToken),
+                    PaymentVoidUncertainV1 value => await handler.ApplyAsync(value, cancellationToken),
+                    PaymentVoidReconciledV1 value => await handler.ApplyAsync(value, cancellationToken),
                     _ => false
                 };
                 await inbox.MarkCompletedAsync(message.EventId, Consumer, cancellationToken);
@@ -107,6 +119,10 @@ public sealed class PaymentReconciliationConsumer(
     {
         PaymentAuthorizationReconciledV1 value => value.OrganizationId,
         PaymentCaptureReconciledV1 value => value.OrganizationId,
+        PaymentVoidedV1 value => value.OrganizationId,
+        PaymentVoidFailedV1 value => value.OrganizationId,
+        PaymentVoidUncertainV1 value => value.OrganizationId,
+        PaymentVoidReconciledV1 value => value.OrganizationId,
         _ => Guid.Empty
     };
 }

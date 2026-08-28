@@ -119,6 +119,8 @@ public sealed record PaymentVoidUncertainV1(Guid EventId, Guid CorrelationId, Da
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string FailureCode) : IIntegrationEvent;
 public sealed record PaymentVoidReconciledV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Status, string? FailureCode) : IIntegrationEvent;
+public sealed record OrderPaymentReviewRequiredV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Reason) : IIntegrationEvent;
 
 public sealed record NotificationQueuedV1(
     Guid EventId,

@@ -20,11 +20,13 @@ public sealed class PostgresIntegrationEventPublisher(IOutboxStore outbox) : IIn
             PaymentAuthorizationUncertainV1 value => value.OrderId,
             PaymentAuthorizationReconciledV1 value => value.OrderId,
             PaymentCaptureReconciledV1 value => value.OrderId,
+            PaymentVoidReconciledV1 value => value.OrderId,
+            OrderPaymentReviewRequiredV1 value => value.OrderId,
             _ => throw new InvalidOperationException($"Unsupported integration event type {integrationEvent.GetType().Name}.")
         };
         var message = new OutboxMessage(
             integrationEvent.EventId,
-            integrationEvent.GetType().Name,
+            integrationEvent is OrderPaymentReviewRequiredV1 ? "order.payment-review-required.v1" : integrationEvent.GetType().Name,
             1,
             "order",
             aggregateId,

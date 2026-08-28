@@ -25,6 +25,7 @@ public sealed class PaymentReconciliationApplicationService(
         if (order is null) return false;
         if (order.OrganizationId != reconciliation.OrganizationId)
             throw new InvalidOperationException("Payment reconciliation organization does not match the order.");
+        EnsurePaymentIntent(order, reconciliation.PaymentIntentId);
         if (order.Status is OrderStatus.Paid or OrderStatus.PaymentFailed or OrderStatus.Rejected)
             return true;
         if (order.Status != OrderStatus.PaymentPending) return false;
@@ -58,6 +59,7 @@ public sealed class PaymentReconciliationApplicationService(
         if (order is null) return false;
         if (order.OrganizationId != reconciliation.OrganizationId)
             throw new InvalidOperationException("Payment capture reconciliation organization does not match the order.");
+        EnsurePaymentIntent(order, reconciliation.PaymentIntentId);
         if (order.Status is OrderStatus.Paid or OrderStatus.PaymentFailed or OrderStatus.Rejected)
             return true;
         if (order.Status != OrderStatus.PaymentPending) return false;
@@ -85,6 +87,70 @@ public sealed class PaymentReconciliationApplicationService(
 
         // Unknown/in-progress provider results intentionally retain Inventory and Kitchen work.
         return false;
+    }
+
+    public Task<bool> ApplyAsync(PaymentVoidedV1 message, CancellationToken cancellationToken) =>
+        ApplyVoidAsync(message.OrganizationId, message.OrderId, message.PaymentIntentId, message.CorrelationId,
+            "voided", null, cancellationToken);
+
+    public Task<bool> ApplyAsync(PaymentVoidFailedV1 message, CancellationToken cancellationToken) =>
+        ApplyVoidAsync(message.OrganizationId, message.OrderId, message.PaymentIntentId, message.CorrelationId,
+            "void_failed", message.FailureCode, cancellationToken);
+
+    public Task<bool> ApplyAsync(PaymentVoidUncertainV1 message, CancellationToken cancellationToken) =>
+        ApplyVoidAsync(message.OrganizationId, message.OrderId, message.PaymentIntentId, message.CorrelationId,
+            "void_unknown", message.FailureCode, cancellationToken);
+
+    public Task<bool> ApplyAsync(PaymentVoidReconciledV1 message, CancellationToken cancellationToken) =>
+        ApplyVoidAsync(message.OrganizationId, message.OrderId, message.PaymentIntentId, message.CorrelationId,
+            message.Status, message.FailureCode, cancellationToken);
+
+    private async Task<bool> ApplyVoidAsync(Guid organizationId, Guid orderId, Guid paymentIntentId,
+        Guid correlationId, string status, string? failureCode, CancellationToken cancellationToken)
+    {
+        if (orders is not IOrderLookup lookup) return false;
+        OrderAggregate? order = await lookup.GetAsync(orderId, cancellationToken);
+        if (order is null) return false;
+        if (order.OrganizationId != organizationId)
+            throw new InvalidOperationException("Payment void reconciliation organization does not match the order.");
+        EnsurePaymentIntent(order, paymentIntentId);
+        // Captured/paid orders are immutable at the void boundary. A provider-side reversal after
+        // capture belongs to the refund workflow and must never cancel a paid Order.
+        if (order.Status is OrderStatus.Paid or OrderStatus.PaymentFailed or OrderStatus.Rejected)
+            return true;
+        if (order.Status == OrderStatus.PaymentReview) return true;
+        if (order.Status != OrderStatus.PaymentPending) return false;
+
+        if (string.Equals(status, "voided", StringComparison.Ordinal))
+        {
+            await inventory.ReleaseAsync(order.Id, order.BranchId, cancellationToken);
+            await kitchen.CancelTicketAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
+            order.MarkPaymentFailed();
+            await PersistAsync(order, new PaymentFailedV1(Guid.NewGuid(), correlationId, clock.GetUtcNow(),
+                order.Id, "authorization_voided"), cancellationToken);
+            return true;
+        }
+
+        if (string.Equals(status, "requires_action", StringComparison.Ordinal)
+            || string.Equals(status, "void_failed", StringComparison.Ordinal))
+        {
+            order.MarkPaymentReview();
+            await PersistAsync(order, new OrderPaymentReviewRequiredV1(Guid.NewGuid(), correlationId,
+                clock.GetUtcNow(), organizationId, order.Id, paymentIntentId,
+                failureCode ?? (status == "void_failed" ? "provider_void_failed" : "void_attempts_exhausted")), cancellationToken);
+            return true;
+        }
+
+        // voiding/void_unknown retain Inventory and Kitchen work. The event is safely acknowledged;
+        // a later reconciled event owns the definitive transition.
+        return string.Equals(status, "voiding", StringComparison.Ordinal)
+            || string.Equals(status, "void_unknown", StringComparison.Ordinal);
+    }
+
+    private static void EnsurePaymentIntent(OrderAggregate order, Guid paymentIntentId)
+    {
+        if (order.PaymentIntentId is null || order.PaymentIntentId != paymentIntentId)
+            throw new InvalidOperationException("Payment reconciliation intent does not match the order.");
     }
 
     private async Task PersistAsync(OrderAggregate order, IIntegrationEvent integrationEvent,

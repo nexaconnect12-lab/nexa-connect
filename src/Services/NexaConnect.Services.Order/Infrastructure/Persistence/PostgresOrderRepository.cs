@@ -27,7 +27,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
             ON CONFLICT (id) DO NOTHING
             """, connection, transaction);
         command.Parameters.AddWithValue("id", integrationEvent.EventId);
-        command.Parameters.AddWithValue("type", integrationEvent.GetType().Name);
+        command.Parameters.AddWithValue("type", EventType(integrationEvent));
         command.Parameters.AddWithValue("version", 1);
         command.Parameters.AddWithValue("aggregate_type", "Order");
         command.Parameters.AddWithValue("aggregate_id", order.Id);
@@ -50,19 +50,22 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
     public async Task<OrderAggregate?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("SELECT restaurant_id, branch_id, currency, status, order_number, channel, service_type FROM orders WHERE id=@id", connection);
+        await using var command = new NpgsqlCommand("SELECT organization_id, restaurant_id, branch_id, currency, status, order_number, channel, service_type, payment_intent_id FROM orders WHERE id=@id", connection);
         command.Parameters.AddWithValue("id", id);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
-        var restaurant = reader.GetGuid(0); var branch = reader.GetGuid(1); var currency = reader.GetString(2).Trim();
-        var status = reader.GetString(3); var orderNumber = reader.GetString(4); var channel = reader.GetString(5); var serviceType = reader.GetString(6);
+        if (reader.IsDBNull(0)) throw new InvalidOperationException($"Order {id} has no organization ownership metadata; backfill it before processing.");
+        var organization = reader.GetGuid(0); var restaurant = reader.GetGuid(1); var branch = reader.GetGuid(2); var currency = reader.GetString(3).Trim();
+        var status = reader.GetString(4); var orderNumber = reader.GetString(5); var channel = reader.GetString(6); var serviceType = reader.GetString(7);
+        Guid? paymentIntentId = reader.IsDBNull(8) ? null : reader.GetGuid(8);
         await reader.CloseAsync();
         await using var linesCommand = new NpgsqlCommand("SELECT product_id, name_snapshot, unit_price, quantity, COALESCE(notes,'') FROM order_lines WHERE order_id=@id ORDER BY line_number", connection);
         linesCommand.Parameters.AddWithValue("id", id);
         var lines = new List<OrderLine>();
         await using var linesReader = await linesCommand.ExecuteReaderAsync(cancellationToken);
         while (await linesReader.ReadAsync(cancellationToken)) lines.Add(new OrderLine(linesReader.GetGuid(0), linesReader.GetString(1), linesReader.GetDecimal(2), (int)linesReader.GetDecimal(3), linesReader.GetString(4)));
-        var order = OrderAggregate.Create(id, restaurant, branch, lines, currency, restaurant, channel, serviceType, orderNumber);
+        var order = OrderAggregate.Create(id, organization, branch, lines, currency, restaurant, channel, serviceType, orderNumber);
+        order.RestorePaymentIntent(paymentIntentId);
         ApplyStatus(order, status);
         return order;
     }
@@ -70,13 +73,16 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
     private static async Task SaveOrderAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, OrderAggregate order, CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand("""
-            INSERT INTO orders (id,restaurant_id,branch_id,order_number,currency,channel,service_type,subtotal_amount,total_amount,status,created_at_utc,created_by,updated_at_utc,updated_by)
-            VALUES (@id,@restaurant,@branch,@number,@currency,@channel,@service,@subtotal,@total,@status,@now,'order-service',@now,'order-service')
-            ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,total_amount=EXCLUDED.total_amount,updated_at_utc=EXCLUDED.updated_at_utc,updated_by=EXCLUDED.updated_by,concurrency_version=orders.concurrency_version+1
-            WHERE orders.status NOT IN ('completed','cancelled') OR orders.status=EXCLUDED.status
+            INSERT INTO orders (id,organization_id,restaurant_id,branch_id,payment_intent_id,order_number,currency,channel,service_type,subtotal_amount,total_amount,status,created_at_utc,created_by,updated_at_utc,updated_by)
+            VALUES (@id,@organization,@restaurant,@branch,@payment_intent,@number,@currency,@channel,@service,@subtotal,@total,@status,@now,'order-service',@now,'order-service')
+            ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,payment_intent_id=COALESCE(orders.payment_intent_id,EXCLUDED.payment_intent_id),total_amount=EXCLUDED.total_amount,updated_at_utc=EXCLUDED.updated_at_utc,updated_by=EXCLUDED.updated_by,concurrency_version=orders.concurrency_version+1
+            WHERE orders.organization_id=EXCLUDED.organization_id
+              AND (orders.payment_intent_id IS NULL OR EXCLUDED.payment_intent_id IS NULL OR orders.payment_intent_id=EXCLUDED.payment_intent_id)
+              AND (orders.status NOT IN ('completed','cancelled') OR orders.status=EXCLUDED.status)
             """, connection, transaction);
         var now = DateTime.UtcNow;
-        command.Parameters.AddWithValue("id", order.Id); command.Parameters.AddWithValue("restaurant", order.RestaurantId); command.Parameters.AddWithValue("branch", order.BranchId);
+        command.Parameters.AddWithValue("id", order.Id); command.Parameters.AddWithValue("organization", order.OrganizationId); command.Parameters.AddWithValue("restaurant", order.RestaurantId); command.Parameters.AddWithValue("branch", order.BranchId);
+        command.Parameters.AddWithValue("payment_intent", (object?)order.PaymentIntentId ?? DBNull.Value);
         command.Parameters.AddWithValue("number", order.OrderNumber); command.Parameters.AddWithValue("currency", order.Currency); command.Parameters.AddWithValue("channel", order.Channel); command.Parameters.AddWithValue("service", order.ServiceType);
         command.Parameters.AddWithValue("subtotal", order.TotalAmount); command.Parameters.AddWithValue("total", order.TotalAmount); command.Parameters.AddWithValue("status", ToDbStatus(order.Status)); command.Parameters.AddWithValue("now", now);
         int affected = await command.ExecuteNonQueryAsync(cancellationToken);
@@ -97,6 +103,11 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         }
     }
 
-    private static string ToDbStatus(OrderStatus status) => status switch { OrderStatus.Paid => "completed", OrderStatus.PaymentFailed or OrderStatus.Rejected => "cancelled", OrderStatus.PaymentPending => "payment_pending", OrderStatus.KitchenAccepted => "accepted", OrderStatus.InventoryReserved => "accepted", _ => status.ToString().ToLowerInvariant() };
-    private static void ApplyStatus(OrderAggregate order, string status) { if (status == "submitted") order.Submit(); else if (status == "accepted") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); } else if (status == "payment_pending") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaymentPending(); } else if (status == "completed") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaid(); } else if (status == "cancelled") order.Reject(); }
+    private static string ToDbStatus(OrderStatus status) => status switch { OrderStatus.Paid => "completed", OrderStatus.PaymentFailed or OrderStatus.Rejected => "cancelled", OrderStatus.PaymentPending => "payment_pending", OrderStatus.PaymentReview => "payment_review", OrderStatus.KitchenAccepted => "accepted", OrderStatus.InventoryReserved => "accepted", _ => status.ToString().ToLowerInvariant() };
+    private static string EventType(IIntegrationEvent integrationEvent) => integrationEvent switch
+    {
+        OrderPaymentReviewRequiredV1 => "order.payment-review-required.v1",
+        _ => integrationEvent.GetType().Name
+    };
+    private static void ApplyStatus(OrderAggregate order, string status) { if (status == "submitted") order.Submit(); else if (status == "accepted") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); } else if (status is "payment_pending" or "payment_review") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaymentPending(); if(status=="payment_review")order.MarkPaymentReview(); } else if (status == "completed") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaid(); } else if (status == "cancelled") order.Reject(); }
 }

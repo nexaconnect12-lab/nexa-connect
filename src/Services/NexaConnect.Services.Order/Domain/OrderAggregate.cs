@@ -9,7 +9,8 @@ public enum OrderStatus
     Paid = 4,
     PaymentFailed = 5,
     Rejected = 6,
-    PaymentPending = 7
+    PaymentPending = 7,
+    PaymentReview = 8
 }
 
 public sealed record OrderLine(
@@ -60,6 +61,7 @@ public sealed class OrderAggregate
     public string ServiceType { get; }
     public string OrderNumber { get; }
     public string? IdempotencyKey { get; }
+    public Guid? PaymentIntentId { get; private set; }
     public OrderStatus Status { get; private set; }
     public IReadOnlyList<OrderLine> Lines => lines;
     public decimal TotalAmount => lines.Sum(line => line.Total);
@@ -86,10 +88,30 @@ public sealed class OrderAggregate
     public void Submit() => Transition(OrderStatus.Draft, OrderStatus.Submitted);
     public void MarkInventoryReserved() => Transition(OrderStatus.Submitted, OrderStatus.InventoryReserved);
     public void MarkKitchenAccepted() => Transition(OrderStatus.InventoryReserved, OrderStatus.KitchenAccepted);
-    public void MarkPaid() => Transition(Status is OrderStatus.KitchenAccepted or OrderStatus.PaymentPending ? Status : OrderStatus.KitchenAccepted, OrderStatus.Paid);
-    public void MarkPaymentPending() => Transition(OrderStatus.KitchenAccepted, OrderStatus.PaymentPending);
+    public void MarkPaid(Guid? paymentIntentId = null)
+    {
+        BindPaymentIntent(paymentIntentId);
+        Transition(Status is OrderStatus.KitchenAccepted or OrderStatus.PaymentPending ? Status : OrderStatus.KitchenAccepted, OrderStatus.Paid);
+    }
+    public void MarkPaymentPending(Guid? paymentIntentId = null)
+    {
+        BindPaymentIntent(paymentIntentId);
+        Transition(OrderStatus.KitchenAccepted, OrderStatus.PaymentPending);
+    }
     public void MarkPaymentFailed() => Transition(Status is OrderStatus.KitchenAccepted or OrderStatus.PaymentPending ? Status : OrderStatus.KitchenAccepted, OrderStatus.PaymentFailed);
+    public void MarkPaymentReview() => Transition(OrderStatus.PaymentPending, OrderStatus.PaymentReview);
     public void Reject() => Status = OrderStatus.Rejected;
+
+    public void RestorePaymentIntent(Guid? paymentIntentId) => BindPaymentIntent(paymentIntentId);
+
+    private void BindPaymentIntent(Guid? paymentIntentId)
+    {
+        if (paymentIntentId is null) return;
+        if (paymentIntentId == Guid.Empty) throw new ArgumentException("Payment intent must not be empty.", nameof(paymentIntentId));
+        if (PaymentIntentId is { } existing && existing != paymentIntentId)
+            throw new InvalidOperationException($"Order {Id} is already bound to another payment intent.");
+        PaymentIntentId = paymentIntentId;
+    }
 
     private void Transition(OrderStatus expected, OrderStatus next)
     {

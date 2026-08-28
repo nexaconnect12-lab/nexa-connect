@@ -145,7 +145,9 @@ public sealed class PlaceOrderWorkflow(
             order.BranchId, order.Id, order.TotalAmount, order.Currency, command.PaymentMethod, cancellationToken);
         if (!paid.Completed && paid.Outcome is "unknown" or "authorizing" or "requires_action")
         {
-            order.MarkPaymentPending();
+            if (paid.PaymentId is null)
+                throw new InvalidOperationException("An uncertain payment authorization must identify its payment intent.");
+            order.MarkPaymentPending(paid.PaymentId.Value);
             await PersistAsync(order, new PaymentAuthorizationUncertainV1(
                 Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, paid.PaymentId,
                 paid.Reason ?? "Payment authorization requires reconciliation."), cancellationToken);
@@ -161,7 +163,7 @@ public sealed class PlaceOrderWorkflow(
                 paid.Reason ?? "Payment was not completed."), cancellationToken);
             return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
         }
-        order.MarkPaid();
+        order.MarkPaid(paid.PaymentId.Value);
         await PersistAsync(order, new PaymentCompletedV1(
             Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, paid.PaymentId.Value,
             order.TotalAmount, order.Currency, command.PaymentMethod), cancellationToken);
