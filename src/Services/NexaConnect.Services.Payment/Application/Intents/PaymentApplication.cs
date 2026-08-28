@@ -17,7 +17,8 @@ public sealed record PaymentIntent(Guid Id, Guid OrganizationId, Guid Restaurant
     [property: JsonIgnore] string? CaptureLeaseOwner = null,
     [property: JsonIgnore] DateTimeOffset? CaptureLeaseExpiresAtUtc = null,
     [property: JsonIgnore] int CaptureAttemptCount = 0,
-    [property: JsonIgnore] DateTimeOffset? CaptureLastReconciledAtUtc = null);
+    [property: JsonIgnore] DateTimeOffset? CaptureLastReconciledAtUtc = null,
+    [property: JsonIgnore] string? ProviderVoidId = null);
 public sealed record PaymentAuthorizationLease(PaymentIntent Intent, bool Acquired);
 public sealed record PaymentAuthorizationClaim(PaymentIntent Intent, bool Claimed);
 
@@ -52,6 +53,11 @@ public interface IPaymentIntents
         string? providerCaptureId, string? failureCode, PaymentMutationContext context)
         => throw new NotSupportedException("Payment capture reconciliation is not supported by this store.");
     IReadOnlyCollection<PaymentIntent> FindExpiredCaptures() => [];
+    PaymentAuthorizationLease BeginVoid(Guid organizationId, Guid id, PaymentMutationContext context)
+        => throw new NotSupportedException("Payment void is not supported by this store.");
+    PaymentIntent CompleteVoid(Guid organizationId, Guid id, long expectedVersion, ProviderVoidOutcome outcome,
+        string? providerVoidId, string? failureCode, PaymentMutationContext context)
+        => throw new NotSupportedException("Payment void is not supported by this store.");
 }
 
 public interface IPaymentAuthorizationService
@@ -63,5 +69,11 @@ public interface IPaymentAuthorizationService
 public interface IPaymentCaptureService
 {
     Task<PaymentIntent?> CaptureAsync(Guid organizationId, Guid id, PaymentMutationContext context,
+        CancellationToken cancellationToken);
+}
+
+public interface IPaymentVoidService
+{
+    Task<PaymentIntent?> VoidAsync(Guid organizationId, Guid id, PaymentMutationContext context,
         CancellationToken cancellationToken);
 }

@@ -24,6 +24,8 @@ public sealed record ProviderAuthorizationStatus(ProviderAuthorizationOutcome Ou
 
 public enum ProviderCaptureOutcome { Captured, Failed, Unknown }
 public sealed record ProviderCaptureResult(ProviderCaptureOutcome Outcome, string? ProviderTransactionId, string? FailureReason);
+public enum ProviderVoidOutcome { Voided, Failed, Unknown }
+public sealed record ProviderVoidResult(ProviderVoidOutcome Outcome, string? ProviderTransactionId, string? FailureReason);
 
 public interface IPaymentProvider
 {
@@ -34,6 +36,8 @@ public interface IPaymentProvider
         => Task.FromResult(new ProviderCaptureResult(ProviderCaptureOutcome.Unknown, null, "provider_capture_unavailable"));
     Task<ProviderCaptureResult> GetCaptureStatusAsync(PaymentIntent intent, CancellationToken cancellationToken)
         => Task.FromResult(new ProviderCaptureResult(ProviderCaptureOutcome.Unknown, null, "provider_capture_status_unavailable"));
+    Task<ProviderVoidResult> VoidAsync(PaymentIntent intent, CancellationToken cancellationToken)
+        => Task.FromResult(new ProviderVoidResult(ProviderVoidOutcome.Unknown, null, "provider_void_unavailable"));
 }
 
 public sealed class HttpPaymentProvider(HttpClient client, IOptions<PaymentProviderOptions> options) : IPaymentProvider
@@ -118,12 +122,31 @@ public sealed class HttpPaymentProvider(HttpClient client, IOptions<PaymentProvi
             failureReason);
     }
 
+    public async Task<ProviderVoidResult> VoidAsync(PaymentIntent intent, CancellationToken cancellationToken)
+    {
+        using HttpRequestMessage request = new(HttpMethod.Post, options.Value.VoidPath)
+        {
+            Content = JsonContent.Create(new ProviderVoidRequest(intent.Id, intent.ProviderAuthorizationId!))
+        };
+        request.Headers.TryAddWithoutValidation("Idempotency-Key", $"void:{intent.Id:D}");
+        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return new(response.StatusCode is >= System.Net.HttpStatusCode.InternalServerError
+                ? ProviderVoidOutcome.Unknown : ProviderVoidOutcome.Failed, null, $"provider_http_{(int)response.StatusCode}");
+        ProviderVoidResponse? result = await response.Content.ReadFromJsonAsync<ProviderVoidResponse>(cancellationToken);
+        return result is { Succeeded: true, ProviderTransactionId: not null }
+            ? new(ProviderVoidOutcome.Voided, result.ProviderTransactionId.Trim(), null)
+            : new(ProviderVoidOutcome.Failed, null, result?.FailureReason ?? "provider_void_failed");
+    }
+
     private sealed record ProviderAuthorizationRequest(Guid PaymentIntentId, Guid OrderId, decimal Amount, string Currency, string PaymentMethod);
     private sealed record ProviderAuthorizationResponse(bool Succeeded, string? ProviderTransactionId, string? FailureReason);
     private sealed record ProviderAuthorizationStatusResponse(string? Status, string? ProviderTransactionId, string? FailureReason);
     private sealed record ProviderCaptureRequest(Guid PaymentIntentId, string ProviderAuthorizationId, decimal Amount, string Currency);
     private sealed record ProviderCaptureResponse(bool Succeeded, string? ProviderTransactionId, string? FailureReason);
     private sealed record ProviderCaptureStatusResponse(string? Status, string? ProviderTransactionId, string? FailureReason);
+    private sealed record ProviderVoidRequest(Guid PaymentIntentId, string ProviderAuthorizationId);
+    private sealed record ProviderVoidResponse(bool Succeeded, string? ProviderTransactionId, string? FailureReason);
 }
 
 public sealed class PaymentProviderOptions
@@ -133,6 +156,7 @@ public sealed class PaymentProviderOptions
     public string AuthorizationStatusPath { get; set; } = "v1/authorizations";
     public string CapturePath { get; set; } = "v1/captures";
     public string CaptureStatusPath { get; set; } = "v1/captures";
+    public string VoidPath { get; set; } = "v1/voids";
     public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromMinutes(2);
     public int MaximumAuthorizationAttempts { get; set; } = 3;
     public int MaximumCaptureRecoveryAttempts { get; set; } = 3;

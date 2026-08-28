@@ -60,6 +60,7 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
 else
 {
     builder.Services.AddSingleton<IPaymentIntents, InMemoryPaymentIntents>();
+    builder.Services.AddScoped<IPaymentVoidService, PaymentVoidService>();
 }
 
 var app = builder.Build();

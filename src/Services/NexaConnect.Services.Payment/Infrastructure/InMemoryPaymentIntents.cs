@@ -261,6 +261,49 @@ public sealed class InMemoryPaymentIntents(IOptions<PaymentProviderOptions>? opt
                 || (intent.Status == "capturing" && intent.CaptureLeaseExpiresAtUtc <= DateTimeOffset.UtcNow)).ToArray();
     }
 
+    public PaymentAuthorizationLease BeginVoid(Guid organizationId, Guid id, PaymentMutationContext context)
+    {
+        ValidateContext(context);
+        lock (gate)
+        {
+            if (!intents.TryGetValue(id, out PaymentIntent? intent) || intent.OrganizationId != organizationId)
+                throw new KeyNotFoundException("Payment intent was not found.");
+            if (intent.Status is "voided" or "voiding" or "void_unknown") return new(intent, false);
+            if (intent.Status == "captured") throw new InvalidOperationException("A captured payment cannot be voided; use the refund workflow.");
+            if (intent.Status != "authorized") throw new InvalidOperationException("Only an authorized, uncaptured payment intent can be voided.");
+            PaymentIntent voiding = intent with { Status = "voiding", FailureCode = null,
+                ConcurrencyVersion = intent.ConcurrencyVersion + 1 };
+            intents[id] = voiding;
+            return new(voiding, true);
+        }
+    }
+
+    public PaymentIntent CompleteVoid(Guid organizationId, Guid id, long expectedVersion, ProviderVoidOutcome outcome,
+        string? providerVoidId, string? failureCode, PaymentMutationContext context)
+    {
+        ValidateContext(context);
+        lock (gate)
+        {
+            if (!intents.TryGetValue(id, out PaymentIntent? intent) || intent.OrganizationId != organizationId)
+                throw new KeyNotFoundException("Payment intent was not found.");
+            if (intent.Status == "voided") return intent;
+            if (intent.Status != "voiding" || intent.ConcurrencyVersion != expectedVersion)
+                throw new PaymentConcurrencyException("The payment intent changed while void was in progress.");
+            if (outcome == ProviderVoidOutcome.Voided && !IsSafeProviderReference(providerVoidId ?? string.Empty))
+                throw new ArgumentException("A successful void requires a valid provider reference.");
+            PaymentIntent completed = intent with
+            {
+                Status = outcome == ProviderVoidOutcome.Voided ? "voided"
+                    : outcome == ProviderVoidOutcome.Failed ? "void_failed" : "void_unknown",
+                ProviderVoidId = outcome == ProviderVoidOutcome.Voided ? providerVoidId!.Trim() : null,
+                FailureCode = outcome == ProviderVoidOutcome.Voided ? null : failureCode ?? "provider_void_failed",
+                ConcurrencyVersion = intent.ConcurrencyVersion + 1
+            };
+            intents[id] = completed;
+            return completed;
+        }
+    }
+
     private static void ValidateContext(PaymentMutationContext context)
     {
         if (context is null || string.IsNullOrWhiteSpace(context.ActorSubjectId) || context.ActorSubjectId.Length > 200

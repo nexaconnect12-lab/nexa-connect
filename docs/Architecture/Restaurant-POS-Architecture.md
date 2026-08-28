@@ -85,7 +85,7 @@ Owns POS terminals and kiosks, shifts, cash sessions, cash movements, receipt nu
 
 ### 4.6 Payment
 
-Owns payment intents, authorization/capture state, cash payments, card-provider references, split payments, tips, refunds, reconciliation, and payment idempotency. Authorization recovery is implemented, and immediate capture records a sanitized result in a separate transaction after provider I/O. Order is paid only after `captured`; uncertain capture remains pending. Capture recovery, delayed capture policy, void, refunds, and settlement remain planned.
+Owns payment intents, authorization/capture state, cash payments, card-provider references, split payments, tips, refunds, reconciliation, and payment idempotency. Authorization and capture recovery are implemented, and immediate capture records a sanitized result in a separate transaction after provider I/O. Order is paid only after `captured`; uncertain capture remains pending. An in-memory/test void scaffold enforces trusted Order ownership and authorized-and-uncaptured eligibility. PostgreSQL void recovery, delayed capture policy, refunds, and settlement remain planned.
 
 Cash can normally be accepted offline. Card payments may be accepted offline only when the payment terminal and provider explicitly support an approved store-and-forward workflow.
 

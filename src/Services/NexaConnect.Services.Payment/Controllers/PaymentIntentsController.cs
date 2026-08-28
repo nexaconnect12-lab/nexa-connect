@@ -10,7 +10,8 @@ namespace NexaConnect.Services.Payment.Controllers;
 [ApiController]
 [Route("api/payment/v1/intents")]
 public sealed class PaymentIntentsController(IPaymentIntents intents, IPaymentTenantAuthorizer tenantAuthorizer,
-    IPaymentAuthorizationService? authorizationService = null, IPaymentCaptureService? captureService = null) : ControllerBase
+    IPaymentAuthorizationService? authorizationService = null, IPaymentCaptureService? captureService = null,
+    IPaymentVoidService? voidService = null, ILogger<PaymentIntentsController>? logger = null) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<PaymentIntent>> Create(CreatePaymentIntent command, CancellationToken cancellationToken)
@@ -40,6 +41,29 @@ public sealed class PaymentIntentsController(IPaymentIntents intents, IPaymentTe
         if (intent is null) return NotFound();
         return await HasCustomerAccessAsync(organizationId, intent.RestaurantId, intent.BranchId, intent.OrderId,
             ProductPermissions.PaymentIntentRead, cancellationToken) ? Ok(intent) : NotFound();
+    }
+
+    [HttpPost("{id:guid}/void")]
+    public async Task<ActionResult<PaymentIntent>> Void(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetOrganization(out Guid organizationId)) return NotFound();
+        if (!ServiceWorkloadPrincipal.IsTrusted(User)
+            || !string.Equals(User.FindFirstValue("azp"), "nexaconnect-order-service", StringComparison.Ordinal))
+        {
+            logger?.LogWarning("Payment void authorization boundary denied for intent {PaymentIntentId}.", id);
+            return Forbid();
+        }
+        if (voidService is null) return Problem("Payment void is unavailable.", statusCode: 503);
+        try
+        {
+            Guid correlationId = Guid.TryParse(HttpContext.TraceIdentifier, out Guid parsed) ? parsed : Guid.NewGuid();
+            PaymentIntent? result = await voidService.VoidAsync(organizationId, id,
+                new PaymentMutationContext("nexaconnect-order-service", correlationId), cancellationToken);
+            return result is null ? NotFound() : Ok(result);
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (PaymentConcurrencyException exception) { logger?.LogWarning(exception, "Payment void concurrency boundary rejected intent {PaymentIntentId}.", id); return Conflict(new { error = exception.Message }); }
+        catch (InvalidOperationException exception) { logger?.LogWarning(exception, "Payment void state boundary rejected intent {PaymentIntentId}.", id); return Conflict(new { error = exception.Message }); }
     }
 
     [HttpPost("{id:guid}/authorize")]
