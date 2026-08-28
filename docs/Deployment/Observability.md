@@ -18,7 +18,7 @@ Operational telemetry is diagnostic and may be sampled, delayed, or unavailable.
 
 ## Local stack
 
-The Docker Compose stack runs:
+The default Docker Compose stack runs:
 
 - OpenTelemetry Collector on `127.0.0.1:4317` (gRPC) and `127.0.0.1:4318` (HTTP);
 - Loki on `127.0.0.1:3100` with seven-day local retention;
@@ -61,6 +61,8 @@ Containers should use `http://otel-collector:4317` instead. Search logs in Grafa
 Console logging remains active when OTLP is disabled or the collector is temporarily unavailable. Export is batched and does not participate in request or business transactions. An invalid enabled endpoint fails during application startup to prevent silent misconfiguration.
 
 The checked-in Loki/Grafana/Prometheus/Alertmanager configuration is a single-node development foundation. Prometheus persists local OTLP metrics exported by the Collector, and Alertmanager evaluates routing without an external receiver. Before production, define authenticated TLS ingestion, encrypted durable storage, per-environment retention, access control, backup requirements, capacity limits, reviewed alert routing, and a production trace backend. Do not expose collector, Loki, Prometheus, Alertmanager, or Grafana ports publicly.
+
+For isolated delivery testing, the opt-in `alert-rehearsal` profile adds a second Alertmanager and an in-memory webhook receiver. Run it only through `scripts/test-payment-capture-recovery-operations.ps1`, which verifies a synthetic firing notification and its resolved notification before removing the containers. It does not alter the default observation-only receiver or validate production receiver authentication, paging, acknowledgement, or escalation.
 
 ## Adopting another ASP.NET Core service
 

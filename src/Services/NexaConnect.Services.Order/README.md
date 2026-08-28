@@ -16,3 +16,5 @@ Structured logs use service name `nexaconnect-order`; correlation IDs propagate 
 JSON stdout is always enabled. Enable OTLP with `Observability__OtlpEnabled=true`; use the [observability guide](../../../docs/Deployment/Observability.md) for the endpoint and queries.
 
 In PostgreSQL mode, the `nexaconnect-order` meter reports pending payment-reconciliation inbox work, the oldest expired processing lease, unpublished outbox count/age, and gauge-collection failures. A collection failure means prior gauge samples may be stale. `OperationalMetrics:PollInterval` defaults to 30 seconds. The instruments contain no tenant, order, payment, or message labels. RabbitMQ queue and dead-letter depth are exported by the broker's Prometheus plugin in the local stack.
+
+The gated operational rehearsal executes Order `0→2→1→2` in a generated disposable database, proves unresolved `payment_pending` state blocks downgrade, and requires TRX evidence that the case ran rather than skipped. It does not drain a deployed Order consumer, compensate live dependencies, or validate a live-traffic rollback; those remain release-environment operations.

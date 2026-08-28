@@ -1,0 +1,12 @@
+route:
+  receiver: capture-recovery-rehearsal
+  group_by: [alertname, service]
+  group_wait: 1s
+  group_interval: 1s
+  repeat_interval: 1h
+
+receivers:
+  - name: capture-recovery-rehearsal
+    webhook_configs:
+      - url: http://alert-webhook-receiver:8080/alerts
+        send_resolved: true

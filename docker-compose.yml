@@ -164,6 +164,26 @@ services:
       - alertmanager-data:/alertmanager
       - ./docker/alertmanager/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
 
+  alert-webhook-receiver:
+    profiles: [alert-rehearsal]
+    image: python:3.13-alpine
+    command: ["python", "/opt/nexaconnect/rehearsal_receiver.py"]
+    ports:
+      - "127.0.0.1:19094:8080"
+    volumes:
+      - ./docker/alertmanager/rehearsal_receiver.py:/opt/nexaconnect/rehearsal_receiver.py:ro
+
+  alertmanager-rehearsal:
+    profiles: [alert-rehearsal]
+    image: prom/alertmanager:v0.28.1
+    command: ["--config.file=/etc/alertmanager/alertmanager.yaml", "--storage.path=/alertmanager"]
+    ports:
+      - "127.0.0.1:19093:9093"
+    volumes:
+      - ./docker/alertmanager/alertmanager.rehearsal.yaml:/etc/alertmanager/alertmanager.yaml:ro
+    depends_on:
+      - alert-webhook-receiver
+
   grafana:
     image: grafana/grafana:12.1.1
     environment:
