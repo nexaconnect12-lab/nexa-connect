@@ -103,6 +103,29 @@ public sealed class ReportingActivityVocabularyPostgresTests : IAsyncLifetime
         Assert.True(await repository.ProjectAsync(new ReportingActivityCommand(audit,"nexa_connect","payment"),default));
     }
 
+    [ReportingDatabaseFact]
+    public async Task Migration_13_accepts_payment_review_resolution_and_replays_after_re_upgrade()
+    {
+        string root=Path.Combine(FindRepositoryRoot(),"src","Tools","NexaConnect.DataMigration","Scripts","Reporting");
+        await using NpgsqlConnection connection=await dataSource!.OpenConnectionAsync();
+        foreach(string version in new[]{"0004_activity_vocabulary","0005_kitchen_activity_vocabulary","0006_customer_activity_vocabulary","0007_notification_delivery_vocabulary","0008_payment_authorization_vocabulary","0009_payment_authorization_reconciliation","0010_payment_capture_vocabulary","0011_payment_capture_reconciliation","0012_payment_void_vocabulary"})
+            await ExecuteAsync(connection,Path.Combine(root,version,"up.sql"));
+        string migration=Path.Combine(root,"0013_order_payment_review_vocabulary");
+        await ExecuteAsync(connection,Path.Combine(migration,"up.sql"));
+        var repository=new ReportingActivityRepository(dataSource!);
+        var audit=new PlatformAuditEventV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,"payment-review-operator",Guid.NewGuid(),"order.payment-review.resolved","order",Guid.NewGuid().ToString("D"),"succeeded");
+        Assert.True(await repository.ProjectAsync(new ReportingActivityCommand(audit,"nexa_connect","order"),default));
+        await using(var inbox=new NpgsqlCommand("INSERT INTO inbox_messages(message_id,consumer_name,status,attempts,processed_at_utc) VALUES($1,'reporting.activity.v1','completed',1,now())",connection)){inbox.Parameters.AddWithValue(audit.EventId);await inbox.ExecuteNonQueryAsync();}
+        await ExecuteAsync(connection,Path.Combine(migration,"down.sql"));
+        await using(var count=new NpgsqlCommand("SELECT count(*) FROM activity_records WHERE event_id=$1",connection)){count.Parameters.AddWithValue(audit.EventId);Assert.Equal(0L,(long)(await count.ExecuteScalarAsync()??0L));}
+        await using(var count=new NpgsqlCommand("SELECT count(*) FROM inbox_messages WHERE message_id=$1 AND consumer_name='reporting.activity.v1'",connection)){count.Parameters.AddWithValue(audit.EventId);Assert.Equal(0L,(long)(await count.ExecuteScalarAsync()??0L));}
+        await ExecuteAsync(connection,Path.Combine(migration,"up.sql"));
+        var store=new PostgresInboxStore(dataSource!);
+        Assert.Equal(InboxClaimResult.Claimed,await store.ClaimAsync(audit.EventId,"reporting.activity.v1",TimeSpan.FromMinutes(2),default));
+        Assert.True(await repository.ProjectAsync(new ReportingActivityCommand(audit,"nexa_connect","order"),default));
+        await store.MarkCompletedAsync(audit.EventId,"reporting.activity.v1",default);
+    }
+
     public async Task InitializeAsync(){string? environment=Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT")??Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")??Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");if(string.IsNullOrWhiteSpace(connectionString)||environment is not ("Development" or "Test" or "Testing"))return;schema=$"reporting_vocabulary_it_{Guid.NewGuid():N}";var builder=new NpgsqlConnectionStringBuilder(connectionString){SearchPath=schema};dataSource=NpgsqlDataSource.Create(builder.ConnectionString);await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();await new NpgsqlCommand($"CREATE SCHEMA \"{schema}\"",connection).ExecuteNonQueryAsync();await new NpgsqlCommand(SchemaSql,connection).ExecuteNonQueryAsync();}
     public async Task DisposeAsync(){if(dataSource is null||schema is null)return;await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();await new NpgsqlCommand($"DROP SCHEMA IF EXISTS \"{schema}\" CASCADE",connection).ExecuteNonQueryAsync();await dataSource.DisposeAsync();}
     private static async Task ExecuteAsync(NpgsqlConnection connection,string path){await using var command=new NpgsqlCommand(await File.ReadAllTextAsync(path),connection);await command.ExecuteNonQueryAsync();}

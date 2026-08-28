@@ -1,5 +1,7 @@
 using NexaConnect.Infrastructure.Messaging;
+using Microsoft.Extensions.Options;
 using Npgsql;
+using RabbitMQ.Client;
 
 namespace NexaConnect.IntegrationTests;
 
@@ -36,6 +38,53 @@ public sealed class OrderOutboxReplayPersistenceTests : IAsyncLifetime
         await store.MarkPublishedAsync(messageId, CancellationToken.None);
 
         Assert.Empty(await store.ClaimBatchAsync(10, CancellationToken.None));
+    }
+
+    [OrderRabbitMqFact]
+    public async Task Payment_review_events_survive_transport_failure_and_publish_persistently_over_new_connection()
+    {
+        var store=new PostgresOutboxStore(_dataSource!);
+        Guid orderId=Guid.NewGuid();
+        string correlationId=Guid.NewGuid().ToString("D");
+        string[] eventTypes=["order.payment-review-required.v1","order.payment-review-resolved.v1","order.audit.v1"];
+        foreach(string eventType in eventTypes)
+            await store.EnqueueAsync(new OutboxMessage(Guid.NewGuid(),eventType,1,"order",orderId,"{}",correlationId,DateTimeOffset.UtcNow),default);
+
+        OutboxMessage[] failedClaim=(await store.ClaimBatchAsync(10,default)).Where(message=>message.AggregateId==orderId).ToArray();
+        Assert.Equal(3,failedClaim.Length);
+        await Assert.ThrowsAnyAsync<Exception>(async()=>
+        {
+            await using IConnection ignored=await new ConnectionFactory{Uri=new Uri("amqp://guest:guest@127.0.0.1:1"),RequestedConnectionTimeout=TimeSpan.FromSeconds(1)}.CreateConnectionAsync();
+        });
+        foreach(OutboxMessage message in failedClaim)
+        {
+            await store.MarkFailedAsync(message.Id,"broker-unavailable",default);
+            await MakeImmediatelyRetryableAsync(message.Id);
+        }
+
+        string exchange=$"nexaconnect.order.payment-review.{Guid.NewGuid():N}";
+        string queue=$"nexaconnect.order.payment-review.{Guid.NewGuid():N}";
+        await using IConnection connection=await new ConnectionFactory{Uri=new Uri(Environment.GetEnvironmentVariable("NEXACONNECT_RABBITMQ_INTEGRATION_URI")!)}.CreateConnectionAsync();
+        await using IChannel channel=await connection.CreateChannelAsync();
+        try
+        {
+            await channel.ExchangeDeclareAsync(exchange,ExchangeType.Topic,durable:true,autoDelete:false);
+            await channel.QueueDeclareAsync(queue,durable:false,exclusive:true,autoDelete:true);
+            await channel.QueueBindAsync(queue,exchange,"order.#");
+            await using var transport=new RabbitMqOutboxTransport(connection,Options.Create(new OutboxOptions{Exchange=exchange}));
+            OutboxMessage[] replay=(await store.ClaimBatchAsync(10,default)).Where(message=>message.AggregateId==orderId).ToArray();
+            Assert.Equal(3,replay.Length);
+            foreach(OutboxMessage message in replay){await transport.PublishAsync(message,default);await store.MarkPublishedAsync(message.Id,default);}
+            var routingKeys=new List<string>();
+            for(int attempt=0;attempt<30&&routingKeys.Count<3;attempt++)
+            {
+                BasicGetResult? delivery=await channel.BasicGetAsync(queue,autoAck:true);
+                if(delivery is null)await Task.Delay(100);else{Assert.True(delivery.BasicProperties.Persistent);routingKeys.Add(delivery.RoutingKey);}
+            }
+            Assert.Equal(eventTypes.Order(),routingKeys.Order());
+            Assert.DoesNotContain(await store.ClaimBatchAsync(10,default),message=>message.AggregateId==orderId);
+        }
+        finally{await channel.ExchangeDeleteAsync(exchange);}
     }
 
     public async Task InitializeAsync()
@@ -100,4 +149,14 @@ public sealed class OrderOutboxReplayPersistenceTests : IAsyncLifetime
             next_attempt_at_utc timestamptz NULL, last_error_category text NULL
         );
         """;
+}
+
+public sealed class OrderRabbitMqFactAttribute : FactAttribute
+{
+    public OrderRabbitMqFactAttribute()
+    {
+        string? environment=Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT")??Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")??Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        if(string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("NEXACONNECT_ORDER_INTEGRATION_DB"))||environment is not ("Development" or "Test" or "Testing")||Environment.GetEnvironmentVariable("NEXACONNECT_RABBITMQ_ACCEPTANCE")!="1"||!Uri.TryCreate(Environment.GetEnvironmentVariable("NEXACONNECT_RABBITMQ_INTEGRATION_URI"),UriKind.Absolute,out _))
+            Skip="Order payment-review RabbitMQ acceptance requires the Order database, safe environment, opt-in flag, and RabbitMQ URI.";
+    }
 }
