@@ -80,7 +80,7 @@ public sealed class PaymentReconciliationOperationalMetricsWorker : BackgroundSe
             WHERE published_at_utc IS NULL;
 
             SELECT count(*)::bigint,COALESCE(EXTRACT(EPOCH FROM now()-min(created_at_utc)),0)::double precision
-            FROM order_payment_reviews WHERE status='open';
+            FROM order_payment_reviews WHERE status IN('open','resolving');
             """;
         try
         {

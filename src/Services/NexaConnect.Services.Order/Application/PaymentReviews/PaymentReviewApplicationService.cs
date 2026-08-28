@@ -7,14 +7,16 @@ namespace NexaConnect.Services.Order.Application.PaymentReviews;
 public sealed record PaymentReviewCase(Guid OrderId,Guid OrganizationId,Guid BranchId,Guid PaymentIntentId,string Status,
     string Reason,string? Resolution,long ConcurrencyVersion,DateTimeOffset CreatedAtUtc,DateTimeOffset UpdatedAtUtc);
 public sealed record ResolvePaymentReviewCommand(Guid OrganizationId,Guid OrderId,string Resolution,string Reason,
-    long ExpectedConcurrencyVersion,string ActorSubjectId,Guid CorrelationId);
+    long ExpectedConcurrencyVersion,string ActorSubjectId,Guid CorrelationId,Guid AuthorizationDecisionId);
 
 public interface IPaymentReviewRepository
 {
     Task<IReadOnlyCollection<PaymentReviewCase>> ListOpenAsync(Guid organizationId,Guid branchId,int limit,CancellationToken cancellationToken);
     Task<PaymentReviewCase?> GetReviewAsync(Guid organizationId,Guid orderId,CancellationToken cancellationToken);
+    Task<Guid?> ClaimResolutionAsync(PaymentReviewCase review,string resolution,string actor,DateTimeOffset now,CancellationToken cancellationToken);
+    Task ReleaseResolutionAsync(PaymentReviewCase review,Guid claimId,CancellationToken cancellationToken);
     Task<bool> ResolveAsync(OrderAggregate order,PaymentReviewCase review,string resolution,string reason,string actor,
-        OrderPaymentReviewResolvedV1 integrationEvent,PlatformAuditEventV1 audit,CancellationToken cancellationToken);
+        Guid claimId,OrderPaymentReviewResolvedV1 integrationEvent,PlatformAuditEventV1 audit,CancellationToken cancellationToken);
 }
 
 public sealed class PaymentReviewApplicationService(IOrderRepository orders,IInventoryReservationPort inventory,
@@ -37,7 +39,7 @@ public sealed class PaymentReviewApplicationService(IOrderRepository orders,IInv
         if(orders is not IPaymentReviewRepository reviews||orders is not IOrderLookup lookup)
             throw new InvalidOperationException("Payment review requires PostgreSQL persistence.");
         string resolution=command.Resolution.Trim().ToLowerInvariant();string reason=command.Reason.Trim();string actor=command.ActorSubjectId.Trim();
-        if(resolution is not ("confirm_void" or "resume_payment" or "escalate")||reason.Length is <1 or >200||actor.Length is <1 or >200)
+        if(resolution is not ("confirm_void" or "resume_payment" or "escalate")||reason.Length is <1 or >200||actor.Length is <1 or >200||command.AuthorizationDecisionId==Guid.Empty)
             throw new ArgumentException("Resolution, bounded reason, and actor are required.");
         PaymentReviewCase? review=await reviews.GetReviewAsync(command.OrganizationId,command.OrderId,cancellationToken);
         if(review is null)return null;
@@ -46,19 +48,26 @@ public sealed class PaymentReviewApplicationService(IOrderRepository orders,IInv
         OrderAggregate order=await lookup.GetAsync(command.OrderId,cancellationToken)??throw new InvalidOperationException("Reviewed order is missing.");
         if(order.OrganizationId!=command.OrganizationId||order.PaymentIntentId!=review.PaymentIntentId||order.Status!=OrderStatus.PaymentReview)
             throw new InvalidOperationException("Payment review ownership or state does not match the order.");
-        if(resolution=="confirm_void")
+        DateTimeOffset now=clock.GetUtcNow();
+        Guid? claimId=await reviews.ClaimResolutionAsync(review,resolution,actor,now,cancellationToken);
+        if(claimId is null)throw new InvalidOperationException("Payment review concurrency conflict.");
+        try
         {
-            await inventory.ReleaseAsync(order.Id,order.BranchId,cancellationToken);
-            await kitchen.CancelTicketAsync(order.OrganizationId,order.Id,order.BranchId,cancellationToken);
-            order.ResolvePaymentReviewAsVoided();
+            if(resolution=="confirm_void")
+            {
+                await inventory.ReleaseAsync(order.Id,order.BranchId,cancellationToken);
+                await kitchen.CancelTicketAsync(order.OrganizationId,order.Id,order.BranchId,cancellationToken);
+                order.ResolvePaymentReviewAsVoided();
+            }
+            else if(resolution=="resume_payment") order.ResumePaymentPending();
         }
-        else if(resolution=="resume_payment") order.ResumePaymentPending();
-        DateTimeOffset now=clock.GetUtcNow();long nextVersion=review.ConcurrencyVersion+1;
+        catch{await reviews.ReleaseResolutionAsync(review,claimId.Value,cancellationToken);throw;}
+        long nextVersion=review.ConcurrencyVersion+1;
         var resolved=new OrderPaymentReviewResolvedV1(Guid.NewGuid(),command.CorrelationId,now,order.OrganizationId,
-            order.Id,review.PaymentIntentId,resolution,nextVersion);
+            order.Id,review.PaymentIntentId,resolution,nextVersion,command.AuthorizationDecisionId);
         var audit=new PlatformAuditEventV1(Guid.NewGuid(),command.CorrelationId,now,actor,order.OrganizationId,
             "order.payment-review.resolved","order",order.Id.ToString("D"),"succeeded");
-        if(!await reviews.ResolveAsync(order,review,resolution,reason,actor,resolved,audit,cancellationToken))
+        if(!await reviews.ResolveAsync(order,review,resolution,reason,actor,claimId.Value,resolved,audit,cancellationToken))
             throw new InvalidOperationException("Payment review concurrency conflict.");
         return await reviews.GetReviewAsync(command.OrganizationId,command.OrderId,cancellationToken);
     }

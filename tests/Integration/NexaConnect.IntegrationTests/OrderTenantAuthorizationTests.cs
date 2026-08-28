@@ -38,6 +38,18 @@ public sealed class OrderTenantAuthorizationTests : IClassFixture<RestaurantWork
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Trusted_workload_cannot_bypass_payment_review_permission()
+    {
+        using HttpClient client=fixture.Order.CreateClient();
+        Guid organizationId=RestaurantWorkflowServiceFixture.OrganizationId,branchId=RestaurantWorkflowServiceFixture.BranchId;
+        using var request=new HttpRequestMessage(HttpMethod.Get,$"/api/order/v1/payment-reviews?organizationId={organizationId:D}&branchId={branchId:D}");
+        request.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId,organizationId.ToString("D"));
+        request.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode,"nexa_connect");
+        using HttpResponseMessage response=await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Forbidden,response.StatusCode);
+    }
 }
 
 public sealed class DenyOrderTenantAuthorizer : OrderTenantAuthorizer

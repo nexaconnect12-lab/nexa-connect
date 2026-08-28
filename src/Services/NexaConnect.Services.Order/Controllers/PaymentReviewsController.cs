@@ -31,12 +31,13 @@ public sealed class PaymentReviewsController(PaymentReviewApplicationService rev
     public async Task<ActionResult<PaymentReviewCase>> Resolve(Guid orderId,ResolvePaymentReviewRequest request,CancellationToken cancellationToken)
     {
         PaymentReviewCase? existing=await reviews.GetAsync(request.OrganizationId,orderId,cancellationToken);if(existing is null)return NotFound();
-        if(!await HasAccessAsync(request.OrganizationId,existing.BranchId,ProductPermissions.OrderPaymentReviewResolve,cancellationToken))return Forbid();
-        string actor=User.FindFirstValue("sub")??User.FindFirstValue(ClaimTypes.NameIdentifier)??string.Empty;
+        Guid? decisionId=await GetDecisionAsync(request.OrganizationId,existing.BranchId,ProductPermissions.OrderPaymentReviewResolve,cancellationToken);
+        if(decisionId is null)return Forbid();
+        string actor=User.FindFirstValue("sub")??User.FindFirstValue(ClaimTypes.NameIdentifier)??User.FindFirstValue("azp")??string.Empty;
         try
         {
             PaymentReviewCase? result=await reviews.ResolveAsync(new(request.OrganizationId,orderId,request.Resolution,request.Reason,
-                request.ExpectedConcurrencyVersion,actor,request.CorrelationId??Guid.NewGuid()),cancellationToken);
+                request.ExpectedConcurrencyVersion,actor,request.CorrelationId??Guid.NewGuid(),decisionId.Value),cancellationToken);
             logger.LogInformation("Payment review {OrderId} resolved as {Resolution} for organization {OrganizationId}",orderId,request.Resolution,request.OrganizationId);
             return result is null?NotFound():Ok(result);
         }
@@ -45,12 +46,14 @@ public sealed class PaymentReviewsController(PaymentReviewApplicationService rev
     }
 
     private async Task<bool> HasAccessAsync(Guid organizationId,Guid branchId,string permission,CancellationToken cancellationToken)
+        =>await GetDecisionAsync(organizationId,branchId,permission,cancellationToken) is not null;
+
+    private async Task<Guid?> GetDecisionAsync(Guid organizationId,Guid branchId,string permission,CancellationToken cancellationToken)
     {
-        if(ServiceWorkloadPrincipal.IsTrusted(User))return true;
         return Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId],out Guid contextOrganization)&&contextOrganization==organizationId
             &&string.Equals(Request.Headers[TenantContextHeaders.ApplicationCode],"nexa_connect",StringComparison.Ordinal)
             &&Request.Headers.TryGetValue("Authorization",out var authorization)
-            &&await tenantAuthorizer.HasBranchAccessAsync(organizationId,branchId,permission,authorization.ToString(),cancellationToken);
+            ?await tenantAuthorizer.GetBranchDecisionAsync(organizationId,branchId,permission,authorization.ToString(),cancellationToken):null;
     }
 }
 

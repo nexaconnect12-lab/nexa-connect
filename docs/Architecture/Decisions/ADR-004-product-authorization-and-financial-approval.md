@@ -14,6 +14,8 @@ Voids, discounts, refunds, cash payouts, and shift variances are online-only. A 
 
 Financial approvals and authorization decisions are append-only records. Retain them for at least seven years, restrict normal application roles from update or delete, and export daily to WORM-capable storage. Confirm applicable jurisdictional retention requirements before production.
 
+Long-running financial side effects use a database-backed, fenced decision lease rather than holding a database transaction across network calls. Claiming advances the case concurrency version and records an opaque claim token. Final commit must match both; an expired claim may be taken over only for the same resolution, preventing a conflicting operator outcome after compensation has started. The Authorization decision ID is retained atomically with the resulting history and integration event.
+
 The initial Authorization schema stores scope projections, roles, role permissions, scoped assignments, direct overrides, financial limits, and immutable decision records in its own database.
 
 ## Consequences

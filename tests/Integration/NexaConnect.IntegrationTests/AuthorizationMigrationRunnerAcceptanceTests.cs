@@ -26,10 +26,12 @@ public sealed class AuthorizationMigrationRunnerAcceptanceTests
             Assert.Equal(0, await RunAsync(root, 2));
             await using var dataSource = NpgsqlDataSource.Create(builder.ConnectionString);
             await SeedRolesAsync(dataSource);
-            Assert.Equal(0, await RunAsync(root, 3));
+            Assert.Equal(0, await RunAsync(root, 4));
+            Assert.Equal(8L, await PermissionCountAsync(dataSource));
+            Assert.Equal(0, await RunAsync(root, 3, destructive: true));
             Assert.Equal(4L, await PermissionCountAsync(dataSource));
-            Assert.Equal(0, await RunAsync(root, 2, destructive: true));
-            Assert.Equal(0L, await PermissionCountAsync(dataSource));
+            Assert.Equal(0, await RunAsync(root, 4));
+            Assert.Equal(8L, await PermissionCountAsync(dataSource));
         }
         finally
         {
@@ -40,7 +42,7 @@ public sealed class AuthorizationMigrationRunnerAcceptanceTests
 
     private static Task<int> RunAsync(string root, int target, bool destructive = false)
     {
-        var args = new List<string> { "--service", "Authorization", "--scripts-root", root, "--target", target.ToString(), "--application-version", "0.8.0", "--confirm" };
+        var args = new List<string> { "--service", "Authorization", "--scripts-root", root, "--target", target.ToString(), "--application-version", "0.12.0", "--confirm" };
         if (destructive) args.AddRange(["--allow-destructive", "--backup-verified"]);
         return MigrationApplication.RunAsync(args.ToArray());
     }
@@ -62,7 +64,7 @@ public sealed class AuthorizationMigrationRunnerAcceptanceTests
     private static async Task<long> PermissionCountAsync(NpgsqlDataSource dataSource)
     {
         await using var connection = await dataSource.OpenConnectionAsync();
-        return Convert.ToInt64(await new NpgsqlCommand("SELECT count(*) FROM authorization_role_permissions WHERE permission_code IN ('kitchen.ticket.read','kitchen.ticket.transition')", connection).ExecuteScalarAsync());
+        return Convert.ToInt64(await new NpgsqlCommand("SELECT count(*) FROM authorization_role_permissions WHERE permission_code IN ('kitchen.ticket.read','kitchen.ticket.transition','order.payment-review.read','order.payment-review.resolve')", connection).ExecuteScalarAsync());
     }
 
     private static async Task CreateAsync(NpgsqlDataSource source, string database)

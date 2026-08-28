@@ -71,6 +71,16 @@ groups:
           summary: Order outbox publication is stalled
           description: Unpublished Order integration events are more than two minutes old.
 
+      - alert: OrderPaymentReviewStale
+        expr: max(order_payment_review_open) > 0 and max(order_payment_review_oldest_age_seconds) > 900
+        for: 5m
+        labels:
+          severity: warning
+          service: nexaconnect-order
+        annotations:
+          summary: An Order payment review is stale
+          description: At least one operator payment-review case has remained open for more than fifteen minutes.
+
       - alert: OrderPaymentReconciliationQueueBacklog
         expr: sum(rabbitmq_queue_messages{queue="nexaconnect.order.payment-reconciled.v1"}) > 0
         for: 2m

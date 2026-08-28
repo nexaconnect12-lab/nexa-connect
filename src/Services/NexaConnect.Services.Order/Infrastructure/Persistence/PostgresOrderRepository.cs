@@ -53,7 +53,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
 
     public async Task<IReadOnlyCollection<PaymentReviewCase>> ListOpenAsync(Guid organizationId,Guid branchId,int limit,CancellationToken cancellationToken)
     {
-        await using var command=dataSource.CreateCommand("SELECT order_id,organization_id,branch_id,payment_intent_id,status,reason,resolution,concurrency_version,created_at_utc,updated_at_utc FROM order_payment_reviews WHERE organization_id=$1 AND branch_id=$2 AND status='open' ORDER BY created_at_utc LIMIT $3");
+        await using var command=dataSource.CreateCommand("SELECT order_id,organization_id,branch_id,payment_intent_id,CASE WHEN status='resolving' AND resolution_locked_until_utc<=now() THEN 'open' ELSE status END,reason,resolution,concurrency_version,created_at_utc,updated_at_utc FROM order_payment_reviews WHERE organization_id=$1 AND branch_id=$2 AND (status='open' OR (status='resolving' AND resolution_locked_until_utc<=now())) ORDER BY created_at_utc LIMIT $3");
         command.Parameters.AddWithValue(organizationId);command.Parameters.AddWithValue(branchId);command.Parameters.AddWithValue(limit);
         var values=new List<PaymentReviewCase>();await using var reader=await command.ExecuteReaderAsync(cancellationToken);
         while(await reader.ReadAsync(cancellationToken))values.Add(ReadReview(reader));return values;
@@ -61,24 +61,39 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
 
     public async Task<PaymentReviewCase?> GetReviewAsync(Guid organizationId,Guid orderId,CancellationToken cancellationToken)
     {
-        await using var command=dataSource.CreateCommand("SELECT order_id,organization_id,branch_id,payment_intent_id,status,reason,resolution,concurrency_version,created_at_utc,updated_at_utc FROM order_payment_reviews WHERE organization_id=$1 AND order_id=$2");
+        await using var command=dataSource.CreateCommand("SELECT order_id,organization_id,branch_id,payment_intent_id,CASE WHEN status='resolving' AND resolution_locked_until_utc<=now() THEN 'open' ELSE status END,reason,resolution,concurrency_version,created_at_utc,updated_at_utc FROM order_payment_reviews WHERE organization_id=$1 AND order_id=$2");
         command.Parameters.AddWithValue(organizationId);command.Parameters.AddWithValue(orderId);await using var reader=await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken)?ReadReview(reader):null;
     }
 
+    public async Task<Guid?> ClaimResolutionAsync(PaymentReviewCase review,string resolution,string actor,DateTimeOffset now,CancellationToken cancellationToken)
+    {
+        Guid claimId=Guid.NewGuid();
+        await using var command=dataSource.CreateCommand("UPDATE order_payment_reviews SET status='resolving',resolution=$1,resolved_by=$2,resolution_locked_until_utc=$3,resolution_claim_id=$4,updated_at_utc=$5,concurrency_version=concurrency_version+1 WHERE organization_id=$6 AND order_id=$7 AND concurrency_version=$8 AND (status='open' OR (status='resolving' AND resolution_locked_until_utc<=$5 AND resolution=$1)) RETURNING resolution_claim_id");
+        command.Parameters.AddWithValue(resolution);command.Parameters.AddWithValue(actor);command.Parameters.AddWithValue(now.AddMinutes(2));command.Parameters.AddWithValue(claimId);command.Parameters.AddWithValue(now);
+        command.Parameters.AddWithValue(review.OrganizationId);command.Parameters.AddWithValue(review.OrderId);command.Parameters.AddWithValue(review.ConcurrencyVersion);
+        return await command.ExecuteScalarAsync(cancellationToken) is Guid claimed?claimed:null;
+    }
+
+    public async Task ReleaseResolutionAsync(PaymentReviewCase review,Guid claimId,CancellationToken cancellationToken)
+    {
+        await using var command=dataSource.CreateCommand("UPDATE order_payment_reviews SET status='open',resolution=NULL,resolved_by=NULL,resolution_locked_until_utc=NULL,resolution_claim_id=NULL WHERE organization_id=$1 AND order_id=$2 AND resolution_claim_id=$3 AND status='resolving'");
+        command.Parameters.AddWithValue(review.OrganizationId);command.Parameters.AddWithValue(review.OrderId);command.Parameters.AddWithValue(claimId);await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task<bool> ResolveAsync(OrderAggregate order,PaymentReviewCase review,string resolution,string reason,string actor,
-        OrderPaymentReviewResolvedV1 integrationEvent,PlatformAuditEventV1 audit,CancellationToken cancellationToken)
+        Guid claimId,OrderPaymentReviewResolvedV1 integrationEvent,PlatformAuditEventV1 audit,CancellationToken cancellationToken)
     {
         await using var connection=await dataSource.OpenConnectionAsync(cancellationToken);await using var transaction=await connection.BeginTransactionAsync(cancellationToken);
-        await using(var update=new NpgsqlCommand("UPDATE order_payment_reviews SET status=CASE WHEN $1='escalate' THEN status ELSE 'resolved' END,resolution=$1,resolution_reason=$2,resolved_by=$3,resolved_at_utc=CASE WHEN $1='escalate' THEN resolved_at_utc ELSE $4 END,updated_at_utc=$4,concurrency_version=concurrency_version+1 WHERE organization_id=$5 AND order_id=$6 AND status='open' AND concurrency_version=$7",connection,transaction))
+        await using(var update=new NpgsqlCommand("UPDATE order_payment_reviews SET status=CASE WHEN $1='escalate' THEN 'open' ELSE 'resolved' END,resolution=$1,resolution_reason=$2,resolved_by=$3,resolved_at_utc=CASE WHEN $1='escalate' THEN resolved_at_utc ELSE $4 END,resolution_locked_until_utc=NULL,resolution_claim_id=NULL,updated_at_utc=$4 WHERE organization_id=$5 AND order_id=$6 AND status='resolving' AND resolution=$1 AND concurrency_version=$7 AND resolution_claim_id=$8",connection,transaction))
         {
             update.Parameters.AddWithValue(resolution);update.Parameters.AddWithValue(reason);update.Parameters.AddWithValue(actor);update.Parameters.AddWithValue(integrationEvent.OccurredAtUtc);
-            update.Parameters.AddWithValue(order.OrganizationId);update.Parameters.AddWithValue(order.Id);update.Parameters.AddWithValue(review.ConcurrencyVersion);
+            update.Parameters.AddWithValue(order.OrganizationId);update.Parameters.AddWithValue(order.Id);update.Parameters.AddWithValue(integrationEvent.ConcurrencyVersion);update.Parameters.AddWithValue(claimId);
             if(await update.ExecuteNonQueryAsync(cancellationToken)!=1){await transaction.RollbackAsync(cancellationToken);return false;}
         }
         await SaveOrderAsync(connection,transaction,order,cancellationToken);
-        await using(var history=new NpgsqlCommand("INSERT INTO order_payment_review_history(id,order_id,organization_id,action,reason,actor_subject_id,concurrency_version,occurred_at_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",connection,transaction))
-        {history.Parameters.AddWithValue(Guid.NewGuid());history.Parameters.AddWithValue(order.Id);history.Parameters.AddWithValue(order.OrganizationId);history.Parameters.AddWithValue(resolution);history.Parameters.AddWithValue(reason);history.Parameters.AddWithValue(actor);history.Parameters.AddWithValue(integrationEvent.ConcurrencyVersion);history.Parameters.AddWithValue(integrationEvent.OccurredAtUtc);await history.ExecuteNonQueryAsync(cancellationToken);}
+        await using(var history=new NpgsqlCommand("INSERT INTO order_payment_review_history(id,order_id,organization_id,action,reason,actor_subject_id,authorization_decision_id,concurrency_version,occurred_at_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",connection,transaction))
+        {history.Parameters.AddWithValue(Guid.NewGuid());history.Parameters.AddWithValue(order.Id);history.Parameters.AddWithValue(order.OrganizationId);history.Parameters.AddWithValue(resolution);history.Parameters.AddWithValue(reason);history.Parameters.AddWithValue(actor);history.Parameters.AddWithValue(integrationEvent.AuthorizationDecisionId);history.Parameters.AddWithValue(integrationEvent.ConcurrencyVersion);history.Parameters.AddWithValue(integrationEvent.OccurredAtUtc);await history.ExecuteNonQueryAsync(cancellationToken);}
         await EnqueueAsync(connection,transaction,integrationEvent,"order.payment-review-resolved.v1",order.Id,cancellationToken);
         await EnqueueAsync(connection,transaction,audit,"order.audit.v1",order.Id,cancellationToken);
         await transaction.CommitAsync(cancellationToken);return true;

@@ -123,7 +123,8 @@ public sealed record OrderPaymentReviewRequiredV1(Guid EventId, Guid Correlation
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Reason) : IIntegrationEvent;
 
 public sealed record OrderPaymentReviewResolvedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
-    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Resolution, long ConcurrencyVersion) : IIntegrationEvent;
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Resolution, long ConcurrencyVersion,
+    Guid AuthorizationDecisionId) : IIntegrationEvent;
 
 public sealed record NotificationQueuedV1(
     Guid EventId,

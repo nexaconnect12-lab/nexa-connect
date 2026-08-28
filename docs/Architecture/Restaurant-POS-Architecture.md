@@ -87,6 +87,8 @@ Owns POS terminals and kiosks, shifts, cash sessions, cash movements, receipt nu
 
 Owns payment intents, authorization/capture/void state, cash payments, card-provider references, split payments, tips, refunds, reconciliation, and payment idempotency. Authorization, capture recovery, and durable void recovery are implemented. Void is trusted-Order-only, accepts authorized and uncaptured intents, persists bounded PostgreSQL recovery state, and never repeats an uncertain provider command. Order migration 3 consumes void events durably: confirmed void compensates unpaid work, uncertainty retains work, failure/exhaustion enters `payment_review`, and paid orders remain immutable. Delayed capture policy, refunds, and settlement remain planned.
 
+Order migration 4 provides the online operator boundary for those review cases. Tenant/branch-scoped managers use dedicated permissions, an expected version, and a fenced two-minute decision lease. Confirmed void, resumed payment reconciliation, or escalation appends actor/reason/Authorization-decision history and publishes safe resolution/audit events atomically with the Order transition. The operator UI remains planned.
+
 Cash can normally be accepted offline. Card payments may be accepted offline only when the payment terminal and provider explicitly support an approved store-and-forward workflow.
 
 ### 4.7 Inventory

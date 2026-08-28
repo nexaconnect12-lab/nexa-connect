@@ -6,6 +6,7 @@ namespace NexaConnect.Infrastructure.Authorization;
 
 public sealed class ProductAuthorizationClient(HttpClient client, ILogger<ProductAuthorizationClient> logger)
 {
+    public sealed record Decision(Guid DecisionId,bool Granted,decimal? EvaluatedLimit);
     public async Task<bool> IsGrantedAsync(
         Guid organizationId,
         Guid? restaurantId,
@@ -14,9 +15,15 @@ public sealed class ProductAuthorizationClient(HttpClient client, ILogger<Produc
         string authorizationHeader,
         CancellationToken cancellationToken)
     {
+        Decision? decision=await DecideAsync(organizationId,restaurantId,branchId,permission,authorizationHeader,cancellationToken);
+        return decision?.Granted==true;
+    }
+
+    public async Task<Decision?> DecideAsync(Guid organizationId,Guid? restaurantId,Guid? branchId,string permission,
+        string authorizationHeader,CancellationToken cancellationToken)
+    {
         if (organizationId == Guid.Empty || string.IsNullOrWhiteSpace(permission)
-            || !AuthenticationHeaderValue.TryParse(authorizationHeader, out AuthenticationHeaderValue? authorization))
-            return false;
+            || !AuthenticationHeaderValue.TryParse(authorizationHeader, out AuthenticationHeaderValue? authorization)) return null;
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "api/authorization/v1/decisions")
         {
@@ -29,7 +36,7 @@ public sealed class ProductAuthorizationClient(HttpClient client, ILogger<Produc
         {
             logger.LogWarning("Authorization dependency returned {StatusCode} for permission {Permission} in organization {OrganizationId}",
                 (int)response.StatusCode, permission, organizationId);
-            return false;
+            return null;
         }
         AuthorizationDecisionResponse? decision = await response.Content.ReadFromJsonAsync<AuthorizationDecisionResponse>(
             cancellationToken: cancellationToken);
@@ -37,7 +44,7 @@ public sealed class ProductAuthorizationClient(HttpClient client, ILogger<Produc
         if (!granted)
             logger.LogWarning("Product permission {Permission} denied in organization {OrganizationId}, restaurant {RestaurantId}, branch {BranchId}",
                 permission, organizationId, restaurantId, branchId);
-        return granted;
+        return decision is null?null:new Decision(decision.DecisionId,granted,decision.EvaluatedLimit);
     }
 
     private sealed record AuthorizationDecisionRequest(

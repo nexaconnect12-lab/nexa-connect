@@ -43,7 +43,7 @@ public sealed class PaymentReviewResolutionTests
     }
 
     private static ResolvePaymentReviewCommand Command(OrderAggregate order,PaymentReviewCase review,string resolution)=>
-        new(order.OrganizationId,order.Id,resolution,"operator_verified",review.ConcurrencyVersion,"operator-subject",Guid.NewGuid());
+        new(order.OrganizationId,order.Id,resolution,"operator_verified",review.ConcurrencyVersion,"operator-subject",Guid.NewGuid(),Guid.NewGuid());
 
     private static (OrderAggregate,PaymentReviewCase) ReviewedOrder()
     {
@@ -59,8 +59,10 @@ public sealed class PaymentReviewResolutionTests
         public Task<OrderAggregate?> GetAsync(Guid orderId,CancellationToken cancellationToken)=>Task.FromResult<OrderAggregate?>(orderId==order.Id?order:null);
         public Task<IReadOnlyCollection<PaymentReviewCase>> ListOpenAsync(Guid organizationId,Guid branchId,int limit,CancellationToken cancellationToken)=>Task.FromResult<IReadOnlyCollection<PaymentReviewCase>>([value]);
         public Task<PaymentReviewCase?> GetReviewAsync(Guid organizationId,Guid orderId,CancellationToken cancellationToken)=>Task.FromResult<PaymentReviewCase?>(organizationId==value.OrganizationId&&orderId==value.OrderId?value:null);
-        public Task<bool> ResolveAsync(OrderAggregate aggregate,PaymentReviewCase current,string resolution,string reason,string actor,OrderPaymentReviewResolvedV1 integrationEvent,PlatformAuditEventV1 audit,CancellationToken cancellationToken)
-        {Event=integrationEvent;Audit=audit;value=value with{Status=resolution=="escalate"?"open":"resolved",Resolution=resolution,ConcurrencyVersion=value.ConcurrencyVersion+1,UpdatedAtUtc=integrationEvent.OccurredAtUtc};return Task.FromResult(true);}
+        public Task<Guid?> ClaimResolutionAsync(PaymentReviewCase review,string resolution,string actor,DateTimeOffset now,CancellationToken cancellationToken){if(value.Status!="open")return Task.FromResult<Guid?>(null);value=value with{Status="resolving",Resolution=resolution,ConcurrencyVersion=value.ConcurrencyVersion+1};return Task.FromResult<Guid?>(Guid.NewGuid());}
+        public Task ReleaseResolutionAsync(PaymentReviewCase review,Guid claimId,CancellationToken cancellationToken){value=value with{Status="open",Resolution=null};return Task.CompletedTask;}
+        public Task<bool> ResolveAsync(OrderAggregate aggregate,PaymentReviewCase current,string resolution,string reason,string actor,Guid claimId,OrderPaymentReviewResolvedV1 integrationEvent,PlatformAuditEventV1 audit,CancellationToken cancellationToken)
+        {Event=integrationEvent;Audit=audit;value=value with{Status=resolution=="escalate"?"open":"resolved",Resolution=resolution,ConcurrencyVersion=integrationEvent.ConcurrencyVersion,UpdatedAtUtc=integrationEvent.OccurredAtUtc};return Task.FromResult(true);}
     }
     private sealed class Inventory:IInventoryReservationPort{public int Calls{get;private set;}public Task<InventoryReservationResult> ReserveAsync(Guid orderId,Guid branchId,IReadOnlyCollection<OrderLine> lines,CancellationToken cancellationToken)=>throw new NotSupportedException();public Task ReleaseAsync(Guid orderId,Guid branchId,CancellationToken cancellationToken){Calls++;return Task.CompletedTask;}}
     private sealed class Kitchen:IKitchenPort{public int Calls{get;private set;}public Task<KitchenTicketResult> CreateTicketAsync(Guid organizationId,Guid restaurantId,Guid orderId,Guid branchId,IReadOnlyCollection<OrderLine> lines,CancellationToken cancellationToken)=>throw new NotSupportedException();public Task CancelTicketAsync(Guid organizationId,Guid orderId,Guid branchId,CancellationToken cancellationToken){Calls++;return Task.CompletedTask;}}
