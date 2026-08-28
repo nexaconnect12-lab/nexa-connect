@@ -109,6 +109,7 @@ Visual Studio launch profiles use `--environment-file .env` with the repository 
 To plan every service to the latest catalog version, loading connection strings from the repository `.env` file:
 
 ```powershell
+dotnet restore NexaConnect.sln
 .\scripts\migrate-databases.ps1
 ```
 
@@ -117,6 +118,8 @@ After reviewing all plans, execute them with explicit confirmation:
 ```powershell
 .\scripts\migrate-databases.ps1 -Confirm
 ```
+
+The wrapper invokes each service with `dotnet run --no-restore`, so restore the solution before the first run and after dependency changes. Its `-ApplicationVersion` default is `0.10.0`, the highest minimum application version required by the current checked-in catalog. This value is the application/schema compatibility gate passed to every service migration; it does not select the schema target, which remains the latest migration discovered for each service. Override it only when deliberately validating an older application release boundary, for example `-ApplicationVersion 0.9.0`; migrations requiring a newer application version will then fail safely.
 
 The wrapper stops on the first failed service. Each service retains its own history, transaction boundary, connection string, and advisory lock; the wrapper does not create a cross-database transaction.
 

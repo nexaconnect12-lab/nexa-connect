@@ -108,15 +108,118 @@ public interface IOutboxTransport
     Task PublishAsync(OutboxMessage message, CancellationToken cancellationToken);
 }
 
-public sealed class RabbitMqOutboxTransport(IConnection connection, IOptions<OutboxOptions> options) : IOutboxTransport
+public sealed class RabbitMqOutboxTransport : IOutboxTransport, IAsyncDisposable
 {
+    private readonly IOptions<OutboxOptions> options;
+    private readonly Func<CancellationToken, Task<IConnection>> connectionFactory;
+    private readonly bool ownsConnection;
+    private readonly SemaphoreSlim connectionGate = new(1, 1);
+    private IConnection? connection;
+
+    public RabbitMqOutboxTransport(IOptions<OutboxOptions> options)
+        : this(options, cancellationToken => new ConnectionFactory
+        {
+            Uri = new Uri(options.Value.ConnectionString),
+            AutomaticRecoveryEnabled = true,
+            TopologyRecoveryEnabled = true
+        }.CreateConnectionAsync(cancellationToken), ownsConnection: true)
+    {
+    }
+
+    public RabbitMqOutboxTransport(IConnection connection, IOptions<OutboxOptions> options)
+        : this(options, _ => Task.FromResult(connection), ownsConnection: false)
+    {
+        this.connection = connection;
+    }
+
+    public RabbitMqOutboxTransport(
+        IOptions<OutboxOptions> options,
+        Func<CancellationToken, Task<IConnection>> connectionFactory)
+        : this(options, connectionFactory, ownsConnection: true)
+    {
+    }
+
+    private RabbitMqOutboxTransport(
+        IOptions<OutboxOptions> options,
+        Func<CancellationToken, Task<IConnection>> connectionFactory,
+        bool ownsConnection)
+    {
+        this.options = options;
+        this.connectionFactory = connectionFactory;
+        this.ownsConnection = ownsConnection;
+    }
+
     public async Task PublishAsync(OutboxMessage message, CancellationToken cancellationToken)
     {
-        await using IChannel channel = await connection.CreateChannelAsync(new CreateChannelOptions(publisherConfirmationsEnabled:true,publisherConfirmationTrackingEnabled:true),cancellationToken);
-        await channel.ExchangeDeclareAsync(options.Value.Exchange, ExchangeType.Topic, durable: true, cancellationToken: cancellationToken);
-        var properties = new BasicProperties { Persistent = true, ContentType = "application/json", Type = message.EventType };
-        byte[] body = Encoding.UTF8.GetBytes(message.Payload);
-        await channel.BasicPublishAsync(options.Value.Exchange, message.EventType, true, properties, body, cancellationToken);
+        IConnection activeConnection = await GetConnectionAsync(cancellationToken);
+        try
+        {
+            await using IChannel channel = await activeConnection.CreateChannelAsync(
+                new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
+                cancellationToken);
+            await channel.ExchangeDeclareAsync(options.Value.Exchange, ExchangeType.Topic, durable: true,
+                cancellationToken: cancellationToken);
+            var properties = new BasicProperties
+                { Persistent = true, ContentType = "application/json", Type = message.EventType };
+            byte[] body = Encoding.UTF8.GetBytes(message.Payload);
+            await channel.BasicPublishAsync(options.Value.Exchange, message.EventType, true, properties, body,
+                cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            await InvalidateAsync(activeConnection);
+            throw;
+        }
+    }
+
+    private async Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken)
+    {
+        IConnection? current = Volatile.Read(ref connection);
+        if (current?.IsOpen == true) return current;
+
+        await connectionGate.WaitAsync(cancellationToken);
+        try
+        {
+            current = connection;
+            if (current?.IsOpen == true) return current;
+            if (current is not null && ownsConnection) await current.DisposeAsync();
+            connection = await connectionFactory(cancellationToken);
+            return connection;
+        }
+        finally
+        {
+            connectionGate.Release();
+        }
+    }
+
+    private async Task InvalidateAsync(IConnection failedConnection)
+    {
+        await connectionGate.WaitAsync();
+        try
+        {
+            if (!ReferenceEquals(connection, failedConnection)) return;
+            connection = null;
+            if (ownsConnection) await failedConnection.DisposeAsync();
+        }
+        finally
+        {
+            connectionGate.Release();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await connectionGate.WaitAsync();
+        try
+        {
+            if (connection is not null && ownsConnection) await connection.DisposeAsync();
+            connection = null;
+        }
+        finally
+        {
+            connectionGate.Release();
+            connectionGate.Dispose();
+        }
     }
 }
 
@@ -172,10 +275,7 @@ public static class OutboxServiceCollectionExtensions
         services.Configure<OutboxOptions>(configuration.GetSection("Outbox"));
         string configuredConnection = configuration["Outbox:ConnectionString"]
             ?? throw new InvalidOperationException("Outbox:ConnectionString is required when PostgreSQL outbox persistence is enabled.");
-        services.AddSingleton<IConnection>(_ => new ConnectionFactory
-        {
-            Uri = new Uri(configuredConnection)
-        }.CreateConnectionAsync().GetAwaiter().GetResult());
+        _ = new Uri(configuredConnection);
         services.AddSingleton<IOutboxTransport, RabbitMqOutboxTransport>();
         services.AddHostedService<OutboxDispatcher>();
         return services;

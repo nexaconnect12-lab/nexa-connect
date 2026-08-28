@@ -14,3 +14,5 @@ Customer Portal create, read, and workflow requests are revalidated inside Order
 
 Structured logs use service name `nexaconnect-order`; correlation IDs propagate through tenant checks and registered workflow HTTP adapters.
 JSON stdout is always enabled. Enable OTLP with `Observability__OtlpEnabled=true`; use the [observability guide](../../../docs/Deployment/Observability.md) for the endpoint and queries.
+
+In PostgreSQL mode, the `nexaconnect-order` meter reports pending payment-reconciliation inbox work, the oldest expired processing lease, unpublished outbox count/age, and gauge-collection failures. A collection failure means prior gauge samples may be stale. `OperationalMetrics:PollInterval` defaults to 30 seconds. The instruments contain no tenant, order, payment, or message labels. RabbitMQ queue and dead-letter depth are exported by the broker's Prometheus plugin in the local stack.

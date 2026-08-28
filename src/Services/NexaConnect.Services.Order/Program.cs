@@ -38,6 +38,8 @@ if (usePostgres)
     builder.Services.AddSingleton<PostgresOrderRepository>();
     builder.Services.AddSingleton<IOrderRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
     builder.Services.AddSingleton<IOrderApplicationService, PostgresOrderApplicationService>();
+    builder.Services.Configure<OrderOperationalMetricsOptions>(builder.Configuration.GetSection("OperationalMetrics"));
+    builder.Services.AddHostedService<PaymentReconciliationOperationalMetricsWorker>();
 }
 else
 {

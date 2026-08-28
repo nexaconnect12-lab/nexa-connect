@@ -6,6 +6,10 @@ using PaymentMutationContext = PAYMENT::NexaConnect.Services.Payment.Application
 using PaymentRepository = PAYMENT::NexaConnect.Services.Payment.Infrastructure.PostgresPaymentIntents;
 using ProviderAuthorizationOutcome = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderAuthorizationOutcome;
 using ProviderCaptureOutcome = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderCaptureOutcome;
+using ProviderCaptureResult = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderCaptureResult;
+using PaymentProvider = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.IPaymentProvider;
+using PaymentCaptureRecoveryService = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentCaptureRecoveryService;
+using PaymentIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentIntent;
 using Microsoft.Extensions.Options;
 using NexaConnect.Infrastructure.Messaging;
 using Npgsql;
@@ -138,6 +142,38 @@ public sealed class PaymentPostgresIntegrationTests : IAsyncLifetime
         Assert.Equal(1L,await ScalarAsync(connection,"SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.audit.v1' AND payload->>'Action'='payment.capture.reconciled'",intent.Id));
     }
 
+    [PaymentDatabaseFact]
+    public async Task Provider_capture_response_survives_process_boundary_before_local_commit()
+    {
+        Guid organization=Guid.NewGuid(),correlation=Guid.NewGuid();
+        var options=Options.Create(new PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.PaymentProviderOptions
+            {LeaseDuration=TimeSpan.FromMilliseconds(1),MaximumCaptureRecoveryAttempts=3});
+        var repository=new PaymentRepository(dataSource!,options);
+        var intent=repository.Create(organization,new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"capture-crash-boundary",50m,"USD","card"),new("order-service",correlation));
+        var authorization=repository.BeginAuthorization(organization,intent.Id,new("order-service",correlation));
+        repository.CompleteAuthorization(organization,intent.Id,authorization.Intent.ConcurrencyVersion,ProviderAuthorizationOutcome.Authorized,"auth-crash-boundary",null,new("order-service",correlation));
+        var capture=repository.BeginCapture(organization,intent.Id,new("order-service",correlation));
+        var provider=new CapturedBeforeCommitProvider();
+
+        ProviderCaptureResult providerResponse=await provider.CaptureAsync(capture.Intent,default);
+        Assert.Equal(ProviderCaptureOutcome.Captured,providerResponse.Outcome);
+        // Simulate abrupt process loss: deliberately discard the response without calling CompleteCapture.
+        await Task.Delay(10);
+
+        var restarted=new PaymentRepository(dataSource!,options);
+        var claim=restarted.ClaimExpiredCapture(organization,intent.Id,new("payment-capture-recovery-worker",Guid.NewGuid()));
+        Assert.True(claim.Acquired);
+        var recovery=new PaymentCaptureRecoveryService(restarted,provider);
+        PaymentIntent reconciled=await recovery.ReconcileAsync(organization,intent.Id,new("payment-capture-recovery-worker",correlation),default);
+
+        Assert.Equal("captured",reconciled.Status);
+        Assert.Equal("capture-before-crash",reconciled.ProviderCaptureId);
+        Assert.Equal(1,provider.CaptureCalls);
+        Assert.Equal(1,provider.StatusCalls);
+        await using NpgsqlConnection connection=await dataSource!.OpenConnectionAsync();
+        Assert.Equal(1L,await ScalarAsync(connection,"SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.capture-reconciled.v1'",intent.Id));
+    }
+
     [PaymentRabbitMqFact]
     public async Task Broker_outage_retains_rows_and_recovery_publishes_with_confirmations()
     {
@@ -166,6 +202,52 @@ public sealed class PaymentPostgresIntegrationTests : IAsyncLifetime
         finally{await channel.ExchangeDeleteAsync(exchange,ifUnused:false);}
     }
 
+    [PaymentRabbitMqFact]
+    public async Task Established_publisher_connection_is_replaced_after_disconnect()
+    {
+        string rabbitMqUri=Environment.GetEnvironmentVariable("NEXACONNECT_RABBITMQ_INTEGRATION_URI")!;
+        string exchange=$"nexaconnect.payment.phase12.{Guid.NewGuid():N}",queue=$"nexaconnect.payment.phase12.{Guid.NewGuid():N}";
+        var factory=new ConnectionFactory{Uri=new Uri(rabbitMqUri),AutomaticRecoveryEnabled=true,TopologyRecoveryEnabled=true};
+        await using IConnection control=await factory.CreateConnectionAsync();
+        await using IChannel channel=await control.CreateChannelAsync();
+        await channel.ExchangeDeclareAsync(exchange,ExchangeType.Topic,durable:true,autoDelete:false);
+        await channel.QueueDeclareAsync(queue,durable:false,exclusive:true,autoDelete:true);
+        await channel.QueueBindAsync(queue,exchange,"payment.#");
+        IConnection? established=null;int connectionCount=0;
+        async Task<IConnection> CreateConnection(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref connectionCount);
+            IConnection created=await factory.CreateConnectionAsync(cancellationToken);
+            established=created;
+            return created;
+        }
+        await using var transport=new RabbitMqOutboxTransport(
+            Options.Create(new OutboxOptions{Exchange=exchange,ConnectionString=rabbitMqUri}),CreateConnection);
+        try
+        {
+            var first=new OutboxMessage(Guid.NewGuid(),"payment.capture-reconciled.v1",1,"payment-intent",Guid.NewGuid(),"{}",Guid.NewGuid().ToString("D"),DateTimeOffset.UtcNow);
+            await transport.PublishAsync(first,default);
+            Assert.NotNull(established);
+            await established!.CloseAsync();
+            var second=first with{Id=Guid.NewGuid(),AggregateId=Guid.NewGuid()};
+            await transport.PublishAsync(second,default);
+
+            var deliveries=new List<BasicGetResult>();
+            for(int attempt=0;attempt<20&&deliveries.Count<2;attempt++)
+            {
+                BasicGetResult? delivery=await channel.BasicGetAsync(queue,autoAck:true);
+                if(delivery is null)await Task.Delay(100);else deliveries.Add(delivery);
+            }
+            Assert.Equal(2,deliveries.Count);
+            Assert.Equal(2,connectionCount);
+            Assert.All(deliveries,item=>Assert.True(item.BasicProperties.Persistent));
+        }
+        finally
+        {
+            await channel.ExchangeDeleteAsync(exchange,ifUnused:false);
+        }
+    }
+
     public async Task InitializeAsync(){if(string.IsNullOrWhiteSpace(configuredConnectionString)||!IsSafeEnvironment())return;schema=$"payment_phase11_it_{Guid.NewGuid():N}";var builder=new NpgsqlConnectionStringBuilder(configuredConnectionString){SearchPath=schema};dataSource=NpgsqlDataSource.Create(builder.ConnectionString);await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();await new NpgsqlCommand($"CREATE SCHEMA \"{schema}\"",connection).ExecuteNonQueryAsync();await new NpgsqlCommand(SchemaSql,connection).ExecuteNonQueryAsync();}
     public async Task DisposeAsync(){if(dataSource is null||schema is null)return;await using NpgsqlConnection connection=await dataSource.OpenConnectionAsync();await new NpgsqlCommand($"DROP SCHEMA IF EXISTS \"{schema}\" CASCADE",connection).ExecuteNonQueryAsync();await dataSource.DisposeAsync();}
     private static bool IsSafeEnvironment(){string? environment=Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT")??Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")??Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");return environment is "Development" or "Test" or "Testing";}
@@ -178,6 +260,15 @@ public sealed class PaymentPostgresIntegrationTests : IAsyncLifetime
         CREATE TRIGGER tr_payment_audit_records_append_only BEFORE UPDATE OR DELETE ON payment_audit_records FOR EACH ROW EXECUTE FUNCTION prevent_payment_audit_mutation();
         CREATE TABLE outbox_messages(id uuid PRIMARY KEY,event_type text NOT NULL,contract_version integer NOT NULL,aggregate_type text NOT NULL,aggregate_id uuid NOT NULL,payload jsonb NOT NULL,correlation_id text NULL,causation_id text NULL,occurred_at_utc timestamptz NOT NULL,published_at_utc timestamptz NULL,retry_count integer NOT NULL DEFAULT 0,next_attempt_at_utc timestamptz NULL,last_error_category text NULL);
         """;
+
+    private sealed class CapturedBeforeCommitProvider : PaymentProvider
+    {
+        public int CaptureCalls{get;private set;}
+        public int StatusCalls{get;private set;}
+        public Task<PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderAuthorizationResult> AuthorizeAsync(PaymentIntent intent,CancellationToken cancellationToken)=>throw new NotSupportedException();
+        public Task<ProviderCaptureResult> CaptureAsync(PaymentIntent intent,CancellationToken cancellationToken){CaptureCalls++;return Task.FromResult(new ProviderCaptureResult(ProviderCaptureOutcome.Captured,"capture-before-crash",null));}
+        public Task<ProviderCaptureResult> GetCaptureStatusAsync(PaymentIntent intent,CancellationToken cancellationToken){StatusCalls++;return Task.FromResult(new ProviderCaptureResult(ProviderCaptureOutcome.Captured,"capture-before-crash",null));}
+    }
 }
 
 public class PaymentDatabaseFactAttribute : FactAttribute

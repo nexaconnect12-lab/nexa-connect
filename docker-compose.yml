@@ -117,6 +117,9 @@ services:
     ports:
       - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"
+      - "127.0.0.1:15692:15692"
+    volumes:
+      - ./docker/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
 
   loki:
     image: grafana/loki:3.5.5
@@ -138,6 +141,29 @@ services:
     depends_on:
       - loki
 
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yaml", "--storage.tsdb.path=/prometheus"]
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - prometheus-data:/prometheus
+      - ./docker/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./docker/prometheus/rules:/etc/prometheus/rules:ro
+    depends_on:
+      - otel-collector
+      - alertmanager
+      - rabbitmq
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command: ["--config.file=/etc/alertmanager/alertmanager.yaml", "--storage.path=/alertmanager"]
+    ports:
+      - "127.0.0.1:9093:9093"
+    volumes:
+      - alertmanager-data:/alertmanager
+      - ./docker/alertmanager/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
+
   grafana:
     image: grafana/grafana:12.1.1
     environment:
@@ -149,6 +175,7 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ./docker/grafana/provisioning/datasources/loki.yaml:/etc/grafana/provisioning/datasources/loki.yaml:ro
+      - ./docker/grafana/provisioning/datasources/prometheus.yaml:/etc/grafana/provisioning/datasources/prometheus.yaml:ro
     depends_on:
       - loki
 
@@ -203,3 +230,5 @@ volumes:
   grafana-data:
   minio-data:
   clamav-data:
+  prometheus-data:
+  alertmanager-data:

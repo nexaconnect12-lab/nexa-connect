@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yaml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: [alertmanager:9093]
+
+scrape_configs:
+  - job_name: nexa-connect-otel
+    static_configs:
+      - targets: [otel-collector:8889]
+
+  - job_name: nexa-connect-rabbitmq
+    static_configs:
+      - targets: [rabbitmq:15692]

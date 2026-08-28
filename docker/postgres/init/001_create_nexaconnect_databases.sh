@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# This script is mounted into a Linux container and must retain LF line endings.
 set -Eeuo pipefail
 
 required_variables=(

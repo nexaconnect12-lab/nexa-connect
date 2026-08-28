@@ -15,6 +15,10 @@ public sealed class PaymentCaptureRecoveryWorker(
     private static readonly Counter<long> Claims = Meter.CreateCounter<long>("payment.capture_recovery.claims");
     private static readonly Counter<long> Outcomes = Meter.CreateCounter<long>("payment.capture_recovery.outcomes");
     private static readonly Counter<long> Failures = Meter.CreateCounter<long>("payment.capture_recovery.failures");
+    private static readonly ObservableGauge<int> WorkerEnabled = Meter.CreateObservableGauge(
+        "payment.capture_recovery.worker_enabled",
+        () => 1,
+        description: "Reports one while the capture-recovery worker is registered and running.");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

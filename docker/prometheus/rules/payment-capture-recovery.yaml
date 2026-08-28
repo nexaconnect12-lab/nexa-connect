@@ -1,0 +1,112 @@
+groups:
+  - name: payment-capture-recovery
+    rules:
+      - alert: PaymentCaptureRecoveryFailures
+        expr: sum(increase(payment_capture_recovery_failures_total[10m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+          service: nexaconnect-payment
+        annotations:
+          summary: Payment capture recovery is failing
+          description: Capture-status reconciliation failures occurred during the last ten minutes.
+
+      - alert: PaymentCaptureRequiresAction
+        expr: sum(increase(payment_capture_recovery_outcomes_total{payment_capture_status="requires_action"}[10m])) > 0
+        for: 2m
+        labels:
+          severity: critical
+          service: nexaconnect-payment
+        annotations:
+          summary: Payment captures require operator review
+          description: At least one capture exhausted automated status reconciliation and requires provider/accounting review.
+
+      - alert: PaymentTelemetryMissing
+        expr: absent(payment_capture_recovery_worker_enabled{service_name="nexaconnect-payment"})
+        for: 10m
+        labels:
+          severity: warning
+          service: nexaconnect-payment
+        annotations:
+          summary: Payment capture-recovery telemetry is missing
+          description: Prometheus has not observed the Payment capture-recovery meter for ten minutes; verify Payment and OTLP delivery before relying on recovery alerts.
+
+      - alert: PaymentCaptureRecoveryBacklogStalled
+        expr: max(payment_capture_recovery_backlog) > 0 and max(payment_capture_recovery_oldest_age_seconds) > 120
+        for: 1m
+        labels:
+          severity: warning
+          service: nexaconnect-payment
+        annotations:
+          summary: Payment capture-recovery backlog is stalled
+          description: At least one uncertain capture has remained eligible for recovery for more than two minutes.
+
+      - alert: PaymentOutboxBacklogStalled
+        expr: max(payment_outbox_unpublished) > 0 and max(payment_outbox_oldest_age_seconds) > 120
+        for: 1m
+        labels:
+          severity: critical
+          service: nexaconnect-payment
+        annotations:
+          summary: Payment outbox publication is stalled
+          description: Unpublished Payment integration events are more than two minutes old; verify RabbitMQ and dispatcher recovery.
+
+      - alert: OrderPaymentReconciliationInboxStalled
+        expr: max(order_payment_reconciliation_inbox_pending) > 0 and max(order_payment_reconciliation_oldest_expired_lease_age_seconds) > 120
+        for: 1m
+        labels:
+          severity: critical
+          service: nexaconnect-order
+        annotations:
+          summary: Order payment reconciliation is stalled
+          description: An Order reconciliation inbox lease has remained expired for more than two minutes.
+
+      - alert: OrderOutboxBacklogStalled
+        expr: max(order_outbox_unpublished) > 0 and max(order_outbox_oldest_age_seconds) > 120
+        for: 1m
+        labels:
+          severity: warning
+          service: nexaconnect-order
+        annotations:
+          summary: Order outbox publication is stalled
+          description: Unpublished Order integration events are more than two minutes old.
+
+      - alert: OrderPaymentReconciliationQueueBacklog
+        expr: sum(rabbitmq_queue_messages{queue="nexaconnect.order.payment-reconciled.v1"}) > 0
+        for: 2m
+        labels:
+          severity: warning
+          service: nexaconnect-order
+        annotations:
+          summary: Order payment reconciliation queue is not draining
+          description: RabbitMQ has retained payment-reconciliation deliveries for more than two minutes.
+
+      - alert: OrderPaymentReconciliationDeadLetters
+        expr: sum(rabbitmq_queue_messages{queue="nexaconnect.order.payment-reconciled.v1.dead"}) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: nexaconnect-order
+        annotations:
+          summary: Order payment reconciliation has dead letters
+          description: One or more payment-reconciliation events require fault correction and controlled replay.
+
+      - alert: PaymentOperationalMetricsCollectionFailures
+        expr: sum(increase(payment_operational_metrics_collection_failures_total[10m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: nexaconnect-payment
+        annotations:
+          summary: Payment backlog metrics collection is failing
+          description: Payment could not refresh its PostgreSQL-backed recovery/outbox gauges; displayed values may be stale.
+
+      - alert: OrderOperationalMetricsCollectionFailures
+        expr: sum(increase(order_operational_metrics_collection_failures_total[10m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: nexaconnect-order
+        annotations:
+          summary: Order backlog metrics collection is failing
+          description: Order could not refresh its PostgreSQL-backed reconciliation/outbox gauges; displayed values may be stale.

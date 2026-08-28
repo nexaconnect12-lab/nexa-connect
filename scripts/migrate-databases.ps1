@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$Confirm,
-    [string]$ApplicationVersion = '0.5.0',
+    [string]$ApplicationVersion = '0.10.0',
     [string]$EnvironmentFile
 )
 
@@ -54,7 +54,7 @@ foreach ($service in $services) {
     $command = if ($Confirm) { '--confirm' } else { '--plan' }
     Write-Host "`n=== $service -> version $target ($($command.TrimStart('-'))) ==="
 
-    & dotnet run --project $migrationProject -- `
+    & dotnet run --no-restore --project $migrationProject -- `
         --service $service `
         --scripts-root $scriptsRoot `
         --target $target `

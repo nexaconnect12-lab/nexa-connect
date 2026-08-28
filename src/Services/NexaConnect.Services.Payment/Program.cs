@@ -8,6 +8,7 @@ using NexaConnect.Services.Payment.Application.Tenant;
 using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Observability;
 using NexaConnect.Infrastructure.Messaging;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-payment");
@@ -16,6 +17,7 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 // Add services to the container.
 
 builder.Services.AddControllers();
+IHealthChecksBuilder healthChecks = builder.Services.AddHealthChecks();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<IServiceWorkloadTokenProvider, ServiceWorkloadTokenProvider>();
 builder.Services.AddHttpClient("PaymentPlatformDirectory", client => client.BaseAddress = new Uri(
@@ -47,6 +49,9 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Payment")
         ?? throw new InvalidOperationException("ConnectionStrings:Payment is required.")));
     builder.Services.AddSingleton<IPaymentIntents, PostgresPaymentIntents>();
+    healthChecks.AddCheck<PaymentDatabaseReadinessHealthCheck>("payment_database", tags: ["ready"]);
+    builder.Services.Configure<PaymentOperationalMetricsOptions>(builder.Configuration.GetSection("OperationalMetrics"));
+    builder.Services.AddHostedService<PaymentOperationalMetricsWorker>();
     builder.Services.AddHostedService<PaymentAuthorizationRecoveryWorker>();
     builder.Services.AddPaymentCaptureRecoveryWorker(builder.Configuration);
     if (builder.Configuration.GetValue<bool>("Outbox:Enabled"))
@@ -72,6 +77,11 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready")
+}).AllowAnonymous();
 
 app.Run();
 
