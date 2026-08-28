@@ -50,6 +50,18 @@ public sealed class OrderTenantAuthorizationTests : IClassFixture<RestaurantWork
         using HttpResponseMessage response=await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.Forbidden,response.StatusCode);
     }
+
+    [Fact]
+    public async Task Payment_review_route_challenges_unauthenticated_call()
+    {
+        using HttpClient client=fixture.Order.CreateClient();
+        using var request=new HttpRequestMessage(HttpMethod.Get,$"/api/order/v1/payment-reviews?organizationId={RestaurantWorkflowServiceFixture.OrganizationId:D}&branchId={RestaurantWorkflowServiceFixture.BranchId:D}");
+        request.Headers.TryAddWithoutValidation("Authorization","Bearer unauthenticated");
+        request.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId,RestaurantWorkflowServiceFixture.OrganizationId.ToString("D"));
+        request.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode,"nexa_connect");
+        using HttpResponseMessage response=await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Unauthorized,response.StatusCode);
+    }
 }
 
 public sealed class DenyOrderTenantAuthorizer : OrderTenantAuthorizer

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using NexaConnect.Contracts.Platform;
 using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Services.Order.Application.PaymentReviews;
@@ -8,6 +9,7 @@ using NexaConnect.Services.Order.Application.Tenant;
 namespace NexaConnect.Services.Order.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/order/v1/payment-reviews")]
 public sealed class PaymentReviewsController(PaymentReviewApplicationService reviews,IOrderTenantAuthorizer tenantAuthorizer,
     ILogger<PaymentReviewsController> logger):ControllerBase

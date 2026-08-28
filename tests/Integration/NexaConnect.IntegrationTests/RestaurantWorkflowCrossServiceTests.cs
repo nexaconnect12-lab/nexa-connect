@@ -279,6 +279,9 @@ internal sealed class TestAuthenticationHandler : AuthenticationHandler<Authenti
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        if (Request.Headers.TryGetValue("Authorization", out var supplied)
+            && string.Equals(supplied.ToString(), "Bearer unauthenticated", StringComparison.Ordinal))
+            return Task.FromResult(AuthenticateResult.NoResult());
         var claims = new List<Claim> { new("sub", "integration-test-user") };
         if (!Request.Headers.TryGetValue("Authorization", out var authorization)
             || string.Equals(authorization.ToString(), "Bearer integration-test-token", StringComparison.Ordinal))

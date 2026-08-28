@@ -86,12 +86,12 @@ try {
     Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:19093/api/v2/alerts' -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $resolved -Depth 6) | Out-Null
     Wait-Until { @(Get-RehearsalEvents | Where-Object { $_.status -eq 'resolved' -and $_.alerts[0].alertname -eq 'OrderPaymentReviewStale' -and $_.alerts[0].rehearsal_id -eq $rehearsalId }).Count -gt 0 } 30 'Alertmanager did not deliver the payment-review resolved notification.'
 
-    $filter = 'FullyQualifiedName~OrderMigrationRunnerAcceptanceTests|FullyQualifiedName~ReportingActivityVocabularyPostgresTests.Migration_13|FullyQualifiedName~OrderOutboxReplayPersistenceTests.Payment_review_events'
+    $filter = 'FullyQualifiedName~OrderMigrationRunnerAcceptanceTests|FullyQualifiedName~ReportingActivityVocabularyPostgresTests.Migration_13|FullyQualifiedName~ReportingActivityVocabularyPostgresTests.Hosted_consumer|FullyQualifiedName~OrderOutboxReplayPersistenceTests.Repository_payment_review_events'
     & dotnet test $project --no-build --no-restore --verbosity minimal --filter $filter --logger "trx;LogFileName=$trxPath"
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $trxPath)) { throw 'Payment-review live verification failed.' }
     [xml] $trx = Get-Content -LiteralPath $trxPath -Raw
     $counters = $trx.TestRun.ResultSummary.Counters
-    if ([int]$counters.total -ne 3 -or [int]$counters.passed -ne 3 -or [int]$counters.notExecuted -ne 0) {
+    if ([int]$counters.total -ne 4 -or [int]$counters.passed -ne 4 -or [int]$counters.notExecuted -ne 0) {
         throw "Payment-review evidence was incomplete: total=$($counters.total), passed=$($counters.passed), notExecuted=$($counters.notExecuted)."
     }
     Write-Output "Payment-review PostgreSQL, Reporting replay, RabbitMQ recovery, and alert delivery verification passed (operator evidence label: '$EvidenceLabel')."

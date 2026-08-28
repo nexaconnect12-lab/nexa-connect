@@ -57,7 +57,7 @@ public sealed class ActivityProjectionConsumer(
             PlatformAuditEventV1 audit = JsonSerializer.Deserialize<PlatformAuditEventV1>(args.Body.Span)
                 ?? throw new JsonException("Audit event is empty.");
             eventId = audit.EventId;
-            string source = ResolveSource(args.RoutingKey);
+            string source = ActivityAuditRouting.ResolveSource(args.RoutingKey);
             InboxClaimResult claim = await inbox.ClaimAsync(audit.EventId, Consumer, TimeSpan.FromMinutes(2), cancellationToken);
             if (claim == InboxClaimResult.Busy)
             {
@@ -96,7 +96,11 @@ public sealed class ActivityProjectionConsumer(
         }
     }
 
-    private static string ResolveSource(string routingKey) => routingKey switch
+}
+
+public static class ActivityAuditRouting
+{
+    public static string ResolveSource(string routingKey) => routingKey switch
     {
         "platform-directory.audit.v1" => "platform-directory",
         "restaurant.audit.v1" => "restaurant",
@@ -104,6 +108,7 @@ public sealed class ActivityProjectionConsumer(
         "media.audit.v1" => "media",
         "notification.audit.v1" => "notification",
         "payment.audit.v1" => "payment",
+        "order.audit.v1" => "order",
         "kitchen.audit.v1" => "kitchen",
         "customer.audit.v1" => "customer",
         _ => throw new InvalidOperationException("Audit routing key is not allowed.")

@@ -1,7 +1,14 @@
+extern alias ORDER;
+
 using NexaConnect.Infrastructure.Messaging;
+using NexaConnect.Contracts.IntegrationEvents;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using RabbitMQ.Client;
+using OrderAggregate = ORDER::NexaConnect.Services.Order.Domain.OrderAggregate;
+using OrderLine = ORDER::NexaConnect.Services.Order.Domain.OrderLine;
+using PostgresOrderRepository = ORDER::NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderRepository;
 
 namespace NexaConnect.IntegrationTests;
 
@@ -41,26 +48,29 @@ public sealed class OrderOutboxReplayPersistenceTests : IAsyncLifetime
     }
 
     [OrderRabbitMqFact]
-    public async Task Payment_review_events_survive_transport_failure_and_publish_persistently_over_new_connection()
+    public async Task Repository_payment_review_events_survive_hosted_dispatcher_restart_and_publish_valid_contracts()
     {
         var store=new PostgresOutboxStore(_dataSource!);
-        Guid orderId=Guid.NewGuid();
-        string correlationId=Guid.NewGuid().ToString("D");
+        var repository=new PostgresOrderRepository(_dataSource!);
+        Guid organizationId=Guid.NewGuid(),paymentIntentId=Guid.NewGuid(),authorizationDecisionId=Guid.NewGuid(),correlationId=Guid.NewGuid();
+        var order=OrderAggregate.Create(Guid.NewGuid(),organizationId,Guid.NewGuid(),[new OrderLine(Guid.NewGuid(),"Broker item",10m,1,"kitchen")],"USD",Guid.NewGuid());
+        order.Submit();order.MarkInventoryReserved();order.MarkKitchenAccepted();order.MarkPaymentPending(paymentIntentId);order.MarkPaymentReview();
+        var required=new OrderPaymentReviewRequiredV1(Guid.NewGuid(),correlationId,DateTimeOffset.UtcNow,organizationId,order.Id,paymentIntentId,"provider_void_failed");
+        await repository.SaveWithEventAsync(order,required,default);
+        var review=Assert.IsType<ORDER::NexaConnect.Services.Order.Application.PaymentReviews.PaymentReviewCase>(await repository.GetReviewAsync(organizationId,order.Id,default));
+        Guid claimId=Assert.IsType<Guid>(await repository.ClaimResolutionAsync(review,"resume_payment","broker-operator",DateTimeOffset.UtcNow,default));
+        order.ResumePaymentPending();
+        var resolved=new OrderPaymentReviewResolvedV1(Guid.NewGuid(),correlationId,DateTimeOffset.UtcNow,organizationId,order.Id,paymentIntentId,"resume_payment",review.ConcurrencyVersion+1,authorizationDecisionId);
+        var audit=new PlatformAuditEventV1(Guid.NewGuid(),correlationId,resolved.OccurredAtUtc,"broker-operator",organizationId,"order.payment-review.resolved","order",order.Id.ToString("D"),"succeeded");
+        Assert.True(await repository.ResolveAsync(order,review,"resume_payment","provider verified", "broker-operator",claimId,resolved,audit,default));
         string[] eventTypes=["order.payment-review-required.v1","order.payment-review-resolved.v1","order.audit.v1"];
-        foreach(string eventType in eventTypes)
-            await store.EnqueueAsync(new OutboxMessage(Guid.NewGuid(),eventType,1,"order",orderId,"{}",correlationId,DateTimeOffset.UtcNow),default);
-
-        OutboxMessage[] failedClaim=(await store.ClaimBatchAsync(10,default)).Where(message=>message.AggregateId==orderId).ToArray();
-        Assert.Equal(3,failedClaim.Length);
-        await Assert.ThrowsAnyAsync<Exception>(async()=>
+        using(var failedDispatcher=new OutboxDispatcher(store,new FailingTransport(),Options.Create(new OutboxOptions{BatchSize=10,PollInterval=TimeSpan.FromMilliseconds(25)}),NullLogger<OutboxDispatcher>.Instance))
         {
-            await using IConnection ignored=await new ConnectionFactory{Uri=new Uri("amqp://guest:guest@127.0.0.1:1"),RequestedConnectionTimeout=TimeSpan.FromSeconds(1)}.CreateConnectionAsync();
-        });
-        foreach(OutboxMessage message in failedClaim)
-        {
-            await store.MarkFailedAsync(message.Id,"broker-unavailable",default);
-            await MakeImmediatelyRetryableAsync(message.Id);
+            await failedDispatcher.StartAsync(default);
+            await WaitUntilAsync(async()=>await CountAsync("SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND last_error_category='IOException'",order.Id)==3,TimeSpan.FromSeconds(5));
+            await failedDispatcher.StopAsync(default);
         }
+        await MakeImmediatelyRetryableAsync(required.EventId);await MakeImmediatelyRetryableAsync(resolved.EventId);await MakeImmediatelyRetryableAsync(audit.EventId);
 
         string exchange=$"nexaconnect.order.payment-review.{Guid.NewGuid():N}";
         string queue=$"nexaconnect.order.payment-review.{Guid.NewGuid():N}";
@@ -72,17 +82,22 @@ public sealed class OrderOutboxReplayPersistenceTests : IAsyncLifetime
             await channel.QueueDeclareAsync(queue,durable:false,exclusive:true,autoDelete:true);
             await channel.QueueBindAsync(queue,exchange,"order.#");
             await using var transport=new RabbitMqOutboxTransport(connection,Options.Create(new OutboxOptions{Exchange=exchange}));
-            OutboxMessage[] replay=(await store.ClaimBatchAsync(10,default)).Where(message=>message.AggregateId==orderId).ToArray();
-            Assert.Equal(3,replay.Length);
-            foreach(OutboxMessage message in replay){await transport.PublishAsync(message,default);await store.MarkPublishedAsync(message.Id,default);}
-            var routingKeys=new List<string>();
-            for(int attempt=0;attempt<30&&routingKeys.Count<3;attempt++)
+            using(var recoveredDispatcher=new OutboxDispatcher(store,transport,Options.Create(new OutboxOptions{Exchange=exchange,BatchSize=10,PollInterval=TimeSpan.FromMilliseconds(25)}),NullLogger<OutboxDispatcher>.Instance))
             {
-                BasicGetResult? delivery=await channel.BasicGetAsync(queue,autoAck:true);
-                if(delivery is null)await Task.Delay(100);else{Assert.True(delivery.BasicProperties.Persistent);routingKeys.Add(delivery.RoutingKey);}
+                await recoveredDispatcher.StartAsync(default);
+                await WaitUntilAsync(async()=>await CountAsync("SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND published_at_utc IS NOT NULL",order.Id)==3,TimeSpan.FromSeconds(5));
+                await recoveredDispatcher.StopAsync(default);
             }
-            Assert.Equal(eventTypes.Order(),routingKeys.Order());
-            Assert.DoesNotContain(await store.ClaimBatchAsync(10,default),message=>message.AggregateId==orderId);
+            var deliveries=new List<BasicGetResult>();
+            for(int attempt=0;attempt<30&&deliveries.Count<3;attempt++){BasicGetResult? delivery=await channel.BasicGetAsync(queue,autoAck:true);if(delivery is null)await Task.Delay(100);else deliveries.Add(delivery);}
+            Assert.Equal(eventTypes.Order(),deliveries.Select(value=>value.RoutingKey).Order());
+            Assert.All(deliveries,value=>Assert.True(value.BasicProperties.Persistent));
+            OrderPaymentReviewRequiredV1 requiredCopy=Deserialize<OrderPaymentReviewRequiredV1>(deliveries,"order.payment-review-required.v1");
+            OrderPaymentReviewResolvedV1 resolvedCopy=Deserialize<OrderPaymentReviewResolvedV1>(deliveries,"order.payment-review-resolved.v1");
+            PlatformAuditEventV1 auditCopy=Deserialize<PlatformAuditEventV1>(deliveries,"order.audit.v1");
+            Assert.Equal(required,requiredCopy);Assert.Equal(resolved,resolvedCopy);Assert.Equal(audit,auditCopy);
+            Assert.Equal(authorizationDecisionId,resolvedCopy.AuthorizationDecisionId);Assert.Equal(correlationId,auditCopy.CorrelationId);
+            Assert.DoesNotContain(await store.ClaimBatchAsync(10,default),message=>message.AggregateId==order.Id);
         }
         finally{await channel.ExchangeDeleteAsync(exchange);}
     }
@@ -100,8 +115,9 @@ public sealed class OrderOutboxReplayPersistenceTests : IAsyncLifetime
             await createSchema.ExecuteNonQueryAsync();
         }
 
-        await using var schema = new NpgsqlCommand(SchemaSql, connection);
-        await schema.ExecuteNonQueryAsync();
+        string migrations=Path.Combine(FindRepositoryRoot(),"src","Tools","NexaConnect.DataMigration","Scripts","Order");
+        foreach(string version in new[]{"0001_initial_schema","0002_payment_capture_reconciliation","0003_payment_void_reconciliation","0004_payment_review_resolution"})
+        {await using var command=new NpgsqlCommand(await File.ReadAllTextAsync(Path.Combine(migrations,version,"up.sql")),connection);await command.ExecuteNonQueryAsync();}
     }
 
     public async Task DisposeAsync()
@@ -123,6 +139,11 @@ public sealed class OrderOutboxReplayPersistenceTests : IAsyncLifetime
         await command.ExecuteNonQueryAsync();
     }
 
+    private async Task<long> CountAsync(string sql,Guid id){await using var command=_dataSource!.CreateCommand(sql);command.Parameters.AddWithValue(id);return Convert.ToInt64(await command.ExecuteScalarAsync());}
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition,TimeSpan timeout){DateTimeOffset end=DateTimeOffset.UtcNow+timeout;while(DateTimeOffset.UtcNow<end){if(await condition())return;await Task.Delay(50);}throw new TimeoutException("Hosted dispatcher did not reach the expected state.");}
+    private static T Deserialize<T>(IEnumerable<BasicGetResult> deliveries,string routingKey)=>System.Text.Json.JsonSerializer.Deserialize<T>(deliveries.Single(value=>value.RoutingKey==routingKey).Body.Span)??throw new InvalidOperationException("Published contract was empty.");
+    private static string FindRepositoryRoot(){DirectoryInfo? directory=new(AppContext.BaseDirectory);while(directory is not null&&!File.Exists(Path.Combine(directory.FullName,"NexaConnect.sln")))directory=directory.Parent;return directory?.FullName??throw new DirectoryNotFoundException();}
+
     private bool DatabaseConfigured()
     {
         if (_dataSource is not null && IsSafeEnvironment()) return true;
@@ -139,16 +160,7 @@ public sealed class OrderOutboxReplayPersistenceTests : IAsyncLifetime
         return environment is "Development" or "Test" or "Testing";
     }
 
-    private const string SchemaSql = """
-        CREATE TABLE outbox_messages
-        (
-            id uuid PRIMARY KEY, event_type text NOT NULL, contract_version integer NOT NULL,
-            aggregate_type text NOT NULL, aggregate_id uuid NOT NULL, payload jsonb NOT NULL,
-            correlation_id text NULL, occurred_at_utc timestamptz NOT NULL,
-            published_at_utc timestamptz NULL, retry_count integer NOT NULL DEFAULT 0,
-            next_attempt_at_utc timestamptz NULL, last_error_category text NULL
-        );
-        """;
+    private sealed class FailingTransport:IOutboxTransport{public Task PublishAsync(OutboxMessage message,CancellationToken cancellationToken)=>Task.FromException(new IOException("acceptance broker outage"));}
 }
 
 public sealed class OrderRabbitMqFactAttribute : FactAttribute
