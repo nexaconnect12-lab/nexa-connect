@@ -11,6 +11,7 @@ using NexaConnect.Services.Order.Application.Tenant;
 using NexaConnect.Services.Order.Infrastructure;
 using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Observability;
+using NexaConnect.Services.Order.Application.PaymentReviews;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-order");
@@ -52,6 +53,7 @@ builder.Services.AddSingleton<IIntegrationEventPublisher>(services =>
     services.GetRequiredService<InMemoryIntegrationEventPublisher>());
 builder.Services.AddScoped<PlaceOrderWorkflow>();
 builder.Services.AddScoped<PaymentReconciliationApplicationService>();
+builder.Services.AddScoped<PaymentReviewApplicationService>();
 if (usePostgres)
 {
     builder.Services.AddPostgresOutbox(builder.Configuration, "Order");

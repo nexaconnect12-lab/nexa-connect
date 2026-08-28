@@ -2,12 +2,13 @@ using System.Text.Json;
 using Npgsql;
 using NexaConnect.Contracts.IntegrationEvents;
 using NexaConnect.Services.Order.Application.Workflow;
+using NexaConnect.Services.Order.Application.PaymentReviews;
 using NexaConnect.Services.Order.Domain;
 
 namespace NexaConnect.Services.Order.Infrastructure.Persistence;
 
 public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
-    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderLookup
+    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderLookup, IPaymentReviewRepository
 {
     public async Task SaveAsync(OrderAggregate order, CancellationToken cancellationToken)
     {
@@ -35,7 +36,61 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         command.Parameters.AddWithValue("correlation_id", integrationEvent.CorrelationId.ToString());
         command.Parameters.AddWithValue("occurred_at", integrationEvent.OccurredAtUtc.UtcDateTime);
         await command.ExecuteNonQueryAsync(cancellationToken);
+        if(integrationEvent is OrderPaymentReviewRequiredV1 review)
+        {
+            await using var reviewCommand=new NpgsqlCommand("""
+                INSERT INTO order_payment_reviews(order_id,organization_id,branch_id,payment_intent_id,status,reason,concurrency_version,created_at_utc,updated_at_utc)
+                VALUES($1,$2,$3,$4,'open',$5,1,$6,$6)
+                ON CONFLICT(order_id) DO NOTHING
+                """,connection,transaction);
+            reviewCommand.Parameters.AddWithValue(order.Id);reviewCommand.Parameters.AddWithValue(order.OrganizationId);
+            reviewCommand.Parameters.AddWithValue(order.BranchId);reviewCommand.Parameters.AddWithValue(review.PaymentIntentId);
+            reviewCommand.Parameters.AddWithValue(review.Reason);reviewCommand.Parameters.AddWithValue(review.OccurredAtUtc);
+            await reviewCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<PaymentReviewCase>> ListOpenAsync(Guid organizationId,Guid branchId,int limit,CancellationToken cancellationToken)
+    {
+        await using var command=dataSource.CreateCommand("SELECT order_id,organization_id,branch_id,payment_intent_id,status,reason,resolution,concurrency_version,created_at_utc,updated_at_utc FROM order_payment_reviews WHERE organization_id=$1 AND branch_id=$2 AND status='open' ORDER BY created_at_utc LIMIT $3");
+        command.Parameters.AddWithValue(organizationId);command.Parameters.AddWithValue(branchId);command.Parameters.AddWithValue(limit);
+        var values=new List<PaymentReviewCase>();await using var reader=await command.ExecuteReaderAsync(cancellationToken);
+        while(await reader.ReadAsync(cancellationToken))values.Add(ReadReview(reader));return values;
+    }
+
+    public async Task<PaymentReviewCase?> GetReviewAsync(Guid organizationId,Guid orderId,CancellationToken cancellationToken)
+    {
+        await using var command=dataSource.CreateCommand("SELECT order_id,organization_id,branch_id,payment_intent_id,status,reason,resolution,concurrency_version,created_at_utc,updated_at_utc FROM order_payment_reviews WHERE organization_id=$1 AND order_id=$2");
+        command.Parameters.AddWithValue(organizationId);command.Parameters.AddWithValue(orderId);await using var reader=await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)?ReadReview(reader):null;
+    }
+
+    public async Task<bool> ResolveAsync(OrderAggregate order,PaymentReviewCase review,string resolution,string reason,string actor,
+        OrderPaymentReviewResolvedV1 integrationEvent,PlatformAuditEventV1 audit,CancellationToken cancellationToken)
+    {
+        await using var connection=await dataSource.OpenConnectionAsync(cancellationToken);await using var transaction=await connection.BeginTransactionAsync(cancellationToken);
+        await using(var update=new NpgsqlCommand("UPDATE order_payment_reviews SET status=CASE WHEN $1='escalate' THEN status ELSE 'resolved' END,resolution=$1,resolution_reason=$2,resolved_by=$3,resolved_at_utc=CASE WHEN $1='escalate' THEN resolved_at_utc ELSE $4 END,updated_at_utc=$4,concurrency_version=concurrency_version+1 WHERE organization_id=$5 AND order_id=$6 AND status='open' AND concurrency_version=$7",connection,transaction))
+        {
+            update.Parameters.AddWithValue(resolution);update.Parameters.AddWithValue(reason);update.Parameters.AddWithValue(actor);update.Parameters.AddWithValue(integrationEvent.OccurredAtUtc);
+            update.Parameters.AddWithValue(order.OrganizationId);update.Parameters.AddWithValue(order.Id);update.Parameters.AddWithValue(review.ConcurrencyVersion);
+            if(await update.ExecuteNonQueryAsync(cancellationToken)!=1){await transaction.RollbackAsync(cancellationToken);return false;}
+        }
+        await SaveOrderAsync(connection,transaction,order,cancellationToken);
+        await using(var history=new NpgsqlCommand("INSERT INTO order_payment_review_history(id,order_id,organization_id,action,reason,actor_subject_id,concurrency_version,occurred_at_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",connection,transaction))
+        {history.Parameters.AddWithValue(Guid.NewGuid());history.Parameters.AddWithValue(order.Id);history.Parameters.AddWithValue(order.OrganizationId);history.Parameters.AddWithValue(resolution);history.Parameters.AddWithValue(reason);history.Parameters.AddWithValue(actor);history.Parameters.AddWithValue(integrationEvent.ConcurrencyVersion);history.Parameters.AddWithValue(integrationEvent.OccurredAtUtc);await history.ExecuteNonQueryAsync(cancellationToken);}
+        await EnqueueAsync(connection,transaction,integrationEvent,"order.payment-review-resolved.v1",order.Id,cancellationToken);
+        await EnqueueAsync(connection,transaction,audit,"order.audit.v1",order.Id,cancellationToken);
+        await transaction.CommitAsync(cancellationToken);return true;
+    }
+
+    private static PaymentReviewCase ReadReview(NpgsqlDataReader reader)=>new(reader.GetGuid(0),reader.GetGuid(1),reader.GetGuid(2),reader.GetGuid(3),reader.GetString(4),reader.GetString(5),reader.IsDBNull(6)?null:reader.GetString(6),reader.GetInt64(7),reader.GetFieldValue<DateTimeOffset>(8),reader.GetFieldValue<DateTimeOffset>(9));
+
+    private static async Task EnqueueAsync(NpgsqlConnection connection,NpgsqlTransaction transaction,IIntegrationEvent value,string eventType,Guid aggregateId,CancellationToken cancellationToken)
+    {
+        await using var command=new NpgsqlCommand("INSERT INTO outbox_messages(id,event_type,contract_version,aggregate_type,aggregate_id,payload,correlation_id,occurred_at_utc) VALUES($1,$2,1,'Order',$3,$4::jsonb,$5,$6)",connection,transaction);
+        command.Parameters.AddWithValue(value.EventId);command.Parameters.AddWithValue(eventType);command.Parameters.AddWithValue(aggregateId);
+        command.Parameters.AddWithValue(JsonSerializer.Serialize(value,value.GetType()));command.Parameters.AddWithValue(value.CorrelationId.ToString("D"));command.Parameters.AddWithValue(value.OccurredAtUtc);await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task<OrderAggregate?> FindByIdempotencyKeyAsync(Guid restaurantId, string key, CancellationToken cancellationToken)
@@ -107,6 +162,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
     private static string EventType(IIntegrationEvent integrationEvent) => integrationEvent switch
     {
         OrderPaymentReviewRequiredV1 => "order.payment-review-required.v1",
+        OrderPaymentReviewResolvedV1 => "order.payment-review-resolved.v1",
         _ => integrationEvent.GetType().Name
     };
     private static void ApplyStatus(OrderAggregate order, string status) { if (status == "submitted") order.Submit(); else if (status == "accepted") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); } else if (status is "payment_pending" or "payment_review") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaymentPending(); if(status=="payment_review")order.MarkPaymentReview(); } else if (status == "completed") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaid(); } else if (status == "cancelled") order.Reject(); }

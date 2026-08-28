@@ -1,0 +1,1 @@
+{"version":4,"name":"order_payment_review_permissions","transactional":true,"downgradeSafety":"reversible","minimumApplicationVersion":"0.12.0"}

@@ -18,6 +18,8 @@ public sealed class PaymentReconciliationOperationalMetricsWorker : BackgroundSe
     private double oldestExpiredLeaseAgeSeconds;
     private long unpublishedOutbox;
     private double unpublishedOutboxOldestAgeSeconds;
+    private long openPaymentReviews;
+    private double oldestPaymentReviewAgeSeconds;
     private readonly NpgsqlDataSource dataSource;
     private readonly IOptions<OrderOperationalMetricsOptions> options;
     private readonly ILogger<PaymentReconciliationOperationalMetricsWorker> logger;
@@ -25,6 +27,8 @@ public sealed class PaymentReconciliationOperationalMetricsWorker : BackgroundSe
     private readonly ObservableGauge<double> expiredLeaseAgeGauge;
     private readonly ObservableGauge<long> outboxGauge;
     private readonly ObservableGauge<double> outboxAgeGauge;
+    private readonly ObservableGauge<long> paymentReviewGauge;
+    private readonly ObservableGauge<double> paymentReviewAgeGauge;
 
     public PaymentReconciliationOperationalMetricsWorker(
         NpgsqlDataSource dataSource,
@@ -43,6 +47,8 @@ public sealed class PaymentReconciliationOperationalMetricsWorker : BackgroundSe
             "order.outbox.unpublished", () => Volatile.Read(ref unpublishedOutbox));
         outboxAgeGauge = Meter.CreateObservableGauge(
             "order.outbox.oldest_age_seconds", () => Volatile.Read(ref unpublishedOutboxOldestAgeSeconds));
+        paymentReviewGauge=Meter.CreateObservableGauge("order.payment_review.open",()=>Volatile.Read(ref openPaymentReviews));
+        paymentReviewAgeGauge=Meter.CreateObservableGauge("order.payment_review.oldest_age_seconds",()=>Volatile.Read(ref oldestPaymentReviewAgeSeconds));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -72,6 +78,9 @@ public sealed class PaymentReconciliationOperationalMetricsWorker : BackgroundSe
                    COALESCE(EXTRACT(EPOCH FROM now() - min(occurred_at_utc)), 0)::double precision
             FROM outbox_messages
             WHERE published_at_utc IS NULL;
+
+            SELECT count(*)::bigint,COALESCE(EXTRACT(EPOCH FROM now()-min(created_at_utc)),0)::double precision
+            FROM order_payment_reviews WHERE status='open';
             """;
         try
         {
@@ -85,6 +94,9 @@ public sealed class PaymentReconciliationOperationalMetricsWorker : BackgroundSe
             await reader.ReadAsync(cancellationToken);
             Interlocked.Exchange(ref unpublishedOutbox, reader.GetInt64(0));
             Volatile.Write(ref unpublishedOutboxOldestAgeSeconds, Math.Max(0, reader.GetDouble(1)));
+            await reader.NextResultAsync(cancellationToken);await reader.ReadAsync(cancellationToken);
+            Interlocked.Exchange(ref openPaymentReviews,reader.GetInt64(0));
+            Volatile.Write(ref oldestPaymentReviewAgeSeconds,Math.Max(0,reader.GetDouble(1)));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

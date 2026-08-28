@@ -122,6 +122,9 @@ public sealed record PaymentVoidReconciledV1(Guid EventId, Guid CorrelationId, D
 public sealed record OrderPaymentReviewRequiredV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Reason) : IIntegrationEvent;
 
+public sealed record OrderPaymentReviewResolvedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Resolution, long ConcurrencyVersion) : IIntegrationEvent;
+
 public sealed record NotificationQueuedV1(
     Guid EventId,
     Guid CorrelationId,

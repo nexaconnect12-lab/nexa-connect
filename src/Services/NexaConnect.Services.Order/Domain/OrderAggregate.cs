@@ -100,6 +100,8 @@ public sealed class OrderAggregate
     }
     public void MarkPaymentFailed() => Transition(Status is OrderStatus.KitchenAccepted or OrderStatus.PaymentPending ? Status : OrderStatus.KitchenAccepted, OrderStatus.PaymentFailed);
     public void MarkPaymentReview() => Transition(OrderStatus.PaymentPending, OrderStatus.PaymentReview);
+    public void ResolvePaymentReviewAsVoided() => Transition(OrderStatus.PaymentReview, OrderStatus.PaymentFailed);
+    public void ResumePaymentPending() => Transition(OrderStatus.PaymentReview, OrderStatus.PaymentPending);
     public void Reject() => Status = OrderStatus.Rejected;
 
     public void RestorePaymentIntent(Guid? paymentIntentId) => BindPaymentIntent(paymentIntentId);

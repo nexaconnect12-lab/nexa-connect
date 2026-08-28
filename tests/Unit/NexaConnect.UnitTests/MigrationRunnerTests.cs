@@ -9,18 +9,18 @@ public sealed class MigrationRunnerTests
         var services = new Dictionary<string, int>(StringComparer.Ordinal)
         {
             ["PlatformDirectory"] = 3,
-            ["Authorization"] = 3,
+            ["Authorization"] = 4,
             ["Restaurant"] = 3,
             ["Catalog"] = 4,
             ["Inventory"] = 5,
-            ["Order"] = 3,
+            ["Order"] = 4,
             ["Kitchen"] = 3,
             ["Customer"] = 2,
             ["Payment"] = 7,
             ["Notification"] = 3,
             ["POS"] = 3,
             ["Media"] = 4,
-            ["Reporting"] = 12
+            ["Reporting"] = 13
         };
 
         foreach ((string service, int expectedVersion) in services)
