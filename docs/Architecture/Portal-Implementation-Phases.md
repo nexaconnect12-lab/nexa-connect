@@ -50,6 +50,8 @@ Phase 11 now includes opt-in live Catalog PostgreSQL and RabbitMQ acceptance plu
 
 Payment intent creation, authorization recovery, immediate capture, and capture recovery are implemented. Capture recovery uses capture-specific PostgreSQL leases and bounded attempts, performs provider status lookup without holding a database transaction, and publishes transactional `PaymentCaptureReconciledV1` plus safe audit state through Payment migration 6. Order migration 2 durably consumes reconciliation and ensures authorization alone cannot mark an order paid. Sixteen coordinated cases passed on 2026-08-28; separate harnesses passed process/broker faults, isolated alert firing/resolution, and Payment/Order rollback-forward lifecycles. Concrete-provider acceptance, production paging/escalation, and live-traffic rollback remain environment-specific gates. Delayed capture, void/refunds, and settlement remain outside this slice.
 
+Durable void/reversal recovery is now implemented through Payment migration 7 and Reporting migration 12. It enforces authorized-and-uncaptured eligibility, exact Order-workload authorization, stable provider idempotency, bounded PostgreSQL status reconciliation, guarded downgrade, and transactional lifecycle/audit outbox publication. Local PostgreSQL evidence passed successful transactional unknown-to-voided recovery and `0→7→6→7`. Order void-event consumption, dedicated void telemetry/alerts, concrete-provider acceptance, refunds, and settlement remain open.
+
 ### Implemented Payment capture recovery
 
 The recovery slice implements the following approved boundary:

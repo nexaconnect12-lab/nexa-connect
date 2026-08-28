@@ -18,7 +18,11 @@ public sealed record PaymentIntent(Guid Id, Guid OrganizationId, Guid Restaurant
     [property: JsonIgnore] DateTimeOffset? CaptureLeaseExpiresAtUtc = null,
     [property: JsonIgnore] int CaptureAttemptCount = 0,
     [property: JsonIgnore] DateTimeOffset? CaptureLastReconciledAtUtc = null,
-    [property: JsonIgnore] string? ProviderVoidId = null);
+    [property: JsonIgnore] string? ProviderVoidId = null,
+    [property: JsonIgnore] string? VoidLeaseOwner = null,
+    [property: JsonIgnore] DateTimeOffset? VoidLeaseExpiresAtUtc = null,
+    [property: JsonIgnore] int VoidAttemptCount = 0,
+    [property: JsonIgnore] DateTimeOffset? VoidLastReconciledAtUtc = null);
 public sealed record PaymentAuthorizationLease(PaymentIntent Intent, bool Acquired);
 public sealed record PaymentAuthorizationClaim(PaymentIntent Intent, bool Claimed);
 
@@ -58,6 +62,12 @@ public interface IPaymentIntents
     PaymentIntent CompleteVoid(Guid organizationId, Guid id, long expectedVersion, ProviderVoidOutcome outcome,
         string? providerVoidId, string? failureCode, PaymentMutationContext context)
         => throw new NotSupportedException("Payment void is not supported by this store.");
+    PaymentAuthorizationLease ClaimExpiredVoid(Guid organizationId, Guid id, PaymentMutationContext context)
+        => new(Get(organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found."), false);
+    PaymentIntent ReconcileVoid(Guid organizationId, Guid id, long expectedVersion, ProviderVoidOutcome outcome,
+        string? providerVoidId, string? failureCode, PaymentMutationContext context)
+        => throw new NotSupportedException("Payment void reconciliation is not supported by this store.");
+    IReadOnlyCollection<PaymentIntent> FindExpiredVoids() => [];
 }
 
 public interface IPaymentAuthorizationService

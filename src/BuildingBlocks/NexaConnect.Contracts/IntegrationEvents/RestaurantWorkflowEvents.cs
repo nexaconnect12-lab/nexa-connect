@@ -109,6 +109,16 @@ public sealed record PaymentCaptureUncertainV1(Guid EventId, Guid CorrelationId,
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string FailureCode) : IIntegrationEvent;
 public sealed record PaymentCaptureReconciledV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Status, string? FailureCode) : IIntegrationEvent;
+public sealed record PaymentVoidStartedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId) : IIntegrationEvent;
+public sealed record PaymentVoidedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId) : IIntegrationEvent;
+public sealed record PaymentVoidFailedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string FailureCode) : IIntegrationEvent;
+public sealed record PaymentVoidUncertainV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string FailureCode) : IIntegrationEvent;
+public sealed record PaymentVoidReconciledV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Status, string? FailureCode) : IIntegrationEvent;
 
 public sealed record NotificationQueuedV1(
     Guid EventId,

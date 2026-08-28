@@ -11,6 +11,8 @@ public sealed class InMemoryPaymentIntents(IOptions<PaymentProviderOptions>? opt
     private readonly TimeSpan leaseDuration = options?.Value.LeaseDuration > TimeSpan.Zero ? options.Value.LeaseDuration : TimeSpan.FromMinutes(2);
     private readonly int maximumCaptureRecoveryAttempts = Math.Min(options?.Value.MaximumCaptureRecoveryAttempts > 0
         ? options.Value.MaximumCaptureRecoveryAttempts : 3, 100);
+    private readonly int maximumVoidRecoveryAttempts = Math.Min(options?.Value.MaximumVoidRecoveryAttempts > 0
+        ? options.Value.MaximumVoidRecoveryAttempts : 3, 100);
     private readonly Dictionary<Guid, PaymentIntent> intents = [];
     private readonly Dictionary<(Guid OrganizationId, Guid RestaurantId, string Key), Guid> idempotency = [];
     private readonly object gate = new();
@@ -271,7 +273,8 @@ public sealed class InMemoryPaymentIntents(IOptions<PaymentProviderOptions>? opt
             if (intent.Status is "voided" or "voiding" or "void_unknown") return new(intent, false);
             if (intent.Status == "captured") throw new InvalidOperationException("A captured payment cannot be voided; use the refund workflow.");
             if (intent.Status != "authorized") throw new InvalidOperationException("Only an authorized, uncaptured payment intent can be voided.");
-            PaymentIntent voiding = intent with { Status = "voiding", FailureCode = null,
+            PaymentIntent voiding = intent with { Status = "voiding", FailureCode = null, VoidLeaseOwner = context.ActorSubjectId.Trim(),
+                VoidLeaseExpiresAtUtc = DateTimeOffset.UtcNow.Add(leaseDuration), VoidAttemptCount = intent.VoidAttemptCount + 1,
                 ConcurrencyVersion = intent.ConcurrencyVersion + 1 };
             intents[id] = voiding;
             return new(voiding, true);
@@ -297,11 +300,52 @@ public sealed class InMemoryPaymentIntents(IOptions<PaymentProviderOptions>? opt
                     : outcome == ProviderVoidOutcome.Failed ? "void_failed" : "void_unknown",
                 ProviderVoidId = outcome == ProviderVoidOutcome.Voided ? providerVoidId!.Trim() : null,
                 FailureCode = outcome == ProviderVoidOutcome.Voided ? null : failureCode ?? "provider_void_failed",
+                VoidLeaseOwner = null, VoidLeaseExpiresAtUtc = null,
                 ConcurrencyVersion = intent.ConcurrencyVersion + 1
             };
             intents[id] = completed;
             return completed;
         }
+    }
+
+    public PaymentAuthorizationLease ClaimExpiredVoid(Guid organizationId, Guid id, PaymentMutationContext context)
+    {
+        ValidateContext(context);
+        lock (gate)
+        {
+            if (!intents.TryGetValue(id, out PaymentIntent? intent) || intent.OrganizationId != organizationId) throw new KeyNotFoundException("Payment intent was not found.");
+            if (intent.Status == "voiding" && intent.VoidLeaseExpiresAtUtc > DateTimeOffset.UtcNow) return new(intent, false);
+            if (intent.Status is not ("voiding" or "void_unknown")) return new(intent, false);
+            PaymentIntent claimed = intent with { Status = "voiding", VoidLeaseOwner = context.ActorSubjectId.Trim(),
+                VoidLeaseExpiresAtUtc = DateTimeOffset.UtcNow.Add(leaseDuration), VoidAttemptCount = intent.VoidAttemptCount + 1,
+                ConcurrencyVersion = intent.ConcurrencyVersion + 1 };
+            intents[id] = claimed; return new(claimed, true);
+        }
+    }
+
+    public PaymentIntent ReconcileVoid(Guid organizationId, Guid id, long expectedVersion, ProviderVoidOutcome outcome,
+        string? providerVoidId, string? failureCode, PaymentMutationContext context)
+    {
+        ValidateContext(context);
+        lock (gate)
+        {
+            if (!intents.TryGetValue(id, out PaymentIntent? intent) || intent.OrganizationId != organizationId) throw new KeyNotFoundException("Payment intent was not found.");
+            if (intent.Status == "voided") return intent;
+            if (intent.Status != "voiding" || intent.ConcurrencyVersion != expectedVersion) throw new PaymentConcurrencyException("The payment intent changed while void reconciliation was in progress.");
+            if (outcome == ProviderVoidOutcome.Voided && !IsSafeProviderReference(providerVoidId ?? string.Empty)) throw new ArgumentException("A reconciled void requires a valid provider reference.");
+            bool exhausted = outcome == ProviderVoidOutcome.Unknown && intent.VoidAttemptCount >= maximumVoidRecoveryAttempts;
+            PaymentIntent result = intent with { Status = outcome == ProviderVoidOutcome.Voided ? "voided" : outcome == ProviderVoidOutcome.Failed ? "void_failed" : exhausted ? "requires_action" : "void_unknown",
+                ProviderVoidId = outcome == ProviderVoidOutcome.Voided ? providerVoidId!.Trim() : null,
+                FailureCode = outcome == ProviderVoidOutcome.Voided ? null : exhausted ? "void_attempts_exhausted" : failureCode ?? "provider_void_status_unknown",
+                VoidLeaseOwner = null, VoidLeaseExpiresAtUtc = null, VoidLastReconciledAtUtc = DateTimeOffset.UtcNow,
+                ConcurrencyVersion = intent.ConcurrencyVersion + 1 };
+            intents[id] = result; return result;
+        }
+    }
+
+    public IReadOnlyCollection<PaymentIntent> FindExpiredVoids()
+    {
+        lock (gate) return intents.Values.Where(intent => intent.Status == "void_unknown" || (intent.Status == "voiding" && intent.VoidLeaseExpiresAtUtc <= DateTimeOffset.UtcNow)).ToArray();
     }
 
     private static void ValidateContext(PaymentMutationContext context)

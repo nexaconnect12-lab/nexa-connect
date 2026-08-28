@@ -38,6 +38,8 @@ builder.Services.AddScoped<PaymentAuthorizationService>();
 builder.Services.AddScoped<IPaymentAuthorizationService>(services => services.GetRequiredService<PaymentAuthorizationService>());
 builder.Services.AddScoped<IPaymentCaptureService, PaymentCaptureService>();
 builder.Services.AddScoped<PaymentCaptureRecoveryService>();
+builder.Services.AddScoped<IPaymentVoidService, PaymentVoidService>();
+builder.Services.AddScoped<PaymentVoidRecoveryService>();
 builder.Services.AddTransient<RetryingHttpMessageHandler>();
 builder.Services.AddHttpClient<IPaymentProvider, HttpPaymentProvider>((services, client) =>
 {
@@ -54,13 +56,14 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     builder.Services.AddHostedService<PaymentOperationalMetricsWorker>();
     builder.Services.AddHostedService<PaymentAuthorizationRecoveryWorker>();
     builder.Services.AddPaymentCaptureRecoveryWorker(builder.Configuration);
+    if (builder.Configuration.GetValue("PaymentProvider:VoidRecoveryEnabled", true))
+        builder.Services.AddHostedService<PaymentVoidRecoveryWorker>();
     if (builder.Configuration.GetValue<bool>("Outbox:Enabled"))
         builder.Services.AddPostgresOutbox(builder.Configuration, "Payment");
 }
 else
 {
     builder.Services.AddSingleton<IPaymentIntents, InMemoryPaymentIntents>();
-    builder.Services.AddScoped<IPaymentVoidService, PaymentVoidService>();
 }
 
 var app = builder.Build();

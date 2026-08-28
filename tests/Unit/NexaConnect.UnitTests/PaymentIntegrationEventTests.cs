@@ -46,4 +46,15 @@ public sealed class PaymentIntegrationEventTests
         Assert.Equal("captured", copy.Status);
         Assert.Null(copy.FailureCode);
     }
+
+    [Fact]
+    public void Void_reconciled_contract_preserves_tenant_order_and_safe_outcome()
+    {
+        var message = new PaymentVoidReconciledV1(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow,
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "voided", null);
+        PaymentVoidReconciledV1 copy = JsonSerializer.Deserialize<PaymentVoidReconciledV1>(JsonSerializer.Serialize(message))!;
+        Assert.Equal(message.OrganizationId, copy.OrganizationId);
+        Assert.Equal(message.OrderId, copy.OrderId);
+        Assert.Equal("voided", copy.Status);
+    }
 }

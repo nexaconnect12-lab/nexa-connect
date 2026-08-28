@@ -71,6 +71,26 @@ public sealed class PaymentProviderRecoveryTests
         Assert.Equal("provider_capture_status_unknown", result.FailureReason);
     }
 
+    [Fact]
+    public async Task Void_uses_operation_specific_idempotency_key()
+    {
+        var handler = new StubHandler(HttpStatusCode.OK, new { succeeded = true, providerTransactionId = "void-ref-1" });
+        var provider = new HttpPaymentProvider(new HttpClient(handler) { BaseAddress = new Uri("https://provider.test/") }, Options.Create(new PaymentProviderOptions()));
+        PaymentIntent intent = Intent() with { Status = "voiding", ProviderAuthorizationId = "authorization-ref-1" };
+        ProviderVoidResult result = await provider.VoidAsync(intent, CancellationToken.None);
+        Assert.Equal(ProviderVoidOutcome.Voided, result.Outcome);
+        Assert.Equal($"void:{intent.Id:D}", handler.IdempotencyKey);
+    }
+
+    [Fact]
+    public async Task Void_status_without_provider_reference_remains_unknown()
+    {
+        var provider = CreateProvider(HttpStatusCode.OK, new { status = "voided" });
+        ProviderVoidResult result = await provider.GetVoidStatusAsync(Intent(), CancellationToken.None);
+        Assert.Equal(ProviderVoidOutcome.Unknown, result.Outcome);
+        Assert.Equal("provider_void_status_unknown", result.FailureReason);
+    }
+
     private static HttpPaymentProvider CreateProvider(HttpStatusCode statusCode, object? body)
     {
         var handler = new StubHandler(statusCode, body);

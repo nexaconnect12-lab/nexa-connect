@@ -7,6 +7,7 @@ using PaymentRepository = PAYMENT::NexaConnect.Services.Payment.Infrastructure.P
 using ProviderAuthorizationOutcome = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderAuthorizationOutcome;
 using ProviderCaptureOutcome = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderCaptureOutcome;
 using ProviderCaptureResult = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderCaptureResult;
+using ProviderVoidOutcome = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderVoidOutcome;
 using PaymentProvider = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.IPaymentProvider;
 using PaymentCaptureRecoveryService = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentCaptureRecoveryService;
 using PaymentIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentIntent;
@@ -144,6 +145,29 @@ public sealed class PaymentPostgresIntegrationTests : IAsyncLifetime
         Assert.Equal(1L,await ScalarAsync(connection,"SELECT count(*) FROM payment_audit_records WHERE payment_intent_id=$1 AND action='payment.capture.reconciled'",intent.Id));
         Assert.Equal(1L,await ScalarAsync(connection,"SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.capture-reconciled.v1'",intent.Id));
         Assert.Equal(1L,await ScalarAsync(connection,"SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.audit.v1' AND payload->>'Action'='payment.capture.reconciled'",intent.Id));
+    }
+
+    [PaymentDatabaseFact]
+    public async Task Void_is_atomic_idempotent_and_unknown_is_reconciled_after_restart()
+    {
+        Guid organization=Guid.NewGuid(),correlation=Guid.NewGuid();
+        var options=Options.Create(new PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.PaymentProviderOptions{LeaseDuration=TimeSpan.FromMilliseconds(1),MaximumVoidRecoveryAttempts=3});
+        var repository=new PaymentRepository(dataSource!,options);
+        var intent=repository.Create(organization,new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"void-recovery",25m,"USD","card"),new("order-service",correlation));
+        var authorization=repository.BeginAuthorization(organization,intent.Id,new("order-service",correlation));
+        repository.CompleteAuthorization(organization,intent.Id,authorization.Intent.ConcurrencyVersion,ProviderAuthorizationOutcome.Authorized,"auth-void",null,new("order-service",correlation));
+        var started=repository.BeginVoid(organization,intent.Id,new("order-service",correlation));
+        Assert.True(started.Acquired); Assert.False(repository.BeginVoid(organization,intent.Id,new("order-service",Guid.NewGuid())).Acquired);
+        var unknown=repository.CompleteVoid(organization,intent.Id,started.Intent.ConcurrencyVersion,ProviderVoidOutcome.Unknown,null,"provider_timeout",new("order-service",correlation));
+        Assert.Equal("void_unknown",unknown.Status);
+        var restarted=new PaymentRepository(dataSource!,options);
+        var claim=restarted.ClaimExpiredVoid(organization,intent.Id,new("payment-void-recovery-worker",Guid.NewGuid()));
+        Assert.True(claim.Acquired);
+        var reconciled=restarted.ReconcileVoid(organization,intent.Id,claim.Intent.ConcurrencyVersion,ProviderVoidOutcome.Voided,"void-recovered",null,new("payment-void-recovery-worker",correlation));
+        Assert.Equal("voided",reconciled.Status); Assert.Equal("void-recovered",reconciled.ProviderVoidId);
+        await using NpgsqlConnection connection=await dataSource!.OpenConnectionAsync();
+        Assert.Equal(1L,await ScalarAsync(connection,"SELECT count(*) FROM payment_audit_records WHERE payment_intent_id=$1 AND action='payment.void.reconciled'",intent.Id));
+        Assert.Equal(1L,await ScalarAsync(connection,"SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.void-reconciled.v1'",intent.Id));
     }
 
     [PaymentDatabaseFact]
@@ -398,7 +422,7 @@ public sealed class PaymentPostgresIntegrationTests : IAsyncLifetime
     private sealed record ProcessKillMarker(string Schema,Guid OrganizationId,Guid IntentId,Guid CorrelationId);
 
     private const string SchemaSql="""
-        CREATE TABLE payment_intents(id uuid PRIMARY KEY,organization_id uuid NOT NULL,restaurant_id uuid NOT NULL,branch_id uuid NOT NULL,order_id uuid NOT NULL,idempotency_key text NOT NULL,amount numeric(19,4) NOT NULL CHECK(amount>0),currency char(3) NOT NULL,payment_method text NOT NULL,status text NOT NULL CHECK(status IN ('pending','authorizing','unknown','requires_action','authorized','capturing','capture_unknown','captured','failed')),expires_at_utc timestamptz NULL,authorized_at_utc timestamptz NULL,captured_at_utc timestamptz NULL,failed_at_utc timestamptz NULL,created_at_utc timestamptz NOT NULL,updated_at_utc timestamptz NOT NULL,concurrency_version bigint NOT NULL DEFAULT 1,provider_authorization_id text NULL UNIQUE,failure_code text NULL,lease_owner text NULL,lease_expires_at_utc timestamptz NULL,authorization_attempt_count integer NOT NULL DEFAULT 0,last_reconciled_at_utc timestamptz NULL,provider_capture_id text NULL UNIQUE,capture_lease_owner text NULL,capture_lease_expires_at_utc timestamptz NULL,capture_attempt_count integer NOT NULL DEFAULT 0,capture_last_reconciled_at_utc timestamptz NULL,CONSTRAINT uq_payment_intents_organization_restaurant_idempotency UNIQUE(organization_id,restaurant_id,idempotency_key));
+        CREATE TABLE payment_intents(id uuid PRIMARY KEY,organization_id uuid NOT NULL,restaurant_id uuid NOT NULL,branch_id uuid NOT NULL,order_id uuid NOT NULL,idempotency_key text NOT NULL,amount numeric(19,4) NOT NULL CHECK(amount>0),currency char(3) NOT NULL,payment_method text NOT NULL,status text NOT NULL,expires_at_utc timestamptz NULL,authorized_at_utc timestamptz NULL,captured_at_utc timestamptz NULL,failed_at_utc timestamptz NULL,created_at_utc timestamptz NOT NULL,updated_at_utc timestamptz NOT NULL,concurrency_version bigint NOT NULL DEFAULT 1,provider_authorization_id text NULL UNIQUE,failure_code text NULL,lease_owner text NULL,lease_expires_at_utc timestamptz NULL,authorization_attempt_count integer NOT NULL DEFAULT 0,last_reconciled_at_utc timestamptz NULL,provider_capture_id text NULL UNIQUE,capture_lease_owner text NULL,capture_lease_expires_at_utc timestamptz NULL,capture_attempt_count integer NOT NULL DEFAULT 0,capture_last_reconciled_at_utc timestamptz NULL,provider_void_id text NULL,void_lease_owner text NULL,void_lease_expires_at_utc timestamptz NULL,void_attempt_count integer NOT NULL DEFAULT 0,void_last_reconciled_at_utc timestamptz NULL,voided_at_utc timestamptz NULL,CONSTRAINT uq_payment_intents_organization_restaurant_idempotency UNIQUE(organization_id,restaurant_id,idempotency_key));
         CREATE TABLE payment_audit_records(id uuid PRIMARY KEY,organization_id uuid NOT NULL,restaurant_id uuid NOT NULL,branch_id uuid NOT NULL,order_id uuid NOT NULL,payment_intent_id uuid NOT NULL REFERENCES payment_intents(id),action text NOT NULL,actor_subject_id text NOT NULL CHECK(char_length(btrim(actor_subject_id)) BETWEEN 1 AND 200 AND actor_subject_id !~ '[[:cntrl:]]'),occurred_at_utc timestamptz NOT NULL);
         CREATE FUNCTION prevent_payment_audit_mutation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'payment_audit_records is append-only'; END; $$;
         CREATE TRIGGER tr_payment_audit_records_append_only BEFORE UPDATE OR DELETE ON payment_audit_records FOR EACH ROW EXECUTE FUNCTION prevent_payment_audit_mutation();

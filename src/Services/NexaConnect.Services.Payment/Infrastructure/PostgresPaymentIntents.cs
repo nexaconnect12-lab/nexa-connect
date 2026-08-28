@@ -13,6 +13,8 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
     private readonly TimeSpan leaseDuration = options?.Value.LeaseDuration > TimeSpan.Zero ? options.Value.LeaseDuration : TimeSpan.FromMinutes(2);
     private readonly int maximumCaptureRecoveryAttempts = Math.Min(options?.Value.MaximumCaptureRecoveryAttempts > 0
         ? options.Value.MaximumCaptureRecoveryAttempts : 3, 100);
+    private readonly int maximumVoidRecoveryAttempts = Math.Min(options?.Value.MaximumVoidRecoveryAttempts > 0
+        ? options.Value.MaximumVoidRecoveryAttempts : 3, 100);
     public PaymentIntent Create(Guid organizationId, CreatePaymentIntent command, PaymentMutationContext context)
     {
         if (context is null || string.IsNullOrWhiteSpace(context.ActorSubjectId) || context.ActorSubjectId.Length > 200
@@ -69,7 +71,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
     public PaymentIntent? Get(Guid organizationId, Guid id)
     {
         const string sql = """
-            SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc,provider_capture_id,capture_lease_owner,capture_lease_expires_at_utc,capture_attempt_count,capture_last_reconciled_at_utc
+            SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc,provider_capture_id,capture_lease_owner,capture_lease_expires_at_utc,capture_attempt_count,capture_last_reconciled_at_utc,provider_void_id,void_lease_owner,void_lease_expires_at_utc,void_attempt_count,void_last_reconciled_at_utc
             FROM payment_intents WHERE organization_id=$1 AND id=$2;
             """;
         using NpgsqlConnection connection = dataSource.OpenConnection();
@@ -282,7 +284,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
     public IReadOnlyCollection<PaymentIntent> FindExpiredCaptures()
     {
         using NpgsqlConnection connection = dataSource.OpenConnection();
-        using var command = new NpgsqlCommand("SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc,provider_capture_id,capture_lease_owner,capture_lease_expires_at_utc,capture_attempt_count,capture_last_reconciled_at_utc FROM payment_intents WHERE status='capture_unknown' OR (status='capturing' AND capture_lease_expires_at_utc <= now()) ORDER BY capture_lease_expires_at_utc NULLS FIRST LIMIT 100", connection);
+        using var command = new NpgsqlCommand("SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc,provider_capture_id,capture_lease_owner,capture_lease_expires_at_utc,capture_attempt_count,capture_last_reconciled_at_utc,provider_void_id,void_lease_owner,void_lease_expires_at_utc,void_attempt_count,void_last_reconciled_at_utc FROM payment_intents WHERE status='capture_unknown' OR (status='capturing' AND capture_lease_expires_at_utc <= now()) ORDER BY capture_lease_expires_at_utc NULLS FIRST LIMIT 100", connection);
         using NpgsqlDataReader reader = command.ExecuteReader(); var result = new List<PaymentIntent>();
         while (reader.Read()) result.Add(Read(reader)); return result;
     }
@@ -314,6 +316,86 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
         transaction.Commit(); return reconciled;
     }
 
+    public PaymentAuthorizationLease BeginVoid(Guid organizationId, Guid id, PaymentMutationContext context)
+    {
+        ValidateContext(context); DateTimeOffset now = DateTimeOffset.UtcNow;
+        using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
+        PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
+        if (intent.Status is "voided" or "voiding" or "void_unknown") { transaction.Commit(); return new(intent, false); }
+        if (intent.Status == "captured") throw new InvalidOperationException("A captured payment cannot be voided; use the refund workflow.");
+        if (intent.Status != "authorized") throw new InvalidOperationException("Only an authorized, uncaptured payment intent can be voided.");
+        using var command = new NpgsqlCommand("UPDATE payment_intents SET status='voiding',failure_code=NULL,void_lease_owner=$1,void_lease_expires_at_utc=$2,void_attempt_count=void_attempt_count+1,updated_at_utc=$3,concurrency_version=concurrency_version+1 WHERE organization_id=$4 AND id=$5 AND concurrency_version=$6", connection, transaction);
+        command.Parameters.AddWithValue(context.ActorSubjectId.Trim()); command.Parameters.AddWithValue(now.Add(leaseDuration)); command.Parameters.AddWithValue(now); command.Parameters.AddWithValue(organizationId); command.Parameters.AddWithValue(id); command.Parameters.AddWithValue(intent.ConcurrencyVersion);
+        if (command.ExecuteNonQuery() != 1) throw new PaymentConcurrencyException("The payment intent changed before void started.");
+        PaymentIntent started = ReadForUpdate(connection, transaction, organizationId, id)!;
+        AppendLifecycle(connection, transaction, started, "payment.void.started", context, now,
+            new PaymentVoidStartedV1(Guid.NewGuid(), context.CorrelationId, now, organizationId, started.OrderId, id));
+        transaction.Commit(); return new(started, true);
+    }
+
+    public PaymentIntent CompleteVoid(Guid organizationId, Guid id, long expectedVersion, ProviderVoidOutcome outcome,
+        string? providerVoidId, string? failureCode, PaymentMutationContext context) =>
+        CommitVoid(organizationId, id, expectedVersion, outcome, providerVoidId, failureCode, context, false);
+
+    public PaymentAuthorizationLease ClaimExpiredVoid(Guid organizationId, Guid id, PaymentMutationContext context)
+    {
+        ValidateContext(context); DateTimeOffset now = DateTimeOffset.UtcNow;
+        using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
+        PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
+        if (intent.Status == "voiding" && intent.VoidLeaseExpiresAtUtc > now) { transaction.Commit(); return new(intent, false); }
+        if (intent.Status is not ("voiding" or "void_unknown")) { transaction.Commit(); return new(intent, false); }
+        using var command = new NpgsqlCommand("UPDATE payment_intents SET status='voiding',void_lease_owner=$1,void_lease_expires_at_utc=$2,void_attempt_count=void_attempt_count+1,updated_at_utc=$3,concurrency_version=concurrency_version+1 WHERE organization_id=$4 AND id=$5 AND concurrency_version=$6", connection, transaction);
+        command.Parameters.AddWithValue(context.ActorSubjectId.Trim()); command.Parameters.AddWithValue(now.Add(leaseDuration)); command.Parameters.AddWithValue(now); command.Parameters.AddWithValue(organizationId); command.Parameters.AddWithValue(id); command.Parameters.AddWithValue(intent.ConcurrencyVersion);
+        if (command.ExecuteNonQuery() != 1) throw new PaymentConcurrencyException("The void recovery claim changed before acquisition.");
+        PaymentIntent claimed = ReadForUpdate(connection, transaction, organizationId, id)!; transaction.Commit(); return new(claimed, true);
+    }
+
+    public IReadOnlyCollection<PaymentIntent> FindExpiredVoids()
+    {
+        using NpgsqlConnection connection = dataSource.OpenConnection();
+        using var command = new NpgsqlCommand("SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc,provider_capture_id,capture_lease_owner,capture_lease_expires_at_utc,capture_attempt_count,capture_last_reconciled_at_utc,provider_void_id,void_lease_owner,void_lease_expires_at_utc,void_attempt_count,void_last_reconciled_at_utc FROM payment_intents WHERE status='void_unknown' OR (status='voiding' AND void_lease_expires_at_utc <= now()) ORDER BY void_lease_expires_at_utc NULLS FIRST LIMIT 100", connection);
+        using NpgsqlDataReader reader = command.ExecuteReader(); var result = new List<PaymentIntent>(); while (reader.Read()) result.Add(Read(reader)); return result;
+    }
+
+    public PaymentIntent ReconcileVoid(Guid organizationId, Guid id, long expectedVersion, ProviderVoidOutcome outcome,
+        string? providerVoidId, string? failureCode, PaymentMutationContext context) =>
+        CommitVoid(organizationId, id, expectedVersion, outcome, providerVoidId, failureCode, context, true);
+
+    private PaymentIntent CommitVoid(Guid organizationId, Guid id, long expectedVersion, ProviderVoidOutcome outcome,
+        string? providerVoidId, string? failureCode, PaymentMutationContext context, bool reconciliation)
+    {
+        ValidateContext(context);
+        if (outcome == ProviderVoidOutcome.Voided && !IsSafeProviderReference(providerVoidId ?? string.Empty)) throw new ArgumentException("A successful void requires a valid provider reference.");
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
+        PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
+        if (intent.Status == "voided") { transaction.Commit(); return intent; }
+        if (intent.Status != "voiding" || intent.ConcurrencyVersion != expectedVersion) throw new PaymentConcurrencyException("The payment intent changed while void was in progress.");
+        bool exhausted = reconciliation && outcome == ProviderVoidOutcome.Unknown && intent.VoidAttemptCount >= maximumVoidRecoveryAttempts;
+        string status = outcome == ProviderVoidOutcome.Voided ? "voided" : outcome == ProviderVoidOutcome.Failed ? "void_failed" : exhausted ? "requires_action" : "void_unknown";
+        string? safeFailure = outcome == ProviderVoidOutcome.Voided ? null : exhausted ? "void_attempts_exhausted" : NormalizeVoidFailure(failureCode);
+        using var command = new NpgsqlCommand("UPDATE payment_intents SET status=$1,provider_void_id=$2,failure_code=$3,void_lease_owner=NULL,void_lease_expires_at_utc=NULL,void_last_reconciled_at_utc=CASE WHEN $4 THEN $5 ELSE void_last_reconciled_at_utc END,voided_at_utc=CASE WHEN $1='voided' THEN $5 ELSE voided_at_utc END,updated_at_utc=$5,concurrency_version=concurrency_version+1 WHERE organization_id=$6 AND id=$7 AND concurrency_version=$8", connection, transaction);
+        command.Parameters.AddWithValue(status); command.Parameters.AddWithValue((object?)(outcome == ProviderVoidOutcome.Voided ? providerVoidId!.Trim() : null) ?? DBNull.Value); command.Parameters.AddWithValue((object?)safeFailure ?? DBNull.Value); command.Parameters.AddWithValue(reconciliation); command.Parameters.AddWithValue(now); command.Parameters.AddWithValue(organizationId); command.Parameters.AddWithValue(id); command.Parameters.AddWithValue(expectedVersion);
+        if (command.ExecuteNonQuery() != 1) throw new PaymentConcurrencyException("The payment intent changed while void committed.");
+        PaymentIntent result = ReadForUpdate(connection, transaction, organizationId, id)!;
+        IIntegrationEvent lifecycle = reconciliation
+            ? new PaymentVoidReconciledV1(Guid.NewGuid(), context.CorrelationId, now, organizationId, result.OrderId, id, status, safeFailure)
+            : outcome == ProviderVoidOutcome.Voided ? new PaymentVoidedV1(Guid.NewGuid(), context.CorrelationId, now, organizationId, result.OrderId, id)
+            : outcome == ProviderVoidOutcome.Failed ? new PaymentVoidFailedV1(Guid.NewGuid(), context.CorrelationId, now, organizationId, result.OrderId, id, safeFailure!)
+            : new PaymentVoidUncertainV1(Guid.NewGuid(), context.CorrelationId, now, organizationId, result.OrderId, id, safeFailure!);
+        AppendLifecycle(connection, transaction, result, reconciliation ? "payment.void.reconciled" : outcome == ProviderVoidOutcome.Voided ? "payment.void.succeeded" : outcome == ProviderVoidOutcome.Failed ? "payment.void.failed" : "payment.void.uncertain", context, now, lifecycle);
+        transaction.Commit(); return result;
+    }
+
+    private static string NormalizeVoidFailure(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "provider_void_status_unknown";
+        string normalized = value.Trim().ToLowerInvariant();
+        if (normalized is "provider_timeout" or "provider_unavailable" or "provider_void_failed" or "provider_void_status_missing" or "provider_void_status_unknown") return normalized;
+        if (normalized.StartsWith("provider_http_", StringComparison.Ordinal) && int.TryParse(normalized[14..], out int code) && code is >= 400 and <= 599) return normalized;
+        return "provider_void_status_unknown";
+    }
+
     private static PaymentIntent Read(NpgsqlDataReader reader) => new(reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2),
         reader.GetGuid(3), reader.GetGuid(4), reader.GetDecimal(5), reader.GetString(6), reader.GetString(7), reader.GetString(8),
         reader.GetFieldValue<DateTimeOffset>(9), reader.FieldCount > 10 ? reader.GetInt64(10) : 1,
@@ -327,11 +409,16 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
         reader.FieldCount > 18 && !reader.IsDBNull(18) ? reader.GetString(18) : null,
         reader.FieldCount > 19 && !reader.IsDBNull(19) ? reader.GetFieldValue<DateTimeOffset>(19) : null,
         reader.FieldCount > 20 && !reader.IsDBNull(20) ? reader.GetInt32(20) : 0,
-        reader.FieldCount > 21 && !reader.IsDBNull(21) ? reader.GetFieldValue<DateTimeOffset>(21) : null);
+        reader.FieldCount > 21 && !reader.IsDBNull(21) ? reader.GetFieldValue<DateTimeOffset>(21) : null,
+        reader.FieldCount > 22 && !reader.IsDBNull(22) ? reader.GetString(22) : null,
+        reader.FieldCount > 23 && !reader.IsDBNull(23) ? reader.GetString(23) : null,
+        reader.FieldCount > 24 && !reader.IsDBNull(24) ? reader.GetFieldValue<DateTimeOffset>(24) : null,
+        reader.FieldCount > 25 && !reader.IsDBNull(25) ? reader.GetInt32(25) : 0,
+        reader.FieldCount > 26 && !reader.IsDBNull(26) ? reader.GetFieldValue<DateTimeOffset>(26) : null);
 
     private static PaymentIntent? ReadForUpdate(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid organizationId, Guid id)
     {
-        using var command = new NpgsqlCommand("SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc,provider_capture_id,capture_lease_owner,capture_lease_expires_at_utc,capture_attempt_count,capture_last_reconciled_at_utc FROM payment_intents WHERE organization_id=$1 AND id=$2 FOR UPDATE", connection, transaction);
+        using var command = new NpgsqlCommand("SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc,provider_capture_id,capture_lease_owner,capture_lease_expires_at_utc,capture_attempt_count,capture_last_reconciled_at_utc,provider_void_id,void_lease_owner,void_lease_expires_at_utc,void_attempt_count,void_last_reconciled_at_utc FROM payment_intents WHERE organization_id=$1 AND id=$2 FOR UPDATE", connection, transaction);
         command.Parameters.AddWithValue(organizationId); command.Parameters.AddWithValue(id);
         using NpgsqlDataReader reader = command.ExecuteReader(); return reader.Read() ? Read(reader) : null;
     }
@@ -339,7 +426,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
     private static PaymentIntent? ReadExisting(NpgsqlConnection connection, NpgsqlTransaction transaction,
         Guid organizationId, Guid restaurantId, string idempotencyKey)
     {
-        using var command = new NpgsqlCommand("SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc,provider_capture_id,capture_lease_owner,capture_lease_expires_at_utc,capture_attempt_count,capture_last_reconciled_at_utc FROM payment_intents WHERE organization_id=$1 AND restaurant_id=$2 AND idempotency_key=$3", connection, transaction);
+        using var command = new NpgsqlCommand("SELECT id,organization_id,restaurant_id,branch_id,order_id,amount,currency,payment_method,status,created_at_utc,concurrency_version,provider_authorization_id,failure_code,lease_owner,lease_expires_at_utc,authorization_attempt_count,last_reconciled_at_utc,provider_capture_id,capture_lease_owner,capture_lease_expires_at_utc,capture_attempt_count,capture_last_reconciled_at_utc,provider_void_id,void_lease_owner,void_lease_expires_at_utc,void_attempt_count,void_last_reconciled_at_utc FROM payment_intents WHERE organization_id=$1 AND restaurant_id=$2 AND idempotency_key=$3", connection, transaction);
         command.Parameters.AddWithValue(organizationId); command.Parameters.AddWithValue(restaurantId); command.Parameters.AddWithValue(idempotencyKey);
         using NpgsqlDataReader reader = command.ExecuteReader(); return reader.Read() ? Read(reader) : null;
     }
@@ -378,6 +465,11 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
             PaymentCaptureFailedV1 => "payment.capture-failed.v1",
             PaymentCaptureUncertainV1 => "payment.capture-uncertain.v1",
             PaymentCaptureReconciledV1 => "payment.capture-reconciled.v1",
+            PaymentVoidStartedV1 => "payment.void-started.v1",
+            PaymentVoidedV1 => "payment.voided.v1",
+            PaymentVoidFailedV1 => "payment.void-failed.v1",
+            PaymentVoidUncertainV1 => "payment.void-uncertain.v1",
+            PaymentVoidReconciledV1 => "payment.void-reconciled.v1",
             _ => throw new InvalidOperationException("Unsupported payment lifecycle event.")
         };
         Enqueue(connection, transaction, integrationEvent.EventId, eventType, intent.Id, integrationEvent, context.CorrelationId, occurredAt);

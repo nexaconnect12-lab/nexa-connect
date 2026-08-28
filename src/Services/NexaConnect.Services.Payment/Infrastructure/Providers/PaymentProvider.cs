@@ -38,6 +38,8 @@ public interface IPaymentProvider
         => Task.FromResult(new ProviderCaptureResult(ProviderCaptureOutcome.Unknown, null, "provider_capture_status_unavailable"));
     Task<ProviderVoidResult> VoidAsync(PaymentIntent intent, CancellationToken cancellationToken)
         => Task.FromResult(new ProviderVoidResult(ProviderVoidOutcome.Unknown, null, "provider_void_unavailable"));
+    Task<ProviderVoidResult> GetVoidStatusAsync(PaymentIntent intent, CancellationToken cancellationToken)
+        => Task.FromResult(new ProviderVoidResult(ProviderVoidOutcome.Unknown, null, "provider_void_status_unavailable"));
 }
 
 public sealed class HttpPaymentProvider(HttpClient client, IOptions<PaymentProviderOptions> options) : IPaymentProvider
@@ -139,6 +141,24 @@ public sealed class HttpPaymentProvider(HttpClient client, IOptions<PaymentProvi
             : new(ProviderVoidOutcome.Failed, null, result?.FailureReason ?? "provider_void_failed");
     }
 
+    public async Task<ProviderVoidResult> GetVoidStatusAsync(PaymentIntent intent, CancellationToken cancellationToken)
+    {
+        using HttpResponseMessage response = await client.GetAsync($"{options.Value.VoidStatusPath.TrimEnd('/')}/{intent.Id:D}", cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return new(ProviderVoidOutcome.Unknown, null, "provider_void_status_missing");
+        if (!response.IsSuccessStatusCode)
+            return new(ProviderVoidOutcome.Unknown, null, $"provider_http_{(int)response.StatusCode}");
+        ProviderVoidStatusResponse? result = await response.Content.ReadFromJsonAsync<ProviderVoidStatusResponse>(cancellationToken);
+        ProviderVoidOutcome outcome = result?.Status?.Trim().ToLowerInvariant() switch
+        {
+            "voided" when !string.IsNullOrWhiteSpace(result.ProviderTransactionId) => ProviderVoidOutcome.Voided,
+            "failed" => ProviderVoidOutcome.Failed,
+            _ => ProviderVoidOutcome.Unknown
+        };
+        return new(outcome, outcome == ProviderVoidOutcome.Voided ? result!.ProviderTransactionId!.Trim() : null,
+            outcome == ProviderVoidOutcome.Unknown ? result?.FailureReason ?? "provider_void_status_unknown" : result?.FailureReason);
+    }
+
     private sealed record ProviderAuthorizationRequest(Guid PaymentIntentId, Guid OrderId, decimal Amount, string Currency, string PaymentMethod);
     private sealed record ProviderAuthorizationResponse(bool Succeeded, string? ProviderTransactionId, string? FailureReason);
     private sealed record ProviderAuthorizationStatusResponse(string? Status, string? ProviderTransactionId, string? FailureReason);
@@ -147,6 +167,7 @@ public sealed class HttpPaymentProvider(HttpClient client, IOptions<PaymentProvi
     private sealed record ProviderCaptureStatusResponse(string? Status, string? ProviderTransactionId, string? FailureReason);
     private sealed record ProviderVoidRequest(Guid PaymentIntentId, string ProviderAuthorizationId);
     private sealed record ProviderVoidResponse(bool Succeeded, string? ProviderTransactionId, string? FailureReason);
+    private sealed record ProviderVoidStatusResponse(string? Status, string? ProviderTransactionId, string? FailureReason);
 }
 
 public sealed class PaymentProviderOptions
@@ -157,9 +178,12 @@ public sealed class PaymentProviderOptions
     public string CapturePath { get; set; } = "v1/captures";
     public string CaptureStatusPath { get; set; } = "v1/captures";
     public string VoidPath { get; set; } = "v1/voids";
+    public string VoidStatusPath { get; set; } = "v1/voids";
     public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromMinutes(2);
     public int MaximumAuthorizationAttempts { get; set; } = 3;
     public int MaximumCaptureRecoveryAttempts { get; set; } = 3;
+    public int MaximumVoidRecoveryAttempts { get; set; } = 3;
     public TimeSpan RecoveryInterval { get; set; } = TimeSpan.FromSeconds(30);
     public bool CaptureRecoveryEnabled { get; set; } = true;
+    public bool VoidRecoveryEnabled { get; set; } = true;
 }

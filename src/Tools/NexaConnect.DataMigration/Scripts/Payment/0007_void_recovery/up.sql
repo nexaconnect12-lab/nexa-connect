@@ -1,0 +1,15 @@
+ALTER TABLE payment_intents ADD COLUMN provider_void_id text NULL;
+ALTER TABLE payment_intents ADD COLUMN void_lease_owner text NULL;
+ALTER TABLE payment_intents ADD COLUMN void_lease_expires_at_utc timestamptz NULL;
+ALTER TABLE payment_intents ADD COLUMN void_attempt_count integer NOT NULL DEFAULT 0;
+ALTER TABLE payment_intents ADD COLUMN void_last_reconciled_at_utc timestamptz NULL;
+ALTER TABLE payment_intents ADD COLUMN voided_at_utc timestamptz NULL;
+ALTER TABLE payment_intents DROP CONSTRAINT ck_payment_intents_status;
+ALTER TABLE payment_intents ADD CONSTRAINT ck_payment_intents_status CHECK (status IN ('pending','authorizing','unknown','requires_action','authorized','capturing','capture_unknown','captured','failed','cancelled','expired','voiding','void_unknown','voided','void_failed'));
+ALTER TABLE payment_intents ADD CONSTRAINT ck_payment_intents_void_provider_ref CHECK (provider_void_id IS NULL OR char_length(btrim(provider_void_id)) BETWEEN 1 AND 200);
+ALTER TABLE payment_intents ADD CONSTRAINT ck_payment_intents_void_lease_owner CHECK (void_lease_owner IS NULL OR char_length(btrim(void_lease_owner)) BETWEEN 1 AND 200);
+ALTER TABLE payment_intents ADD CONSTRAINT ck_payment_intents_void_attempts CHECK (void_attempt_count BETWEEN 0 AND 100);
+CREATE UNIQUE INDEX uq_payment_intents_provider_void ON payment_intents(provider_void_id) WHERE provider_void_id IS NOT NULL;
+CREATE INDEX ix_payment_intents_expired_void_leases ON payment_intents(void_lease_expires_at_utc) WHERE status='voiding' AND void_lease_expires_at_utc IS NOT NULL;
+ALTER TABLE payment_audit_records DROP CONSTRAINT ck_payment_audit_records_action;
+ALTER TABLE payment_audit_records ADD CONSTRAINT ck_payment_audit_records_action CHECK (action IN ('payment.intent.created','payment.authorization.started','payment.authorization.succeeded','payment.authorization.failed','payment.authorization.uncertain','payment.authorization.reconciled','payment.capture.started','payment.capture.succeeded','payment.capture.failed','payment.capture.uncertain','payment.capture.reconciled','payment.void.started','payment.void.succeeded','payment.void.failed','payment.void.uncertain','payment.void.reconciled'));

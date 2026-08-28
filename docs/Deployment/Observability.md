@@ -10,7 +10,7 @@
 - ASP.NET Core and outbound HTTP tracing, plus runtime and HTTP metrics;
 - validated `X-Correlation-ID` propagation and request completion/failure logs.
 - outbound propagation of the validated correlation identifier through registered Phase 4 HTTP clients;
-- anonymous `/health` process-liveness endpoints in the initial adopters. Payment additionally exposes `/health/live` and `/health/ready`; PostgreSQL readiness requires a reachable database at migration 6 or newer and deliberately excludes provider availability. Dependency readiness remains service-specific work elsewhere.
+- anonymous `/health` process-liveness endpoints in the initial adopters. Payment additionally exposes `/health/live` and `/health/ready`; PostgreSQL readiness requires a reachable database at migration 7 or newer and deliberately excludes provider availability. Dependency readiness remains service-specific work elsewhere.
 
 The middleware records method, path, status, duration, correlation ID, and trace ID. It never records request or response bodies, query strings, authorization headers, cookies, tokens, secrets, or arbitrary headers. Application code must not attach payment data or unrestricted personal information to log scopes.
 

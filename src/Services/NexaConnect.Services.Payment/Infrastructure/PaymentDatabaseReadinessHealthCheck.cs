@@ -5,7 +5,7 @@ namespace NexaConnect.Services.Payment.Infrastructure;
 
 public sealed class PaymentDatabaseReadinessHealthCheck(NpgsqlDataSource dataSource) : IHealthCheck
 {
-    public const int RequiredSchemaVersion = 6;
+    public const int RequiredSchemaVersion = 7;
 
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,

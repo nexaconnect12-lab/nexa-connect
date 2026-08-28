@@ -24,6 +24,8 @@ Static validation has confirmed metadata parsing, create/drop parity, PostgreSQL
 
 Payment migrations 3-4 and Reporting migrations 8-9 add authorization lifecycle and reconciliation; Payment migration 5 and Reporting migration 10 add capture state/vocabulary; Payment migration 6, Order migration 2, and Reporting migration 11 add recoverable capture status, durable Order consumption, and reconciliation audit vocabulary. Sixteen coordinated PostgreSQL 17/RabbitMQ 4 cases passed locally on 2026-08-28, and the separate fault harness passed child-process termination with fresh-process reconciliation plus full RabbitMQ-container restart. Production legacy backfill still requires authoritative Order ownership reconciliation; concrete-provider and alert-delivery validation remain environment-specific release evidence.
 
+Payment migration 7 adds sanitized provider void references, recoverable void leases, bounded attempts, reconciliation timestamps, and a downgrade guard that refuses removal while any void lifecycle/recovery state remains. Reporting migration 12 accepts void lifecycle and reconciliation audit vocabulary. Local PostgreSQL evidence passed successful transactional `void_unknown` recovery to `voided` and the generated-database `0→7→6→7` runner lifecycle; the disposable database was removed afterward.
+
 Kitchen migration 3 adds organization attribution, conflict fingerprints, station-distinct tenant uniqueness, append-only audit, and append-only protection for migration-1 status history while preserving migration-1 outbox and migration-2 inbox ownership. Legacy rows require Order-backed reconciliation. Kitchen 0→3→2→3 and Reporting migration-5 projection/replay passed against local PostgreSQL 17; RabbitMQ recovery confirmed Kitchen lifecycle/audit publication over a new connection.
 
 Authorization migration 3 backfills `kitchen.ticket.read` and `kitchen.ticket.transition` for existing `tenant-admin` and `store-manager` role assignments. It adds no tables or indexes; downgrade removes only those permission associations. Opt-in runner acceptance seeds pre-existing roles and verifies the 2→3→2 backfill/removal behavior in a disposable PostgreSQL database.
@@ -315,7 +317,7 @@ Sensitive personal data must be minimized, access-controlled, and excluded from 
 
 ### 6.7 Payment
 
-- `payment_intents` — requested amount, currency, order reference, idempotency key, concurrency-controlled authorization/capture state, sanitized authorization and capture references, and bounded failure category.
+- `payment_intents` — requested amount, currency, order reference, idempotency key, concurrency-controlled authorization/capture/void state, sanitized authorization/capture/void references, bounded failure category, and separate bounded recovery leases, attempts, and reconciliation timestamps.
 - `provider_transactions` — provider identifiers and sanitized transaction results.
 - `refunds` — requested and completed refunds.
 - `reconciliation_records` — settlement and reconciliation references.
@@ -355,7 +357,7 @@ Image binaries belong in MinIO or S3-compatible object storage. PostgreSQL store
 - `shift_cash_facts` — shift totals, tenders, cash movements, and variance measures.
 - `projection_checkpoints` — last processed event position for each reporting projector.
 
-Reporting tables are rebuildable projections. Migration 3 adds bounded `activity_records`, keyed by event ID and indexed for tenant cursor reads; migrations 4-11 expand database-enforced vocabulary through Payment capture reconciliation audit contracts. Participating owning services insert local audit plus outbox events atomically. Reporting deduplicates through `inbox_messages` and acknowledges RabbitMQ after handling. Vocabulary downgrades delete incompatible projections and their completed inbox markers, requiring retained source events for controlled replay after re-upgrade. Retention/archive and a full replay checkpoint remain unimplemented; broker retention and source outboxes are the current recovery inputs.
+Reporting tables are rebuildable projections. Migration 3 adds bounded `activity_records`, keyed by event ID and indexed for tenant cursor reads; migrations 4-12 expand database-enforced vocabulary through Payment void reconciliation audit contracts. Participating owning services insert local audit plus outbox events atomically. Reporting deduplicates through `inbox_messages` and acknowledges RabbitMQ after handling. Vocabulary downgrades delete incompatible projections and their completed inbox markers, requiring retained source events for controlled replay after re-upgrade. Retention/archive and a full replay checkpoint remain unimplemented; broker retention and source outboxes are the current recovery inputs.
 
 ## 7. Branch-local data
 
