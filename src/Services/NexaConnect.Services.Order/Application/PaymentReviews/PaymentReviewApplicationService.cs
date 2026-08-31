@@ -9,6 +9,12 @@ public sealed record PaymentReviewCase(Guid OrderId,Guid OrganizationId,Guid Bra
 public sealed record ResolvePaymentReviewCommand(Guid OrganizationId,Guid OrderId,string Resolution,string Reason,
     long ExpectedConcurrencyVersion,string ActorSubjectId,Guid CorrelationId,Guid AuthorizationDecisionId);
 
+public sealed record PaymentReviewHistoryEntry(Guid Id,string Action,string Reason,string ActorSubjectId,Guid AuthorizationDecisionId,long ConcurrencyVersion,DateTimeOffset OccurredAtUtc);
+public interface IPaymentReviewHistoryRepository
+{
+    Task<IReadOnlyCollection<PaymentReviewHistoryEntry>> ReadHistoryAsync(Guid organizationId,Guid orderId,CancellationToken cancellationToken);
+}
+
 public interface IPaymentReviewRepository
 {
     Task<IReadOnlyCollection<PaymentReviewCase>> ListOpenAsync(Guid organizationId,Guid branchId,int limit,CancellationToken cancellationToken);
@@ -23,6 +29,9 @@ public sealed class PaymentReviewApplicationService(IOrderRepository orders,IInv
     IKitchenPort kitchen,TimeProvider? timeProvider=null)
 {
     private readonly TimeProvider clock=timeProvider??TimeProvider.System;
+
+    public Task<IReadOnlyCollection<PaymentReviewHistoryEntry>> HistoryAsync(Guid organizationId,Guid orderId,CancellationToken cancellationToken)=>
+        orders is IPaymentReviewHistoryRepository history?history.ReadHistoryAsync(organizationId,orderId,cancellationToken):throw new InvalidOperationException("Payment review history requires PostgreSQL persistence.");
 
     public Task<IReadOnlyCollection<PaymentReviewCase>> ListAsync(Guid organizationId,Guid branchId,int limit,CancellationToken cancellationToken)
     {
@@ -43,8 +52,8 @@ public sealed class PaymentReviewApplicationService(IOrderRepository orders,IInv
             throw new ArgumentException("Resolution, bounded reason, and actor are required.");
         PaymentReviewCase? review=await reviews.GetReviewAsync(command.OrganizationId,command.OrderId,cancellationToken);
         if(review is null)return null;
-        if(review.Status!="open")return review;
-        if(review.ConcurrencyVersion!=command.ExpectedConcurrencyVersion)throw new InvalidOperationException("Payment review concurrency conflict.");
+        if(review.Status!="open"||review.ConcurrencyVersion!=command.ExpectedConcurrencyVersion)
+            throw new InvalidOperationException("Payment review concurrency conflict; reload the current case before deciding.");
         OrderAggregate order=await lookup.GetAsync(command.OrderId,cancellationToken)??throw new InvalidOperationException("Reviewed order is missing.");
         if(order.OrganizationId!=command.OrganizationId||order.PaymentIntentId!=review.PaymentIntentId||order.Status!=OrderStatus.PaymentReview)
             throw new InvalidOperationException("Payment review ownership or state does not match the order.");

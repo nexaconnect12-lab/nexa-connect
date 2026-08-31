@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { PaymentReviewPanel } from "./PaymentReviewPanel";
 import { createRoot } from "react-dom/client";
 import {
   Alert,
@@ -248,7 +249,7 @@ function FeaturePanel({
 }: {
   section: Exclude<
     PortalSection,
-    "profile" | "products" | "users" | "configuration" | "branches" | "dashboards" | "reports" | "media" | "activity"
+    "profile" | "products" | "users" | "configuration" | "branches" | "dashboards" | "reports" | "media" | "activity" | "payment-reviews"
   >;
 }) {
   const state = useRequest<FeatureResponse>(scopedFeaturePath(section));
@@ -301,8 +302,9 @@ function App() {
     reports: "Reports",
     media: "Media management",
     activity: "Activity & audit history",
+    "payment-reviews": "Payment Reviews",
   };
-  const nav = sections.map((key) => ({
+  const nav = sections.filter(key=>key!=="payment-reviews"||tenant?.applicationCode==="nexa_connect").map((key) => ({
     key,
     label: labels[key],
     onSelect: () => {
@@ -357,6 +359,9 @@ function App() {
   else if (section === "reports") panel = <ReportsPanel />;
   else if (section === "media") panel = <MediaPanel />;
   else if (section === "activity") panel = <ActivityPanel />;
+  else if (section === "payment-reviews") panel = tenant.applicationCode==="nexa_connect"
+    ? <PaymentReviewPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} />
+    : <Alert type="warning" message="Payment Reviews require the NexaConnect product workspace."/>;
   else panel = <FeaturePanel section={section} />;
   return (
     <AuthorizationUiProvider can={() => true}>

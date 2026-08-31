@@ -1,5 +1,7 @@
 # Deployment Guide
 
+Payment Review UI deployment uses existing Order/Authorization migration 4, Reporting migration 13, and `Services__Order`; deploy the Order history/access endpoints before the updated Customer BFF/SPA. The Phase 8 launcher does not start Order. See [operator deployment and acceptance prerequisites](../API/Payment-Review-Operator-UI.md#deployment-diagnostics-and-verification); joined live operator acceptance remains a release gate.
+
 ## Local infrastructure
 
 1. Copy `.env.example` to `.env` and replace every placeholder password.

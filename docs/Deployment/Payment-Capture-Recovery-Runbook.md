@@ -40,6 +40,8 @@ Payment exposes anonymous `GET /health/live` for process liveness and `GET /heal
 
 ## Recovery actions
 
+For terminal Order `payment_review` cases, the Customer Portal now provides branch-scoped details/history and explicit confirm-void/resume-payment/escalate decisions. Follow [the operator workflow](../API/Payment-Review-Operator-UI.md) after independently reconciling provider/accounting evidence. The UI does not query the provider, capture funds, or override Payment state. On conflict or uncertain HTTP outcome, inspect refreshed case/history before another explicit decision; never assume a cancelled browser request cancelled server work.
+
 - `captured`: allow Payment to transactionally persist reconciliation and publish it. Order may then atomically become paid and publish `PaymentCompletedV1`.
 - `failed`: allow Payment to publish definitive failure. Order retries idempotent Inventory release and Kitchen cancellation before atomically becoming payment-failed.
 - unknown, unavailable, missing, malformed, or exhausted: retain `payment_pending`/`requires_action`. Escalate to provider/accounting review; do not compensate or retry capture as a new operation.

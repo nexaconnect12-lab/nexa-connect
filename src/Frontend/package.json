@@ -9,6 +9,7 @@
     "check": "tsc -b --pretty false",
     "test": "vitest run",
     "test:e2e:phase8": "playwright test --config playwright.phase8.config.mjs",
+    "test:e2e:payment-review": "playwright test --config playwright.payment-review.config.mjs",
     "test:e2e:phase8:install": "playwright install chromium",
     "test:watch": "vitest"
   },

@@ -8,8 +8,16 @@ using NexaConnect.Services.Order.Domain;
 namespace NexaConnect.Services.Order.Infrastructure.Persistence;
 
 public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
-    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderLookup, IPaymentReviewRepository
+    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderLookup, IPaymentReviewRepository, IPaymentReviewHistoryRepository
 {
+    public async Task<IReadOnlyCollection<PaymentReviewHistoryEntry>> ReadHistoryAsync(Guid organizationId,Guid orderId,CancellationToken cancellationToken)
+    {
+        await using var command=dataSource.CreateCommand("SELECT id,action,reason,actor_subject_id,authorization_decision_id,concurrency_version,occurred_at_utc FROM order_payment_review_history WHERE organization_id=$1 AND order_id=$2 ORDER BY concurrency_version DESC LIMIT 100");
+        command.Parameters.AddWithValue(organizationId);command.Parameters.AddWithValue(orderId);
+        var result=new List<PaymentReviewHistoryEntry>();await using var reader=await command.ExecuteReaderAsync(cancellationToken);
+        while(await reader.ReadAsync(cancellationToken))result.Add(new(reader.GetGuid(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),reader.GetGuid(4),reader.GetInt64(5),reader.GetFieldValue<DateTimeOffset>(6)));
+        return result;
+    }
     public async Task SaveAsync(OrderAggregate order, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

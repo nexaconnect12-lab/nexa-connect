@@ -16,7 +16,11 @@ using NexaConnect.Observability;
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-customer-bff");
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
-builder.Services.AddControllers();
+// MVC view services register the built-in anti-forgery authorization filter used by the JSON controller.
+builder.Services.AddControllersWithViews();
+builder.Services.AddAntiforgery(options=>{options.HeaderName="X-Nexa-CSRF";options.Cookie.Name="__Host-nexa-payment-review-csrf";options.Cookie.SecurePolicy=CookieSecurePolicy.Always;options.Cookie.HttpOnly=true;options.Cookie.SameSite=SameSiteMode.Strict;options.Cookie.Path="/";});
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.PaymentReviews.CustomerPaymentReviewService>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.PaymentReviews.ICustomerPaymentReviewPort,HttpCustomerPaymentReviewPort>(client=>client.BaseAddress=new Uri(builder.Configuration["Services:Order"]??throw new InvalidOperationException("Services:Order is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "customer-bff");
 builder.Services.AddNexaConnectBffSessionCache(builder.Configuration, builder.Environment);

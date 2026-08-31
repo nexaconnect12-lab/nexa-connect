@@ -119,6 +119,12 @@ public sealed class OrderMigrationRunnerAcceptanceTests
         await repository.ReleaseResolutionAsync(expired,firstClaim,default);
         Assert.True(await repository.ResolveAsync(restored,expired,"confirm_void","acceptance", "acceptance-operator",claimId,resolved,audit,default));
         Assert.False(await repository.ResolveAsync(restored,expired,"confirm_void","duplicate", "acceptance-operator",claimId,resolved,audit,default));
+        var entry=Assert.Single(await repository.ReadHistoryAsync(organizationId,order.Id,default));
+        Assert.Equal("confirm_void",entry.Action);Assert.Equal("acceptance",entry.Reason);
+        Assert.Equal("acceptance-operator",entry.ActorSubjectId);Assert.Equal(resolved.AuthorizationDecisionId,entry.AuthorizationDecisionId);
+        Assert.Equal(3,entry.ConcurrencyVersion);
+        Assert.Empty(await repository.ReadHistoryAsync(Guid.NewGuid(),order.Id,default));
+        Assert.Empty(await repository.ReadHistoryAsync(organizationId,Guid.NewGuid(),default));
         await using NpgsqlConnection connection=await source.OpenConnectionAsync();
         await using(var history=new NpgsqlCommand("SELECT count(*) FROM order_payment_review_history WHERE order_id=$1 AND authorization_decision_id=$2 AND actor_subject_id='acceptance-operator'",connection))
         {history.Parameters.AddWithValue(order.Id);history.Parameters.AddWithValue(resolved.AuthorizationDecisionId);Assert.Equal(1L,Convert.ToInt64(await history.ExecuteScalarAsync()));}

@@ -4,6 +4,8 @@ This document records the agreed Product Owner Portal and Customer Portal implem
 
 ## Current status
 
+The Payment Review operator UI slice is implemented in the Customer Portal with tenant-revalidated BFF routes, CSRF protection, branch permissions, bounded authoritative history, and conflict-safe confirmation. Browser tests use synthetic BFF responses; joined live OIDC/BFF/Order operator verification is still a Phase 11 release gate. See [scope and prerequisites](../API/Payment-Review-Operator-UI.md).
+
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Boundaries and contracts | Complete |

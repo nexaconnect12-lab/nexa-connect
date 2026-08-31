@@ -20,6 +20,34 @@ public sealed class PaymentReviewHttpAcceptanceTests : IClassFixture<RestaurantW
     private readonly RestaurantWorkflowServiceFixture fixture;
     public PaymentReviewHttpAcceptanceTests(RestaurantWorkflowServiceFixture fixture)=>this.fixture=fixture;
 
+    [Theory]
+    [InlineData("operator",false,200)]
+    [InlineData("denied",false,404)]
+    [InlineData("operator",true,404)]
+    public async Task History_is_branch_authorized_and_tenant_scoped(string token,bool otherTenant,int status)
+    {
+        var repository=new ReviewRepository();using var factory=CreateFactory(repository);using var client=factory.CreateClient();
+        Guid organization=otherTenant?Guid.NewGuid():repository.Order.OrganizationId;
+        using var request=Request(repository,HttpMethod.Get,organization,token);
+        request.RequestUri=new Uri($"/api/order/v1/payment-reviews/{repository.Order.Id}/history?organizationId={organization}",UriKind.Relative);
+        using var response=await client.SendAsync(request);Assert.Equal(status,(int)response.StatusCode);
+        Assert.Equal(status==200?1:0,repository.HistoryReads);
+        if(status==200)Assert.Empty((await response.Content.ReadFromJsonAsync<PaymentReviewHistoryEntry[]>())!);
+    }
+
+    [Theory]
+    [InlineData("operator",true)]
+    [InlineData("denied",false)]
+    public async Task Branch_permission_probe_reflects_authorizer(string token,bool allowed)
+    {
+        var repository=new ReviewRepository();using var factory=CreateFactory(repository);using var client=factory.CreateClient();
+        using var request=Request(repository,HttpMethod.Get,repository.Order.OrganizationId,token);
+        request.RequestUri=new Uri($"/api/order/v1/payment-reviews/branches/{repository.Order.BranchId}/access?organizationId={repository.Order.OrganizationId}",UriKind.Relative);
+        using var response=await client.SendAsync(request);Assert.Equal(HttpStatusCode.OK,response.StatusCode);
+        var body=await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.Equal(allowed,body.GetProperty("canRead").GetBoolean());Assert.Equal(allowed,body.GetProperty("canResolve").GetBoolean());
+    }
+
     [Fact]
     public async Task Cross_tenant_read_and_resolution_are_undiscoverable()
     {
@@ -50,6 +78,13 @@ public sealed class PaymentReviewHttpAcceptanceTests : IClassFixture<RestaurantW
         using var request=Request(repository,HttpMethod.Post,repository.Order.OrganizationId,version:99);
         using var response=await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.Conflict,response.StatusCode);Assert.Equal(0,repository.Claims);Assert.Null(repository.Audit);
+        foreach(string status in new[]{"resolved","resolving"})
+        {
+            repository.SetStatus(status);
+            using var closed=Request(repository,HttpMethod.Post,repository.Order.OrganizationId);
+            using var closedResponse=await client.SendAsync(closed);
+            Assert.Equal(HttpStatusCode.Conflict,closedResponse.StatusCode);Assert.Equal(0,repository.Claims);Assert.Null(repository.Audit);
+        }
     }
 
     [Fact]
@@ -91,11 +126,14 @@ public sealed class PaymentReviewHttpAcceptanceTests : IClassFixture<RestaurantW
         public async Task<Guid?> GetBranchDecisionAsync(Guid organizationId,Guid branchId,string permission,string authorizationHeader,CancellationToken cancellationToken)=>await HasBranchAccessAsync(organizationId,branchId,permission,authorizationHeader,cancellationToken)?DecisionId:null;
     }
 
-    private sealed class ReviewRepository:IOrderRepository,IOrderLookup,IPaymentReviewRepository
+    private sealed class ReviewRepository:IOrderRepository,IOrderLookup,IPaymentReviewRepository,IPaymentReviewHistoryRepository
     {
         public OrderAggregate Order{get;}
         private PaymentReviewCase value;
+        public void SetStatus(string status)=>value=value with{Status=status};
         public int Claims{get;private set;}
+        public int HistoryReads{get;private set;}
+        public Task<IReadOnlyCollection<PaymentReviewHistoryEntry>> ReadHistoryAsync(Guid organizationId,Guid orderId,CancellationToken ct){HistoryReads++;return Task.FromResult<IReadOnlyCollection<PaymentReviewHistoryEntry>>([]);}
         public PlatformAuditEventV1? Audit{get;private set;}
         public OrderPaymentReviewResolvedV1? Resolved{get;private set;}
         public ReviewRepository()

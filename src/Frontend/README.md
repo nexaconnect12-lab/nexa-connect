@@ -2,6 +2,8 @@
 
 This npm workspace contains the versioned, browser-safe foundations shared by NexaConnect portals. It requires Node.js 20.19 or later.
 
+Customer Portal Payment Review browser contract tests run with `npm run test:e2e:payment-review`; see [setup and evidence boundaries](e2e/payment-review/README.md). They use synthetic BFF responses, not live OIDC or provider credentials.
+
 The Phase 7 Product Owner Portal is implemented in `apps/product-owner-portal`. The Phase 8 tenant-scoped Customer Portal is implemented in `apps/customer-portal`; it consumes the same presentation foundations but retains its own Customer BFF session, protected organization/product selection, configuration, and deployment boundary. See each app README for local and deployment configuration.
 
 ## Packages

@@ -45,6 +45,18 @@ public sealed class PaymentReviewResolutionTests
     private static ResolvePaymentReviewCommand Command(OrderAggregate order,PaymentReviewCase review,string resolution)=>
         new(order.OrganizationId,order.Id,resolution,"operator_verified",review.ConcurrencyVersion,"operator-subject",Guid.NewGuid(),Guid.NewGuid());
 
+    [Theory]
+    [InlineData("resolved")]
+    [InlineData("resolving")]
+    public async Task Non_open_case_is_a_conflict_not_a_successful_operator_decision(string status)
+    {
+        var (order,review)=ReviewedOrder();var repository=new ReviewRepository(order,review with{Status=status});
+        var inventory=new Inventory();var kitchen=new Kitchen();var service=new PaymentReviewApplicationService(repository,inventory,kitchen);
+        var error=await Assert.ThrowsAsync<InvalidOperationException>(()=>service.ResolveAsync(Command(order,review,"confirm_void"),default));
+        Assert.Contains("concurrency",error.Message);Assert.Null(repository.Event);Assert.Null(repository.Audit);
+        Assert.Equal(0,inventory.Calls);Assert.Equal(0,kitchen.Calls);
+    }
+
     private static (OrderAggregate,PaymentReviewCase) ReviewedOrder()
     {
         Guid intent=Guid.NewGuid();var order=OrderAggregate.Create(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),[new OrderLine(Guid.NewGuid(),"Meal",10,1,"kitchen")],"USD");

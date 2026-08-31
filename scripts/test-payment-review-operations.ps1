@@ -91,7 +91,7 @@ try {
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $trxPath)) { throw 'Payment-review live verification failed.' }
     [xml] $trx = Get-Content -LiteralPath $trxPath -Raw
     $counters = $trx.TestRun.ResultSummary.Counters
-    if ([int]$counters.total -ne 8 -or [int]$counters.passed -ne 8 -or [int]$counters.notExecuted -ne 0) {
+    if ([int]$counters.total -ne 13 -or [int]$counters.passed -ne 13 -or [int]$counters.notExecuted -ne 0) {
         throw "Payment-review evidence was incomplete: total=$($counters.total), passed=$($counters.passed), notExecuted=$($counters.notExecuted)."
     }
     Write-Output "Payment-review PostgreSQL, Reporting replay, RabbitMQ recovery, and alert delivery verification passed (operator evidence label: '$EvidenceLabel')."

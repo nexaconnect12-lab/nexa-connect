@@ -10,10 +10,26 @@ namespace NexaConnect.Services.Order.Controllers;
 
 [ApiController]
 [Authorize]
+[ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
 [Route("api/order/v1/payment-reviews")]
 public sealed class PaymentReviewsController(PaymentReviewApplicationService reviews,IOrderTenantAuthorizer tenantAuthorizer,
     ILogger<PaymentReviewsController> logger):ControllerBase
 {
+    [HttpGet("branches/{branchId:guid}/access")]
+    public async Task<IActionResult> Access(Guid branchId,[FromQuery]Guid organizationId,CancellationToken cancellationToken)
+    {
+        bool canRead=await HasAccessAsync(organizationId,branchId,ProductPermissions.OrderPaymentReviewRead,cancellationToken);
+        bool canResolve=canRead&&await HasAccessAsync(organizationId,branchId,ProductPermissions.OrderPaymentReviewResolve,cancellationToken);
+        return Ok(new{canRead,canResolve});
+    }
+
+    [HttpGet("{orderId:guid}/history")]
+    public async Task<IActionResult> History(Guid orderId,[FromQuery]Guid organizationId,CancellationToken cancellationToken)
+    {
+        PaymentReviewCase? review=await reviews.GetAsync(organizationId,orderId,cancellationToken);
+        if(review is null||!await HasAccessAsync(organizationId,review.BranchId,ProductPermissions.OrderPaymentReviewRead,cancellationToken))return NotFound();
+        return Ok(await reviews.HistoryAsync(organizationId,orderId,cancellationToken));
+    }
     [HttpGet]
     public async Task<ActionResult<IReadOnlyCollection<PaymentReviewCase>>> List([FromQuery]Guid organizationId,[FromQuery]Guid branchId,[FromQuery]int limit=100,CancellationToken cancellationToken=default)
     {
@@ -52,10 +68,12 @@ public sealed class PaymentReviewsController(PaymentReviewApplicationService rev
 
     private async Task<Guid?> GetDecisionAsync(Guid organizationId,Guid branchId,string permission,CancellationToken cancellationToken)
     {
-        return Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId],out Guid contextOrganization)&&contextOrganization==organizationId
+        Guid? decision= Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId],out Guid contextOrganization)&&contextOrganization==organizationId
             &&string.Equals(Request.Headers[TenantContextHeaders.ApplicationCode],"nexa_connect",StringComparison.Ordinal)
             &&Request.Headers.TryGetValue("Authorization",out var authorization)
             ?await tenantAuthorizer.GetBranchDecisionAsync(organizationId,branchId,permission,authorization.ToString(),cancellationToken):null;
+        if(decision is null)logger.LogWarning("Payment review authorization denied for permission {Permission}",permission);
+        return decision;
     }
 }
 
