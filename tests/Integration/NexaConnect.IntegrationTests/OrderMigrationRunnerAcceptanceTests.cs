@@ -106,7 +106,8 @@ public sealed class OrderMigrationRunnerAcceptanceTests
         OrderAggregate restored=Assert.IsType<OrderAggregate>(await repository.GetAsync(order.Id,default));
         Assert.Equal(organizationId,restored.OrganizationId);Assert.Equal(paymentIntentId,restored.PaymentIntentId);
         var review=Assert.IsType<ORDER::NexaConnect.Services.Order.Application.PaymentReviews.PaymentReviewCase>(await repository.GetReviewAsync(organizationId,order.Id,default));
-        Guid firstClaim=Assert.IsType<Guid>(await repository.ClaimResolutionAsync(review,"confirm_void","acceptance-operator",DateTimeOffset.UtcNow,default));
+        var claims=await Task.WhenAll(Enumerable.Range(0,2).Select(_=>repository.ClaimResolutionAsync(review,"confirm_void","acceptance-operator",DateTimeOffset.UtcNow,default)));
+        Guid firstClaim=Assert.IsType<Guid>(Assert.Single(claims,value=>value.HasValue));
         await using(var expiryConnection=await source.OpenConnectionAsync()){await using var expire=new NpgsqlCommand("UPDATE order_payment_reviews SET resolution_locked_until_utc=now()-interval '1 second' WHERE order_id=$1",expiryConnection);expire.Parameters.AddWithValue(order.Id);await expire.ExecuteNonQueryAsync();}
         var expired=Assert.IsType<ORDER::NexaConnect.Services.Order.Application.PaymentReviews.PaymentReviewCase>(await repository.GetReviewAsync(organizationId,order.Id,default));
         Assert.Null(await repository.ClaimResolutionAsync(expired,"resume_payment","other-operator",DateTimeOffset.UtcNow,default));
@@ -114,8 +115,13 @@ public sealed class OrderMigrationRunnerAcceptanceTests
         Assert.NotEqual(firstClaim,claimId);restored.ResolvePaymentReviewAsVoided();
         var resolved=new OrderPaymentReviewResolvedV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,organizationId,order.Id,paymentIntentId,"confirm_void",expired.ConcurrencyVersion+1,Guid.NewGuid());
         var audit=new PlatformAuditEventV1(Guid.NewGuid(),resolved.CorrelationId,resolved.OccurredAtUtc,"acceptance-operator",organizationId,"order.payment-review.resolved","order",order.Id.ToString("D"),"succeeded");
+        Assert.False(await repository.ResolveAsync(restored,expired,"confirm_void","stale claimant", "acceptance-operator",firstClaim,resolved,audit,default));
+        await repository.ReleaseResolutionAsync(expired,firstClaim,default);
         Assert.True(await repository.ResolveAsync(restored,expired,"confirm_void","acceptance", "acceptance-operator",claimId,resolved,audit,default));
+        Assert.False(await repository.ResolveAsync(restored,expired,"confirm_void","duplicate", "acceptance-operator",claimId,resolved,audit,default));
         await using NpgsqlConnection connection=await source.OpenConnectionAsync();
+        await using(var history=new NpgsqlCommand("SELECT count(*) FROM order_payment_review_history WHERE order_id=$1 AND authorization_decision_id=$2 AND actor_subject_id='acceptance-operator'",connection))
+        {history.Parameters.AddWithValue(order.Id);history.Parameters.AddWithValue(resolved.AuthorizationDecisionId);Assert.Equal(1L,Convert.ToInt64(await history.ExecuteScalarAsync()));}
         await using(var count=new NpgsqlCommand("SELECT count(*) FROM outbox_messages WHERE id=$1 AND event_type='order.payment-review-required.v1'",connection))
         {count.Parameters.AddWithValue(integrationEvent.EventId);Assert.Equal(1L,Convert.ToInt64(await count.ExecuteScalarAsync()));}
         await using var state=new NpgsqlCommand("SELECT status,concurrency_version FROM order_payment_reviews WHERE order_id=$1",connection);state.Parameters.AddWithValue(order.Id);

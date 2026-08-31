@@ -157,7 +157,15 @@ public sealed class ReportingActivityVocabularyPostgresTests : IAsyncLifetime
             await using var transport=new RabbitMqOutboxTransport(rabbit,Options.Create(new OutboxOptions{Exchange=exchange}));
             var message=new OutboxMessage(audit.EventId,"order.audit.v1",1,"Order",Guid.Parse(audit.ResourceId),System.Text.Json.JsonSerializer.Serialize(audit),audit.CorrelationId.ToString("D"),audit.OccurredAtUtc);
             await transport.PublishAsync(message,default);await transport.PublishAsync(message,default);
+            // Prefetch=1 makes this subsequent delivery a barrier: the duplicate must
+            // have been acknowledged before the broker can deliver the marker.
+            var marker=audit with{EventId=Guid.NewGuid()};
+            await transport.PublishAsync(message with{Id=marker.EventId,Payload=System.Text.Json.JsonSerializer.Serialize(marker)},default);
+            await WaitUntilAsync(async()=>await CountAsync(database,"SELECT count(*) FROM inbox_messages WHERE message_id=$1 AND consumer_name='reporting.activity.v1' AND status='completed'",marker.EventId)==1,TimeSpan.FromSeconds(5));
             await WaitUntilAsync(async()=>await CountAsync(database,"SELECT count(*) FROM activity_records WHERE event_id=$1",audit.EventId)==1&&await CountAsync(database,"SELECT count(*) FROM inbox_messages WHERE message_id=$1 AND consumer_name='reporting.activity.v1' AND status='completed'",audit.EventId)==1,TimeSpan.FromSeconds(5));
+            Assert.Equal(1,await CountAsync(database,"SELECT attempts FROM inbox_messages WHERE message_id=$1 AND consumer_name='reporting.activity.v1'",audit.EventId));
+            await using(var inspection=await rabbit.CreateChannelAsync())
+            {Assert.Equal(0u,(await inspection.QueueDeclarePassiveAsync(queue+".dead")).MessageCount);}
             Assert.Equal(1,await CountAsync(database,"SELECT count(*) FROM activity_records WHERE event_id=$1",audit.EventId));
         }
         finally
