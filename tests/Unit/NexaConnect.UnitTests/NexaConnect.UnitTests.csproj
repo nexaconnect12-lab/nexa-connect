@@ -38,6 +38,7 @@
     <ProjectReference Include="..\..\..\src\Gateway\NexaConnect.PlatformAdminBff\NexaConnect.PlatformAdminBff.csproj" />
     <ProjectReference Include="..\..\..\src\Tools\NexaConnect.DataGeneration\NexaConnect.DataGeneration.csproj" />
     <ProjectReference Include="..\..\..\src\Tools\NexaConnect.DataMigration\NexaConnect.DataMigration.csproj" />
+    <ProjectReference Include="..\..\..\src\Tools\NexaConnect.PaymentReviewAcceptance\NexaConnect.PaymentReviewAcceptance.csproj" />
   </ItemGroup>
 
   <ItemGroup>

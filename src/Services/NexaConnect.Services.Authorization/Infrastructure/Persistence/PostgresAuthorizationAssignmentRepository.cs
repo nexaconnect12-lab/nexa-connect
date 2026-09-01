@@ -5,6 +5,12 @@ namespace NexaConnect.Services.Authorization.Infrastructure.Persistence;
 
 public sealed class PostgresAuthorizationAssignmentRepository(NpgsqlDataSource dataSource) : IAuthorizationAssignmentRepository
 {
+    public async Task<bool> IsEmptyAsync(CancellationToken cancellationToken)
+    {
+        await using var command=dataSource.CreateCommand("SELECT NOT EXISTS(SELECT 1 FROM authorization_resource_scopes UNION ALL SELECT 1 FROM authorization_roles UNION ALL SELECT 1 FROM authorization_role_assignments UNION ALL SELECT 1 FROM authorization_user_permission_overrides)");
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken)??false);
+    }
+
     public async Task<RoleAssignmentResult> AssignAsync(AssignRoleCommand command, string assignedBy, CancellationToken cancellationToken)
     {
         const string sql = """

@@ -7,6 +7,12 @@ namespace NexaConnect.Services.PlatformDirectory.Infrastructure.Persistence;
 public sealed class PostgresPlatformDirectoryManagementRepository(NpgsqlDataSource dataSource)
     : IPlatformDirectoryManagementRepository
 {
+    public async Task<bool> IsEmptyAsync(CancellationToken cancellationToken)
+    {
+        await using var command=dataSource.CreateCommand("SELECT NOT EXISTS(SELECT 1 FROM organizations UNION ALL SELECT 1 FROM applications UNION ALL SELECT 1 FROM organization_memberships UNION ALL SELECT 1 FROM organization_application_access)");
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken)??false);
+    }
+
     public async Task<IReadOnlyCollection<OrganizationSummary>> ListOrganizationsAsync(CancellationToken cancellationToken)
     {
         const string sql = "SELECT id, code, name, status, default_time_zone FROM organizations ORDER BY name, id;";

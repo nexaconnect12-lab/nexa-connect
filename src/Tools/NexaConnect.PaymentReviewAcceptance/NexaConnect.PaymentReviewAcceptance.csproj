@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\NexaConnect.Contracts\NexaConnect.Contracts.csproj" />
+    <ProjectReference Include="..\..\Services\NexaConnect.Services.PlatformDirectory\NexaConnect.Services.PlatformDirectory.csproj" />
+    <ProjectReference Include="..\..\Services\NexaConnect.Services.Restaurant\NexaConnect.Services.Restaurant.csproj" />
+    <ProjectReference Include="..\..\Services\NexaConnect.Services.Authorization\NexaConnect.Services.Authorization.csproj" />
+    <ProjectReference Include="..\..\Services\NexaConnect.Services.Order\NexaConnect.Services.Order.csproj" />
+  </ItemGroup>
+</Project>

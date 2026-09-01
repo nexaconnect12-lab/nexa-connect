@@ -10,6 +10,12 @@ namespace NexaConnect.Services.Order.Infrastructure.Persistence;
 public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
     : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderLookup, IPaymentReviewRepository, IPaymentReviewHistoryRepository
 {
+    public async Task<bool> IsEmptyAsync(CancellationToken cancellationToken)
+    {
+        await using var command=dataSource.CreateCommand("SELECT NOT EXISTS(SELECT 1 FROM orders UNION ALL SELECT 1 FROM order_payment_reviews UNION ALL SELECT 1 FROM order_payment_review_history)");
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken)??false);
+    }
+
     public async Task<IReadOnlyCollection<PaymentReviewHistoryEntry>> ReadHistoryAsync(Guid organizationId,Guid orderId,CancellationToken cancellationToken)
     {
         await using var command=dataSource.CreateCommand("SELECT id,action,reason,actor_subject_id,authorization_decision_id,concurrency_version,occurred_at_utc FROM order_payment_review_history WHERE organization_id=$1 AND order_id=$2 ORDER BY concurrency_version DESC LIMIT 100");

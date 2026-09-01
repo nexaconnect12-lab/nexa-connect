@@ -2,6 +2,8 @@
 
 Payment Review's expanded operations matrix passed **13/13** in a generated, isolated Compose environment on 2026-08-31. Run `scripts/test-payment-review-isolated.ps1 -ConfirmDisposableInfrastructure` without supplying application database credentials. A separate seven-scenario [live operator browser harness](src/Frontend/e2e/payment-review-live/README.md) includes run-scoped Inventory outage/recovery verification but still needs a disposable OIDC/application stack and fresh fixtures for execution. See the [release checklist](docs/Deployment/Payment-Review-Release-Checklist.md).
 
+The joined harness now has a test-only [service-owned fixture provisioner](src/Tools/NexaConnect.PaymentReviewAcceptance/README.md). It creates the two tenants, memberships, restaurant/branch, reader/resolver assignments, and five marked review aggregates in exact run-scoped loopback databases, returning identifier-only JSON. Keycloak/database/application/proxy orchestration and verified teardown remain the next automation boundary.
+
 Payment Review local acceptance sign-off passed 8/8 on 2026-08-31. The expanded matrix verifies HTTP access/concurrency/attribution boundaries, PostgreSQL claim fencing, and broker duplicate acknowledgement; see [retained evidence and limitations](docs/Architecture/Evidence/Phase-11-Payment-Review-Live-Verification.md).
 
 The Customer Portal now includes the [Payment Review operator UI](docs/API/Payment-Review-Operator-UI.md): branch-scoped access, case details and immutable history, explicit reason/confirmation, CSRF-protected resolution, and conflict refresh without automatic retry. The operations runner now expects 13 cases after adding history/permission coverage. Joined live operator/identity-provider acceptance remains a release gate.

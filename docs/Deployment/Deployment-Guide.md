@@ -1,5 +1,7 @@
 # Deployment Guide
 
+The joined Payment Review browser fixture graph can be created with the test-only [fixture provisioner](../../src/Tools/NexaConnect.PaymentReviewAcceptance/README.md) after an operator creates and migrates its four exact run-scoped loopback databases and disposable realm users. Verify all four databases are empty before use, inject separate data-write credentials, and retire the entire run after any partial failure; the tool neither creates databases nor provides cross-service rollback. This is acceptance tooling, not an application deployment or production seeding path.
+
 Payment Review UI deployment uses Order migration 4, Authorization migration 5, Reporting migration 13, and `Services__Order`; deploy the Order history/access endpoints before the updated Customer BFF/SPA. The Phase 8 launcher does not start Order. See [operator deployment and acceptance prerequisites](../API/Payment-Review-Operator-UI.md#deployment-diagnostics-and-verification); joined live operator acceptance remains a release gate.
 
 ## Local infrastructure

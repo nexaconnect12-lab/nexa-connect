@@ -5,6 +5,12 @@ namespace NexaConnect.Services.Restaurant.Infrastructure.Persistence;
 
 public sealed class PostgresRestaurantProvisioningRepository(NpgsqlDataSource dataSource) : IRestaurantProvisioningRepository
 {
+    public async Task<bool> IsEmptyAsync(CancellationToken cancellationToken)
+    {
+        await using var command=dataSource.CreateCommand("SELECT NOT EXISTS(SELECT 1 FROM restaurants UNION ALL SELECT 1 FROM branches)");
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken)??false);
+    }
+
     public async Task<IReadOnlyCollection<PlatformRestaurantSummary>> ListRestaurantsAsync(Guid organizationId, CancellationToken cancellationToken)
     {
         const string sql = "SELECT id, organization_id, code, name, default_currency, default_time_zone, status FROM restaurants WHERE organization_id=$1 ORDER BY name, id;";

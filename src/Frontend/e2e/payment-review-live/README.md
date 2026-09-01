@@ -19,7 +19,7 @@ Prepare five distinct, fresh Order-owned cases for concurrency/escalation, resum
 - Have initial reason exactly `browser-acceptance:<run-id>`; this explicit fixture marker is checked before mutation.
 - Use synthetic payment identities only. Confirm-void requires independently verified uncaptured/voided evidence plus safely isolated Inventory/Kitchen compensation records. No real provider funds may be involved.
 
-Use service-owned fixture setup through the repository/migration boundaries; do not update another running service's database or erase history to reset a test. Automated application/identity/fixture provisioning is not supplied by this slice. After a run, retain evidence and retire the entire disposable fixture environment through its owner. The suite never deletes immutable history and refuses previously used mutation fixtures.
+Use the test-only [Payment Review fixture tool](../../../Tools/NexaConnect.PaymentReviewAcceptance/README.md) after migrations and disposable Keycloak user creation. It provisions through service-owned repository/application boundaries and emits the required synthetic IDs without credentials. Do not update another running service's database or erase history to reset a test. Application/identity/database launch and cleanup are not supplied by the tool. After a run, retain evidence and retire the entire disposable fixture environment through its owner. The suite never deletes immutable history and refuses previously used mutation fixtures.
 
 ## Secret-injected settings
 
