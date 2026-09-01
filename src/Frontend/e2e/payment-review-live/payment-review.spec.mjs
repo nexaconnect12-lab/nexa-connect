@@ -1,5 +1,6 @@
 import {test,expect} from "@playwright/test";
 import {readSettings} from "./settings.mjs";
+import {setProxyEnabled} from "./fault-control.mjs";
 const settings=readSettings(process.env),root="/bff/customer/payment-reviews";
 
 async function protectContext(context){
@@ -93,6 +94,23 @@ for(const [key,label,resolution] of [["resume","Resume payment","resume_payment"
     expect(history.data[0].authorizationDecisionId).toMatch(/^[a-f0-9-]{36}$/i);
   });
 }
+
+test("Inventory outage fails closed and requires an explicit fresh confirm-void decision",async({page})=>{
+  await signIn(page,settings.resolver);const id=settings.orders.outage;await fixture(page,id);await open(page,id);
+  await choose(page,"Confirm void","acceptance controlled outage");
+  await setProxyEnabled(settings.faultControl,false);
+  try{
+    await page.getByRole("button",{name:"Confirm decision",exact:true}).click();
+    await expect(page.getByText("Resolution was not confirmed.",{exact:false})).toBeVisible();
+    const current=await fixture(page,id);expect(current.status).toBe("open");
+    expect((await call(page,`${root}/${id}/history`)).data).toHaveLength(0);
+  }finally{await setProxyEnabled(settings.faultControl,true);}
+  await choose(page,"Confirm void","acceptance explicit recovery");
+  await page.getByRole("button",{name:"Confirm decision",exact:true}).click();
+  await expect(page.getByText("Resolution saved.",{exact:false})).toBeVisible();
+  const history=await call(page,`${root}/${id}/history`);expect(history.data).toHaveLength(1);
+  expect(history.data[0].action).toBe("confirm_void");
+});
 
 test("lost committed response refreshes history without automatic replay",async({page})=>{
   await signIn(page,settings.resolver);const id=settings.orders.lost;await fixture(page,id);await open(page,id);

@@ -1,6 +1,6 @@
 # NexaConnect
 
-Payment Review's expanded operations matrix passed **13/13** in a generated, isolated Compose environment on 2026-08-31. Run `scripts/test-payment-review-isolated.ps1 -ConfirmDisposableInfrastructure` without supplying application database credentials. A separate six-scenario [live operator browser harness](src/Frontend/e2e/payment-review-live/README.md) is implemented but still needs a disposable OIDC/application stack and fresh fixtures for execution. See the [release checklist](docs/Deployment/Payment-Review-Release-Checklist.md).
+Payment Review's expanded operations matrix passed **13/13** in a generated, isolated Compose environment on 2026-08-31. Run `scripts/test-payment-review-isolated.ps1 -ConfirmDisposableInfrastructure` without supplying application database credentials. A separate seven-scenario [live operator browser harness](src/Frontend/e2e/payment-review-live/README.md) includes run-scoped Inventory outage/recovery verification but still needs a disposable OIDC/application stack and fresh fixtures for execution. See the [release checklist](docs/Deployment/Payment-Review-Release-Checklist.md).
 
 Payment Review local acceptance sign-off passed 8/8 on 2026-08-31. The expanded matrix verifies HTTP access/concurrency/attribution boundaries, PostgreSQL claim fencing, and broker duplicate acknowledgement; see [retained evidence and limitations](docs/Architecture/Evidence/Phase-11-Payment-Review-Live-Verification.md).
 

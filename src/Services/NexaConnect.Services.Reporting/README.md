@@ -1,5 +1,7 @@
 # Reporting service
 
+The RabbitMQ activity projection consumer exposes an internal readiness task that completes only after its exchange, durable queues, audit/dead-letter bindings, QoS, and consumer registration have succeeded. Hosted acceptance publishers await this signal before mandatory publication; checking that the queue merely exists is insufficient because declaration precedes binding and can produce RabbitMQ `312 NO_ROUTE`. This deterministic startup signal does not replace deployment health endpoints.
+
 This service owns tenant-scoped, eventually consistent read models for customer dashboards, sales reports, and activity. It never queries an operational service database. Apply Reporting migrations 1-13, then configure `ConnectionStrings__Reporting`, `Services__PlatformDirectory`, and `Services__Authorization`. The development profile uses `https://localhost:51226`.
 
 The dashboard and sales endpoints require `branchId` and accept optional `fromUtc` and `toUtc`. They require exact organization access plus `reporting.dashboard.read` or `reporting.sales.read`. `latestGlobalCheckpointUpdatedAtUtc` is the newest global checkpoint update, not branch-specific freshness. Ranges default to 30 days, are capped at 366 days, and sales returns at most 1,000 newest rows while `totalSales` covers the full selected range. Invalid ranges return `400`, mixed-currency ranges return `409` without aggregating totals, denials return `403`, and dependency/database failures fail closed.

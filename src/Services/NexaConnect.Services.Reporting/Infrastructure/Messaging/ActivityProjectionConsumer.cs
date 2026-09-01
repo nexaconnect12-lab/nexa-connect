@@ -25,28 +25,45 @@ public sealed class ActivityProjectionConsumer(
     ILogger<ActivityProjectionConsumer> logger) : BackgroundService
 {
     private const string Consumer = "reporting.activity.v1";
+    private readonly TaskCompletionSource readiness = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Completes after the exchange, queues, bindings, QoS, and consumer registration exist.</summary>
+    public Task WaitUntilReadyAsync(CancellationToken cancellationToken) => readiness.Task.WaitAsync(cancellationToken);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await using IChannel channel = await connection.CreateChannelAsync(cancellationToken: stoppingToken);
-        await channel.ExchangeDeclareAsync(options.Value.Exchange, ExchangeType.Topic, durable: true, cancellationToken: stoppingToken);
-        var arguments = new Dictionary<string, object?>
+        try
         {
-            ["x-dead-letter-exchange"] = options.Value.Exchange,
-            ["x-dead-letter-routing-key"] = "reporting.activity.dead"
-        };
-        await channel.QueueDeclareAsync(options.Value.Queue, durable: true, exclusive: false, autoDelete: false,
-            arguments: arguments, cancellationToken: stoppingToken);
-        await channel.QueueDeclareAsync(options.Value.Queue + ".dead", durable: true, exclusive: false, autoDelete: false,
-            cancellationToken: stoppingToken);
-        await channel.QueueBindAsync(options.Value.Queue, options.Value.Exchange, "*.audit.v1", cancellationToken: stoppingToken);
-        await channel.QueueBindAsync(options.Value.Queue + ".dead", options.Value.Exchange, "reporting.activity.dead", cancellationToken: stoppingToken);
-        await channel.BasicQosAsync(0, options.Value.PrefetchCount, false, stoppingToken);
+            await using IChannel channel = await connection.CreateChannelAsync(cancellationToken: stoppingToken);
+            await channel.ExchangeDeclareAsync(options.Value.Exchange, ExchangeType.Topic, durable: true, cancellationToken: stoppingToken);
+            var arguments = new Dictionary<string, object?>
+            {
+                ["x-dead-letter-exchange"] = options.Value.Exchange,
+                ["x-dead-letter-routing-key"] = "reporting.activity.dead"
+            };
+            await channel.QueueDeclareAsync(options.Value.Queue, durable: true, exclusive: false, autoDelete: false,
+                arguments: arguments, cancellationToken: stoppingToken);
+            await channel.QueueDeclareAsync(options.Value.Queue + ".dead", durable: true, exclusive: false, autoDelete: false,
+                cancellationToken: stoppingToken);
+            await channel.QueueBindAsync(options.Value.Queue, options.Value.Exchange, "*.audit.v1", cancellationToken: stoppingToken);
+            await channel.QueueBindAsync(options.Value.Queue + ".dead", options.Value.Exchange, "reporting.activity.dead", cancellationToken: stoppingToken);
+            await channel.BasicQosAsync(0, options.Value.PrefetchCount, false, stoppingToken);
 
-        var consumer = new AsyncEventingBasicConsumer(channel);
-        consumer.ReceivedAsync += async (_, args) => await HandleAsync(channel, args, stoppingToken);
-        await channel.BasicConsumeAsync(options.Value.Queue, autoAck: false, consumer, stoppingToken);
-        await Task.Delay(Timeout.Infinite, stoppingToken);
+            var consumer = new AsyncEventingBasicConsumer(channel);
+            consumer.ReceivedAsync += async (_, args) => await HandleAsync(channel, args, stoppingToken);
+            await channel.BasicConsumeAsync(options.Value.Queue, autoAck: false, consumer, stoppingToken);
+            readiness.TrySetResult();
+            await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            readiness.TrySetCanceled(stoppingToken);
+        }
+        catch (Exception exception)
+        {
+            readiness.TrySetException(new InvalidOperationException("Reporting activity consumer failed during startup or execution.", exception));
+            throw;
+        }
     }
 
     private async Task HandleAsync(IChannel channel, BasicDeliverEventArgs args, CancellationToken cancellationToken)

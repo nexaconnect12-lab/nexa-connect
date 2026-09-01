@@ -54,7 +54,7 @@ Before rollback, stop new Order capture traffic, stop Payment recovery, drain or
 
 ## Verification
 
-The Payment Review matrix now supports generated isolated infrastructure with `scripts/test-payment-review-isolated.ps1 -ConfirmDisposableInfrastructure`. It injects ephemeral credentials and retains matrix/cleanup evidence without using existing application databases. See [the release checklist](Payment-Review-Release-Checklist.md) for the distinct joined OIDC browser, real dependency-outage and production receiver gates.
+The Payment Review matrix now supports generated isolated infrastructure with `scripts/test-payment-review-isolated.ps1 -ConfirmDisposableInfrastructure`. It injects ephemeral credentials and retains matrix/cleanup evidence without using existing application databases. The distinct joined OIDC browser harness includes a configured Order-to-Inventory transport-proxy outage and explicit recovery scenario, but it has not been executed in this repository environment and does not cover Inventory process loss, Kitchen/combined dependency failure, or a production receiver. See [the release checklist](Payment-Review-Release-Checklist.md) for those remaining gates.
 
 ### Void recovery
 
