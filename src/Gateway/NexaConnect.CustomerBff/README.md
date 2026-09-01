@@ -1,5 +1,7 @@
 # NexaConnect Customer BFF
 
+The opt-in [live Payment Review browser suite](../../Frontend/e2e/payment-review-live/README.md) exercises actual OIDC/cookie/CSRF and Order boundaries with dedicated disposable accounts and fresh fixtures. It is separate from synthetic UI tests and the isolated operations matrix; the latter does not launch this BFF. Joined execution remains an environment-owned gate.
+
 This is the Customer Portal's server-side session and tenant-context boundary. It uses the existing `nexaconnect-web-bff` client during the migration period; a future client rename must be explicit and use separate cookies and secrets.
 
 The Phase 8 React portal is in `src/Frontend/apps/customer-portal` and is built into this BFF during publish. It provides the requested navigation in implementation order. Features without an owning versioned API return an explicit tenant-bound `contract-pending` response from the allow-listed `/bff/customer/features/{feature}` route; this is capability status, not synthetic business data.

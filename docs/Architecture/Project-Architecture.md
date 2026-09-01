@@ -548,6 +548,8 @@ Enforce boundaries such as:
 
 ### End-to-end tests
 
+Payment Review's operations acceptance owns a generated `nexa-review-it-<id>` Compose project with ephemeral PostgreSQL/RabbitMQ and isolated alert delivery. Its launcher injects generated settings instead of application credentials and verifies scoped cleanup; all 13 matrix cases passed locally. The separate six-scenario live browser harness requires an operator-provisioned disposable Keycloak realm and actual BFF/Order/dependency services, validates fixture markers and tenant ownership, and keeps credentials out of evidence. It is implemented but not live-executed here; browser response-loss injection is not downstream-outage or provider evidence. See [release checklist](../Deployment/Payment-Review-Release-Checklist.md). No production topology, financial transition or service-owned schema changed.
+
 Use Playwright for web flows and targeted end-to-end tests for critical checkout, payment, and POS synchronization scenarios.
 
 ## 15. Deployment

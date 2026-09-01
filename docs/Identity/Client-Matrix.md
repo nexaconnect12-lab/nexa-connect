@@ -12,6 +12,8 @@
 
 ## Rules
 
+The [joined Payment Review browser acceptance](../../src/Frontend/e2e/payment-review-live/README.md) requires a separately provisioned disposable `nexa-review-it-<run-id>` realm, the normal Customer BFF/workload clients and audiences, and distinct synthetic reader/resolver accounts. Register exact acceptance-origin redirects; do not reuse development or production accounts/secrets. Assign the branch-scoped `order.payment-review.read` permission to both accounts and `.resolve` only to the resolver through Authorization-owned grants, with active product memberships. The resolver also needs membership in a second organization for valid tenant-switch denial checks. No new production client, role or authentication flow is introduced; the harness does not provision identity resources and has not yet supplied joined live sign-off.
+
 - Register exact redirect and post-logout redirect URIs for every environment; do not use broad wildcards.
 - Store confidential-client secrets in the environment's secret manager and rotate them.
 - BFFs use refresh tokens only from server-side authentication tickets. Successful renewal replaces the stored access/refresh tokens; rejected renewal clears the session and requires interactive login.

@@ -1,5 +1,7 @@
 # NexaConnect frontend foundations
 
+Payment Review now has an opt-in real-OIDC suite: `npm run test:e2e:payment-review:live`, with `npm run test:payment-review:guards` for fail-closed configuration/evidence checks. See [live prerequisites and evidence limits](e2e/payment-review-live/README.md). It is not provisioned by the isolated infrastructure matrix and has not been live-executed here.
+
 This npm workspace contains the versioned, browser-safe foundations shared by NexaConnect portals. It requires Node.js 20.19 or later.
 
 Customer Portal Payment Review browser contract tests run with `npm run test:e2e:payment-review`; see [setup and evidence boundaries](e2e/payment-review/README.md). They use synthetic BFF responses, not live OIDC or provider credentials.

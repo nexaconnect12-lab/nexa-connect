@@ -54,6 +54,8 @@ Before rollback, stop new Order capture traffic, stop Payment recovery, drain or
 
 ## Verification
 
+The Payment Review matrix now supports generated isolated infrastructure with `scripts/test-payment-review-isolated.ps1 -ConfirmDisposableInfrastructure`. It injects ephemeral credentials and retains matrix/cleanup evidence without using existing application databases. See [the release checklist](Payment-Review-Release-Checklist.md) for the distinct joined OIDC browser, real dependency-outage and production receiver gates.
+
 ### Void recovery
 
 For void incidents, pause new Order void requests first. Set `PaymentProvider__VoidRecoveryEnabled=false` and restart Payment only when the provider void-status API is unreliable; this preserves durable `voiding` and `void_unknown` work and does not repeat the command. Verify provider state through `PaymentProvider__VoidStatusPath`, then re-enable the worker to reconcile `voided`, `void_failed`, or exhausted `requires_action`. Treat `requires_action` as an operator/accounting reconciliation boundary and never infer success from a timeout. Dedicated void backlog/age gauges and alerts are not implemented yet, so use restricted database queries and safe structured worker-failure events without exposing provider payloads.

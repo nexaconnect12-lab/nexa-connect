@@ -4,6 +4,8 @@ Payment Review UI deployment uses existing Order/Authorization migration 4, Repo
 
 ## Local infrastructure
 
+For Payment Review acceptance, prefer `scripts/test-payment-review-isolated.ps1 -ConfirmDisposableInfrastructure`: it owns a new ephemeral Compose project and never reuses the named application databases. The separate live browser harness requires a disposable identity/application stack; follow [the release checklist](Payment-Review-Release-Checklist.md). This is not a replacement for normal development deployment.
+
 1. Copy `.env.example` to `.env` and replace every placeholder password.
    Trust the local ASP.NET Core HTTPS certificate with `dotnet dev-certs https --trust`. Service-to-service Development addresses use HTTPS directly; an absent or untrusted certificate causes dependency calls to fail and certificate validation must not be disabled.
 2. Start infrastructure with `docker compose up -d`.

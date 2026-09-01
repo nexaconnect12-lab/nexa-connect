@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: ${NEXACONNECT_REVIEW_ACCEPTANCE_PASSWORD:?Run the isolated acceptance launcher}
+    ports: ["127.0.0.1::5432"]
+    tmpfs: [/var/lib/postgresql/data]
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/01-acceptance.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: acceptance
+      RABBITMQ_DEFAULT_PASS: ${NEXACONNECT_REVIEW_ACCEPTANCE_PASSWORD:?Run the isolated acceptance launcher}
+    ports: ["127.0.0.1::5672"]
+    tmpfs: [/var/lib/rabbitmq]
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 2s
+      timeout: 5s
+      retries: 45
+  alert-webhook-receiver:
+    profiles: [alert-rehearsal]
+    image: python:3.13-alpine
+    command: [python, /opt/nexaconnect/rehearsal_receiver.py]
+    ports: ["127.0.0.1::8080"]
+    volumes:
+      - ../alertmanager/rehearsal_receiver.py:/opt/nexaconnect/rehearsal_receiver.py:ro
+  alertmanager-rehearsal:
+    profiles: [alert-rehearsal]
+    image: prom/alertmanager:v0.28.1
+    command: ["--config.file=/etc/alertmanager/alertmanager.yaml", "--storage.path=/alertmanager"]
+    ports: ["127.0.0.1::9093"]
+    tmpfs: [/alertmanager]
+    volumes:
+      - ../alertmanager/alertmanager.rehearsal.yaml:/etc/alertmanager/alertmanager.yaml:ro
+    depends_on: [alert-webhook-receiver]

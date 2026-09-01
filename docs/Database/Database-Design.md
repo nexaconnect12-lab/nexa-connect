@@ -1,5 +1,7 @@
 # NexaConnect Database Design
 
+Payment Review acceptance creates `review_order` and `review_reporting` only inside a new ephemeral PostgreSQL cluster owned by a generated Compose project. `scripts/test-payment-review-isolated.ps1` injects generated administrator settings for schema/database lifecycle tests and removes that project afterward; it does not use existing application databases or change service migrations. See [isolated acceptance](../../docker/payment-review-acceptance/README.md).
+
 Platform Directory owns `organization_memberships`. Customer membership mutations lock existing rows for optimistic concurrency and require the current `concurrency_version` for updates. The membership mutation and its `customer-membership.changed` append-only audit row commit in one transaction. Keycloak subject identifiers are stored; credentials are not.
 
 Restaurant migration 2 adds append-only `branch_management_audit`; migration 3 permits `branch.configuration.updated`. Typed settings remain in `branches.business_configuration`. Lifecycle and configuration writes share `branches.concurrency_version`, exclude closed branches, and commit audit insertion in the same transaction. Rollback to migration 2 removes acceptance of the configuration audit action.

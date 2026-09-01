@@ -1,6 +1,17 @@
 # Phase 11 payment-review live verification
 
-The operator UI increment adds five history/permission HTTP cases, so the current runner requires 13 passes. The historical eight-case sign-off below does not certify this expanded matrix or the new browser workflow. The full 13-case live run was not authorized in this implementation turn because the configured named Order/Reporting databases were not established as disposable; do not rerun against them until their intended targets and destructive-acceptance scope are explicitly confirmed. Synthetic browser coverage and isolated HTTP tests do not replace joined live OIDC/BFF/Order acceptance.
+The operator UI increment adds five history/permission HTTP cases, so the current runner requires 13 passes. The original UI turn could not authorize the named application databases as disposable. The follow-up isolated launcher closes that local matrix gate without touching those databases. Historical eight-case evidence remains separate, and neither matrix certifies joined live OIDC/BFF/Order acceptance.
+
+## Isolated matrix sign-off — 2026-08-31
+
+`scripts/test-payment-review-isolated.ps1 -ConfirmDisposableInfrastructure` built the current integration project and passed 13/13 with zero skips in generated project `nexa-review-it-d87a152cccaf42d69e3802de09f0ede2`. This used a new PostgreSQL 17 cluster, RabbitMQ 4, and run-scoped Alertmanager/receiver with dynamically assigned loopback ports. Synthetic firing/resolved delivery passed; containers/network were removed and cleanup was verified. Existing application databases, root Compose resources and stored credentials were not used.
+
+Retained local evidence:
+
+- `.runstate/payment-review-isolated/d87a152cccaf42d69e3802de09f0ede2/operations/payment-review-live-verification.trx`
+- `.runstate/payment-review-isolated/d87a152cccaf42d69e3802de09f0ede2/summary.json` (`matrixPassed=true`, `cleanupPassed=true`, `liveBrowserVerified=false`).
+
+Additional checks passed: 20 PowerShell isolation guards (including simulated startup-failure cleanup and process-environment restoration), 16 browser-configuration/evidence guards (including case-insensitive UUID uniqueness), 20 frontend unit tests and five existing synthetic browser regressions. All six new live-browser scenarios were collected and syntax-checked, but not run against a joined stack because dedicated OIDC accounts, application targets and fresh fixtures were not supplied. See the [live browser prerequisites](../../../src/Frontend/e2e/payment-review-live/README.md) and [release checklist](../../Deployment/Payment-Review-Release-Checklist.md). Real dependency-outage, provider/accounting and production paging evidence remain open.
 
 ## Scope
 

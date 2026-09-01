@@ -5,6 +5,7 @@ param(
     [switch] $ConfirmAlertDelivery,
     [switch] $ConfirmDestructiveRollback,
     [string] $DockerExecutable = 'docker',
+    [string] $IsolatedProject,
     [switch] $NoBuild
 )
 
@@ -21,8 +22,14 @@ foreach ($name in $required) {
 }
 
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'payment-review-acceptance-helpers.ps1')
+$composeArguments = @('compose')
+if ($IsolatedProject) { $composeArguments = @(Get-ReviewAcceptanceComposeArguments $repositoryRoot $IsolatedProject) }
+$alertmanagerUri = 'http://127.0.0.1:19093'
+$alertReceiverUri = 'http://127.0.0.1:19094'
 $project = Join-Path $repositoryRoot 'tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj'
 $runRoot = Join-Path $repositoryRoot ('.runstate/payment-review-operations/' + [Guid]::NewGuid().ToString('N'))
+if ($IsolatedProject) { $runRoot = Join-Path $repositoryRoot ('.runstate/payment-review-isolated/' + $IsolatedProject.Substring('nexa-review-it-'.Length) + '/operations') }
 New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
 $trxPath = Join-Path $runRoot 'payment-review-live-verification.trx'
 $previousEnvironment = $env:NEXACONNECT_ENVIRONMENT
@@ -40,11 +47,14 @@ function Wait-Until([scriptblock] $Condition, [int] $TimeoutSeconds, [string] $F
 }
 
 function Get-RehearsalEvents {
-    try { return @(Invoke-RestMethod -Uri 'http://127.0.0.1:19094/events' -TimeoutSec 2) } catch { return @() }
+    try {
+        $events = Invoke-RestMethod -Uri ($alertReceiverUri + '/events') -TimeoutSec 2
+        foreach ($event in $events) { if ($null -ne $event) { Write-Output $event } }
+    } catch { return @() }
 }
 
 function Remove-RehearsalContainers {
-    $containerIds = @(& $DockerExecutable compose --profile alert-rehearsal ps -aq alertmanager-rehearsal alert-webhook-receiver)
+    $containerIds = @(& $DockerExecutable @composeArguments --profile alert-rehearsal ps -aq alertmanager-rehearsal alert-webhook-receiver)
     if ($LASTEXITCODE -ne 0) { throw 'Could not inspect isolated alert-rehearsal containers.' }
     $containerIds = @($containerIds | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     if ($containerIds.Count -eq 0) { return }
@@ -52,7 +62,7 @@ function Remove-RehearsalContainers {
     & $DockerExecutable rm --force @containerIds 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Docker could not remove the isolated rehearsal container IDs: $($containerIds -join ', ')." }
 
-    $remainingIds = @(& $DockerExecutable compose --profile alert-rehearsal ps -aq alertmanager-rehearsal alert-webhook-receiver)
+    $remainingIds = @(& $DockerExecutable @composeArguments --profile alert-rehearsal ps -aq alertmanager-rehearsal alert-webhook-receiver)
     if ($LASTEXITCODE -ne 0) { throw 'Could not verify isolated alert-rehearsal cleanup.' }
     if (@($remainingIds | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -ne 0) {
         throw 'One or more isolated alert-rehearsal containers remain after Docker removal.'
@@ -70,20 +80,28 @@ try {
 
     $cleanupRequired = $true
     Remove-RehearsalContainers
-    & $DockerExecutable compose --profile alert-rehearsal config --quiet
+    & $DockerExecutable @composeArguments --profile alert-rehearsal config --quiet
     if ($LASTEXITCODE -ne 0) { throw 'The alert-rehearsal Compose profile is invalid.' }
-    & $DockerExecutable compose --profile alert-rehearsal up -d alert-webhook-receiver alertmanager-rehearsal
+    & $DockerExecutable @composeArguments --profile alert-rehearsal up -d alert-webhook-receiver alertmanager-rehearsal
     if ($LASTEXITCODE -ne 0) { throw 'The isolated Alertmanager rehearsal services failed to start.' }
-    Wait-Until { try { (Invoke-WebRequest -Uri 'http://127.0.0.1:19094/health' -TimeoutSec 2).StatusCode -eq 200 } catch { $false } } 60 'The alert webhook receiver did not become healthy.'
-    Wait-Until { try { (Invoke-WebRequest -Uri 'http://127.0.0.1:19093/-/ready' -TimeoutSec 2).StatusCode -eq 200 } catch { $false } } 60 'The isolated Alertmanager did not become ready.'
+    if ($IsolatedProject) {
+        $published = & $DockerExecutable @composeArguments port alert-webhook-receiver 8080
+        if ($LASTEXITCODE -ne 0) { throw 'Could not discover isolated alert receiver port.' }
+        $alertReceiverUri = 'http://127.0.0.1:' + (ConvertFrom-ReviewAcceptancePort $published)
+        $published = & $DockerExecutable @composeArguments port alertmanager-rehearsal 9093
+        if ($LASTEXITCODE -ne 0) { throw 'Could not discover isolated Alertmanager port.' }
+        $alertmanagerUri = 'http://127.0.0.1:' + (ConvertFrom-ReviewAcceptancePort $published)
+    }
+    Wait-Until { try { (Invoke-WebRequest -Uri ($alertReceiverUri + '/health') -TimeoutSec 2).StatusCode -eq 200 } catch { $false } } 60 'The alert webhook receiver did not become healthy.'
+    Wait-Until { try { (Invoke-WebRequest -Uri ($alertmanagerUri + '/-/ready') -TimeoutSec 2).StatusCode -eq 200 } catch { $false } } 60 'The isolated Alertmanager did not become ready.'
 
     $rehearsalId = [Guid]::NewGuid().ToString('N')
     $labels = @{ alertname='OrderPaymentReviewStale'; service='nexaconnect-order'; severity='warning'; rehearsal_id=$rehearsalId }
     $firing = @(@{ labels=$labels; annotations=@{ summary='Synthetic payment-review stale alert delivery rehearsal' }; startsAt=[DateTimeOffset]::UtcNow.ToString('O') })
-    Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:19093/api/v2/alerts' -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $firing -Depth 6) | Out-Null
+    Invoke-RestMethod -Method Post -Uri ($alertmanagerUri + '/api/v2/alerts') -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $firing -Depth 6) | Out-Null
     Wait-Until { @(Get-RehearsalEvents | Where-Object { $_.status -eq 'firing' -and $_.alerts[0].alertname -eq 'OrderPaymentReviewStale' -and $_.alerts[0].rehearsal_id -eq $rehearsalId }).Count -gt 0 } 30 'Alertmanager did not deliver the payment-review firing notification.'
     $resolved = @(@{ labels=$labels; annotations=@{ summary='Synthetic payment-review stale alert delivery rehearsal' }; startsAt=[DateTimeOffset]::UtcNow.AddMinutes(-1).ToString('O'); endsAt=[DateTimeOffset]::UtcNow.AddSeconds(-1).ToString('O') })
-    Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:19093/api/v2/alerts' -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $resolved -Depth 6) | Out-Null
+    Invoke-RestMethod -Method Post -Uri ($alertmanagerUri + '/api/v2/alerts') -ContentType 'application/json' -Body (ConvertTo-Json -InputObject $resolved -Depth 6) | Out-Null
     Wait-Until { @(Get-RehearsalEvents | Where-Object { $_.status -eq 'resolved' -and $_.alerts[0].alertname -eq 'OrderPaymentReviewStale' -and $_.alerts[0].rehearsal_id -eq $rehearsalId }).Count -gt 0 } 30 'Alertmanager did not deliver the payment-review resolved notification.'
 
     $filter = 'FullyQualifiedName~OrderMigrationRunnerAcceptanceTests|FullyQualifiedName~ReportingActivityVocabularyPostgresTests.Migration_13|FullyQualifiedName~ReportingActivityVocabularyPostgresTests.Hosted_consumer|FullyQualifiedName~OrderOutboxReplayPersistenceTests.Repository_payment_review_events|FullyQualifiedName~PaymentReviewHttpAcceptanceTests'

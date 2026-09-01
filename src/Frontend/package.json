@@ -10,6 +10,8 @@
     "test": "vitest run",
     "test:e2e:phase8": "playwright test --config playwright.phase8.config.mjs",
     "test:e2e:payment-review": "playwright test --config playwright.payment-review.config.mjs",
+    "test:e2e:payment-review:live": "playwright test --config playwright.payment-review-live.config.mjs",
+    "test:payment-review:guards": "node --test e2e/payment-review-live/settings.test.mjs",
     "test:e2e:phase8:install": "playwright install chromium",
     "test:watch": "vitest"
   },

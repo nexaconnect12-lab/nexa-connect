@@ -1,5 +1,7 @@
 # Order Service
 
+For isolated local Payment Review verification, run `scripts/test-payment-review-isolated.ps1 -ConfirmDisposableInfrastructure`. It creates a new PostgreSQL/RabbitMQ/alert Compose project, runs the 13-case matrix and removes only that project's resources; no existing application connection settings are needed. The [live browser suite](../../Frontend/e2e/payment-review-live/README.md) separately requires running real Order and dependencies with fresh marked fixtures and dedicated OIDC accounts.
+
 The Order bounded context owns order aggregates, line price snapshots, status transitions, and the first restaurant sales workflow.
 
 `Application/Workflow/PlaceOrderWorkflow.cs` coordinates the bounded-context ports in this order:

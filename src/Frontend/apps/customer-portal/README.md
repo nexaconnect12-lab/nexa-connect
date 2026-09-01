@@ -1,5 +1,7 @@
 # NexaConnect Customer Portal
 
+The [joined Payment Review acceptance harness](../../e2e/payment-review-live/README.md) tests real OIDC/BFF/Order boundaries using operator-provisioned disposable accounts and marked fixtures. Run `npm run test:e2e:payment-review:live` only after supplying its documented settings; missing settings fail rather than skip. Existing synthetic browser tests remain separate.
+
 Phase 8 provides the independently buildable tenant-scoped Customer Portal context/navigation shell. Authentication is owned by `NexaConnect.CustomerBff`; the browser receives only opaque cookies and selects one organization plus enabled product from `/bff/customer/access`. `/tenant` and `/features/*` revalidate the protected server-readable selection.
 
 The portal includes profile, product switching, memberships, branches, configuration, Reporting dashboards/sales/activity preview, and Media-owned list/upload/original/variant download/delete. Uploads go directly to the signed S3-compatible URL and are completed through the BFF. Media verifies provider checksum/size, validates the image signature, scans with ClamAV, enforces pending-count and original-byte organization quotas, cleans expired sessions, and asynchronously creates thumbnail/display WebP variants. Generated variants are excluded from the original-byte quota and require separate bucket-capacity monitoring.
