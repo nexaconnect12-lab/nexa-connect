@@ -1,0 +1,1 @@
+{"version":5,"name":"payment_review_reader_role","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.12.0"}

@@ -26,12 +26,15 @@ public sealed class AuthorizationMigrationRunnerAcceptanceTests
             Assert.Equal(0, await RunAsync(root, 2));
             await using var dataSource = NpgsqlDataSource.Create(builder.ConnectionString);
             await SeedRolesAsync(dataSource);
-            Assert.Equal(0, await RunAsync(root, 4));
-            Assert.Equal(8L, await PermissionCountAsync(dataSource));
+            Assert.Equal(0, await RunAsync(root, 5));
+            Assert.Equal(9L, await PermissionCountAsync(dataSource));
+            Assert.Equal(1L, await AccountantReadCountAsync(dataSource));
+            Assert.Equal(0, await RunAsync(root, 4, destructive: true));
+            Assert.Equal(0L, await AccountantReadCountAsync(dataSource));
             Assert.Equal(0, await RunAsync(root, 3, destructive: true));
             Assert.Equal(4L, await PermissionCountAsync(dataSource));
-            Assert.Equal(0, await RunAsync(root, 4));
-            Assert.Equal(8L, await PermissionCountAsync(dataSource));
+            Assert.Equal(0, await RunAsync(root, 5));
+            Assert.Equal(9L, await PermissionCountAsync(dataSource));
         }
         finally
         {
@@ -50,7 +53,7 @@ public sealed class AuthorizationMigrationRunnerAcceptanceTests
     private static async Task SeedRolesAsync(NpgsqlDataSource dataSource)
     {
         await using var connection = await dataSource.OpenConnectionAsync();
-        foreach (string code in new[] { "tenant-admin", "store-manager" })
+        foreach (string code in new[] { "tenant-admin", "store-manager", "accountant" })
         {
             await using var command = new NpgsqlCommand("INSERT INTO authorization_roles(id,organization_id,code,name,status) VALUES($1,$2,$3,$4,'active')", connection);
             command.Parameters.AddWithValue(Guid.NewGuid());
@@ -65,6 +68,12 @@ public sealed class AuthorizationMigrationRunnerAcceptanceTests
     {
         await using var connection = await dataSource.OpenConnectionAsync();
         return Convert.ToInt64(await new NpgsqlCommand("SELECT count(*) FROM authorization_role_permissions WHERE permission_code IN ('kitchen.ticket.read','kitchen.ticket.transition','order.payment-review.read','order.payment-review.resolve')", connection).ExecuteScalarAsync());
+    }
+
+    private static async Task<long> AccountantReadCountAsync(NpgsqlDataSource dataSource)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync();
+        return Convert.ToInt64(await new NpgsqlCommand("SELECT count(*) FROM authorization_role_permissions permission JOIN authorization_roles role ON role.id=permission.role_id WHERE role.code='accountant' AND permission.permission_code='order.payment-review.read'", connection).ExecuteScalarAsync());
     }
 
     private static async Task CreateAsync(NpgsqlDataSource source, string database)

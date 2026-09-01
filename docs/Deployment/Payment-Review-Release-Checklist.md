@@ -17,6 +17,6 @@
 
 ## Cleanup and rollout
 
-Deploy compatible Order endpoints before the updated BFF/SPA; maintain Authorization 4 and Reporting 13 compatibility. Retire only the explicitly owned test stack after retaining approved evidence. Never delete immutable history or downgrade real financial state to make acceptance rerunnable. Failed cleanup or missing live operator evidence keeps the corresponding release gate open.
+Deploy compatible Order endpoints before the updated BFF/SPA; maintain Authorization 5 and Reporting 13 compatibility. Use a branch-scoped accountant for the read-only acceptance identity and a restaurant-scoped store manager or organization-scoped tenant administrator for the resolver. Retire only the explicitly owned test stack after retaining approved evidence. Never delete immutable history or downgrade real financial state to make acceptance rerunnable. Failed cleanup or missing live operator evidence keeps the corresponding release gate open.
 
 See [current evidence](../Architecture/Evidence/Phase-11-Payment-Review-Live-Verification.md) and the [operations runbook](Payment-Capture-Recovery-Runbook.md).

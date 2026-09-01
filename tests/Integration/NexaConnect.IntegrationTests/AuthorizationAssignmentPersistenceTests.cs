@@ -67,6 +67,23 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
             "media.asset.read", null, null, CancellationToken.None)).Granted);
     }
 
+    [Fact]
+    public async Task Payment_review_roles_created_after_migration_preserve_reader_resolver_separation()
+    {
+        if (!DatabaseConfigured()) return;
+
+        Guid organizationId=Guid.NewGuid(),restaurantId=Guid.NewGuid(),branchId=Guid.NewGuid();
+        var repository=new AssignmentRepository(_dataSource!);
+        await repository.AssignAsync(new Assignment.AssignRoleCommand("review-reader",organizationId,restaurantId,branchId,"accountant"),"integration-admin",default);
+        await repository.AssignAsync(new Assignment.AssignRoleCommand("review-resolver",organizationId,restaurantId,null,"store-manager"),"integration-admin",default);
+        var decisions=new DecisionService(_dataSource!,NullLogger<DecisionService>.Instance);
+
+        Assert.True((await decisions.DecideAsync("review-reader",organizationId,restaurantId,branchId,"order.payment-review.read",null,null,default)).Granted);
+        Assert.False((await decisions.DecideAsync("review-reader",organizationId,restaurantId,branchId,"order.payment-review.resolve",null,null,default)).Granted);
+        Assert.True((await decisions.DecideAsync("review-resolver",organizationId,restaurantId,branchId,"order.payment-review.read",null,null,default)).Granted);
+        Assert.True((await decisions.DecideAsync("review-resolver",organizationId,restaurantId,branchId,"order.payment-review.resolve",null,null,default)).Granted);
+    }
+
     public async Task InitializeAsync()
     {
         if (string.IsNullOrWhiteSpace(_configuredConnectionString) || !IsSafeEnvironment())

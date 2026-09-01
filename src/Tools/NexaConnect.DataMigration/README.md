@@ -16,6 +16,8 @@ Kitchen version 3 adds tenant ownership, station snapshot fingerprints, multi-st
 
 Authorization version 3 backfills `kitchen.ticket.read` and `kitchen.ticket.transition` for existing `tenant-admin` and `store-manager` role assignments. Its destructive downgrade removes only those Kitchen permission rows.
 
+Authorization version 4 backfills Payment Review read/resolve permissions for existing `tenant-admin` and `store-manager` roles. Version 5 adds read-only Payment Review access to existing `accountant` roles so upgraded databases match runtime-created role mappings. Neither adds tables or indexes. The destructive `5→4` downgrade removes only accountant/read associations; `4→3` removes the tenant-admin/store-manager Payment Review associations. Disable affected routes and verify assignments before downgrade.
+
 Customer version 2 adds append-only audit that excludes profile fields while preserving the outbox owned by version 1. Reporting version 6 accepts `customer.audit.v1` profile-created vocabulary and removes incompatible projections/inbox markers on destructive downgrade so retained source events can replay after re-upgrade. Six coordinated Customer acceptances passed locally against PostgreSQL 17 and RabbitMQ, including concurrent replay, atomic rollback, confirmed publication, Reporting replay, and the actual 0→2→1→2 runner.
 
 POS versions 2 and 3 add shift open/close authorization decision ownership. Its clean-install acceptance invokes the actual runner for 0→3→2→3, validates checksums/history and migration-3 schema removal/reapply, proves migration-1 cash/replay data survives downgrade, and exercises real shift/cash repositories before and after re-upgrade. The generated database was removed after the successful PostgreSQL 17 run.
