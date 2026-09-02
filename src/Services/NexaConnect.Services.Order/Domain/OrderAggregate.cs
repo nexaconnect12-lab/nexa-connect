@@ -93,6 +93,16 @@ public sealed class OrderAggregate
         BindPaymentIntent(paymentIntentId);
         Transition(Status is OrderStatus.KitchenAccepted or OrderStatus.PaymentPending ? Status : OrderStatus.KitchenAccepted, OrderStatus.Paid);
     }
+    public void MarkManuallyPaid(ManualTenderSettlement settlement)
+    {
+        ArgumentNullException.ThrowIfNull(settlement);
+        if (settlement.OrderId != Id || settlement.OrganizationId != OrganizationId || settlement.BranchId != BranchId
+            || settlement.Amount != TotalAmount || !string.Equals(settlement.Currency, Currency, StringComparison.Ordinal))
+            throw new InvalidOperationException("Manual tender does not match this order.");
+        if (PaymentIntentId is not null)
+            throw new InvalidOperationException("An order bound to a provider payment intent cannot be manually settled.");
+        MarkPaid();
+    }
     public void MarkPaymentPending(Guid? paymentIntentId = null)
     {
         BindPaymentIntent(paymentIntentId);

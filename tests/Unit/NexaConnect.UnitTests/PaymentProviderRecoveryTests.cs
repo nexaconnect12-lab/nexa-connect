@@ -9,6 +9,37 @@ namespace NexaConnect.UnitTests;
 public sealed class PaymentProviderRecoveryTests
 {
     [Fact]
+    public async Task Disabled_provider_fails_commands_without_creating_financial_uncertainty()
+    {
+        var provider = new DisabledPaymentProvider();
+        PaymentIntent intent = Intent() with { ProviderAuthorizationId = "authorization-ref-1" };
+
+        ProviderAuthorizationResult authorization = await provider.AuthorizeAsync(intent, CancellationToken.None);
+        ProviderCaptureResult capture = await provider.CaptureAsync(intent, CancellationToken.None);
+        ProviderVoidResult voidResult = await provider.VoidAsync(intent, CancellationToken.None);
+
+        Assert.Equal(ProviderAuthorizationOutcome.Failed, authorization.EffectiveOutcome);
+        Assert.Equal(ProviderCaptureOutcome.Failed, capture.Outcome);
+        Assert.Equal(ProviderVoidOutcome.Failed, voidResult.Outcome);
+        Assert.All(new[] { authorization.FailureReason, capture.FailureReason, voidResult.FailureReason },
+            reason => Assert.Equal("provider_not_configured", reason));
+    }
+
+    [Fact]
+    public async Task Disabled_provider_status_lookups_never_invent_terminal_provider_state()
+    {
+        var provider = new DisabledPaymentProvider();
+        PaymentIntent intent = Intent();
+
+        Assert.Equal(ProviderAuthorizationOutcome.Unknown,
+            (await provider.GetAuthorizationStatusAsync(intent, CancellationToken.None)).Outcome);
+        Assert.Equal(ProviderCaptureOutcome.Unknown,
+            (await provider.GetCaptureStatusAsync(intent, CancellationToken.None)).Outcome);
+        Assert.Equal(ProviderVoidOutcome.Unknown,
+            (await provider.GetVoidStatusAsync(intent, CancellationToken.None)).Outcome);
+    }
+
+    [Fact]
     public async Task Server_error_is_unknown_not_declined()
     {
         var provider = CreateProvider(HttpStatusCode.GatewayTimeout, null);
@@ -91,6 +122,69 @@ public sealed class PaymentProviderRecoveryTests
         Assert.Equal("provider_void_status_unknown", result.FailureReason);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.RequestTimeout)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task Capture_transient_http_failures_require_reconciliation(HttpStatusCode statusCode)
+    {
+        var provider = CreateProvider(statusCode, null);
+        ProviderCaptureResult result = await provider.CaptureAsync(Intent() with
+        {
+            Status = "capturing", ProviderAuthorizationId = "authorization-ref-1"
+        }, CancellationToken.None);
+
+        Assert.Equal(ProviderCaptureOutcome.Unknown, result.Outcome);
+        Assert.Equal($"provider_http_{(int)statusCode}", result.FailureReason);
+    }
+
+    [Fact]
+    public async Task Malformed_success_response_requires_reconciliation()
+    {
+        var client = new HttpClient(new RawHandler(HttpStatusCode.OK, "not-json"))
+            { BaseAddress = new Uri("https://provider.test/") };
+        var provider = new HttpPaymentProvider(client, Options.Create(new PaymentProviderOptions()));
+
+        ProviderCaptureResult result = await provider.CaptureAsync(Intent() with
+        {
+            Status = "capturing", ProviderAuthorizationId = "authorization-ref-1"
+        }, CancellationToken.None);
+
+        Assert.Equal(ProviderCaptureOutcome.Unknown, result.Outcome);
+        Assert.Equal("provider_response_invalid", result.FailureReason);
+    }
+
+    [Fact]
+    public async Task Provider_timeout_requires_reconciliation()
+    {
+        var client = new HttpClient(new TimeoutHandler()) { BaseAddress = new Uri("https://provider.test/") };
+        var provider = new HttpPaymentProvider(client, Options.Create(new PaymentProviderOptions()));
+
+        ProviderVoidResult result = await provider.VoidAsync(Intent() with
+        {
+            Status = "voiding", ProviderAuthorizationId = "authorization-ref-1"
+        }, CancellationToken.None);
+
+        Assert.Equal(ProviderVoidOutcome.Unknown, result.Outcome);
+        Assert.Equal("provider_timeout", result.FailureReason);
+    }
+
+    [Fact]
+    public async Task Provider_credential_is_injected_without_changing_idempotency_key()
+    {
+        var handler = new StubHandler(HttpStatusCode.OK, new { succeeded = true, providerTransactionId = "capture-ref-1" });
+        var provider = new HttpPaymentProvider(new HttpClient(handler) { BaseAddress = new Uri("https://provider.test/") },
+            Options.Create(new PaymentProviderOptions { ApiKey = "synthetic-secret" }));
+        PaymentIntent intent = Intent() with { Status = "capturing", ProviderAuthorizationId = "authorization-ref-1" };
+
+        ProviderCaptureResult result = await provider.CaptureAsync(intent, CancellationToken.None);
+
+        Assert.Equal(ProviderCaptureOutcome.Captured, result.Outcome);
+        Assert.Equal("Bearer", handler.AuthorizationScheme);
+        Assert.Equal("synthetic-secret", handler.AuthorizationParameter);
+        Assert.Equal(intent.Id.ToString("D"), handler.IdempotencyKey);
+    }
+
     private static HttpPaymentProvider CreateProvider(HttpStatusCode statusCode, object? body)
     {
         var handler = new StubHandler(statusCode, body);
@@ -104,16 +198,32 @@ public sealed class PaymentProviderRecoveryTests
     private sealed class StubHandler(HttpStatusCode statusCode, object? body) : HttpMessageHandler
     {
         public string? IdempotencyKey { get; private set; }
+        public string? AuthorizationScheme { get; private set; }
+        public string? AuthorizationParameter { get; private set; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             IdempotencyKey = request.Headers.TryGetValues("Idempotency-Key", out IEnumerable<string>? values)
                 ? values.Single()
                 : null;
+            AuthorizationScheme = request.Headers.Authorization?.Scheme;
+            AuthorizationParameter = request.Headers.Authorization?.Parameter;
             var response = new HttpResponseMessage(statusCode);
             if (body is not null) response.Content = JsonContent.Create(body);
             await Task.Yield();
             return response;
         }
+    }
+
+    private sealed class RawHandler(HttpStatusCode statusCode, string body) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(statusCode) { Content = new StringContent(body) });
+    }
+
+    private sealed class TimeoutHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromException<HttpResponseMessage>(new TaskCanceledException("synthetic timeout"));
     }
 }

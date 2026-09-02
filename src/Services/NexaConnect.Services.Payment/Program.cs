@@ -33,7 +33,17 @@ builder.Services.AddScoped<IPaymentTenantAuthorizer, HttpPaymentTenantAuthorizer
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "payment");
-builder.Services.Configure<PaymentProviderOptions>(builder.Configuration.GetSection("PaymentProvider"));
+builder.Services.AddOptions<PaymentProviderOptions>()
+    .Bind(builder.Configuration.GetSection("PaymentProvider"))
+    .Validate(options => options.Adapter is "Disabled" or "GenericHttp",
+        "PaymentProvider:Adapter must be Disabled or GenericHttp.")
+    .Validate(options => options.Adapter == "Disabled"
+        || Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out Uri? uri)
+        && uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase),
+        "PaymentProvider:BaseUrl must be an absolute HTTPS URI when GenericHttp is selected.")
+    .Validate(options => options.RequestTimeout > TimeSpan.Zero && options.RequestTimeout <= TimeSpan.FromMinutes(2),
+        "PaymentProvider:RequestTimeout must be greater than zero and no more than two minutes.")
+    .ValidateOnStart();
 builder.Services.AddScoped<PaymentAuthorizationService>();
 builder.Services.AddScoped<IPaymentAuthorizationService>(services => services.GetRequiredService<PaymentAuthorizationService>());
 builder.Services.AddScoped<IPaymentCaptureService, PaymentCaptureService>();
@@ -41,11 +51,19 @@ builder.Services.AddScoped<PaymentCaptureRecoveryService>();
 builder.Services.AddScoped<IPaymentVoidService, PaymentVoidService>();
 builder.Services.AddScoped<PaymentVoidRecoveryService>();
 builder.Services.AddTransient<RetryingHttpMessageHandler>();
-builder.Services.AddHttpClient<IPaymentProvider, HttpPaymentProvider>((services, client) =>
+builder.Services.AddHttpClient<HttpPaymentProvider>((services, client) =>
 {
     PaymentProviderOptions options = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentProviderOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl);
+    client.Timeout = options.RequestTimeout;
 }).AddHttpMessageHandler<RetryingHttpMessageHandler>();
+builder.Services.AddSingleton<DisabledPaymentProvider>();
+builder.Services.AddScoped<IPaymentProvider>(services =>
+    services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentProviderOptions>>().Value.Adapter switch
+    {
+        "GenericHttp" => services.GetRequiredService<HttpPaymentProvider>(),
+        _ => services.GetRequiredService<DisabledPaymentProvider>()
+    });
 if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
 {
     builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Payment")
@@ -54,10 +72,13 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     healthChecks.AddCheck<PaymentDatabaseReadinessHealthCheck>("payment_database", tags: ["ready"]);
     builder.Services.Configure<PaymentOperationalMetricsOptions>(builder.Configuration.GetSection("OperationalMetrics"));
     builder.Services.AddHostedService<PaymentOperationalMetricsWorker>();
-    builder.Services.AddHostedService<PaymentAuthorizationRecoveryWorker>();
-    builder.Services.AddPaymentCaptureRecoveryWorker(builder.Configuration);
-    if (builder.Configuration.GetValue("PaymentProvider:VoidRecoveryEnabled", true))
-        builder.Services.AddHostedService<PaymentVoidRecoveryWorker>();
+    if (builder.Configuration["PaymentProvider:Adapter"]?.Equals("GenericHttp", StringComparison.Ordinal) == true)
+    {
+        builder.Services.AddHostedService<PaymentAuthorizationRecoveryWorker>();
+        builder.Services.AddPaymentCaptureRecoveryWorker(builder.Configuration);
+        if (builder.Configuration.GetValue("PaymentProvider:VoidRecoveryEnabled", true))
+            builder.Services.AddHostedService<PaymentVoidRecoveryWorker>();
+    }
     if (builder.Configuration.GetValue<bool>("Outbox:Enabled"))
         builder.Services.AddPostgresOutbox(builder.Configuration, "Payment");
 }

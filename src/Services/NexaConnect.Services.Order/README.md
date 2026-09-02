@@ -1,5 +1,7 @@
 # Order Service
 
+Manual tender domain support now models the Bangkok MVP methods `cash` and `promptpay_manual`. A settlement is accepted only for an Order in `KitchenAccepted` or `PaymentPending`, must match the Order organization, branch, exact total, and `THB` currency, and must carry non-empty terminal, operator, and idempotency identities. PromptPay requires explicit receipt confirmation before the Order can transition to paid; cash cannot carry a bank reference. A provider-bound Order cannot be manually settled, preventing a cashier action from racing provider reconciliation. This slice is domain-only: there is intentionally no public Paid endpoint, persistence migration, permission grant, cash-session posting, reporting projection, or POS button yet. Those must be delivered atomically in the next slice before manual settlement can be used operationally.
+
 For isolated local Payment Review verification, run `scripts/test-payment-review-isolated.ps1 -ConfirmDisposableInfrastructure`. It creates a new PostgreSQL/RabbitMQ/alert Compose project, runs the 13-case matrix and removes only that project's resources; no existing application connection settings are needed. The [live browser suite](../../Frontend/e2e/payment-review-live/README.md) separately requires running real Order and dependencies with fresh marked fixtures and dedicated OIDC accounts.
 
 The Order bounded context owns order aggregates, line price snapshots, status transitions, and the first restaurant sales workflow.
