@@ -1,5 +1,5 @@
 import {mkdirSync,writeFileSync} from "node:fs";
-export function completeEvidence(status,results){return status==="passed"&&results.length===7&&new Set(results.map(x=>x.title)).size===7&&results.every(x=>x.status==="passed");}
+export function completeEvidence(status,results){return status==="passed"&&results.length===10&&new Set(results.map(x=>x.title)).size===10&&results.every(x=>x.status==="passed");}
 // Do not serialize Playwright errors, HTTP bodies, settings, usernames or credentials.
 export default class SafeReporter{
   constructor(options){this.runId=options.runId;this.results=[];}

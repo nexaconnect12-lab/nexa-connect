@@ -1,6 +1,6 @@
 # Payment Review acceptance fixture tool
 
-This test-only console tool provisions the service-owned data required by the joined seven-scenario browser suite. It creates two organizations, `nexa_connect` access and memberships, one restaurant/branch, a branch-scoped accountant reader, a restaurant-scoped store-manager resolver, and five fresh Order Payment Review cases marked `browser-acceptance:<run-id>`.
+This test-only console tool provisions the service-owned data required by the joined ten-scenario browser suite. It creates two organizations, `nexa_connect` access and memberships, one restaurant/branch, a branch-scoped accountant reader, a restaurant-scoped store-manager resolver, and eight fresh Order Payment Review cases marked `browser-acceptance:<run-id>`.
 
 The tool calls Platform Directory, Restaurant, Authorization, and Order Application/Infrastructure boundaries; it does not contain cross-service SQL. Run the current migrations first: Platform Directory 3, Restaurant 3, Authorization 5, and Order 4. Supply the two Keycloak subject IDs after creating the disposable realm users.
 

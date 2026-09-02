@@ -60,7 +60,8 @@ public sealed record AcceptanceFixtureOptions(string RunId,string ReaderSubjectI
 }
 
 public sealed record AcceptanceFixtureResult(string RunId,Guid OrganizationId,Guid OtherOrganizationId,Guid RestaurantId,
-    Guid BranchId,Guid ConcurrencyOrderId,Guid ResumeOrderId,Guid VoidOrderId,Guid OutageOrderId,Guid LostResponseOrderId);
+    Guid BranchId,Guid ConcurrencyOrderId,Guid ResumeOrderId,Guid VoidOrderId,Guid OutageOrderId,Guid LostResponseOrderId,
+    Guid InventoryProcessOrderId,Guid KitchenProcessOrderId,Guid CombinedProcessOrderId);
 
 public sealed class AcceptanceFixtureProvisioner
 {
@@ -97,7 +98,7 @@ public sealed class AcceptanceFixtureProvisioner
         await assignments.AssignAsync(new(options.ReaderSubjectId,organization.OrganizationId,restaurantResult.RestaurantId,branch.BranchId,"accountant"),actor,cancellationToken);
         await assignments.AssignAsync(new(options.ResolverSubjectId,organization.OrganizationId,restaurantResult.RestaurantId,null,"store-manager"),actor,cancellationToken);
 
-        Guid[] orderIds=Enumerable.Range(0,5).Select(_=>Guid.NewGuid()).ToArray();
+        Guid[] orderIds=Enumerable.Range(0,8).Select(_=>Guid.NewGuid()).ToArray();
         foreach(Guid orderId in orderIds)
         {
             Guid paymentIntentId=Guid.NewGuid();
@@ -107,6 +108,6 @@ public sealed class AcceptanceFixtureProvisioner
             await orders.SaveWithEventAsync(order,required,cancellationToken);
         }
         return new(options.RunId,organization.OrganizationId,other.OrganizationId,restaurantResult.RestaurantId,branch.BranchId,
-            orderIds[0],orderIds[1],orderIds[2],orderIds[3],orderIds[4]);
+            orderIds[0],orderIds[1],orderIds[2],orderIds[3],orderIds[4],orderIds[5],orderIds[6],orderIds[7]);
     }
 }

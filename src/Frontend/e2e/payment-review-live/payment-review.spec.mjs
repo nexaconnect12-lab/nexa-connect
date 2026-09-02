@@ -1,6 +1,6 @@
 import {test,expect} from "@playwright/test";
 import {readSettings} from "./settings.mjs";
-import {setProxyEnabled} from "./fault-control.mjs";
+import {setProcessRunning,setProxyEnabled} from "./fault-control.mjs";
 const settings=readSettings(process.env),root="/bff/customer/payment-reviews";
 
 async function protectContext(context){
@@ -119,6 +119,31 @@ test("Inventory outage fails closed and requires an explicit fresh confirm-void 
   const history=await call(page,`${root}/${id}/history`);expect(history.data).toHaveLength(1);
   expect(history.data[0].action).toBe("confirm_void");
 });
+
+for(const [key,services,label] of [
+  ["inventoryProcess",["inventory"],"Inventory process loss"],
+  ["kitchenProcess",["kitchen"],"Kitchen process loss"],
+  ["combinedProcess",["inventory","kitchen"],"combined Inventory and Kitchen process loss"]
+]){
+  test(`${label} fails closed and recovers only after a fresh decision`,async({page})=>{
+    await signIn(page,settings.resolver);const id=settings.orders[key];await fixture(page,id);await open(page,id);
+    await choose(page,"Confirm void",`acceptance ${label}`);
+    for(const service of services)await setProcessRunning(settings.processControl,service,false);
+    try{
+      await page.getByRole("button",{name:"Confirm decision",exact:true}).click();
+      await expect(page.getByText("Resolution was not confirmed.",{exact:false})).toBeVisible();
+      const current=await fixture(page,id);expect(current.status).toBe("open");
+      expect((await call(page,`${root}/${id}/history`)).data).toHaveLength(0);
+    }finally{
+      for(const service of [...services].reverse())await setProcessRunning(settings.processControl,service,true);
+    }
+    await choose(page,"Confirm void",`acceptance ${label} recovery`);
+    await page.getByRole("button",{name:"Confirm decision",exact:true}).click();
+    await expect(page.getByText("Resolution saved.",{exact:false})).toBeVisible();
+    const history=await call(page,`${root}/${id}/history`);expect(history.data).toHaveLength(1);
+    expect(history.data[0].action).toBe("confirm_void");
+  });
+}
 
 test("lost committed response refreshes history without automatic replay",async({page})=>{
   await signIn(page,settings.resolver);const id=settings.orders.lost;await fixture(page,id);await open(page,id);

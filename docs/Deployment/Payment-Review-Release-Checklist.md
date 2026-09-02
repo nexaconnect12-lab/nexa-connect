@@ -8,9 +8,9 @@
 
 ## Joined operator verification
 
-- Run `scripts/test-payment-review-joined-safety.ps1`, then `scripts/test-payment-review-joined-infrastructure.ps1 -ConfirmDisposableInfrastructure -RunLiveBrowser`. Retain the sanitized summaries and require migrations, identity, fixture, application, proxy, browser, process-cleanup, and Compose-cleanup flags to be true. The launcher injects generated credentials in process memory, starts the complete loopback stack, validates the proxy route, and requires 7/7 without skips or retries.
+- Run `scripts/test-payment-review-joined-safety.ps1`, then `scripts/test-payment-review-joined-infrastructure.ps1 -ConfirmDisposableInfrastructure -RunLiveBrowser`. Retain sanitized summaries and require every lifecycle flag. The launcher injects generated credentials in memory, starts the loopback stack, validates the proxy and allow-listed process controller, and requires 10/10 without skips or retries.
 - Record target identity, source revision, migration versions, run ID and restricted evidence location. Test fixture markers and URL labels do not establish infrastructure ownership.
-- Retain the joined browser evidence that the configured Order-to-Inventory proxy outage fails closed and restoration requires an explicit fresh decision. Separately rehearse Inventory process/container loss, Kitchen failure, and combined dependency failures; one transport-proxy exercise is not complete production outage coverage.
+- Retain joined evidence that proxy outage and Inventory, Kitchen, and combined process loss fail closed and restoration requires a fresh decision. Separately rehearse the same cases with production persistence and the target container orchestrator; local in-memory process restart is not production recovery evidence.
 - Verify provider/accounting evidence before confirm-void. The UI does not query provider state, reverse captured funds or bypass Payment ownership.
 - Rehearse production receiver authentication, paging, acknowledgement/escalation, threshold calibration and forward-recovery policy. Local synthetic alert delivery alone is insufficient.
 

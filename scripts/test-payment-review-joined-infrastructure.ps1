@@ -8,15 +8,16 @@ $repositoryRoot=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $runId=[Guid]::NewGuid().ToString('N');$projectName="nexa-review-joined-$runId"
 $composeArguments=@(Get-ReviewJoinedComposeArguments $repositoryRoot $projectName)
 $runRoot=Join-Path $repositoryRoot ".runstate/payment-review-joined/$runId"
-$liveKeys=@('ENABLED','CONFIRM_DISPOSABLE','RUN_ID','BASE_URL','OIDC_ISSUER','FAULT_CONTROL_URL','FAULT_PROXY_NAME','RESOLVER_USERNAME','RESOLVER_PASSWORD','READER_USERNAME','READER_PASSWORD','ORGANIZATION_ID','OTHER_ORGANIZATION_ID','BRANCH_ID','CONCURRENCY_ORDER_ID','RESUME_ORDER_ID','VOID_ORDER_ID','OUTAGE_ORDER_ID','LOST_RESPONSE_ORDER_ID')
-$names=@('NEXACONNECT_JOINED_ADMIN_PASSWORD','NEXACONNECT_JOINED_RUN_ID','NEXACONNECT_JOINED_MIGRATION_PASSWORD','NEXACONNECT_JOINED_RUNTIME_PASSWORD','NEXACONNECT_JOINED_KEYCLOAK_DB_PASSWORD','NEXACONNECT_JOINED_KEYCLOAK_ADMIN_PASSWORD','NEXACONNECT_JOINED_CLIENT_SECRET','NEXACONNECT_JOINED_READER_PASSWORD','NEXACONNECT_JOINED_RESOLVER_PASSWORD','NEXACONNECT_JOINED_RABBITMQ_PASSWORD','NEXACONNECT_JOINED_BFF_PORT','NEXACONNECT_REVIEW_FIXTURE_ENABLED','NEXACONNECT_REVIEW_FIXTURE_RUN_ID','NEXACONNECT_REVIEW_FIXTURE_READER_SUBJECT_ID','NEXACONNECT_REVIEW_FIXTURE_RESOLVER_SUBJECT_ID','NEXACONNECT_REVIEW_FIXTURE_PLATFORM_DIRECTORY_DB','NEXACONNECT_REVIEW_FIXTURE_RESTAURANT_DB','NEXACONNECT_REVIEW_FIXTURE_AUTHORIZATION_DB','NEXACONNECT_REVIEW_FIXTURE_ORDER_DB','NEXACONNECT_PLATFORMDIRECTORY_DB','NEXACONNECT_RESTAURANT_DB','NEXACONNECT_AUTHORIZATION_DB','NEXACONNECT_ORDER_DB')+@($liveKeys|ForEach-Object{"NEXACONNECT_REVIEW_LIVE_$_"})
+$liveKeys=@('ENABLED','CONFIRM_DISPOSABLE','RUN_ID','BASE_URL','OIDC_ISSUER','FAULT_CONTROL_URL','FAULT_PROXY_NAME','PROCESS_CONTROL_URL','PROCESS_CONTROL_TOKEN','RESOLVER_USERNAME','RESOLVER_PASSWORD','READER_USERNAME','READER_PASSWORD','ORGANIZATION_ID','OTHER_ORGANIZATION_ID','BRANCH_ID','CONCURRENCY_ORDER_ID','RESUME_ORDER_ID','VOID_ORDER_ID','OUTAGE_ORDER_ID','LOST_RESPONSE_ORDER_ID','INVENTORY_PROCESS_ORDER_ID','KITCHEN_PROCESS_ORDER_ID','COMBINED_PROCESS_ORDER_ID')
+$names=@('NEXACONNECT_JOINED_ADMIN_PASSWORD','NEXACONNECT_JOINED_RUN_ID','NEXACONNECT_JOINED_MIGRATION_PASSWORD','NEXACONNECT_JOINED_RUNTIME_PASSWORD','NEXACONNECT_JOINED_KEYCLOAK_DB_PASSWORD','NEXACONNECT_JOINED_KEYCLOAK_ADMIN_PASSWORD','NEXACONNECT_JOINED_CLIENT_SECRET','NEXACONNECT_JOINED_READER_PASSWORD','NEXACONNECT_JOINED_RESOLVER_PASSWORD','NEXACONNECT_JOINED_RABBITMQ_PASSWORD','NEXACONNECT_JOINED_BFF_PORT','NEXACONNECT_REVIEW_PROCESS_CONTROL_TOKEN','NEXACONNECT_REVIEW_PROCESS_CONTROL_CONFIG','NEXACONNECT_REVIEW_FIXTURE_ENABLED','NEXACONNECT_REVIEW_FIXTURE_RUN_ID','NEXACONNECT_REVIEW_FIXTURE_READER_SUBJECT_ID','NEXACONNECT_REVIEW_FIXTURE_RESOLVER_SUBJECT_ID','NEXACONNECT_REVIEW_FIXTURE_PLATFORM_DIRECTORY_DB','NEXACONNECT_REVIEW_FIXTURE_RESTAURANT_DB','NEXACONNECT_REVIEW_FIXTURE_AUTHORIZATION_DB','NEXACONNECT_REVIEW_FIXTURE_ORDER_DB','NEXACONNECT_PLATFORMDIRECTORY_DB','NEXACONNECT_RESTAURANT_DB','NEXACONNECT_AUTHORIZATION_DB','NEXACONNECT_ORDER_DB')+@($liveKeys|ForEach-Object{"NEXACONNECT_REVIEW_LIVE_$_"})
 $previous=@{};foreach($name in $names){$previous[$name]=[Environment]::GetEnvironmentVariable($name)}
 $created=$false;$migrationsPassed=$false;$identityPassed=$false;$fixturePassed=$false;$applicationsPassed=$false;$proxyPassed=$false;$liveBrowserVerified=$false;$processCleanupPassed=-not $RunLiveBrowser;$cleanupPassed=$false;$fixture=$null;$processes=@()
 
 function Start-JoinedApplication($definition){
     $saved=@{};try{
         foreach($entry in $definition.Environment.GetEnumerator()){$saved[$entry.Key]=[Environment]::GetEnvironmentVariable($entry.Key);[Environment]::SetEnvironmentVariable($entry.Key,[string]$entry.Value)}
-        $log=Join-Path $runRoot "$($definition.Name).log";$process=Start-Process dotnet -WindowStyle Hidden -ArgumentList @($definition.Assembly,'--urls',$definition.Url) -WorkingDirectory $definition.WorkingDirectory -RedirectStandardOutput $log -RedirectStandardError "$log.error" -PassThru
+        $executable=if($definition.Executable){$definition.Executable}else{'dotnet'};$arguments=if($definition.Arguments){@($definition.Arguments)}else{@($definition.Assembly,'--urls',$definition.Url)}
+        $log=Join-Path $runRoot "$($definition.Name).log";$process=Start-Process $executable -WindowStyle Hidden -ArgumentList $arguments -WorkingDirectory $definition.WorkingDirectory -RedirectStandardOutput $log -RedirectStandardError "$log.error" -PassThru
         return [pscustomobject]@{Name=$definition.Name;Id=$process.Id;StartTimeUtc=$process.StartTime.ToUniversalTime();Log=$log}
     }finally{foreach($entry in $definition.Environment.GetEnumerator()){[Environment]::SetEnvironmentVariable($entry.Key,$saved[$entry.Key])}}
 }
@@ -31,8 +32,10 @@ function Wait-JoinedApplication($definition,$state){
 }
 function Stop-JoinedApplications{
     $failed=$false
+    if($script:processControlUrl-and$script:processControlToken){try{Invoke-RestMethod -Method Post -Uri "$script:processControlUrl/shutdown" -Headers @{Authorization="Bearer $script:processControlToken"} -TimeoutSec 15|Out-Null}catch{$failed=$true}}
     foreach($state in @($processes)|Sort-Object Id -Descending){$process=Get-Process -Id $state.Id -ErrorAction SilentlyContinue;if($null-eq$process){continue};if($process.StartTime.ToUniversalTime()-ne$state.StartTimeUtc){$failed=$true;continue};try{Stop-Process -Id $state.Id -Force -ErrorAction Stop;$null=$process.WaitForExit(10000)}catch{$failed=$true}}
     foreach($state in $processes){if(Get-Process -Id $state.Id -ErrorAction SilentlyContinue){$failed=$true}}
+    foreach($port in @($script:controlledPorts)){$client=[Net.Sockets.TcpClient]::new();try{$task=$client.ConnectAsync('127.0.0.1',$port);if($task.Wait(1000)-and$client.Connected){$failed=$true}}catch{}finally{$client.Dispose()}}
     if($failed){throw 'One or more joined application processes could not be verified as stopped.'}
 }
 try{
@@ -40,7 +43,7 @@ try{
     if([string]::IsNullOrWhiteSpace($endpoint)){$endpoint=& $DockerExecutable context inspect --format '{{.Endpoints.docker.Host}}';if($LASTEXITCODE -ne 0){throw 'Could not inspect Docker context.'}}
     if($endpoint -notmatch '^(npipe|unix)://'){throw 'Joined acceptance requires a local Docker socket.'}
     New-Item -ItemType Directory -Path $runRoot | Out-Null
-    $applicationPorts=@(Get-ReviewJoinedFreePorts 7);$env:NEXACONNECT_JOINED_RUN_ID=$runId;$env:NEXACONNECT_JOINED_BFF_PORT=$applicationPorts[6].ToString()
+    $applicationPorts=@(Get-ReviewJoinedFreePorts 8);$env:NEXACONNECT_JOINED_RUN_ID=$runId;$env:NEXACONNECT_JOINED_BFF_PORT=$applicationPorts[6].ToString()
     foreach($name in $names|Where-Object{$_ -match 'PASSWORD$|SECRET$'}){[Environment]::SetEnvironmentVariable($name,('Aa1!'+[Guid]::NewGuid().ToString('N')+[Guid]::NewGuid().ToString('N')))}
     $existing=@(& $DockerExecutable @composeArguments ps -aq);if($LASTEXITCODE -ne 0 -or $existing.Count -ne 0){throw 'Generated joined project is not empty.'}
     $created=$true;& $DockerExecutable @composeArguments up -d --wait --wait-timeout 180
@@ -102,17 +105,23 @@ try{
             $definition.Port=$ports[$definition.Key];$definition.Url=$url[$definition.Key]
             if($definition.Key-eq'Bff'){$definition.WorkingDirectory=$artifact;$definition.Assembly=Join-Path $artifact 'NexaConnect.CustomerBff.dll'}else{$definition.WorkingDirectory=Join-Path $repositoryRoot $projects[$definition.Key];$definition.Assembly=Join-Path $definition.WorkingDirectory "bin/Debug/net10.0/$($assemblies[$definition.Key])"}
             if(-not(Test-Path -LiteralPath $definition.Assembly)){throw "Joined application artifact is missing for $($definition.Name)."}
-            $processes+=Start-JoinedApplication $definition
         }
-        foreach($definition in $definitions){$state=@($processes|Where-Object{$_.Name-eq$definition.Name})[0];Wait-JoinedApplication $definition $state};$applicationsPassed=$true
+        $controlled=@($definitions|Where-Object{$_.Key-in @('Inventory','Kitchen')});$script:controlledPorts=@($controlled.Port)
+        $processControlToken=([Guid]::NewGuid().ToString('N')+[Guid]::NewGuid().ToString('N'));$processControlUrl="http://127.0.0.1:$($applicationPorts[7])";$script:processControlToken=$processControlToken;$script:processControlUrl=$processControlUrl
+        $controlConfig=[ordered]@{controlPort=$applicationPorts[7];services=@($controlled|ForEach-Object{[ordered]@{name=$_.Name;assembly=$_.Assembly;workingDirectory=$_.WorkingDirectory;url=$_.Url;port=$_.Port;log=(Join-Path $runRoot "$($_.Name).log");environment=$_.Environment}})}|ConvertTo-Json -Depth 8 -Compress
+        $controlDefinition=@{Name='process-control';Executable='node';Arguments=@((Join-Path $repositoryRoot 'src/Frontend/e2e/payment-review-live/process-control-server.mjs'));WorkingDirectory=$repositoryRoot;Environment=@{NEXACONNECT_REVIEW_PROCESS_CONTROL_TOKEN=$processControlToken;NEXACONNECT_REVIEW_PROCESS_CONTROL_CONFIG=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($controlConfig))};Port=$applicationPorts[7]}
+        $processes+=Start-JoinedApplication $controlDefinition;Wait-JoinedApplication $controlDefinition $processes[-1]
+        foreach($definition in @($definitions|Where-Object{$_.Key-notin @('Inventory','Kitchen')})){$processes+=Start-JoinedApplication $definition}
+        foreach($definition in @($definitions|Where-Object{$_.Key-notin @('Inventory','Kitchen')})){$state=@($processes|Where-Object{$_.Name-eq$definition.Name})[0];Wait-JoinedApplication $definition $state}
+        foreach($definition in $controlled){Wait-JoinedApplication $definition $processes[0]};$applicationsPassed=$true
         $proxyName="nexa-review-it-$runId-inventory";$control="http://127.0.0.1:$toxiproxyPort"
         $proxyBody=@{name=$proxyName;listen='0.0.0.0:8666';upstream="host.docker.internal:$($ports.Inventory)";enabled=$true}|ConvertTo-Json -Compress
         Invoke-RestMethod -Method Post -Uri "$control/proxies" -UserAgent 'toxiproxy-cli' -ContentType 'application/json' -Body $proxyBody|Out-Null;$proxyPassed=$true
-        $live=@{ENABLED='1';CONFIRM_DISPOSABLE='1';RUN_ID=$runId;BASE_URL=$url.Bff+'/';OIDC_ISSUER=$authority;FAULT_CONTROL_URL=$control+'/';FAULT_PROXY_NAME=$proxyName;RESOLVER_USERNAME=$resolverUser;RESOLVER_PASSWORD=$env:NEXACONNECT_JOINED_RESOLVER_PASSWORD;READER_USERNAME=$readerUser;READER_PASSWORD=$env:NEXACONNECT_JOINED_READER_PASSWORD;ORGANIZATION_ID=$fixture.organizationId;OTHER_ORGANIZATION_ID=$fixture.otherOrganizationId;BRANCH_ID=$fixture.branchId;CONCURRENCY_ORDER_ID=$fixture.concurrencyOrderId;RESUME_ORDER_ID=$fixture.resumeOrderId;VOID_ORDER_ID=$fixture.voidOrderId;OUTAGE_ORDER_ID=$fixture.outageOrderId;LOST_RESPONSE_ORDER_ID=$fixture.lostResponseOrderId}
+        $live=@{ENABLED='1';CONFIRM_DISPOSABLE='1';RUN_ID=$runId;BASE_URL=$url.Bff+'/';OIDC_ISSUER=$authority;FAULT_CONTROL_URL=$control+'/';FAULT_PROXY_NAME=$proxyName;PROCESS_CONTROL_URL=$processControlUrl+'/';PROCESS_CONTROL_TOKEN=$processControlToken;RESOLVER_USERNAME=$resolverUser;RESOLVER_PASSWORD=$env:NEXACONNECT_JOINED_RESOLVER_PASSWORD;READER_USERNAME=$readerUser;READER_PASSWORD=$env:NEXACONNECT_JOINED_READER_PASSWORD;ORGANIZATION_ID=$fixture.organizationId;OTHER_ORGANIZATION_ID=$fixture.otherOrganizationId;BRANCH_ID=$fixture.branchId;CONCURRENCY_ORDER_ID=$fixture.concurrencyOrderId;RESUME_ORDER_ID=$fixture.resumeOrderId;VOID_ORDER_ID=$fixture.voidOrderId;OUTAGE_ORDER_ID=$fixture.outageOrderId;LOST_RESPONSE_ORDER_ID=$fixture.lostResponseOrderId;INVENTORY_PROCESS_ORDER_ID=$fixture.inventoryProcessOrderId;KITCHEN_PROCESS_ORDER_ID=$fixture.kitchenProcessOrderId;COMBINED_PROCESS_ORDER_ID=$fixture.combinedProcessOrderId}
         foreach($entry in $live.GetEnumerator()){[Environment]::SetEnvironmentVariable("NEXACONNECT_REVIEW_LIVE_$($entry.Key)",[string]$entry.Value)}
         Push-Location (Join-Path $repositoryRoot 'src/Frontend');try{& npm.cmd run test:e2e:payment-review:live;if($LASTEXITCODE-ne 0){throw 'Joined Payment Review browser verification failed.'}}finally{Pop-Location}
         $browserSummary=Get-Content -Raw (Join-Path $repositoryRoot "src/Frontend/test-results/payment-review-live/$runId/summary.json")|ConvertFrom-Json
-        if($browserSummary.verified-ne$true-or$browserSummary.passed-ne 7-or$browserSummary.total-ne 7){throw 'Joined browser evidence is incomplete.'};$liveBrowserVerified=$true
+        if($browserSummary.verified-ne$true-or$browserSummary.passed-ne 10-or$browserSummary.total-ne 10){throw 'Joined browser evidence is incomplete.'};$liveBrowserVerified=$true
     }
 }
 catch{

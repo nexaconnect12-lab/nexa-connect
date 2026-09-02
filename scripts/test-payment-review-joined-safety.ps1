@@ -10,7 +10,7 @@ if($arguments[-1]-ne$project-or$arguments-notcontains'--env-file'-or$arguments-n
 foreach($address in @('0.0.0.0:5432','localhost:5432','127.0.0.1:22','127.0.0.1:65536','127.0.0.1:5432/')){Must-Reject{ConvertFrom-ReviewJoinedPort $address}}
 if((ConvertFrom-ReviewJoinedPort '127.0.0.1:55432')-ne 55432){throw 'Valid joined loopback port failed.'};$checks++
 Must-Reject{Get-ReviewJoinedFreePorts 0};$checks++
-$ports=@(Get-ReviewJoinedFreePorts 7);if($ports.Count-ne 7-or(@($ports|Select-Object -Unique).Count)-ne 7-or@($ports|Where-Object{$_-lt 1024-or$_-gt 65535}).Count){throw 'Joined application ports are not distinct and valid.'};$checks++
+$ports=@(Get-ReviewJoinedFreePorts 8);if($ports.Count-ne 8-or(@($ports|Select-Object -Unique).Count)-ne 8-or@($ports|Where-Object{$_-lt 1024-or$_-gt 65535}).Count){throw 'Joined application and process-control ports are not distinct and valid.'};$checks++
 foreach($suffix in @('NexaConnect_Order','../order','reporting')){Must-Reject{New-ReviewJoinedConnection 55432 ('a'*32) $suffix test synthetic}}
 $connection=New-Object System.Data.Common.DbConnectionStringBuilder;$connection.set_ConnectionString((New-ReviewJoinedConnection 55432 ('a'*32) order test 'synthetic;quoted=value'))
 if($connection['Database']-ne'nexa_review_it_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_order'-or$connection['Password']-ne'synthetic;quoted=value'){throw 'Joined connection was not safely encoded.'};$checks++
@@ -27,5 +27,7 @@ try{
     foreach($call in $global:ReviewJoinedFakeCalls){if($call[0]-ne'compose'){continue};$index=[Array]::IndexOf($call,'-p');if($index-lt 0-or$call-notcontains'-f'-or$call-notcontains'--env-file'){throw 'Joined Docker call escaped Compose isolation.'};Assert-ReviewJoinedProject $call[$index+1]};$checks++
 }finally{foreach($name in $names){[Environment]::SetEnvironmentVariable($name,$saved[$name])}}
 $launcher=Get-Content -Raw (Join-Path $PSScriptRoot 'test-payment-review-joined-infrastructure.ps1')
-foreach($required in @('RunLiveBrowser','nexa-review-it-$runId-inventory','host.docker.internal','test:e2e:payment-review:live','browserSummary.verified-ne$true','Stop-JoinedApplications')){if(-not$launcher.Contains($required)){throw "Joined live fail-closed contract is missing: $required"};$checks++}
+foreach($required in @('RunLiveBrowser','nexa-review-it-$runId-inventory','host.docker.internal','test:e2e:payment-review:live','browserSummary.passed-ne 10','PROCESS_CONTROL_TOKEN','process-control-server.mjs','controlledPorts','Stop-JoinedApplications')){if(-not$launcher.Contains($required)){throw "Joined live fail-closed contract is missing: $required"};$checks++}
+$controller=Get-Content -Raw (Join-Path $PSScriptRoot '../src/Frontend/e2e/payment-review-live/process-control-server.mjs')
+foreach($required in @('allowed.size!==2','allowed.has("inventory")','allowed.has("kitchen")','req.headers.authorization','/shutdown','stopAll')){if(-not$controller.Contains($required)){throw "Joined process-control boundary is missing: $required"};$checks++}
 Write-Output "$checks joined acceptance safety checks passed."
