@@ -50,6 +50,28 @@ public sealed class PlatformDirectoryAccessTests
         Assert.IsType<Microsoft.AspNetCore.Mvc.ForbidResult>(result.Result);
     }
 
+    [Fact]
+    public async Task Current_access_accepts_the_standard_name_identifier_claim()
+    {
+        var reader = new FakeOrganizationAccessReader([]);
+        var controller = new OrganizationAccessController(reader)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                        [new Claim(ClaimTypes.NameIdentifier, "mapped-subject")], "test"))
+                }
+            }
+        };
+
+        var result = await controller.GetCurrentAccessAsync(CancellationToken.None);
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal("mapped-subject", reader.LastSubjectId);
+    }
+
     private sealed class FakeOrganizationAccessReader(
         IReadOnlyList<OrganizationApplicationAccess> organizations) : IOrganizationAccessReader
     {

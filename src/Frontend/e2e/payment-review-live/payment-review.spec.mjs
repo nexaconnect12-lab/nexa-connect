@@ -15,12 +15,20 @@ async function call(page,path,body,csrf){
   },{path,body,csrf});
 }
 async function signIn(page,identity){
-  await protectContext(page.context());await page.goto("/");
+  await protectContext(page.context());await page.goto("/bff/customer/login?returnUrl=%2F");
   await expect(page.locator("#username")).toBeVisible();
   const target=new URL(page.url());
   if(target.origin!==new URL(settings.issuer).origin||target.pathname!==new URL(settings.issuer).pathname+"/protocol/openid-connect/auth")throw new Error("Refusing to enter credentials outside the configured acceptance realm.");
-  try{await page.locator("#username").fill(identity.username);await page.locator("#password").fill(identity.password);await page.locator("#kc-login").click();}
+  try{
+    await page.locator("#username").fill(identity.username);await page.locator("#password").fill(identity.password);await page.locator("#kc-login").click();
+    await page.waitForURL(url=>url.origin===new URL(settings.baseURL).origin,{timeout:15000});
+  }
   catch{throw new Error("Acceptance OIDC sign-in failed; credentials suppressed.");}
+  if(new URL(page.url()).origin===new URL(settings.issuer).origin){
+    if(await page.locator("#input-error").isVisible().catch(()=>false))throw new Error("Acceptance OIDC credentials were rejected.");
+    if(new URL(page.url()).pathname.includes("required-action"))throw new Error("Acceptance OIDC required action blocked callback.");
+    throw new Error("Acceptance OIDC did not return to the BFF callback.");
+  }
   await expect(page.getByText("Customer Portal",{exact:true}).first()).toBeVisible();
   const selected=await call(page,"/bff/customer/tenant",{organizationId:settings.organizationId,applicationCode:"nexa_connect"});expect(selected.status).toBe(200);
   await page.goto("/#payment-reviews");await page.reload();await expect(page.getByLabel("Branch UUID")).toBeVisible();

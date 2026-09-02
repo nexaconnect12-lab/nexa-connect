@@ -15,7 +15,7 @@ public sealed class OrganizationAccessController(IOrganizationAccessReader acces
     public async Task<ActionResult<CurrentPlatformAccessResponse>> GetCurrentAccessAsync(
         CancellationToken cancellationToken)
     {
-        string? subjectId = User.FindFirst(NexaAuthenticationDefaults.SubjectClaim)?.Value;
+        string? subjectId = AuthenticatedSubject();
         if (string.IsNullOrWhiteSpace(subjectId))
         {
             return Forbid();
@@ -31,7 +31,7 @@ public sealed class OrganizationAccessController(IOrganizationAccessReader acces
         Guid organizationId,
         CancellationToken cancellationToken)
     {
-        string? subjectId = User.FindFirst(NexaAuthenticationDefaults.SubjectClaim)?.Value;
+        string? subjectId = AuthenticatedSubject();
         if (string.IsNullOrWhiteSpace(subjectId))
         {
             return Forbid();
@@ -57,6 +57,10 @@ public sealed class OrganizationAccessController(IOrganizationAccessReader acces
             cancellationToken);
         return Ok(new OrganizationAccessResponse(organizationId, granted));
     }
+
+    private string? AuthenticatedSubject() =>
+        User.FindFirstValue(NexaAuthenticationDefaults.SubjectClaim)
+        ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
 }
 
 public sealed record OrganizationAccessResponse(Guid OrganizationId, bool Granted);

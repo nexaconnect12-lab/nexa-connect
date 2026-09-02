@@ -29,7 +29,10 @@ $values = [ordered]@{
     NEXACONNECT_CATALOG_SERVICE_CLIENT_SECRET = 'validation-catalog-workload-secret'
     NEXACONNECT_ORDER_SERVICE_CLIENT_SECRET = 'validation-order-workload-secret'
     NEXACONNECT_INVENTORY_SERVICE_CLIENT_SECRET = 'validation-inventory-workload-secret'
+    NEXACONNECT_KITCHEN_SERVICE_CLIENT_SECRET = 'validation-kitchen-workload-secret'
     NEXACONNECT_PAYMENT_SERVICE_CLIENT_SECRET = 'validation-payment-workload-secret'
+    NEXACONNECT_MEDIA_SERVICE_CLIENT_SECRET = 'validation-media-workload-secret'
+    PLATFORM_DIRECTORY_ADMIN_CLIENT_SECRET = 'validation-platform-directory-admin-secret'
     PLATFORM_ADMIN_BFF_CLIENT_SECRET = 'validation-platform-admin-secret'
     PLATFORM_ADMIN_BFF_REDIRECT_URI = 'https://platform.example.test/signin-oidc'
     PLATFORM_ADMIN_BFF_ORIGIN = 'https://platform.example.test'
@@ -71,7 +74,9 @@ $requiredClients = @(
     'nexaconnect-catalog-service'
     'nexaconnect-order-service'
     'nexaconnect-inventory-service'
+    'nexaconnect-kitchen-service'
     'nexaconnect-payment-service'
+    'nexaconnect-media-service'
 )
 
 $missingClients = @($requiredClients | Where-Object { $_ -notin $clientIds })
@@ -94,6 +99,26 @@ $roleMapper = @($apiScope.protocolMappers | Where-Object name -eq 'realm-roles')
 if ($roleMapper.Count -ne 1 -or $roleMapper[0].config.'access.token.claim' -ne 'true' -or
     $roleMapper[0].config.'id.token.claim' -ne 'true' -or $roleMapper[0].config.multivalued -ne 'true') {
     throw 'The API realm-role mapper must emit a multi-valued roles claim in access and ID tokens.'
+}
+
+$webBff = @($realm.clients | Where-Object clientId -eq 'nexaconnect-web-bff')
+$webSubject = @($webBff.protocolMappers | Where-Object protocolMapper -eq 'oidc-sub-mapper')
+$webAudience = @($webBff.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api'
+})
+if ($webBff.Count -ne 1 -or 'basic' -notin @($webBff[0].defaultClientScopes) -or
+    $webSubject.Count -ne 1 -or $webSubject[0].config.'access.token.claim' -ne 'true' -or
+    $webAudience.Count -ne 1 -or $webAudience[0].config.'access.token.claim' -ne 'true') {
+    throw 'The Customer BFF client must emit subject and nexaconnect-api audience access-token claims.'
+}
+
+$orderClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-order-service')
+$orderAudience = @($orderClient.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api'
+})
+if ($orderClient.Count -ne 1 -or $orderAudience.Count -ne 1 -or
+    $orderAudience[0].config.'access.token.claim' -ne 'true') {
+    throw 'The Order workload client must emit the nexaconnect-api audience in access tokens.'
 }
 
 $publicClients = @($realm.clients | Where-Object publicClient)

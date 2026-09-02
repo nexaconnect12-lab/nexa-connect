@@ -1,0 +1,106 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: ${NEXACONNECT_JOINED_ADMIN_PASSWORD:?Run the joined infrastructure launcher}
+      NEXACONNECT_JOINED_RUN_ID: ${NEXACONNECT_JOINED_RUN_ID:?Run the joined infrastructure launcher}
+      NEXACONNECT_JOINED_MIGRATION_PASSWORD: ${NEXACONNECT_JOINED_MIGRATION_PASSWORD:?Run the joined infrastructure launcher}
+      NEXACONNECT_JOINED_RUNTIME_PASSWORD: ${NEXACONNECT_JOINED_RUNTIME_PASSWORD:?Run the joined infrastructure launcher}
+    ports: ["127.0.0.1::5432"]
+    tmpfs: [/var/lib/postgresql/data]
+    volumes:
+      - ./init.sh:/docker-entrypoint-initdb.d/01-joined.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+  keycloak-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${NEXACONNECT_JOINED_KEYCLOAK_DB_PASSWORD:?Run the joined infrastructure launcher}
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U keycloak -d keycloak"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${NEXACONNECT_JOINED_KEYCLOAK_DB_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: acceptance-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${NEXACONNECT_JOINED_KEYCLOAK_ADMIN_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+      NEXA_REALM_NAME: nexa-review-it-${NEXACONNECT_JOINED_RUN_ID}
+      NEXA_REALM_DISPLAY_NAME: Nexa Payment Review Acceptance
+      NEXA_VERIFY_EMAIL: "false"
+      NEXA_REQUIRE_MFA: "false"
+      NEXA_SMTP_HOST: localhost
+      NEXA_SMTP_PORT: "1025"
+      NEXA_SMTP_FROM: noreply@nexa.invalid
+      NEXA_SMTP_FROM_DISPLAY_NAME: Nexa Acceptance
+      NEXA_SMTP_AUTH: "false"
+      NEXA_SMTP_USER: ""
+      NEXA_SMTP_PASSWORD: ""
+      NEXA_SMTP_STARTTLS: "false"
+      NEXA_SMTP_SSL: "false"
+      NEXACONNECT_WEB_BFF_CLIENT_SECRET: ${NEXACONNECT_JOINED_CLIENT_SECRET}
+      NEXACONNECT_ADMIN_BFF_CLIENT_SECRET: ${NEXACONNECT_JOINED_CLIENT_SECRET}
+      NEXACONNECT_POS_SERVICE_CLIENT_SECRET: ${NEXACONNECT_JOINED_CLIENT_SECRET}
+      PLATFORM_ADMIN_BFF_CLIENT_SECRET: ${NEXACONNECT_JOINED_CLIENT_SECRET}
+      PLATFORM_DIRECTORY_ADMIN_CLIENT_SECRET: ${NEXACONNECT_JOINED_CLIENT_SECRET}
+      NEXACONNECT_CATALOG_SERVICE_CLIENT_SECRET: ${NEXACONNECT_JOINED_CLIENT_SECRET}
+      NEXACONNECT_ORDER_SERVICE_CLIENT_SECRET: ${NEXACONNECT_JOINED_CLIENT_SECRET}
+      NEXACONNECT_INVENTORY_SERVICE_CLIENT_SECRET: ${NEXACONNECT_JOINED_CLIENT_SECRET}
+      NEXACONNECT_PAYMENT_SERVICE_CLIENT_SECRET: ${NEXACONNECT_JOINED_CLIENT_SECRET}
+      NEXACONNECT_KITCHEN_SERVICE_CLIENT_SECRET: ${NEXACONNECT_JOINED_CLIENT_SECRET}
+      NEXACONNECT_MEDIA_SERVICE_CLIENT_SECRET: ${NEXACONNECT_JOINED_CLIENT_SECRET}
+      NEXACONNECT_WEB_BFF_REDIRECT_URI: https://127.0.0.1:${NEXACONNECT_JOINED_BFF_PORT}/signin-oidc
+      NEXACONNECT_WEB_BFF_POST_LOGOUT_REDIRECT_URI: https://127.0.0.1:${NEXACONNECT_JOINED_BFF_PORT}/signout-callback-oidc
+      NEXACONNECT_WEB_ORIGIN: https://127.0.0.1:${NEXACONNECT_JOINED_BFF_PORT}
+      NEXACONNECT_ADMIN_BFF_REDIRECT_URI: https://127.0.0.1:${NEXACONNECT_JOINED_BFF_PORT}/admin/signin-oidc
+      NEXACONNECT_ADMIN_BFF_POST_LOGOUT_REDIRECT_URI: https://127.0.0.1:${NEXACONNECT_JOINED_BFF_PORT}/admin/signout-callback-oidc
+      NEXACONNECT_ADMIN_ORIGIN: https://127.0.0.1:${NEXACONNECT_JOINED_BFF_PORT}
+      PLATFORM_ADMIN_BFF_REDIRECT_URI: https://127.0.0.1:${NEXACONNECT_JOINED_BFF_PORT}/platform/signin-oidc
+      PLATFORM_ADMIN_BFF_ORIGIN: https://127.0.0.1:${NEXACONNECT_JOINED_BFF_PORT}
+      NEXACONNECT_MOBILE_REDIRECT_URI: nexaconnect-review://oauth/callback
+      NEXACONNECT_POS_REDIRECT_URI: nexaconnect-review-pos://oauth/callback
+      NEXACONNECT_READER_PASSWORD: ${NEXACONNECT_JOINED_READER_PASSWORD}
+      NEXACONNECT_RESOLVER_PASSWORD: ${NEXACONNECT_JOINED_RESOLVER_PASSWORD}
+    ports:
+      - "127.0.0.1::8080"
+      - "127.0.0.1::9000"
+    volumes:
+      - ../keycloak/realm/nexa-dev-realm.json:/opt/keycloak/data/import/nexa-review-it-${NEXACONNECT_JOINED_RUN_ID}-realm.json:ro
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD-SHELL, "{ printf 'HEAD /health/ready HTTP/1.0\r\n\r\n' >&0; grep -q '200 OK'; } 0<>/dev/tcp/127.0.0.1/9000"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+      start_period: 20s
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    ports:
+      - "127.0.0.1::8474"
+      - "127.0.0.1::8666"
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: acceptance
+      RABBITMQ_DEFAULT_PASS: ${NEXACONNECT_JOINED_RABBITMQ_PASSWORD:?Run the joined infrastructure launcher}
+    ports: ["127.0.0.1::5672"]
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 3s
+      timeout: 5s
+      retries: 40
