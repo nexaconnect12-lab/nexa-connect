@@ -126,6 +126,10 @@ public sealed record OrderPaymentReviewResolvedV1(Guid EventId, Guid Correlation
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Resolution, long ConcurrencyVersion,
     Guid AuthorizationDecisionId) : IIntegrationEvent;
 
+public sealed record OrderManualTenderSettledV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid RestaurantId, Guid BranchId, Guid OrderId, Guid SettlementId, Guid TerminalId,
+    string Method, decimal Amount, string Currency) : IIntegrationEvent;
+
 public sealed record NotificationQueuedV1(
     Guid EventId,
     Guid CorrelationId,

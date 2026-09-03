@@ -12,6 +12,7 @@ using NexaConnect.Services.Order.Infrastructure;
 using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Observability;
 using NexaConnect.Services.Order.Application.PaymentReviews;
+using NexaConnect.Services.Order.Application.ManualTenders;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-order");
@@ -38,6 +39,7 @@ if (usePostgres)
     builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(connectionString).Build());
     builder.Services.AddSingleton<PostgresOrderRepository>();
     builder.Services.AddSingleton<IOrderRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
+    builder.Services.AddSingleton<IManualTenderRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
     builder.Services.AddSingleton<IOrderApplicationService, PostgresOrderApplicationService>();
     builder.Services.Configure<OrderOperationalMetricsOptions>(builder.Configuration.GetSection("OperationalMetrics"));
     builder.Services.AddHostedService<PaymentReconciliationOperationalMetricsWorker>();
@@ -54,6 +56,7 @@ builder.Services.AddSingleton<IIntegrationEventPublisher>(services =>
 builder.Services.AddScoped<PlaceOrderWorkflow>();
 builder.Services.AddScoped<PaymentReconciliationApplicationService>();
 builder.Services.AddScoped<PaymentReviewApplicationService>();
+builder.Services.AddScoped<ManualTenderApplicationService>();
 if (usePostgres)
 {
     builder.Services.AddPostgresOutbox(builder.Configuration, "Order");

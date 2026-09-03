@@ -1,5 +1,7 @@
 # Authorization role assignments
 
+Authorization migration 6 grants `order.manual-payment.confirm` to existing `cashier`, `store-manager`, and `tenant-admin` roles; runtime assignment provisioning grants it to roles created later. Normal branch/restaurant/organization hierarchy still applies and Order revalidates the exact branch. A controlled `6→5` downgrade deletes only these associations; disable manual settlement before rollback.
+
 Media mutations additionally require `media.asset.manage`; standard `tenant-admin` and `store-manager` assignments receive it together with `media.asset.read`. Kitchen reads and transitions require `kitchen.ticket.read` and `kitchen.ticket.transition`; Authorization migration 3 backfills both permissions for existing assignments of those operational roles.
 
 Order payment-review reads and operator decisions require `order.payment-review.read` and `order.payment-review.resolve`. Authorization migration 4 backfills both for existing `tenant-admin` and `store-manager` roles. Migration 5 adds `order.payment-review.read` to existing `accountant` roles, while runtime assignment provisioning gives newly created tenant administrators/store managers both permissions and accountants read only. Organization equality and Restaurant-owned hierarchical scope still constrain every decision. A destructive `5→4` downgrade removes only the accountant read associations; a subsequent `4→3` removes all Payment Review associations. Disable the corresponding reader and resolver routes before each downgrade.

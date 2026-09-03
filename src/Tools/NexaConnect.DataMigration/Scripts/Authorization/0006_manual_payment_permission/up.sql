@@ -1,0 +1,1 @@
+INSERT INTO authorization_role_permissions(role_id,permission_code) SELECT role.id,'order.manual-payment.confirm' FROM authorization_roles role WHERE role.code IN('tenant-admin','store-manager','cashier') ON CONFLICT DO NOTHING;

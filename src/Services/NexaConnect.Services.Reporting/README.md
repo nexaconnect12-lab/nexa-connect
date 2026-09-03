@@ -1,5 +1,7 @@
 # Reporting service
 
+Current deployment requires Reporting migrations 1-14. Vocabulary migration 14 accepts `order.manual-tender.settled`; its downgrade removes incompatible projections and inbox markers so retained Order audit events can be replayed after re-upgrade. References below to the earlier 1-13 payment-review baseline remain historical.
+
 The RabbitMQ activity projection consumer exposes an internal readiness task that completes only after its exchange, durable queues, audit/dead-letter bindings, QoS, and consumer registration have succeeded. Hosted acceptance publishers await this signal before mandatory publication; checking that the queue merely exists is insufficient because declaration precedes binding and can produce RabbitMQ `312 NO_ROUTE`. This deterministic startup signal does not replace deployment health endpoints.
 
 This service owns tenant-scoped, eventually consistent read models for customer dashboards, sales reports, and activity. It never queries an operational service database. Apply Reporting migrations 1-13, then configure `ConnectionStrings__Reporting`, `Services__PlatformDirectory`, and `Services__Authorization`. The development profile uses `https://localhost:51226`.

@@ -1,5 +1,7 @@
 # Authorization Service
 
+Manual tender confirmation requires migration 6. Existing and newly assigned `cashier`, `store-manager`, and `tenant-admin` roles receive `order.manual-payment.confirm` at their normal hierarchical scopes. Downgrading `6→5` removes only this permission association and must follow disabling the manual-settlement route.
+
 Owns product-scoped authorization decisions and role assignments. Operational telemetry uses service name `nexaconnect-authorization`; decision logs contain permission and UUID scope but never bearer tokens, identity credentials, request bodies, customer PII, or payment details.
 
 `POST /api/authorization/v1/role-assignments` accepts legacy `system-admin` and current `platform-owner`/`platform-admin` control-plane roles. Platform Admin BFF exposes a same-body proxy while Authorization remains the persistence owner. Assignment scope is hierarchical: `tenant-admin` is organization-scoped, `store-manager` is restaurant-scoped, and operational roles are branch-scoped. Organization-wide list APIs therefore require an organization-scoped assignment; restaurant-scoped assignments apply only when the authorization request carries their restaurant.

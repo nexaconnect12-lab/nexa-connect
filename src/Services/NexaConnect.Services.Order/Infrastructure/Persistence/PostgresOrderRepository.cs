@@ -3,13 +3,58 @@ using Npgsql;
 using NexaConnect.Contracts.IntegrationEvents;
 using NexaConnect.Services.Order.Application.Workflow;
 using NexaConnect.Services.Order.Application.PaymentReviews;
+using NexaConnect.Services.Order.Application.ManualTenders;
 using NexaConnect.Services.Order.Domain;
 
 namespace NexaConnect.Services.Order.Infrastructure.Persistence;
 
 public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
-    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderLookup, IPaymentReviewRepository, IPaymentReviewHistoryRepository
+    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderLookup, IPaymentReviewRepository, IPaymentReviewHistoryRepository, IManualTenderRepository
 {
+    public async Task<StoredManualTender?> FindAsync(Guid organizationId,Guid branchId,Guid idempotencyKey,CancellationToken cancellationToken)
+    {
+        await using var command=dataSource.CreateCommand("SELECT id,order_id,request_fingerprint,method,amount,currency,occurred_at_utc FROM order_manual_tender_settlements WHERE organization_id=$1 AND branch_id=$2 AND idempotency_key=$3");
+        command.Parameters.AddWithValue(organizationId);command.Parameters.AddWithValue(branchId);command.Parameters.AddWithValue(idempotencyKey);
+        await using var reader=await command.ExecuteReaderAsync(cancellationToken);return await reader.ReadAsync(cancellationToken)
+            ? new(reader.GetGuid(0),reader.GetGuid(1),reader.GetString(2),reader.GetString(3),reader.GetDecimal(4),reader.GetString(5).Trim(),reader.GetFieldValue<DateTimeOffset>(6)):null;
+    }
+
+    public async Task<ManualTenderCommitResult> CommitAsync(OrderAggregate order,ManualTenderSettlement settlement,string fingerprint,
+        Guid authorizationDecisionId,OrderManualTenderSettledV1 integrationEvent,PlatformAuditEventV1 audit,CancellationToken cancellationToken)
+    {
+        await using var connection=await dataSource.OpenConnectionAsync(cancellationToken);await using var transaction=await connection.BeginTransactionAsync(cancellationToken);
+        await using(var existing=new NpgsqlCommand("SELECT id,order_id,request_fingerprint,method,amount,currency,occurred_at_utc FROM order_manual_tender_settlements WHERE organization_id=$1 AND branch_id=$2 AND idempotency_key=$3 FOR UPDATE",connection,transaction))
+        {
+            existing.Parameters.AddWithValue(settlement.OrganizationId);existing.Parameters.AddWithValue(settlement.BranchId);existing.Parameters.AddWithValue(settlement.IdempotencyKey);
+            await using var reader=await existing.ExecuteReaderAsync(cancellationToken);
+            if(await reader.ReadAsync(cancellationToken))
+            {
+                var value=new StoredManualTender(reader.GetGuid(0),reader.GetGuid(1),reader.GetString(2),reader.GetString(3),reader.GetDecimal(4),reader.GetString(5).Trim(),reader.GetFieldValue<DateTimeOffset>(6));
+                return new(value.Fingerprint==fingerprint?ManualTenderCommitStatus.Replayed:ManualTenderCommitStatus.IdempotencyConflict,value);
+            }
+        }
+        await using(var update=new NpgsqlCommand("UPDATE orders SET status='completed',updated_at_utc=$1,updated_by=$2,concurrency_version=concurrency_version+1 WHERE id=$3 AND organization_id=$4 AND branch_id=$5 AND payment_intent_id IS NULL AND status IN('accepted','payment_pending') AND total_amount=$6 AND btrim(currency)=$7",connection,transaction))
+        {
+            update.Parameters.AddWithValue(settlement.OccurredAtUtc);update.Parameters.AddWithValue(settlement.OperatorSubjectId);update.Parameters.AddWithValue(order.Id);update.Parameters.AddWithValue(order.OrganizationId);update.Parameters.AddWithValue(order.BranchId);update.Parameters.AddWithValue(settlement.Amount);update.Parameters.AddWithValue(settlement.Currency);
+            if(await update.ExecuteNonQueryAsync(cancellationToken)!=1){await transaction.RollbackAsync(cancellationToken);return new(ManualTenderCommitStatus.StateConflict,null);}
+        }
+        try
+        {
+            await using var insert=new NpgsqlCommand("INSERT INTO order_manual_tender_settlements(id,order_id,organization_id,branch_id,terminal_id,idempotency_key,method,amount,currency,operator_subject_id,authorization_decision_id,receipt_confirmed,bank_reference,request_fingerprint,occurred_at_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",connection,transaction);
+            insert.Parameters.AddWithValue(settlement.Id);insert.Parameters.AddWithValue(order.Id);insert.Parameters.AddWithValue(order.OrganizationId);insert.Parameters.AddWithValue(order.BranchId);insert.Parameters.AddWithValue(settlement.TerminalId);insert.Parameters.AddWithValue(settlement.IdempotencyKey);insert.Parameters.AddWithValue(settlement.Method==ManualTenderMethod.Cash?"cash":"promptpay_manual");insert.Parameters.AddWithValue(settlement.Amount);insert.Parameters.AddWithValue(settlement.Currency);insert.Parameters.AddWithValue(settlement.OperatorSubjectId);insert.Parameters.AddWithValue(authorizationDecisionId);insert.Parameters.AddWithValue(settlement.ReceiptConfirmed);insert.Parameters.AddWithValue((object?)settlement.BankReference??DBNull.Value);insert.Parameters.AddWithValue(fingerprint);insert.Parameters.AddWithValue(settlement.OccurredAtUtc);await insert.ExecuteNonQueryAsync(cancellationToken);
+        }
+        catch(PostgresException exception) when(exception.SqlState==PostgresErrorCodes.UniqueViolation)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            StoredManualTender? winner=await FindAsync(settlement.OrganizationId,settlement.BranchId,settlement.IdempotencyKey,cancellationToken);
+            return winner is null ? new(ManualTenderCommitStatus.StateConflict,null)
+                : new(winner.Fingerprint==fingerprint?ManualTenderCommitStatus.Replayed:ManualTenderCommitStatus.IdempotencyConflict,winner);
+        }
+        await EnqueueAsync(connection,transaction,integrationEvent,"order.manual-tender-settled.v1",order.Id,cancellationToken);
+        await EnqueueAsync(connection,transaction,audit,"order.audit.v1",order.Id,cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(ManualTenderCommitStatus.Created,new(settlement.Id,order.Id,fingerprint,integrationEvent.Method,settlement.Amount,settlement.Currency,settlement.OccurredAtUtc));
+    }
     public async Task<bool> IsEmptyAsync(CancellationToken cancellationToken)
     {
         await using var command=dataSource.CreateCommand("SELECT NOT EXISTS(SELECT 1 FROM orders UNION ALL SELECT 1 FROM order_payment_reviews UNION ALL SELECT 1 FROM order_payment_review_history)");

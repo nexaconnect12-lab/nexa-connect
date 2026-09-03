@@ -5,12 +5,15 @@ using NexaConnect.Services.Order.Application.Workflow;
 using NexaConnect.Services.Order.Application.Tenant;
 using NexaConnect.Contracts.Platform;
 using NexaConnect.Infrastructure.Authorization;
+using NexaConnect.Services.Order.Application.ManualTenders;
+using System.Security.Claims;
 
 namespace NexaConnect.Services.Order.Controllers;
 
 [ApiController]
 [Route("api/order/v1/orders")]
-public sealed class OrdersController(IOrderApplicationService orders, IOrderTenantAuthorizer tenantAuthorizer) : ControllerBase
+public sealed class OrdersController(IOrderApplicationService orders, IOrderTenantAuthorizer tenantAuthorizer,
+    ManualTenderApplicationService manualTenders) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<OrderResponse>> Create(CreateOrderRequest request, CancellationToken cancellationToken)
@@ -32,6 +35,32 @@ public sealed class OrdersController(IOrderApplicationService orders, IOrderTena
         if (order is null) return NotFound();
         return await HasCustomerAccessAsync(order.OrganizationId, order.BranchId, ProductPermissions.OrderRead, cancellationToken)
             ? Ok(ToResponse(order)) : NotFound();
+    }
+
+    [HttpPost("{orderId:guid}/manual-settlement")]
+    public async Task<ActionResult<ManualTenderResult>> ConfirmManualSettlement(Guid orderId,
+        ConfirmManualTenderRequest request, CancellationToken cancellationToken)
+    {
+        if (request.OrganizationId == Guid.Empty || request.BranchId == Guid.Empty || orderId == Guid.Empty) return BadRequest();
+        if (!Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out Guid contextOrganization)
+            || contextOrganization != request.OrganizationId
+            || !string.Equals(Request.Headers[TenantContextHeaders.ApplicationCode], "nexa_connect", StringComparison.Ordinal)
+            || !Request.Headers.TryGetValue("Authorization", out var authorization)) return Forbid();
+        Guid? decision = await tenantAuthorizer.GetBranchDecisionAsync(contextOrganization, request.BranchId,
+            ProductPermissions.OrderManualPaymentConfirm, authorization.ToString(), cancellationToken);
+        if (decision is null) return Forbid();
+        string? actor = User.FindFirstValue("sub");
+        if (string.IsNullOrWhiteSpace(actor)) return Forbid();
+        try
+        {
+            ManualTenderResult? result = await manualTenders.ConfirmAsync(new(request.OrganizationId, request.BranchId,
+                orderId, request.TerminalId, request.IdempotencyKey, request.Method, request.Amount, request.Currency,
+                request.ReceiptConfirmed, request.BankReference, actor, decision.Value, request.CorrelationId ?? Guid.NewGuid()), cancellationToken);
+            if (result is null) return NotFound();
+            return result.Replayed ? Ok(result) : StatusCode(StatusCodes.Status201Created, result);
+        }
+        catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
+        catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
     }
 
     private async Task<bool> HasCustomerAccessAsync(Guid organizationId, Guid branchId, string permission, CancellationToken cancellationToken)
@@ -89,3 +118,5 @@ public sealed record PlaceOrderRequestLine(Guid ProductId, int Quantity);
 public sealed record OrderResponse(Guid OrderId, Guid OrganizationId, Guid BranchId, string Status, decimal TotalAmount,
     string Currency, IReadOnlyCollection<OrderLineResponse> Lines);
 public sealed record OrderLineResponse(Guid ProductId, string Name, decimal UnitPrice, int Quantity, string PreparationStation);
+public sealed record ConfirmManualTenderRequest(Guid OrganizationId, Guid BranchId, Guid TerminalId, Guid IdempotencyKey,
+    string Method, decimal Amount, string Currency, bool ReceiptConfirmed, string? BankReference = null, Guid? CorrelationId = null);

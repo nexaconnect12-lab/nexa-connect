@@ -60,7 +60,7 @@ public sealed record ManualTenderSettlement
         if (!string.Equals(currency?.Trim(), order.Currency, StringComparison.OrdinalIgnoreCase)
             || !string.Equals(order.Currency, "THB", StringComparison.Ordinal))
             throw new ArgumentException("Manual tender currently requires the order's exact THB currency.", nameof(currency));
-        if (amount != order.TotalAmount)
+        if (amount <= 0 || amount != order.TotalAmount)
             throw new ArgumentException("Manual tender amount must equal the order total.", nameof(amount));
 
         ManualTenderMethod parsedMethod = method?.Trim().ToLowerInvariant() switch

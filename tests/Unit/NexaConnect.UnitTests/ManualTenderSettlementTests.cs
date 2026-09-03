@@ -41,6 +41,16 @@ public sealed class ManualTenderSettlementTests
     }
 
     [Fact]
+    public void Zero_total_cannot_be_manually_settled()
+    {
+        var order=OrderAggregate.Create(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),
+            [new OrderLine(Guid.NewGuid(),"Complimentary",0m,1,"kitchen")],"THB");
+        order.Submit();order.MarkInventoryReserved();order.MarkKitchenAccepted();
+        Assert.Throws<ArgumentException>(()=>ManualTenderSettlement.Create(order,order.OrganizationId,order.BranchId,
+            Guid.NewGuid(),Guid.NewGuid(),"cash",0m,"THB","cashier",false,null,DateTimeOffset.UtcNow));
+    }
+
+    [Fact]
     public void Provider_bound_order_cannot_be_manually_settled()
     {
         OrderAggregate order = AcceptedOrder();
