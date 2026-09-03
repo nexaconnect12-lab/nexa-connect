@@ -1,6 +1,6 @@
 # NexaConnect Restaurant POS Architecture
 
-For the Bangkok MVP, cash and visually verified PromptPay settlement are Order-owned rather than Payment provider capture. Order migration 5 commits Paid state, immutable tender evidence, a safe event, and audit atomically; provider-bound Orders cannot enter this path. `order.manual-tender-settled.v1` omits bank reference/operator identity and is the future idempotent boundary for POS cash-session posting. The POS consumer and Paid control remain pending and must not use a distributed Order/POS transaction.
+For the Bangkok MVP, cash and visually verified PromptPay settlement are Order-owned rather than Payment provider capture. The optional POS migration-4 consumer applies `order.manual-tender-settled.v1` once against the event-time shift/session window. Cash posts one sale and late delivery reconciles historical variance; PromptPay creates no drawer movement. The safe event omits bank reference/operator identity. The Paid client control remains pending.
 
 ## 1. Document status
 

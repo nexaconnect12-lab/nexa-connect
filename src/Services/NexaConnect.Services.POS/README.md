@@ -1,5 +1,7 @@
 # NexaConnect POS Service
 
+POS migration 4 and the optional `OrderSettlementConsumer` project Order-owned manual tenders. Attribution uses the shift and THB cash-session time window containing the event, never whichever drawer is currently open. Cash creates one Order-linked `sale`; delayed delivery to a closed matching session recomputes variance atomically. PromptPay creates no drawer movement. Identity conflicts dead-letter; infrastructure failures retry. Safe logs/traces carry correlation, event, Order, and terminal identifiers; query `{service_name="nexaconnect-pos"} |= "POS Order settlement"`.
+
 The POS service owns terminals, stores, shifts, and server-side POS operations. It is a bearer-token API; it does not initiate an interactive Keycloak login. Native POS login belongs to the `nexaconnect-pos` client and uses Authorization Code with PKCE.
 
 ## Current endpoints
@@ -34,6 +36,8 @@ POS emits structured JSON request logs and safe cash replay accepted/replayed/de
 
 ## Verification
 
-Set `NEXACONNECT_ENVIRONMENT=Testing` and `NEXACONNECT_POS_INTEGRATION_DB` to a non-production PostgreSQL database whose role may create and drop isolated schemas, then run `dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter "FullyQualifiedName~PosPostgresStoreTests"`. Seven cases passed locally against PostgreSQL 17. Without both opt-in values, the cases report skipped rather than passed.
+Run `powershell.exe -NoProfile -File scripts/test-pos-order-settlement-operations.ps1 -ConfirmDisposableInfrastructure -ConfirmDestructiveRollback`. Secret-inject `NEXACONNECT_POS_INTEGRATION_DB`, `NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB`, and `NEXACONNECT_RABBITMQ_INTEGRATION_URI`; values are never printed. POS `0→4→3→4`, PostgreSQL cash/PromptPay projection, and hosted RabbitMQ restart/replay/dead-letter cases must execute. Evidence is retained under `.runstate/pos-order-settlement/<run-id>`.
 
-For the full migration lifecycle, also set `NEXACONNECT_POS_CLEAN_INSTALL_ACCEPTANCE=1` and `NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB` to a disposable Development/Test administrator allowed to create and drop databases, then filter `PosMigrationRunnerAcceptanceTests`. The test manages only generated names matching `nexaconnect_pos_clean_it_<guid>`, invokes the actual runner for 0→3→2→3, and force-drops that validated database during cleanup. It passed locally against PostgreSQL 17. Never use production credentials.
+Set `NEXACONNECT_ENVIRONMENT=Testing` and `NEXACONNECT_POS_INTEGRATION_DB` to a non-production PostgreSQL database whose role may create and drop isolated schemas, then run `dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter "FullyQualifiedName~PosPostgresStoreTests"`. The suite now includes the manual-tender projection case; it has not yet run against PostgreSQL in this workspace. Without both settings, database cases report skipped.
+
+For the full migration lifecycle, also set `NEXACONNECT_POS_CLEAN_INSTALL_ACCEPTANCE=1` and `NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB` to a disposable Development/Test administrator allowed to create and drop databases, then filter `PosMigrationRunnerAcceptanceTests`. It manages only generated names matching `nexaconnect_pos_clean_it_<guid>`, runs 0→4→3→4, and force-drops that validated database. Migration-4 live execution remains pending. Never use production credentials.

@@ -1,0 +1,32 @@
+groups:
+  - name: pos-order-settlement
+    rules:
+      - alert: PosOrderSettlementQueueBacklog
+        expr: sum(rabbitmq_queue_messages{queue="nexaconnect.pos.order-manual-tender.v1"}) > 0
+        for: 2m
+        labels:
+          severity: critical
+          service: nexaconnect-pos
+        annotations:
+          summary: POS Order-settlement queue is not draining
+          description: Manual-tender deliveries have remained queued for more than two minutes; drawer projection may lag Order Paid state.
+
+      - alert: PosOrderSettlementDeadLetters
+        expr: sum(rabbitmq_queue_messages{queue="nexaconnect.pos.order-manual-tender.v1.dead"}) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: nexaconnect-pos
+        annotations:
+          summary: POS Order settlement has dead letters
+          description: A manual-tender contract or event-time terminal/shift/session mismatch requires operator investigation.
+
+      - alert: PosOrderSettlementRetries
+        expr: sum(increase(pos_order_settlement_outcomes_total{status="retry"}[10m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+          service: nexaconnect-pos
+        annotations:
+          summary: POS Order settlement projection is retrying
+          description: POS encountered transient failures while projecting manual-tender events.

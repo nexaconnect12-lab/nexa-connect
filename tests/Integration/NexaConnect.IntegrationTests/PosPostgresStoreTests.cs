@@ -6,11 +6,71 @@ using ShiftStatus = POS::NexaConnect.Services.POS.Domain.Shifts.ShiftStatus;
 using ShiftConflictException = POS::NexaConnect.Services.POS.Application.Shifts.ShiftConflictException;
 using CashStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.PostgresCashSessionStore;
 using ShiftStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.PostgresShiftStore;
+using SettlementStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.PostgresOrderSettlementProjectionStore;
+using NexaConnect.Contracts.IntegrationEvents;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using RabbitMQ.Client;
+using POS::NexaConnect.Services.POS.Application.OrderSettlements;
+using POS::NexaConnect.Services.POS.Infrastructure.Messaging;
 
 namespace NexaConnect.IntegrationTests;
 
 public sealed class PosPostgresStoreTests : IAsyncLifetime
 {
+    [PosPostgresFact]
+    public async Task Order_manual_tenders_project_once_and_promptpay_does_not_change_drawer()
+    {
+        RequireDatabase();Guid restaurant=Guid.NewGuid(),branch=Guid.NewGuid(),store=Guid.NewGuid(),terminal=Guid.NewGuid();
+        await InsertStoreAndTerminalAsync(restaurant,branch,store,terminal,"active","active");
+        Shift shift=Shift.Open(Guid.NewGuid(),store,terminal,"cashier-1","SHIFT-SETTLEMENT",Guid.NewGuid(),DateTimeOffset.UtcNow);
+        await _store!.CreateAsync(shift,default);var cashStore=new CashStore(_dataSource!);
+        Guid session=await cashStore.OpenAsync(shift.Id,store,"THB",100m,default);var projections=new SettlementStore(_dataSource!);
+        var cash=new OrderManualTenderSettledV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,Guid.NewGuid(),restaurant,branch,Guid.NewGuid(),Guid.NewGuid(),terminal,"cash",120m,"THB");
+        Assert.Equal(POS::NexaConnect.Services.POS.Application.OrderSettlements.OrderSettlementProjectionStatus.Applied,await projections.ProjectAsync(cash,default));
+        Assert.Equal(POS::NexaConnect.Services.POS.Application.OrderSettlements.OrderSettlementProjectionStatus.Replayed,await projections.ProjectAsync(cash,default));
+        var promptpay=new OrderManualTenderSettledV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,Guid.NewGuid(),restaurant,branch,Guid.NewGuid(),Guid.NewGuid(),terminal,"promptpay_manual",80m,"THB");
+        await projections.ProjectAsync(promptpay,default);
+        Assert.Equal(1,await CountCashMovementsAsync(session));
+        await using var command=_dataSource!.CreateCommand("SELECT count(*) FROM pos_order_settlements");
+        Assert.Equal(2L,Convert.ToInt64(await command.ExecuteScalarAsync()));
+    }
+
+    [PosRabbitMqFact]
+    public async Task Hosted_consumer_recovers_queued_replay_and_dead_letters_invalid_contract()
+    {
+        RequireDatabase();Guid restaurant=Guid.NewGuid(),branch=Guid.NewGuid(),store=Guid.NewGuid(),terminal=Guid.NewGuid();
+        await InsertStoreAndTerminalAsync(restaurant,branch,store,terminal,"active","active");
+        Shift shift=Shift.Open(Guid.NewGuid(),store,terminal,"cashier-1","SHIFT-BROKER",Guid.NewGuid(),DateTimeOffset.UtcNow);
+        await _store!.CreateAsync(shift,default);Guid session=await new CashStore(_dataSource!).OpenAsync(shift.Id,store,"THB",100m,default);
+        string suffix=Guid.NewGuid().ToString("N"),exchange="nexaconnect.pos.settlement."+suffix,queue="nexaconnect.pos.settlement."+suffix;
+        await using IConnection connection=await new ConnectionFactory{Uri=new Uri(Environment.GetEnvironmentVariable("NEXACONNECT_RABBITMQ_INTEGRATION_URI")!)}.CreateConnectionAsync();
+        await using IChannel publisher=await connection.CreateChannelAsync();await publisher.ExchangeDeclareAsync(exchange,ExchangeType.Topic,durable:true);
+        var services=new ServiceCollection();services.AddSingleton<IOrderSettlementProjectionStore>(new SettlementStore(_dataSource!));services.AddScoped<OrderSettlementProjectionService>();
+        await using ServiceProvider provider=services.BuildServiceProvider();var options=Options.Create(new OrderSettlementConsumerOptions{Enabled=true,Exchange=exchange,Queue=queue,PrefetchCount=2});
+        OrderSettlementConsumer? consumer=null;
+        try
+        {
+            consumer=new OrderSettlementConsumer(connection,options,provider.GetRequiredService<IServiceScopeFactory>(),NullLogger<OrderSettlementConsumer>.Instance);
+            await consumer.StartAsync(default);await consumer.WaitUntilReadyAsync(default);await consumer.StopAsync(default);consumer=null;
+            var value=new OrderManualTenderSettledV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,Guid.NewGuid(),restaurant,branch,Guid.NewGuid(),Guid.NewGuid(),terminal,"cash",120m,"THB");
+            byte[] body=System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(value);var properties=new BasicProperties{Persistent=true};
+            await publisher.BasicPublishAsync(exchange,"order.manual-tender-settled.v1",true,properties,body);await publisher.BasicPublishAsync(exchange,"order.manual-tender-settled.v1",true,properties,body);
+            await publisher.BasicPublishAsync(exchange,"order.manual-tender-settled.v1",true,properties,"{}"u8.ToArray());
+            consumer=new OrderSettlementConsumer(connection,options,provider.GetRequiredService<IServiceScopeFactory>(),NullLogger<OrderSettlementConsumer>.Instance);
+            await consumer.StartAsync(default);await consumer.WaitUntilReadyAsync(default);
+            await WaitUntilAsync(async()=>await CountCashMovementsAsync(session)==1&&await ScalarLongAsync(_dataSource!,"SELECT count(*) FROM pos_order_settlements")==1,TimeSpan.FromSeconds(8));
+            BasicGetResult? dead=null;for(int i=0;i<40&&dead is null;i++){dead=await publisher.BasicGetAsync(queue+".dead",true);if(dead is null)await Task.Delay(100);}
+            Assert.NotNull(dead);
+        }
+        finally
+        {
+            if(consumer is not null)await consumer.StopAsync(default);
+            await publisher.QueueDeleteAsync(queue,false,false);await publisher.QueueDeleteAsync(queue+".dead",false,false);await publisher.ExchangeDeleteAsync(exchange);
+        }
+    }
+
     private readonly string? _configuredConnectionString =
         Environment.GetEnvironmentVariable("NEXACONNECT_POS_INTEGRATION_DB");
     private NpgsqlDataSource? _dataSource;
@@ -305,6 +365,9 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
         return (cashStore, cashSessionId, terminalId);
     }
 
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition,TimeSpan timeout){DateTimeOffset end=DateTimeOffset.UtcNow+timeout;while(DateTimeOffset.UtcNow<end){if(await condition())return;await Task.Delay(50);}throw new TimeoutException("POS settlement consumer did not reach the expected state.");}
+    private static async Task<long> ScalarLongAsync(NpgsqlDataSource source,string sql){await using var command=source.CreateCommand(sql);return Convert.ToInt64(await command.ExecuteScalarAsync());}
+
     private const string SchemaSql = """
         CREATE TABLE stores
         (
@@ -358,6 +421,15 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
             received_at_utc timestamptz NOT NULL, completed_at_utc timestamptz NULL,
             CONSTRAINT uq_sync_operations_terminal_client_operation UNIQUE (terminal_id, client_operation_id)
         );
+        CREATE TABLE pos_order_settlements
+        (
+            event_id uuid PRIMARY KEY, settlement_id uuid NOT NULL UNIQUE, order_id uuid NOT NULL UNIQUE,
+            organization_id uuid NOT NULL, restaurant_id uuid NOT NULL, branch_id uuid NOT NULL,
+            terminal_id uuid NOT NULL, cash_session_id uuid NULL, method text NOT NULL,
+            amount numeric(19,4) NOT NULL, currency char(3) NOT NULL,
+            occurred_at_utc timestamptz NOT NULL, projected_at_utc timestamptz NOT NULL
+        );
+        CREATE UNIQUE INDEX uq_cash_movements_manual_order ON cash_movements(order_id) WHERE movement_type='sale' AND order_id IS NOT NULL AND reason_code='ORDER_MANUAL_TENDER';
         """;
 }
 
@@ -376,5 +448,14 @@ public sealed class PosPostgresFactAttribute : FactAttribute
         {
             Skip = "Requires NEXACONNECT_POS_INTEGRATION_DB and a Development/Test/Testing environment.";
         }
+    }
+}
+
+public sealed class PosRabbitMqFactAttribute:FactAttribute
+{
+    public PosRabbitMqFactAttribute()
+    {
+        string? environment=Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT")??Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")??Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        if(string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("NEXACONNECT_POS_INTEGRATION_DB"))||environment is not ("Development" or "Test" or "Testing")||Environment.GetEnvironmentVariable("NEXACONNECT_RABBITMQ_ACCEPTANCE")!="1"||!Uri.TryCreate(Environment.GetEnvironmentVariable("NEXACONNECT_RABBITMQ_INTEGRATION_URI"),UriKind.Absolute,out _))Skip="POS settlement RabbitMQ acceptance requires the POS database, safe environment, opt-in flag, and RabbitMQ URI.";
     }
 }

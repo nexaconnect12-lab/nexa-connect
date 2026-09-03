@@ -45,6 +45,7 @@ public static class NexaConnectObservabilityExtensions
                 .AddAttributes([new("deployment.environment.name", builder.Environment.EnvironmentName)]))
             .WithTracing(tracing =>
             {
+                tracing.AddSource(serviceName);
                 tracing.AddAspNetCoreInstrumentation(instrumentation =>
                     instrumentation.Filter = context => !context.Request.Path.StartsWithSegments("/health"));
                 tracing.AddHttpClientInstrumentation();

@@ -1,5 +1,9 @@
 # POS API
 
+## Order manual-tender projection
+
+This is an asynchronous integration boundary, not a public POS endpoint. With `OrderSettlementConsumer` enabled after POS migration 4, POS consumes `order.manual-tender-settled.v1`. It verifies restaurant, branch, terminal, and the shift/session time window containing the event. Cash records one Order-linked sale; late delivery updates the historical closed session and recomputes variance. PromptPay never changes drawer totals. Matching delivery is replay; invalid identity/scope contracts dead-letter and infrastructure failures retry.
+
 The POS API is owned by `NexaConnect.Services.POS` and is consumed through the gateway or an authorized native POS client. All endpoints require a Keycloak bearer access token with the `nexaconnect-api` audience.
 
 ## Open shift

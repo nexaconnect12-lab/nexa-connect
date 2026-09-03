@@ -18,7 +18,7 @@ public sealed class MigrationRunnerTests
             ["Customer"] = 2,
             ["Payment"] = 7,
             ["Notification"] = 3,
-            ["POS"] = 3,
+            ["POS"] = 4,
             ["Media"] = 4,
             ["Reporting"] = 14
         };

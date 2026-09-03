@@ -1,5 +1,7 @@
 # Integration Tests
 
+The POS manual-tender matrix includes hosted RabbitMQ stop/queue/restart, identical replay, and invalid-message dead-letter coverage. `scripts/test-pos-order-settlement-operations.ps1` requires this, PostgreSQL cash/PromptPay projection, and POS `0→4→3→4` to execute. Live evidence is not yet produced in this workspace.
+
 This project hosts in-process API integration tests using `WebApplicationFactory`.
 
 The joined authenticated browser acceptance suite is intentionally hosted in the frontend workspace rather than this in-process project. See `src/Frontend/e2e/phase8/README.md` for the opt-in Playwright workflow across Keycloak, Customer Portal/BFF, Media, MinIO, ClamAV, PostgreSQL, and the Media worker.
@@ -82,7 +84,7 @@ $env:DOTNET_ENVIRONMENT = 'Testing'
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~InventoryMigrationRunnerAcceptanceTests
 ```
 
-`PosMigrationRunnerAcceptanceTests` manages only generated `nexaconnect_pos_clean_it_<guid>` databases and invokes the actual POS runner for 0→3→2→3. It validates migration checksums/history, all baseline tables, shift authorization columns/indexes, migration-3 removal/reapply, retained cash/replay rows, and real shift/cash repository behavior before and after re-upgrade. The case passed locally against PostgreSQL 17 and removed its generated database.
+`PosMigrationRunnerAcceptanceTests` manages only generated `nexaconnect_pos_clean_it_<guid>` databases and invokes the actual POS runner for 0→4→3→4. It validates checksums/history, baseline tables, migration-4 removal/reapply, retained cash/replay rows, and real repositories. Migration-4 live execution, append-only rejection, broker delivery, and dead-letter routing remain pending evidence.
 
 ```powershell
 $env:NEXACONNECT_POS_CLEAN_INSTALL_ACCEPTANCE = '1'

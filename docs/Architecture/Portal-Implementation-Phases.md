@@ -1,6 +1,6 @@
 # Portal implementation phases
 
-The Bangkok manual-tender backend slice is implemented through Order migration 5, Authorization migration 6, and Reporting migration 14. Live PostgreSQL/HTTP acceptance, the idempotent POS cash-session consumer, and cashier Paid UI remain open release work.
+The Bangkok manual-tender backend and POS projection slices are implemented through Order migration 5, Authorization migration 6, Reporting migration 14, and POS migration 4. Live broker/PostgreSQL/HTTP acceptance and the cashier Paid UI remain open release work.
 
 This document records the agreed Product Owner Portal and Customer Portal implementation sequence. Detailed trust boundaries remain canonical in [ADR-006](Decisions/ADR-006-portal-separation-and-tenant-isolation.md).
 

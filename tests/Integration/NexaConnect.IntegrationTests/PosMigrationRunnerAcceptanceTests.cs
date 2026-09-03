@@ -13,7 +13,7 @@ namespace NexaConnect.IntegrationTests;
 public sealed class PosMigrationRunnerAcceptanceTests
 {
     [PosMigrationAcceptanceFact]
-    public async Task Empty_database_runs_0_to_3_to_2_to_3()
+    public async Task Empty_database_runs_0_to_4_to_3_to_4()
     {
         string adminConnectionString = Environment.GetEnvironmentVariable(
             "NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB")!;
@@ -32,20 +32,21 @@ public sealed class PosMigrationRunnerAcceptanceTests
             string scriptsRoot = Path.Combine(
                 FindRepositoryRoot(), "src", "Tools", "NexaConnect.DataMigration", "Scripts");
 
-            Assert.Equal(0, await RunMigrationAsync(scriptsRoot, 3));
+            Assert.Equal(0, await RunMigrationAsync(scriptsRoot, 4));
             await using NpgsqlDataSource posDataSource = NpgsqlDataSource.Create(posBuilder.ConnectionString);
-            await AssertHistoryAsync(posDataSource, [1, 2, 3]);
+            await AssertHistoryAsync(posDataSource, [1, 2, 3, 4]);
             await AssertSchema3Async(posDataSource);
+            Assert.Equal("pos_order_settlements",await RelationAsync(posDataSource,"pos_order_settlements"));
             await ExerciseRepositoriesAsync(posDataSource, "FIRST");
 
-            Assert.Equal(0, await RunMigrationAsync(scriptsRoot, 2));
-            await AssertHistoryAsync(posDataSource, [1, 2]);
-            await AssertSchema2Async(posDataSource);
+            Assert.Equal(0, await RunMigrationAsync(scriptsRoot, 3));
+            await AssertHistoryAsync(posDataSource, [1, 2, 3]);
+            Assert.Null(await RelationAsync(posDataSource,"pos_order_settlements"));
             Assert.Equal(1L, await ScalarLongAsync(posDataSource, "SELECT count(*) FROM cash_movements"));
             Assert.Equal(1L, await ScalarLongAsync(posDataSource, "SELECT count(*) FROM sync_operations"));
 
-            Assert.Equal(0, await RunMigrationAsync(scriptsRoot, 3));
-            await AssertHistoryAsync(posDataSource, [1, 2, 3]);
+            Assert.Equal(0, await RunMigrationAsync(scriptsRoot, 4));
+            await AssertHistoryAsync(posDataSource, [1, 2, 3, 4]);
             await AssertSchema3Async(posDataSource);
             await ExerciseRepositoriesAsync(posDataSource, "SECOND");
             Assert.Equal(2L, await ScalarLongAsync(posDataSource, "SELECT count(*) FROM cash_movements"));
@@ -58,14 +59,18 @@ public sealed class PosMigrationRunnerAcceptanceTests
         }
     }
 
-    private static Task<int> RunMigrationAsync(string scriptsRoot, int target) =>
-        MigrationApplication.RunAsync([
+    private static Task<int> RunMigrationAsync(string scriptsRoot, int target)
+    {
+        var arguments = new List<string>([
             "--service", "POS",
             "--scripts-root", scriptsRoot,
             "--target", target.ToString(),
-            "--application-version", "0.1.0",
+            "--application-version", "0.13.0",
             "--confirm"
         ]);
+        if(target<4)arguments.AddRange(["--allow-destructive","--backup-verified"]);
+        return MigrationApplication.RunAsync(arguments.ToArray());
+    }
 
     private static async Task AssertHistoryAsync(NpgsqlDataSource dataSource, int[] expectedVersions)
     {

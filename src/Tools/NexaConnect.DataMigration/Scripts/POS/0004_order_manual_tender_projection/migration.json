@@ -1,0 +1,1 @@
+{"version":4,"name":"order_manual_tender_projection","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.13.0"}
