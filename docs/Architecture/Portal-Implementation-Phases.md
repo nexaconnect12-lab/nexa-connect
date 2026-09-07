@@ -1,6 +1,6 @@
 # Portal implementation phases
 
-The Bangkok manual-tender backend and POS projection slices are implemented through Order migration 5, Authorization migration 6, Reporting migration 14, and POS migration 4. Live broker/PostgreSQL/HTTP acceptance and the cashier Paid UI remain open release work.
+The Bangkok manual-tender backend, POS projection, and WPF cashier Paid slices are implemented through Order migration 5, Authorization migration 6, Reporting migration 14, and POS migration 4. The backend/POS PostgreSQL and RabbitMQ matrix passed 3/3. The client requires explicit cash/PromptPay confirmation, configured QR display, and stable replay after uncertain responses. Joined authenticated client-to-HTTP acceptance remains open release work.
 
 This document records the agreed Product Owner Portal and Customer Portal implementation sequence. Detailed trust boundaries remain canonical in [ADR-006](Decisions/ADR-006-portal-separation-and-tenant-isolation.md).
 
@@ -73,7 +73,7 @@ The recovery slice implements the following approved boundary:
 
 The implementation is development-complete, but its live release evidence remains gated as described above. Capture recovery precedes void/reversal, partial/full refunds, compensation-policy expansion, and end-of-day settlement. Those later slices must preserve authorization, tenant isolation, idempotency, immutable audit, explicit transaction boundaries, and accounting reconciliation.
 
-POS adds successful isolated-schema PostgreSQL 17 evidence for exact/concurrent cash replay, rollback, terminal/shift-subject denial, active terminal scope, shift persistence/concurrency, and duplicate-open conflict. The actual migration runner passed 0→3→2→3. Native SQLite/replay tests and broader operation synchronization remain open.
+POS adds successful PostgreSQL evidence for cash replay and migration-4 manual-tender projection. The combined protected-client/PostgreSQL/RabbitMQ/migration runner passed 6/6, including current-user recovery, actual `0→4→3→4`, cash/PromptPay drawer invariants, duplicate recovery, and dead-lettering. Interactive OIDC/WPF evidence, production SQLite, and broader operation synchronization remain open.
 
 Kitchen adds five coordinated PostgreSQL 17/RabbitMQ acceptances: multi-station identity, snapshot idempotency, tenant-leading lifecycle/history/audit/outbox atomicity and rollback, confirmed recovery publication, Reporting migration-5 replay, and Kitchen 0→3→2→3. Unit coverage protects legal transitions and exact Order workload creation. The ticket-level Phase 10 slice is closed; item/KDS/offline workflows remain outside this evidence.
 

@@ -3,6 +3,8 @@ using System.Windows.Controls;
 using System.Net.Http;
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using System.IO;
+using System.Windows.Media.Imaging;
 
 namespace NexaConnect.POS;
 
@@ -17,6 +19,13 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<CartLine> cart = new();
     private readonly LocalOutboxStore outbox = new();
     private Guid? cashSessionId;
+    private PosOrderResult? pendingOrder;
+    private Guid? settlementIdempotencyKey;
+    private bool settlementUncertain;
+    private bool settlementInFlight;
+    private bool viewInitialized;
+    private bool busy;
+    private CancellationTokenSource? signInCancellation;
 
     public MainWindow(
         PosAuthentication authentication,
@@ -25,32 +34,61 @@ public partial class MainWindow : Window
         PosClientConfiguration configuration)
     {
         InitializeComponent();
+
         _authentication = authentication;
         _api = api;
         _localStore = localStore;
         _configuration = configuration;
         _activeShift = _localStore.LoadActiveShift();
         cashSessionId = _localStore.LoadCashSession()?.CashSessionId;
+        ConfigureTenderControls();
+        LocalPendingSettlementState? savedSettlement = _localStore.LoadPendingSettlement();
+        if (savedSettlement is not null)
+        {
+            pendingOrder = new PosOrderResult(savedSettlement.OrderId, PosOrderStatus.KitchenAccepted,
+                savedSettlement.Amount, savedSettlement.Currency);
+            settlementIdempotencyKey = savedSettlement.IdempotencyKey;
+            settlementUncertain = savedSettlement.OutcomeUncertain;
+            if (savedSettlement.Method is not null)
+                TenderMethodComboBox.SelectedIndex = savedSettlement.Method == "promptpay_manual" ? 1 : 0;
+            BankReferenceTextBox.Text = savedSettlement.BankReference ?? string.Empty;
+            ReceiptConfirmedCheckBox.IsChecked = savedSettlement.ReceiptConfirmed;
+        }
+        viewInitialized = true;
         MenuList.ItemsSource = menu;
+        System.Windows.Data.CollectionViewSource.GetDefaultView(menu).Filter = value => value is PosMenuItem item && CashierPresentation.MatchesMenu(item.Name, item.PreparationStation, MenuSearchTextBox.Text, StationComboBox.SelectedItem as string);
+        StationComboBox.ItemsSource = new[] { "All stations" };
+        StationComboBox.SelectedIndex = 0;
+        ShiftNumberTextBox.Text = $"SHIFT-{DateTime.Now:yyyyMMdd-HHmm}";
         CartList.ItemsSource = cart;
         _authentication.StatusChanged += OnStatusChanged;
-        StatusText.Text = "Ready to sign in.";
+        StatusText.Text = "Ready to sign in. Service connectivity is checked when you perform an action.";
+        UpdateCartTotal();
+        if (pendingOrder is not null) PaymentTab.IsSelected = true;
         UpdateOperationalState();
     }
 
     private async void SignIn_Click(object sender, RoutedEventArgs e)
     {
-        SignInButton.IsEnabled = false;
+        if (signInCancellation is not null)
+        {
+            signInCancellation.Cancel();
+            return;
+        }
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        signInCancellation = cancellation;
+        SetBusy("Opening secure sign-in…");
+        SignInButton.Content = "Cancel sign-in";
+        SignInButton.IsEnabled = true;
         try
         {
             StatusText.Text = "Opening secure sign-in…";
-            await _authentication.SignInAsync();
+            await _authentication.SignInAsync(cancellation.Token);
             StatusText.Text = "Signed in. POS session is ready.";
-            UpdateOperationalState();
         }
         catch (OperationCanceledException)
         {
-            StatusText.Text = "Sign-in was cancelled.";
+            StatusText.Text = "Sign-in cancelled or timed out. Click Sign in to try again.";
         }
         catch (Exception exception)
         {
@@ -60,6 +98,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            signInCancellation = null;
             UpdateOperationalState();
         }
     }
@@ -100,6 +139,11 @@ public partial class MainWindow : Window
         {
             return;
         }
+        if (pendingOrder is not null || cashSessionId is not null)
+        {
+            StatusText.Text = "Close the cash session and resolve pending payment before closing this shift.";
+            return;
+        }
 
         try
         {
@@ -125,7 +169,7 @@ public partial class MainWindow : Window
     private async void LoadMenu_Click(object sender, RoutedEventArgs e)
     {
         if (_authentication.CurrentToken is null) return;
-        try { SetBusy("Loading menu…"); menu.Clear(); foreach (var item in await _api.GetMenuAsync(_authentication.CurrentToken, _configuration.BranchId)) menu.Add(item); StatusText.Text = $"Loaded {menu.Count} menu items."; }
+        try { SetBusy("Loading menu…"); menu.Clear(); foreach (var item in await _api.GetMenuAsync(_authentication.CurrentToken, _configuration.BranchId)) menu.Add(item); StationComboBox.ItemsSource = new[] { "All stations" }.Concat(menu.Select(item => item.PreparationStation).Distinct().OrderBy(value => value)).ToArray(); StationComboBox.SelectedIndex = 0; StatusText.Text = $"Loaded {menu.Count} menu items."; }
         catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Menu could not be loaded. Check the Catalog service."; }
         finally { UpdateOperationalState(); }
     }
@@ -142,6 +186,11 @@ public partial class MainWindow : Window
     private async void CloseCash_Click(object sender, RoutedEventArgs e)
     {
         if (_authentication.CurrentToken is null || cashSessionId is null) return;
+        if (pendingOrder is not null)
+        {
+            StatusText.Text = "Confirm or reconcile the pending cash payment before closing this cash session.";
+            return;
+        }
         if (HasQueuedCashMovements(cashSessionId.Value))
         {
             StatusText.Text = "Replay or resolve all queued movements for this cash session before closing it.";
@@ -241,32 +290,178 @@ public partial class MainWindow : Window
         UpdateOperationalState();
     }
 
-    private void MenuList_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private bool CanEditCart() => CashierPresentation.CanEditCart(
+        _authentication.CurrentToken?.ExpiresAtUtc > DateTimeOffset.UtcNow,
+        _activeShift is not null, busy, pendingOrder is not null);
+
+    private void AddMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        if (MenuList.SelectedItem is not PosMenuItem item || !item.Available) return;
+        if (!CanEditCart() || sender is not Button { DataContext: PosMenuItem item } || !item.Available) return;
+        if (!CashierPresentation.MatchesCurrency(item.Currency, _configuration.Currency))
+        {
+            StatusText.Text = "This item's currency differs from the terminal currency. Ask your manager to check the menu and terminal setup.";
+            return;
+        }
         var existing = cart.FirstOrDefault(line => line.ProductId == item.ProductId);
-        if (existing is null) cart.Add(new CartLine(item)); else existing.Quantity++;
-        CartList.Items.Refresh(); UpdateCartTotal();
+        if (existing is null) cart.Add(new CartLine(item)); else if (existing.Quantity < int.MaxValue) existing.Quantity++;
+        RefreshCart();
     }
 
-    private void RemoveCart_Click(object sender, RoutedEventArgs e)
+    private void IncreaseQuantity_Click(object sender, RoutedEventArgs e)
     {
-        if (CartList.SelectedItem is CartLine line) { if (line.Quantity > 1) line.Quantity--; else cart.Remove(line); CartList.Items.Refresh(); UpdateCartTotal(); }
+        if (CanEditCart() && sender is Button { DataContext: CartLine line } && line.Quantity < int.MaxValue)
+        { line.Quantity++; RefreshCart(); }
     }
 
+    private void DecreaseQuantity_Click(object sender, RoutedEventArgs e)
+    {
+        if (CanEditCart() && sender is Button { DataContext: CartLine line })
+        { if (line.Quantity > 1) line.Quantity--; else cart.Remove(line); RefreshCart(); }
+    }
+
+    private void RefreshCart() { CartList.Items.Refresh(); UpdateCartTotal(); UpdateOperationalState(); }
+    private void MenuFilter_Changed(object sender, TextChangedEventArgs e) => RefreshMenuFilter();
+    private void StationFilter_Changed(object sender, SelectionChangedEventArgs e) => RefreshMenuFilter();
+    private void RefreshMenuFilter()
+    {
+        if (!viewInitialized) return;
+        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(menu);
+        view.Refresh();
+        MenuEmptyText.Text = menu.Count == 0 ? "Open a shift, then refresh the menu to start." : "No menu items match your search.";
+        MenuEmptyText.Visibility = view.IsEmpty ? Visibility.Visible : Visibility.Collapsed;
+    }
     private async void PlaceOrder_Click(object sender, RoutedEventArgs e)
     {
-        if (_authentication.CurrentToken is null || cart.Count == 0) return;
-        try { SetBusy("Placing order…"); var result = await _api.PlaceOrderAsync(_authentication.CurrentToken, _configuration, cart.Select(line => (line.ProductId, line.Quantity)).ToArray()); cart.Clear(); UpdateCartTotal(); StatusText.Text = $"Order {result.OrderId:D} completed with status {result.Status}."; }
-        catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Order could not be placed. The cart was kept for retry."; }
+        if (_authentication.CurrentToken is null || !CanEditCart() || cart.Count == 0 || !PlaceOrderButton.IsEnabled) return;
+        try
+        {
+            SetBusy("Placing order…");
+            var result = await _api.PlaceOrderAsync(_authentication.CurrentToken, _configuration,
+                cart.Select(line => (line.ProductId, line.Quantity)).ToArray());
+            if (result.Status == PosOrderStatus.KitchenAccepted && _configuration.PaymentMethod is "cash_manual" or "promptpay_manual")
+            {
+                pendingOrder = result;
+                settlementIdempotencyKey = Guid.NewGuid();
+                settlementUncertain = false;
+                PaymentTab.IsSelected = true;
+                _localStore.SavePendingSettlement(new(result.OrderId, result.TotalAmount, result.Currency,
+                    settlementIdempotencyKey.Value));
+                StatusText.Text = "Order sent to the kitchen. Confirm payment when received.";
+            }
+            else
+            {
+                StatusText.Text = $"Order {result.OrderId:D} completed with status {result.Status}.";
+            }
+            cart.Clear();
+            UpdateCartTotal();
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = pendingOrder is not null
+                ? "Order received, but local recovery could not be saved. Keep the app open and ask for support. Do not submit another order."
+                : exception is PosApiException api ? api.Message
+                : "Order result could not be verified. Check order history with your manager before trying again.";
+        }
         finally { UpdateOperationalState(); }
+    }
+
+    private async void Paid_Click(object sender, RoutedEventArgs e)
+    {
+        if (_authentication.CurrentToken is null || pendingOrder is null || settlementIdempotencyKey is null
+            || settlementInFlight || !PaidButton.IsEnabled) return;
+        PosOrderResult currentOrder = pendingOrder;
+        Guid currentIdempotencyKey = settlementIdempotencyKey.Value;
+        LocalPendingSettlementState? savedSettlement = _localStore.LoadPendingSettlement();
+        string method = savedSettlement?.Method ?? SelectedTenderMethod();
+        if (method == "cash" && cashSessionId is null)
+        {
+            StatusText.Text = "Open a THB cash session before confirming a cash payment.";
+            return;
+        }
+        string? bankReference = savedSettlement?.BankReference ?? (string.IsNullOrWhiteSpace(BankReferenceTextBox.Text)
+            ? null
+            : BankReferenceTextBox.Text.Trim());
+        if (method == "promptpay_manual" && (!ReceiptConfirmedCheckBox.IsChecked.GetValueOrDefault()
+            || bankReference is null))
+        {
+            StatusText.Text = "Verify the PromptPay receipt and enter its reference before marking the order Paid.";
+            return;
+        }
+        if (MessageBox.Show(this,
+                settlementUncertain ? "Verify the previous payment attempt? Do not collect payment again."
+                : $"Confirm {currentOrder.Currency} {currentOrder.TotalAmount:N2} received by {(method == "cash" ? "cash" : "PromptPay")}?",
+                "Confirm payment", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+
+        settlementInFlight = true;
+        SetBusy(settlementUncertain ? "Verifying the previous payment attempt…" : "Confirming payment…");
+        try
+        {
+            // Persist uncertainty before sending: a process exit after the server commits
+            // must reopen in verification mode with the exact original tender fields.
+            var attempt = new LocalPendingSettlementState(currentOrder.OrderId, currentOrder.TotalAmount,
+                currentOrder.Currency, currentIdempotencyKey, method,
+                method == "promptpay_manual", method == "promptpay_manual" ? bankReference : null, true);
+            ManualTenderResult result = await SettlementAttempt.ExecuteAsync(attempt,
+                state => { _localStore.SavePendingSettlement(state); settlementUncertain = true; },
+                () => _api.ConfirmManualSettlementAsync(
+                    _authentication.CurrentToken, currentOrder.OrderId, currentIdempotencyKey, method,
+                    currentOrder.TotalAmount, currentOrder.Currency, method == "promptpay_manual",
+                    method == "promptpay_manual" ? bankReference : null),
+                _localStore.ClearPendingSettlement);
+            pendingOrder = null;
+            settlementIdempotencyKey = null;
+            settlementUncertain = false;
+            BankReferenceTextBox.Clear();
+            ReceiptConfirmedCheckBox.IsChecked = false;
+            StatusText.Text = result.Replayed
+                ? $"Order {result.OrderId:D} was already Paid; the original settlement was verified."
+                : $"Order {result.OrderId:D} is Paid.";
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException
+            || exception is PosApiException { StatusCode: >= 500 })
+        {
+            settlementUncertain = true;
+            StatusText.Text = "Payment result is uncertain. Use Verify payment to check the previous attempt. Do not collect again.";
+        }
+        catch (PosApiException exception)
+        {
+            StatusText.Text = exception.StatusCode switch
+            {
+                401 => "Sign in again before verifying this payment.",
+                403 => "Your account lacks order.manual-payment.confirm for this branch.",
+                409 => "The order changed or was settled elsewhere. Do not collect payment again; reconcile the order before continuing.",
+                _ => exception.Message
+            };
+        }
+        catch (Exception)
+        {
+            StatusText.Text = "Payment recovery could not be completed. Keep this order open and do not collect again. Preserve local recovery files for support.";
+        }
+        finally
+        {
+            settlementInFlight = false;
+            UpdateOperationalState();
+        }
+    }
+
+    private void TenderMethod_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // WPF can raise SelectionChanged while InitializeComponent is still
+        // constructing the named controls used below.
+        if (!viewInitialized)
+        {
+            return;
+        }
+
+        UpdateTenderControls();
+        UpdateOperationalState();
     }
 
     private void SignOut_Click(object sender, RoutedEventArgs e)
     {
-        if (_activeShift is not null || cashSessionId is not null)
+        if (_activeShift is not null || cashSessionId is not null || pendingOrder is not null)
         {
-            StatusText.Text = "Close the active shift and cash session before signing out.";
+            StatusText.Text = "Resolve the pending payment, shift, and cash session before signing out.";
             return;
         }
 
@@ -292,29 +487,51 @@ public partial class MainWindow : Window
 
     private void SetBusy(string message)
     {
+        busy = true;
+        WorkspaceTabs.IsEnabled = false;
+        SignOutButton.IsEnabled = false;
         StatusText.Text = message;
         SignInButton.IsEnabled = false;
         OpenShiftButton.IsEnabled = false;
         CloseShiftButton.IsEnabled = false;
         CloseCashButton.IsEnabled = false;
         RecordMovementButton.IsEnabled = false;
+        PaidButton.IsEnabled = false;
     }
 
     private void UpdateOperationalState()
     {
+        busy = false;
+        WorkspaceTabs.IsEnabled = true;
         bool signedIn = _authentication.CurrentToken is not null &&
             _authentication.CurrentToken.ExpiresAtUtc > DateTimeOffset.UtcNow;
         bool hasActiveShift = _activeShift is not null;
+        SignInButton.Content = "Sign in";
         SignInButton.IsEnabled = !signedIn;
-        SignOutButton.IsEnabled = signedIn;
+        SignOutButton.IsEnabled = signedIn && !hasActiveShift && cashSessionId is null && pendingOrder is null;
         OpenShiftButton.IsEnabled = signedIn && !hasActiveShift;
-        CloseShiftButton.IsEnabled = signedIn && hasActiveShift;
+        CloseShiftButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is null && pendingOrder is null;
         LoadMenuButton.IsEnabled = signedIn && hasActiveShift;
-        PlaceOrderButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is not null && cart.Count > 0;
+        bool manualCheckout = _configuration.PaymentMethod is "cash_manual" or "promptpay_manual";
+        PlaceOrderButton.IsEnabled = signedIn && hasActiveShift && pendingOrder is null && cart.Count > 0
+            && (!manualCheckout || _configuration.PaymentMethod != "cash_manual" || cashSessionId is not null);
         OpenCashButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is null;
         CloseCashButton.IsEnabled = signedIn && cashSessionId is not null
-            && !HasQueuedCashMovements(cashSessionId.Value);
+            && pendingOrder is null && !HasQueuedCashMovements(cashSessionId.Value);
         RecordMovementButton.IsEnabled = signedIn && cashSessionId is not null;
+        MenuList.IsEnabled = CanEditCart();
+        CartList.IsEnabled = CanEditCart();
+        UpdateTenderControls();
+        RefreshMenuFilter();
+        ContextText.Text = $"Branch {_configuration.BranchId.ToString("N")[..8]} · Terminal {_configuration.TerminalId.ToString("N")[..8]} · {_configuration.Currency} · Connectivity checked per action";
+        string method = SelectedTenderMethod();
+        PaidButton.Content = settlementUncertain ? "Verify payment" : "Confirm payment received";
+        PaidButton.IsEnabled = signedIn && hasActiveShift && pendingOrder is not null && !settlementInFlight
+            && (method != "cash" || cashSessionId is not null)
+            && (method != "promptpay_manual" || PromptPayQrImage.Source is not null);
+        PendingOrderText.Text = pendingOrder is null
+            ? "No order awaiting payment."
+            : $"Order {pendingOrder.OrderId:D} · {pendingOrder.Currency} {pendingOrder.TotalAmount:N2} · awaiting payment";
         EnrollTerminalButton.IsEnabled = signedIn;
         IReadOnlyList<LocalOutboxOperation> operations = outbox.Load();
         int rejected = operations.Count(operation => operation.TerminalFailureStatusCode is not null);
@@ -323,7 +540,7 @@ public partial class MainWindow : Window
         OutboxStatusText.Text = $"Offline queue: {operations.Count - rejected} pending, {rejected} rejected";
         SessionText.Text = signedIn ? (hasActiveShift ? "Signed in · Shift open" : "Signed in · Open a shift") : "Signed out";
         ActiveShiftText.Text = hasActiveShift
-            ? $"Active shift: {_activeShift!.ShiftNumber} ({_activeShift.ShiftId:D})"
+            ? $"Shift {_activeShift!.ShiftNumber} · Cash session {(cashSessionId is null ? "closed" : "open")}"
             : "No active shift on this terminal.";
     }
 
@@ -338,14 +555,55 @@ public partial class MainWindow : Window
             && string.Equals(operation.RelativeUri, path, StringComparison.OrdinalIgnoreCase));
     }
 
+    private string SelectedTenderMethod() =>
+        (TenderMethodComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "cash";
+
+    private void ConfigureTenderControls()
+    {
+        TenderMethodComboBox.SelectedIndex = _configuration.PaymentMethod == "promptpay_manual" ? 1 : 0;
+        string? configuredPath = _configuration.PromptPayQrImagePath;
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            string path = Path.IsPathRooted(configuredPath)
+                ? configuredPath
+                : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, configuredPath));
+            if (File.Exists(path))
+            {
+                using var stream = File.OpenRead(path);
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.StreamSource = stream;
+                bitmap.EndInit();
+                bitmap.Freeze();
+                PromptPayQrImage.Source = bitmap;
+            }
+        }
+        UpdateTenderControls();
+    }
+
+    private void UpdateTenderControls()
+    {
+        bool promptPay = SelectedTenderMethod() == "promptpay_manual";
+        bool editable = _localStore.LoadPendingSettlement()?.Method is null;
+        TenderMethodComboBox.IsEnabled = editable;
+        PromptPayQrPanel.Visibility = promptPay ? Visibility.Visible : Visibility.Collapsed;
+        ReceiptConfirmedCheckBox.IsEnabled = promptPay && editable;
+        BankReferenceTextBox.IsEnabled = promptPay && editable;
+        PromptPayQrText.Text = PromptPayQrImage.Source is null
+            ? "PromptPay QR is not configured. Do not confirm payment until the restaurant QR image is installed."
+            : "Ask the customer to scan this restaurant PromptPay QR, then verify the receipt.";
+    }
+
     protected override void OnClosed(EventArgs e)
     {
+        signInCancellation?.Cancel();
         _authentication.StatusChanged -= OnStatusChanged;
         _api.Dispose();
         base.OnClosed(e);
     }
 
-    private void UpdateCartTotal() => TotalText.Text = cart.Sum(line => line.LineTotal).ToString("C2");
+    private void UpdateCartTotal() => TotalText.Text = CashierPresentation.Money(cart.Sum(line => line.LineTotal), _configuration.Currency);
 
     private sealed class CartLine(PosMenuItem item)
     {

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -45,6 +45,13 @@
     <Content Include="..\..\..\src\Tools\NexaConnect.DataGeneration\ImportPackages\**\*"
              Link="ImportPackages\%(RecursiveDir)%(Filename)%(Extension)"
              CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\SettlementAttempt.cs" Link="POS\SettlementAttempt.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\CashierPresentation.cs" Link="POS\CashierPresentation.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalPosStore.cs" Link="POS\LocalPosStore.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\WindowsDataProtection.cs" Link="POS\WindowsDataProtection.cs" />
   </ItemGroup>
 
 </Project>

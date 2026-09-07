@@ -80,7 +80,10 @@ public sealed class PosAuthentication : IDisposable
                 throw new InvalidOperationException("Windows could not open the Keycloak sign-in browser.");
             }
             StatusChanged?.Invoke(this, "Complete sign-in in your browser…");
-            using (cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken)))
+            using (cancellationToken.Register(() =>
+            {
+                lock (_sync) completion.TrySetCanceled(cancellationToken);
+            }))
             {
                 return await completion.Task;
             }
@@ -146,10 +149,15 @@ public sealed class PosAuthentication : IDisposable
             }
 
             PosTokenSet token = await RedeemCodeAsync(code, pkce.Verifier);
-            CurrentToken = token;
-            _tokenStore.Save(token);
+            lock (_sync)
+            {
+                // Do not install credentials from a cancelled or superseded attempt.
+                if (!ReferenceEquals(_pending, completion) || completion.Task.IsCompleted) return;
+                _tokenStore.Save(token);
+                CurrentToken = token;
+                completion.TrySetResult(token);
+            }
             StatusChanged?.Invoke(this, "Sign-in completed.");
-            completion.TrySetResult(token);
         }
         catch (Exception exception)
         {

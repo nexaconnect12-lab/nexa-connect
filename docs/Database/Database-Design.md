@@ -48,7 +48,7 @@ Authorization migration 3 backfills `kitchen.ticket.read` and `kitchen.ticket.tr
 
 Customer migration 2 adds append-only audit that excludes profile fields while migration 1 remains the outbox owner. The audit retains a restricted actor subject for accountability. First creation transactionally persists one profile, one audit row, and `customer.profile-created.v1`/`customer.audit.v1`; matching retries do not republish. Reporting migration 6 accepts and replay-protects Customer audit vocabulary. Six coordinated PostgreSQL 17/RabbitMQ acceptances passed locally, including concurrent replay, atomic rollback, confirmed recovery publication, Reporting replay, and Customer 0→2→1→2. Generated acceptance infrastructure was removed afterward.
 
-POS cash replay has seven successful isolated-schema PostgreSQL 17 tests. They prove exact/concurrent operation deduplication, rollback of the sync marker when movement insertion fails, terminal and shift-subject denial, active terminal scoping, shift persistence/concurrency, and duplicate-open conflict. Each test creates and removes its own schema. The full POS migration acceptance invokes the actual runner for 0→3→2→3 in a generated `nexaconnect_pos_clean_it_<guid>` database, validates immutable checksums/history and migration-3 close-authorization objects, proves migration-1 replay/cash rows survive the safe downgrade, exercises real shift/cash repositories before and after re-upgrade, and removes the database afterward. It passed locally against PostgreSQL 17.
+POS cash replay has successful isolated-schema PostgreSQL 17 evidence for exact/concurrent deduplication, rollback, terminal/subject denial, active scope, and shift concurrency. Migration 4 adds the immutable, Order-unique manual-tender projection; cash projection and drawer movement share one transaction while PromptPay creates no movement. The full acceptance invokes the actual runner for 0→4→3→4 in a generated `nexaconnect_pos_clean_it_<guid>` database, validates migration-4 removal/reapply and retained cash/replay state, exercises real repositories, and removes the database afterward. The guarded projection/RabbitMQ/migration matrix passed 3/3.
 
 ## 2. Database topology
 
@@ -259,7 +259,7 @@ The following summaries describe the implemented version-1 ownership model. The 
 | Kitchen | 8 | Tickets, items, lifecycle, adjustments, processed/inbox state, outbox, and append-only audit |
 | Customer | 6 | Profiles, contacts, addresses, loyalty, outbox, and append-only audit |
 | Payment | 6 | Intents, provider transactions, refunds, reconciliation, outbox, and append-only product audit |
-| POS | 8 | Stores, terminals, shifts, cash, synchronization, and outbox |
+| POS | 9 | Stores, terminals, shifts, cash, manual-tender projections, synchronization, and outbox |
 | Media | 4 | Assets, variants, processing attempts, and outbox |
 | Reporting | 11 | Rebuildable facts, checkpoints, and consumer deduplication |
 

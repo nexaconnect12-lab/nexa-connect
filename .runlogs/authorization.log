@@ -1,14 +1,4 @@
-info: Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager[58]
-      Creating key {d359e021-35ec-48e2-a2f4-2eaaab81258b} with creation date 2026-08-07 09:05:53Z, activation date 2026-08-07 09:05:53Z, and expiration date 2026-11-05 09:05:53Z.
-warn: Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager[35]
-      No XML encryptor configured. Key {d359e021-35ec-48e2-a2f4-2eaaab81258b} may be persisted to storage in unencrypted form.
-info: Microsoft.AspNetCore.DataProtection.Repositories.FileSystemXmlRepository[39]
-      Writing data to file 'D:\DevOps\nexa-connect\src\Services\NexaConnect.Services.Authorization\.runstate\data-protection-keys\authorization\key-d359e021-35ec-48e2-a2f4-2eaaab81258b.xml'.
-info: Microsoft.Hosting.Lifetime[14]
-      Now listening on: http://localhost:51223
-info: Microsoft.Hosting.Lifetime[0]
-      Application started. Press Ctrl+C to shut down.
-info: Microsoft.Hosting.Lifetime[0]
-      Hosting environment: Development
-info: Microsoft.Hosting.Lifetime[0]
-      Content root path: D:\DevOps\nexa-connect\src\Services\NexaConnect.Services.Authorization
+{"Timestamp":"2026-09-07T13:02:32.172\u002B00:00","EventId":14,"LogLevel":"Information","Category":"Microsoft.Hosting.Lifetime","Message":"Now listening on: http://localhost:51223","State":{"address":"http://localhost:51223","{OriginalFormat}":"Now listening on: {address}"},"Scopes":[]}
+{"Timestamp":"2026-09-07T13:02:32.180\u002B00:00","EventId":0,"LogLevel":"Information","Category":"Microsoft.Hosting.Lifetime","Message":"Application started. Press Ctrl\u002BC to shut down.","State":{"{OriginalFormat}":"Application started. Press Ctrl\u002BC to shut down."},"Scopes":[]}
+{"Timestamp":"2026-09-07T13:02:32.181\u002B00:00","EventId":0,"LogLevel":"Information","Category":"Microsoft.Hosting.Lifetime","Message":"Hosting environment: Development","State":{"EnvName":"Development","{OriginalFormat}":"Hosting environment: {EnvName}"},"Scopes":[]}
+{"Timestamp":"2026-09-07T13:02:32.181\u002B00:00","EventId":0,"LogLevel":"Information","Category":"Microsoft.Hosting.Lifetime","Message":"Content root path: D:\\DevOps\\nexa-connect\\src\\Services\\NexaConnect.Services.Authorization\\bin\\Debug\\net10.0\\","State":{"ContentRoot":"D:\\DevOps\\nexa-connect\\src\\Services\\NexaConnect.Services.Authorization\\bin\\Debug\\net10.0\\","{OriginalFormat}":"Content root path: {ContentRoot}"},"Scopes":[]}

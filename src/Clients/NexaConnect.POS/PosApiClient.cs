@@ -9,18 +9,23 @@ namespace NexaConnect.POS;
 
 public sealed record PosShift(Guid ShiftId, Guid AuthorizationDecisionId);
 public sealed record PosMenuItem(Guid ProductId, string Name, decimal UnitPrice, string Currency, string PreparationStation, bool Available);
-public sealed record PosOrderResult(Guid OrderId, string Status, decimal TotalAmount, string Currency);
+public enum PosOrderStatus { Draft, Submitted, InventoryReserved, KitchenAccepted, Paid, PaymentFailed, Rejected, PaymentPending, PaymentReview }
+public sealed record PosOrderResult(Guid OrderId, PosOrderStatus Status, decimal TotalAmount, string Currency);
+public sealed record ManualTenderResult(Guid SettlementId, Guid OrderId, string Status, string Method,
+    decimal Amount, string Currency, DateTimeOffset OccurredAtUtc, bool Replayed);
 public sealed record CashSessionResult(Guid CashSessionId, string OpenedBy);
 
 public sealed class PosApiClient : IDisposable
 {
     private readonly PosClientConfiguration _configuration;
     private readonly HttpClient _httpClient;
+    private readonly HttpClient _orderHttpClient;
 
     public PosApiClient(PosClientConfiguration configuration)
     {
         _configuration = configuration;
         _httpClient = new HttpClient { BaseAddress = new Uri(configuration.PosApi) };
+        _orderHttpClient = new HttpClient { BaseAddress = new Uri(configuration.OrderApi) };
     }
 
     public async Task<PosShift> OpenShiftAsync(
@@ -71,18 +76,50 @@ public sealed class PosApiClient : IDisposable
 
     public async Task<PosOrderResult> PlaceOrderAsync(PosTokenSet token, PosClientConfiguration configuration, IReadOnlyCollection<(Guid ProductId, int Quantity)> lines, CancellationToken cancellationToken = default)
     {
-        using var client = new HttpClient { BaseAddress = new Uri(configuration.OrderApi) };
         using var request = CreateRequest(HttpMethod.Post, "api/order/v1/workflows/place", token);
-        request.RequestUri = new Uri(client.BaseAddress!, request.RequestUri!.ToString());
+        AddTenantContext(request, configuration.OrganizationId);
         request.Content = JsonContent.Create(new
         {
             restaurantId = configuration.RestaurantId, organizationId = configuration.OrganizationId, branchId = configuration.BranchId,
             currency = configuration.Currency, paymentMethod = configuration.PaymentMethod, idempotencyKey = Guid.NewGuid().ToString("N"),
             lines = lines.Select(line => new { productId = line.ProductId, quantity = line.Quantity }).ToArray()
         });
-        using var response = await client.SendAsync(request, cancellationToken);
+        using var response = await _orderHttpClient.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, "Order could not be placed.");
         return await response.Content.ReadFromJsonAsync<PosOrderResult>(cancellationToken) ?? throw new InvalidDataException("The Order API returned an empty response.");
+    }
+
+    public async Task<ManualTenderResult> ConfirmManualSettlementAsync(
+        PosTokenSet token,
+        Guid orderId,
+        Guid idempotencyKey,
+        string method,
+        decimal amount,
+        string currency,
+        bool receiptConfirmed,
+        string? bankReference,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Post,
+            $"api/order/v1/orders/{orderId:D}/manual-settlement", token);
+        AddTenantContext(request, _configuration.OrganizationId);
+        request.Content = JsonContent.Create(new
+        {
+            organizationId = _configuration.OrganizationId,
+            branchId = _configuration.BranchId,
+            terminalId = _configuration.TerminalId,
+            idempotencyKey,
+            method,
+            amount,
+            currency,
+            receiptConfirmed,
+            bankReference,
+            correlationId = orderId
+        });
+        using var response = await _orderHttpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "Manual settlement could not be confirmed.");
+        return await response.Content.ReadFromJsonAsync<ManualTenderResult>(cancellationToken)
+            ?? throw new InvalidDataException("The Order API returned an empty settlement response.");
     }
 
     public async Task<CashSessionResult> OpenCashSessionAsync(PosTokenSet token, Guid shiftId, Guid storeId, string currency, decimal openingAmount, CancellationToken cancellationToken = default)
@@ -133,6 +170,12 @@ public sealed class PosApiClient : IDisposable
         return request;
     }
 
+    private static void AddTenantContext(HttpRequestMessage request, Guid organizationId)
+    {
+        request.Headers.Add("X-Nexa-Organization-Id", organizationId.ToString("D"));
+        request.Headers.Add("X-Nexa-Application-Code", "nexa_connect");
+    }
+
     private static async Task EnsureSuccessAsync(HttpResponseMessage response, string fallback)
     {
         if (response.IsSuccessStatusCode)
@@ -165,8 +208,8 @@ public sealed class PosApiClient : IDisposable
             _ => response.StatusCode switch
             {
                 HttpStatusCode.Unauthorized => "Sign in again to continue.",
-                HttpStatusCode.Forbidden => "Your account is not authorized for this terminal.",
-                HttpStatusCode.Conflict => "The shift changed or is already open.",
+                HttpStatusCode.Forbidden => "Your account is not authorized for this operation.",
+                HttpStatusCode.Conflict => "The resource changed concurrently. Refresh its state before continuing.",
                 HttpStatusCode.ServiceUnavailable => "A POS dependency is temporarily unavailable.",
                 _ => fallback
             }
@@ -174,7 +217,11 @@ public sealed class PosApiClient : IDisposable
         throw new PosApiException((int)response.StatusCode, detail);
     }
 
-    public void Dispose() => _httpClient.Dispose();
+    public void Dispose()
+    {
+        _httpClient.Dispose();
+        _orderHttpClient.Dispose();
+    }
 }
 
 public sealed class PosApiException(int statusCode, string message) : Exception(message)

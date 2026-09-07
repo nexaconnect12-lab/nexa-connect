@@ -85,6 +85,48 @@ public sealed class RestaurantWorkflowTests
         Assert.Contains(events.Events, @event => @event is PaymentFailedV1);
     }
 
+    [Theory]
+    [InlineData("cash_manual")]
+    [InlineData("promptpay_manual")]
+    public async Task PlaceOrder_manual_tender_stops_at_kitchen_acceptance_without_provider_call(string method)
+    {
+        Guid productId = Guid.NewGuid();
+        var payment = new FakePayment(true);
+        var events = new RecordingPublisher();
+        var repository = new InMemoryOrderRepository();
+        var workflow = new PlaceOrderWorkflow(
+            new FakeCatalog(new CatalogMenuItem(productId, "Pad thai", 120m, "THB", true, "kitchen")),
+            new FakeInventory(true), new FakeKitchen(), payment, repository, events);
+
+        PlaceOrderResult result = await workflow.ExecuteAsync(new PlaceOrderCommand(
+            Guid.NewGuid(), Guid.NewGuid(), [new PlaceOrderLine(productId, 1)], "THB", method),
+            CancellationToken.None);
+
+        Assert.Equal(OrderStatus.KitchenAccepted, result.Status);
+        Assert.Equal(0, payment.Calls);
+        Assert.DoesNotContain(events.Events, value => value is PaymentCompletedV1 or PaymentFailedV1);
+    }
+
+    [Fact]
+    public async Task PlaceOrder_manual_tender_rejects_non_thb_before_side_effects()
+    {
+        Guid productId = Guid.NewGuid();
+        var inventory = new FakeInventory(true);
+        var kitchen = new FakeKitchen();
+        var payment = new FakePayment(true);
+        var workflow = new PlaceOrderWorkflow(
+            new FakeCatalog(new CatalogMenuItem(productId, "Tea", 2m, "USD", true, "bar")),
+            inventory, kitchen, payment, new InMemoryOrderRepository(), new RecordingPublisher());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => workflow.ExecuteAsync(new PlaceOrderCommand(
+            Guid.NewGuid(), Guid.NewGuid(), [new PlaceOrderLine(productId, 1)], "USD", "cash_manual"),
+            CancellationToken.None));
+
+        Assert.Equal(0, inventory.Calls);
+        Assert.Equal(0, kitchen.Calls);
+        Assert.Equal(0, payment.Calls);
+    }
+
     [Fact]
     public async Task PlaceOrder_keeps_inventory_and_kitchen_when_payment_outcome_is_uncertain()
     {

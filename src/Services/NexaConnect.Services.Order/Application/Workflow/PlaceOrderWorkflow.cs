@@ -140,6 +140,11 @@ public sealed class PlaceOrderWorkflow(
             Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, ticket.TicketId,
             order.Lines.Select(ToSnapshot).ToArray()), cancellationToken);
 
+        if (command.PaymentMethod is "cash_manual" or "promptpay_manual")
+        {
+            return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
+        }
+
         PaymentResult paid = await payment.AuthorizeAsync(
             order.OrganizationId, order.RestaurantId,
             order.BranchId, order.Id, order.TotalAmount, order.Currency, command.PaymentMethod, cancellationToken);
@@ -194,6 +199,9 @@ public sealed class PlaceOrderWorkflow(
             throw new ArgumentException("Order lines must have a product and positive quantity.");
         if (string.IsNullOrWhiteSpace(command.PaymentMethod))
             throw new ArgumentException("Payment method is required.");
+        if (command.PaymentMethod is "cash_manual" or "promptpay_manual"
+            && !string.Equals(command.Currency, "THB", StringComparison.Ordinal))
+            throw new ArgumentException("Manual tender checkout requires THB.");
         if (command.IdempotencyKey is { Length: > 200 })
             throw new ArgumentException("Idempotency key is too long.");
     }

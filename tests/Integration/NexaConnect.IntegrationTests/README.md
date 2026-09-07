@@ -1,6 +1,8 @@
 # Integration Tests
 
-The POS manual-tender matrix includes hosted RabbitMQ stop/queue/restart, identical replay, and invalid-message dead-letter coverage. `scripts/test-pos-order-settlement-operations.ps1` requires this, PostgreSQL cash/PromptPay projection, and POS `0→4→3→4` to execute. Live evidence is not yet produced in this workspace.
+The POS manual-tender matrix includes hosted RabbitMQ stop/queue/restart, identical replay, and invalid-message dead-letter coverage. `scripts/test-pos-order-settlement-operations.ps1` requires this, PostgreSQL cash/PromptPay projection, and POS `0→4→3→4` to execute. The matrix passed 3/3 on 2026-09-03 UTC; sanitized evidence is retained under `.runstate/pos-order-settlement/13827a465971402887581cd04e25a70b`.
+
+`scripts/test-pos-paid-workflow.ps1` composes that three-case backend matrix with three Windows-local protected pending-settlement recovery cases. It retains separate TRX files and a boolean-only evidence summary, requires all 6 cases to pass, and fails if DPAPI is unavailable or a case is skipped. The matrix passed 6/6 on 2026-09-03 UTC with evidence under `.runstate/pos-paid-workflow/9c322b1ace3f422a9e7e6cd37b67658b`. It intentionally records `interactiveWpfVerified=false` and `liveOidcVerified=false`; use it as a precondition for, not a substitute for, interactive authenticated client acceptance.
 
 This project hosts in-process API integration tests using `WebApplicationFactory`.
 
@@ -84,7 +86,7 @@ $env:DOTNET_ENVIRONMENT = 'Testing'
 dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj --filter FullyQualifiedName~InventoryMigrationRunnerAcceptanceTests
 ```
 
-`PosMigrationRunnerAcceptanceTests` manages only generated `nexaconnect_pos_clean_it_<guid>` databases and invokes the actual POS runner for 0→4→3→4. It validates checksums/history, baseline tables, migration-4 removal/reapply, retained cash/replay rows, and real repositories. Migration-4 live execution, append-only rejection, broker delivery, and dead-letter routing remain pending evidence.
+`PosMigrationRunnerAcceptanceTests` manages only generated `nexaconnect_pos_clean_it_<guid>` databases and invokes the actual POS runner for 0→4→3→4. It validates checksums/history, baseline tables, migration-4 removal/reapply, retained cash/replay rows, and real repositories. Migration-4 live execution, broker recovery/replay, and dead-letter routing passed in the 2026-09-03 UTC guarded matrix; broader release-environment validation remains deployment-owned.
 
 ```powershell
 $env:NEXACONNECT_POS_CLEAN_INSTALL_ACCEPTANCE = '1'

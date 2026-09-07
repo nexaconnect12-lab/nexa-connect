@@ -5,14 +5,22 @@ namespace NexaConnect.POS;
 
 public sealed record LocalShiftState(Guid ShiftId, string ShiftNumber, DateTimeOffset OpenedAtUtc);
 public sealed record LocalCashSessionState(Guid CashSessionId, Guid ShiftId, DateTimeOffset OpenedAtUtc);
+public sealed record LocalPendingSettlementState(Guid OrderId, decimal Amount, string Currency,
+    Guid IdempotencyKey, string? Method = null, bool ReceiptConfirmed = false, string? BankReference = null,
+    bool OutcomeUncertain = false);
 
 public sealed class LocalPosStore
 {
-    private readonly string _path = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "NexaConnect",
-        "POS",
-        "state.json");
+    private readonly string _path;
+
+    public LocalPosStore(string? storageDirectory = null)
+    {
+        string directory = storageDirectory ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "NexaConnect",
+            "POS");
+        _path = Path.Combine(directory, "state.json");
+    }
 
     public LocalShiftState? LoadActiveShift()
     {
@@ -57,4 +65,34 @@ public sealed class LocalPosStore
     }
 
     public void ClearCashSession() { if (File.Exists(CashPath)) File.Delete(CashPath); }
+
+    private string SettlementPath => Path.Combine(Path.GetDirectoryName(_path)!, "pending-settlement.bin");
+
+    public LocalPendingSettlementState? LoadPendingSettlement()
+    {
+        if (!File.Exists(SettlementPath)) return null;
+        try
+        {
+            byte[] plaintext = WindowsDataProtection.Unprotect(File.ReadAllBytes(SettlementPath));
+            return JsonSerializer.Deserialize<LocalPendingSettlementState>(plaintext)
+                ?? throw new InvalidDataException("The pending settlement recovery file is empty.");
+        }
+        catch (Exception exception) when (exception is not InvalidDataException)
+        {
+            throw new InvalidDataException(
+                "The pending settlement recovery file cannot be read. Preserve it for reconciliation; do not collect payment again.",
+                exception);
+        }
+    }
+
+    public void SavePendingSettlement(LocalPendingSettlementState state)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(SettlementPath)!);
+        string temporaryPath = SettlementPath + ".tmp";
+        byte[] plaintext = JsonSerializer.SerializeToUtf8Bytes(state);
+        File.WriteAllBytes(temporaryPath, WindowsDataProtection.Protect(plaintext));
+        File.Move(temporaryPath, SettlementPath, true);
+    }
+
+    public void ClearPendingSettlement() { if (File.Exists(SettlementPath)) File.Delete(SettlementPath); }
 }

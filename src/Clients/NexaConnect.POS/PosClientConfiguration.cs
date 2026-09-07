@@ -14,6 +14,7 @@ public sealed record PosClientConfiguration(
     Guid OrganizationId,
     string Currency,
     string PaymentMethod,
+    string? PromptPayQrImagePath,
     Guid BranchId,
     Guid StoreId,
     Guid TerminalId)
@@ -36,6 +37,9 @@ public sealed record PosClientConfiguration(
             ParseGuid(root, "Pos", "OrganizationId"),
             root.GetProperty("Pos").GetProperty("Currency").GetString() ?? "USD",
             root.GetProperty("Pos").GetProperty("PaymentMethod").GetString() ?? "cash",
+            root.GetProperty("Pos").TryGetProperty("PromptPayQrImagePath", out JsonElement qrPath)
+                ? qrPath.GetString()
+                : null,
             ParseGuid(root, "Pos", "BranchId"),
             ParseGuid(root, "Pos", "StoreId"),
             ParseGuid(root, "Pos", "TerminalId"));

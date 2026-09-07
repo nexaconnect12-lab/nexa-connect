@@ -19,6 +19,23 @@ if (Test-Path -LiteralPath $envFile) {
     }
 }
 
+# The sample-data importer and runtime services use the same least-privilege
+# service roles. Reuse those already-injected values in process memory when the
+# conventional ASP.NET Core aliases have not been supplied separately.
+$runtimeAliases = @{
+    'ConnectionStrings__Restaurant' = 'NEXACONNECT_RESTAURANT_IMPORT_DB'
+    'ConnectionStrings__POS' = 'NEXACONNECT_POS_IMPORT_DB'
+    'WorkloadIdentity__ClientSecret' = 'NEXACONNECT_POS_SERVICE_CLIENT_SECRET'
+}
+foreach ($entry in $runtimeAliases.GetEnumerator()) {
+    if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($entry.Key))) {
+        $source = [Environment]::GetEnvironmentVariable($entry.Value)
+        if (-not [string]::IsNullOrWhiteSpace($source)) {
+            [Environment]::SetEnvironmentVariable($entry.Key, $source, 'Process')
+        }
+    }
+}
+
 Get-Process NexaConnect.Services.Authorization,NexaConnect.Services.Restaurant,NexaConnect.Services.POS -ErrorAction SilentlyContinue |
     Stop-Process -Force
 

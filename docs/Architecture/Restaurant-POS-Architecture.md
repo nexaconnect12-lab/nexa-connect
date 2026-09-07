@@ -1,6 +1,8 @@
 # NexaConnect Restaurant POS Architecture
 
-For the Bangkok MVP, cash and visually verified PromptPay settlement are Order-owned rather than Payment provider capture. The optional POS migration-4 consumer applies `order.manual-tender-settled.v1` once against the event-time shift/session window. Cash posts one sale and late delivery reconciles historical variance; PromptPay creates no drawer movement. The safe event omits bank reference/operator identity. The Paid client control remains pending.
+The WPF POS now separates Checkout, Payment, Shift & cash, and Terminal & sync, with touch product tiles, name/station filtering, quantity controls, and explicit currency totals. Settlement recovery is persisted as uncertain before sending and retains the original tender on restart. Interactive checkout acceptance and durable order-placement recovery remain open; see the [POS cashier acceptance guide](../Deployment/POS-Cashier-Acceptance.md).
+
+For the Bangkok MVP, cash and visually verified PromptPay settlement are Order-owned rather than Payment provider capture. The WPF Paid control requires explicit confirmation and a configured local QR plus verified reference for PromptPay. Its pending settlement file preserves the stable idempotency key and exact retry fields across a restart; uncertain outcomes are verified by identical replay rather than a new command. The optional POS migration-4 consumer applies `order.manual-tender-settled.v1` once against the event-time shift/session window. Cash posts one sale and late delivery reconciles historical variance; PromptPay creates no drawer movement. The safe event omits bank reference/operator identity.
 
 ## 1. Document status
 
