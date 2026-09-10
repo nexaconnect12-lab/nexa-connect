@@ -1,8 +1,7 @@
 [CmdletBinding()]
 param(
     [switch] $ConfirmDisposableInfrastructure,
-    [switch] $ConfirmDestructiveRollback,
-    [switch] $NoBuild
+    [switch] $ConfirmDestructiveRollback
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,6 +29,8 @@ $run = Join-Path $root ('.runstate/pos-paid-workflow/' + [Guid]::NewGuid().ToStr
 New-Item -ItemType Directory -Path $run -Force | Out-Null
 $unitTrx = Join-Path $run 'pos-paid-client-recovery.trx'
 $integrationTrx = Join-Path $run 'pos-paid-backend-live.trx'
+$unitOutput = Join-Path $run 'unit-bin/'
+$integrationOutput = Join-Path $run 'integration-bin/'
 $unitProject = Join-Path $root 'tests/Unit/NexaConnect.UnitTests/NexaConnect.UnitTests.csproj'
 $integrationProject = Join-Path $root 'tests/Integration/NexaConnect.IntegrationTests/NexaConnect.IntegrationTests.csproj'
 $previousEnvironment = $env:NEXACONNECT_ENVIRONMENT
@@ -42,14 +43,13 @@ try {
     $env:NEXACONNECT_RABBITMQ_ACCEPTANCE = '1'
     $env:NEXACONNECT_POS_CLEAN_INSTALL_ACCEPTANCE = '1'
     $env:NEXACONNECT_POS_DPAPI_ACCEPTANCE = '1'
-    if (-not $NoBuild) {
-        & dotnet build $unitProject --no-restore --verbosity minimal
-        if ($LASTEXITCODE -ne 0) { throw 'POS Paid client recovery build failed.' }
-        & dotnet build $integrationProject --no-restore --verbosity minimal
-        if ($LASTEXITCODE -ne 0) { throw 'POS Paid backend acceptance build failed.' }
-    }
+    & dotnet build $unitProject --no-restore --verbosity minimal "-p:OutputPath=$unitOutput"
+    if ($LASTEXITCODE -ne 0) { throw 'POS Paid client recovery build failed.' }
+    & dotnet build $integrationProject --no-restore --verbosity minimal "-p:OutputPath=$integrationOutput"
+    if ($LASTEXITCODE -ne 0) { throw 'POS Paid backend acceptance build failed.' }
 
     & dotnet test $unitProject --no-build --no-restore --verbosity minimal `
+        "-p:OutputPath=$unitOutput" `
         --filter 'FullyQualifiedName~PosPendingSettlementRecoveryTests|FullyQualifiedName~PosLocalSqliteStoreTests' `
         --logger "trx;LogFileName=$unitTrx"
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $unitTrx)) {
@@ -58,6 +58,7 @@ try {
 
     $filter = 'FullyQualifiedName~PosPostgresStoreTests.Order_manual_tenders|FullyQualifiedName~PosPostgresStoreTests.Hosted_consumer|FullyQualifiedName~PosMigrationRunnerAcceptanceTests'
     & dotnet test $integrationProject --no-build --no-restore --verbosity minimal `
+        "-p:OutputPath=$integrationOutput" `
         --filter $filter --logger "trx;LogFileName=$integrationTrx"
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $integrationTrx)) {
         throw 'POS Paid backend live verification failed.'
