@@ -177,10 +177,25 @@ foreach ($field in @('settlementId', 'organizationId', 'branchId', 'terminalId')
 }
 
 $localStateDirectory = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) 'NexaConnect\POS'
-$requiredAbsent = @('tokens.bin', 'state.json', 'cash-session.json', 'pending-checkout.bin', 'pending-settlement.bin')
+$requiredAbsent = @('tokens.bin', 'state.json', 'cash-session.json', 'pending-checkout.bin', 'pending-settlement.bin', 'outbox.json')
 $remaining = @($requiredAbsent | Where-Object { Test-Path -LiteralPath (Join-Path $localStateDirectory $_) })
 if ($remaining.Count -ne 0) {
-    throw "Local POS cleanup is incomplete. Resolve these state files through the WPF flow: $($remaining -join ', ')."
+    throw "Local POS cleanup or SQLite migration is incomplete. Resolve these legacy/current files through the WPF flow: $($remaining -join ', ')."
+}
+$localDatabase = Join-Path $localStateDirectory 'pos-state.db'
+$inspectorProject = Join-Path $root 'src\Tools\NexaConnect.PosLocalStateInspector\NexaConnect.PosLocalStateInspector.csproj'
+$inspectionOutput = & dotnet run --project $inspectorProject --configuration Release `
+    --no-launch-profile --verbosity quiet -- --database $localDatabase 2>$null
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($inspectionOutput -join ''))) {
+    throw 'The local POS SQLite database could not be inspected. Build dependencies and complete migration before acceptance.'
+}
+$inspectionJson = @($inspectionOutput | Where-Object { $_ -match '^\s*\{' } | Select-Object -Last 1)
+try { $inspection = (($inspectionJson -join '') | ConvertFrom-Json) }
+catch { throw 'The local POS SQLite inspector returned an invalid result.' }
+if (-not $inspection.integrityOk -or [int]$inspection.schemaVersion -ne 1 -or
+    [int]$inspection.operationalStateCount -ne 0 -or [int]$inspection.unresolvedOutboxCount -ne 0 -or
+    [int]$inspection.interruptedSendCount -ne 0) {
+    throw 'Local POS SQLite acceptance failed: require schema 1, integrity success, and no active operational or unresolved outbox rows.'
 }
 
 $run = Join-Path $root ('.runstate/pos-cashier-live/' + [Guid]::NewGuid().ToString('N'))
@@ -200,6 +215,10 @@ $evidence = [ordered]@{
     cashSessionClosed = $true
     shiftClosed = $true
     localCredentialsAndRecoveryCleared = $true
+    localSqliteSchemaVersion = 1
+    localSqliteIntegrityVerified = $true
+    localSqliteOperationalStateCount = 0
+    localSqliteUnresolvedOutboxCount = 0
     dockerContext = $context
     secretsPrinted = $false
 }

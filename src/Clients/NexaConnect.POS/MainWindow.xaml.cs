@@ -17,7 +17,7 @@ public partial class MainWindow : Window
     private LocalShiftState? _activeShift;
     private readonly ObservableCollection<PosMenuItem> menu = new();
     private readonly ObservableCollection<CartLine> cart = new();
-    private readonly LocalOutboxStore outbox = new();
+    private readonly LocalOutboxStore outbox;
     private Guid? cashSessionId;
     private PosOrderResult? pendingOrder;
     private PendingCheckout? pendingCheckout;
@@ -37,6 +37,7 @@ public partial class MainWindow : Window
         PosAuthentication authentication,
         PosApiClient api,
         LocalPosStore localStore,
+        LocalOutboxStore outboxStore,
         PosClientConfiguration configuration)
     {
         InitializeComponent();
@@ -44,6 +45,7 @@ public partial class MainWindow : Window
         _authentication = authentication;
         _api = api;
         _localStore = localStore;
+        outbox = outboxStore;
         _configuration = configuration;
         _activeShift = _localStore.LoadActiveShift();
         cashSessionId = _localStore.LoadCashSession()?.CashSessionId;
@@ -246,10 +248,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        bool attemptStarted = false;
         try
         {
             UpdateOperationalState();
             SetBusy("Recording cash movement…");
+            outbox.MarkAttempted(operation.OperationId);
+            attemptStarted = true;
             await _api.RecordCashMovementAsync(
                 _authentication.CurrentToken,
                 cashSessionId.Value,
@@ -263,13 +268,14 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            if (exception is PosApiException { StatusCode: 400 or 403 or 409 } api)
+            if (attemptStarted && exception is PosApiException { StatusCode: 400 or 403 or 409 } api)
             {
                 outbox.MarkTerminalFailure(operation.OperationId, api.StatusCode);
                 StatusText.Text = $"{api.Message} Movement retained as rejected for operator review.";
             }
             else
             {
+                if (attemptStarted) outbox.MarkRetryable(operation.OperationId);
                 StatusText.Text = exception is PosApiException transientApi
                     ? $"{transientApi.Message} Movement remains queued for replay."
                     : "Cash movement remains queued for replay.";
@@ -457,7 +463,7 @@ public partial class MainWindow : Window
                     _authentication.CurrentToken, currentOrder.OrderId, currentIdempotencyKey, method,
                     currentOrder.TotalAmount, currentOrder.Currency, method == "promptpay_manual",
                     method == "promptpay_manual" ? bankReference : null),
-                () => { _localStore.ClearPendingCheckout(); _localStore.ClearPendingSettlement(); });
+                () => _localStore.ClearCheckoutAndSettlement());
             pendingCheckout = null;
             pendingOrder = null;
             settlementIdempotencyKey = null;
@@ -593,7 +599,11 @@ public partial class MainWindow : Window
         bool movementsPending = operations.Count > 0;
         ReplayOutboxButton.IsEnabled = signedIn && operations.Count > rejected;
         RetryRejectedOutboxButton.IsEnabled = signedIn && rejected > 0;
-        OutboxStatusText.Text = $"Offline queue: {operations.Count - rejected} pending, {rejected} rejected";
+        DateTimeOffset? lastAttempt = operations.Max(operation => operation.LastAttemptAtUtc);
+        string lastAttemptText = lastAttempt is null
+            ? "no attempts yet"
+            : $"last attempt {lastAttempt.Value.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
+        OutboxStatusText.Text = $"Offline queue: {operations.Count - rejected} pending, {rejected} rejected · {lastAttemptText}";
         SessionText.Text = signedIn ? (hasActiveShift ? "Signed in · Shift open" : "Signed in · Open a shift") : "Signed out";
         ActiveShiftText.Text = hasActiveShift
             ? $"Shift {_activeShift!.ShiftNumber} · Cash session {(cashSessionId is null ? "closed" : "open")}"

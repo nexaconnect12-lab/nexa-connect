@@ -1,5 +1,7 @@
 # NexaConnect Database Design
 
+The WPF terminal owns a separate local schema-versioned SQLite database at `%LOCALAPPDATA%\NexaConnect\POS\pos-state.db`; it is not a service database and is never queried by backend services. Its two tables hold DPAPI-protected operational state and a terminal-bound durable outbox. See [POS local SQLite](POS-Local-SQLite.md).
+
 POS migration 4 adds append-only `pos_order_settlements`, unique event/settlement/Order identities, and an Order-unique manual cash-sale index. Projection and cash movement commit in one POS transaction. PromptPay creates no cash movement. Downgrade refuses after any projection exists.
 
 Order migration 5 adds append-only `order_manual_tender_settlements`. Each Order can settle once, and `(organization_id, branch_id, idempotency_key)` is unique with a SHA-256 request fingerprint. The exact-total THB Paid transition, settlement, safe integration event, and audit outbox share one transaction. Database predicates reject provider-bound, terminal, ownership, amount, and currency conflicts. Downgrade refuses after any settlement exists.

@@ -10,6 +10,8 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
@@ -39,6 +41,7 @@
     <ProjectReference Include="..\..\..\src\Tools\NexaConnect.DataGeneration\NexaConnect.DataGeneration.csproj" />
     <ProjectReference Include="..\..\..\src\Tools\NexaConnect.DataMigration\NexaConnect.DataMigration.csproj" />
     <ProjectReference Include="..\..\..\src\Tools\NexaConnect.PaymentReviewAcceptance\NexaConnect.PaymentReviewAcceptance.csproj" />
+    <ProjectReference Include="..\..\..\src\Tools\NexaConnect.PosLocalStateInspector\NexaConnect.PosLocalStateInspector.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -55,6 +58,8 @@
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\SettlementAttempt.cs" Link="POS\SettlementAttempt.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\CashierPresentation.cs" Link="POS\CashierPresentation.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalPosStore.cs" Link="POS\LocalPosStore.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalPosDatabase.cs" Link="POS\LocalPosDatabase.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalOutboxStore.cs" Link="POS\LocalOutboxStore.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\WindowsDataProtection.cs" Link="POS\WindowsDataProtection.cs" />
   </ItemGroup>
 

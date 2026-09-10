@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
 
 namespace NexaConnect.POS;
 
@@ -11,114 +13,130 @@ public sealed record LocalPendingSettlementState(Guid OrderId, decimal Amount, s
 
 public sealed class LocalPosStore
 {
-    private readonly string _path;
+    private readonly LocalPosDatabase database;
 
-    public LocalPosStore(string? storageDirectory = null)
+    public LocalPosStore(LocalPosScope scope, string? storageDirectory = null)
+        : this(storageDirectory, null, scope)
     {
-        string directory = storageDirectory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "NexaConnect",
-            "POS");
-        _path = Path.Combine(directory, "state.json");
     }
 
-    public LocalShiftState? LoadActiveShift()
+    internal LocalPosStore(string? storageDirectory = null, ILocalPayloadProtector? payloadProtector = null,
+        LocalPosScope? scope = null)
     {
-        try
-        {
-            return File.Exists(_path)
-                ? JsonSerializer.Deserialize<LocalShiftState>(File.ReadAllText(_path))
-                : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        database = new LocalPosDatabase(storageDirectory, payloadProtector, scope);
     }
+
+    public LocalShiftState? LoadActiveShift() => Read<LocalShiftState>("active-shift",
+        "The saved shift cannot be read. Preserve the local POS database and reconcile the shift.");
 
     public void SaveActiveShift(LocalShiftState state)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        File.WriteAllText(_path, JsonSerializer.Serialize(state));
+        if (state.ShiftId == Guid.Empty || string.IsNullOrWhiteSpace(state.ShiftNumber))
+            throw new InvalidDataException("The active shift state is invalid.");
+        Write("active-shift", state);
     }
 
-    public void ClearActiveShift()
-    {
-        if (File.Exists(_path))
-        {
-            File.Delete(_path);
-        }
-    }
+    public void ClearActiveShift() => Delete("active-shift");
 
-    private string CashPath => Path.Combine(Path.GetDirectoryName(_path)!, "cash-session.json");
-
-    public LocalCashSessionState? LoadCashSession()
-    {
-        try { return File.Exists(CashPath) ? JsonSerializer.Deserialize<LocalCashSessionState>(File.ReadAllText(CashPath)) : null; }
-        catch (JsonException) { return null; }
-    }
+    public LocalCashSessionState? LoadCashSession() => Read<LocalCashSessionState>("cash-session",
+        "The saved cash session cannot be read. Preserve the local POS database and reconcile the drawer.");
 
     public void SaveCashSession(LocalCashSessionState state)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(CashPath)!);
-        File.WriteAllText(CashPath, JsonSerializer.Serialize(state));
+        if (state.CashSessionId == Guid.Empty || state.ShiftId == Guid.Empty)
+            throw new InvalidDataException("The cash-session state is invalid.");
+        Write("cash-session", state);
     }
 
-    public void ClearCashSession() { if (File.Exists(CashPath)) File.Delete(CashPath); }
+    public void ClearCashSession() => Delete("cash-session");
 
-    private string SettlementPath => Path.Combine(Path.GetDirectoryName(_path)!, "pending-settlement.bin");
-
-    public LocalPendingSettlementState? LoadPendingSettlement()
-    {
-        if (!File.Exists(SettlementPath)) return null;
-        try
-        {
-            byte[] plaintext = WindowsDataProtection.Unprotect(File.ReadAllBytes(SettlementPath));
-            return JsonSerializer.Deserialize<LocalPendingSettlementState>(plaintext)
-                ?? throw new InvalidDataException("The pending settlement recovery file is empty.");
-        }
-        catch (Exception exception) when (exception is not InvalidDataException)
-        {
-            throw new InvalidDataException(
-                "The pending settlement recovery file cannot be read. Preserve it for reconciliation; do not collect payment again.",
-                exception);
-        }
-    }
+    public LocalPendingSettlementState? LoadPendingSettlement() => Read<LocalPendingSettlementState>(
+        "pending-settlement",
+        "The pending settlement cannot be read. Preserve the local POS database for reconciliation; do not collect payment again.");
 
     public void SavePendingSettlement(LocalPendingSettlementState state)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(SettlementPath)!);
-        string temporaryPath = SettlementPath + ".tmp";
-        byte[] plaintext = JsonSerializer.SerializeToUtf8Bytes(state);
-        File.WriteAllBytes(temporaryPath, WindowsDataProtection.Protect(plaintext));
-        File.Move(temporaryPath, SettlementPath, true);
+        if (state.OrderId == Guid.Empty || state.IdempotencyKey == Guid.Empty || state.Amount <= 0
+            || !string.Equals(state.Currency, "THB", StringComparison.Ordinal))
+            throw new InvalidDataException("The pending settlement state is invalid.");
+        Write("pending-settlement", state);
     }
 
-    public void ClearPendingSettlement() { if (File.Exists(SettlementPath)) File.Delete(SettlementPath); }
+    public void ClearPendingSettlement() => Delete("pending-settlement");
 
-    private string CheckoutPath => Path.Combine(Path.GetDirectoryName(_path)!, "pending-checkout.bin");
-
-    public PendingCheckout? LoadPendingCheckout()
-    {
-        if (!File.Exists(CheckoutPath)) return null;
-        try
-        {
-            return JsonSerializer.Deserialize<PendingCheckout>(WindowsDataProtection.Unprotect(File.ReadAllBytes(CheckoutPath)))
-                ?? throw new InvalidDataException("Empty pending checkout.");
-        }
-        catch (Exception exception)
-        {
-            throw new InvalidDataException("Pending checkout recovery cannot be read. Preserve the file and reconcile; do not submit another order.", exception);
-        }
-    }
+    public PendingCheckout? LoadPendingCheckout() => Read<PendingCheckout>("pending-checkout",
+        "Pending checkout recovery cannot be read. Preserve the local POS database and reconcile; do not submit another order.");
 
     public void SavePendingCheckout(PendingCheckout checkout)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(CheckoutPath)!);
-        string temporary = CheckoutPath + ".tmp";
-        File.WriteAllBytes(temporary, WindowsDataProtection.Protect(JsonSerializer.SerializeToUtf8Bytes(checkout)));
-        File.Move(temporary, CheckoutPath, true);
+        if (checkout.OrderId == Guid.Empty || checkout.SettlementKey == Guid.Empty)
+            throw new InvalidDataException("The pending checkout state is invalid.");
+        Write("pending-checkout", checkout);
     }
 
-    public void ClearPendingCheckout() { if (File.Exists(CheckoutPath)) File.Delete(CheckoutPath); }
+    public void ClearPendingCheckout() => Delete("pending-checkout");
+
+    public void ClearCheckoutAndSettlement()
+    {
+        using SqliteConnection connection = database.OpenConnection();
+        using SqliteTransaction transaction = connection.BeginTransaction();
+        using SqliteCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "DELETE FROM local_state WHERE state_key IN ('pending-checkout','pending-settlement');";
+        command.ExecuteNonQuery();
+        transaction.Commit();
+    }
+
+    private T? Read<T>(string key, string failureMessage)
+    {
+        try
+        {
+            using SqliteConnection connection = database.OpenConnection();
+            using SqliteCommand command = connection.CreateCommand();
+            command.CommandText = "SELECT protected_payload FROM local_state WHERE state_key=$key;";
+            command.Parameters.AddWithValue("$key", key);
+            object? value = command.ExecuteScalar();
+            if (value is null) return default;
+            byte[] plaintext = database.Unprotect((byte[])value);
+            return JsonSerializer.Deserialize<T>(plaintext)
+                ?? throw new InvalidDataException(failureMessage);
+        }
+        catch (Exception exception) when (exception is not InvalidDataException)
+        {
+            throw new InvalidDataException(failureMessage, exception);
+        }
+    }
+
+    private void Write<T>(string key, T state)
+    {
+        byte[] protectedPayload = database.Protect(JsonSerializer.SerializeToUtf8Bytes(state));
+        using SqliteConnection connection = database.OpenConnection();
+        using SqliteTransaction transaction = connection.BeginTransaction();
+        using SqliteCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO local_state(state_key, protected_payload, updated_at_utc)
+            VALUES($key, $payload, $updated)
+            ON CONFLICT(state_key) DO UPDATE SET
+                protected_payload=excluded.protected_payload,
+                updated_at_utc=excluded.updated_at_utc;
+            """;
+        command.Parameters.AddWithValue("$key", key);
+        command.Parameters.AddWithValue("$payload", protectedPayload);
+        command.Parameters.AddWithValue("$updated", DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+        command.ExecuteNonQuery();
+        transaction.Commit();
+    }
+
+    private void Delete(string key)
+    {
+        using SqliteConnection connection = database.OpenConnection();
+        using SqliteTransaction transaction = connection.BeginTransaction();
+        using SqliteCommand command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "DELETE FROM local_state WHERE state_key=$key;";
+        command.Parameters.AddWithValue("$key", key);
+        command.ExecuteNonQuery();
+        transaction.Commit();
+    }
 }

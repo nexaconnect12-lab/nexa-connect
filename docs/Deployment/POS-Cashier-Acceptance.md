@@ -28,11 +28,11 @@ dotnet build src/Clients/NexaConnect.POS/NexaConnect.POS.csproj --no-restore --v
 dotnet test tests/Unit/NexaConnect.UnitTests/NexaConnect.UnitTests.csproj --no-restore --filter 'FullyQualifiedName~CashierPresentationTests|FullyQualifiedName~SettlementAttemptTests|FullyQualifiedName~PosCheckoutIntegrationTests|FullyQualifiedName~ManualTender|FullyQualifiedName~PosCashSessionApplicationTests|FullyQualifiedName~PosShiftApplicationTests' --verbosity minimal
 ```
 
-Windows protected-state tests require the normal interactive user's DPAPI key store. In a disposable test run, set `NEXACONNECT_POS_DPAPI_ACCEPTANCE=1` and include `FullyQualifiedName~PosPendingSettlementRecoveryTests` in the filter. The tests create isolated temporary files. They do not drive WPF or authenticate against Keycloak.
+Windows protected-state tests require the normal interactive user's DPAPI key store. In a disposable test run, set `NEXACONNECT_POS_DPAPI_ACCEPTANCE=1` and include `FullyQualifiedName~PosPendingSettlementRecoveryTests|FullyQualifiedName~PosLocalSqliteStoreTests` in the filter. The tests create isolated temporary databases and legacy files. They do not drive WPF or authenticate against Keycloak.
 
 The preceding implementation turn passed three DPAPI cases under the normal Windows profile. The sandbox DPAPI run failed because user key storage was unavailable. Final post-correction verification passed 35 focused cases and a WPF build with no warnings or errors. The normal output build was blocked by the running POS executable; the successful build used .runstate/cashier-verification as its output directory. The initial signed-out Checkout window was visually inspected. These are component results, not joined checkout acceptance. Final verification for this slice is recorded in the implementation handoff.
 
-## Live acceptance procedure — not yet signed off
+## Extended live acceptance scenarios
 
 Use a disposable test branch, cashier identity, matching menu, enrolled terminal, and the required Order 5 / Authorization 6 / Reporting 14 / POS 4 migrations. The client requires `Pos:Currency=THB` and `cash_manual` or `promptpay_manual`; incompatible configuration is rejected at startup. Configure all service URLs and a test-only PromptPay QR. The POS launcher alone does not prove the whole Catalog/Inventory/Kitchen/Order graph is ready.
 
@@ -51,7 +51,7 @@ Keep terminal configuration unchanged while checkout or settlement is pending. N
 
 ## Remaining boundaries
 
-Full offline order/shift synchronization, SQLite, hardware drivers, human-readable identity context, full reconciliation reporting, and Thai localization are subsequent work. Order placement now retains a protected original command before sending and reuses it after timeout/restart, including the response-to-settlement-save window. Incomplete server workflow steps still require reconciliation; this client slice does not automatically resume them. Only a matching terminal Rejected or PaymentFailed result releases the checkout lock; other failed commands remain retained.
+Full offline order/shift/device synchronization, hardware drivers, human-readable identity context, full reconciliation reporting, and Thai localization are subsequent work. SQLite now protects current operational state and cash-movement replay across brief client/service interruption; it does not execute orders without the service graph or cache offline authorization. Incomplete server workflow steps still require reconciliation. Only a matching terminal Rejected or PaymentFailed result releases the checkout lock; other failed commands remain retained.
 
 ## Sign-in recovery check
 
@@ -94,6 +94,6 @@ Complete these steps in one WPF session against the supervised local stack:
   -ConfirmSignedOut
 ```
 
-The verifier refuses `DOCKER_HOST`, unapproved contexts, and every endpoint except Docker Desktop's local Windows named pipes. It pins Compose to this repository's `docker-compose.yml` and the `nexa-connect` project, then reads only `NexaConnect_Order` and `NexaConnect_POS`. It requires exactly one completed Order and exact-total THB cash settlement; the same amount in one POS cash projection and its Order-linked cash movement; that movement's associated cash session and shift to be closed; and no current-user POS token, active-shift, cash-session, pending-checkout, or pending-settlement file. Only then does it write a sanitized `.runstate/pos-cashier-live/<run-id>/evidence.json`. The confirmation switches attest to the human interaction; the script verifies their durable effects and does not automate or independently prove the UI clicks.
+The verifier refuses remote Docker, pins this repository's Compose project, and reads only `NexaConnect_Order` and `NexaConnect_POS`. It requires one completed exact-total cash lifecycle with closed session/shift state. Its read-only local-state inspector then requires SQLite schema 1, `quick_check=ok`, zero active operational rows, zero unresolved outbox rows, no interrupted sends, no legacy state files, and no token file. Only then does it write sanitized evidence. Confirmation switches attest to human interaction; the script does not automate UI clicks.
 
-The local gate passed on 2026-09-10 UTC for Order `28cea6a8-c0b8-4a4a-88db-fa60987da366`. Sanitized evidence is retained at `.runstate/pos-cashier-live/ca0dcf3292dd4bec9184204bf6d1c223/evidence.json`; it records confirmed interactive OIDC, WPF cash checkout, sign-out, one amount-matched cash lifecycle, closed cash and shift state, and cleared local credentials/recovery state.
+The pre-SQLite local gate passed on 2026-09-10 UTC for Order `28cea6a8-c0b8-4a4a-88db-fa60987da366`, with evidence at `.runstate/pos-cashier-live/ca0dcf3292dd4bec9184204bf6d1c223/evidence.json`. Because that run predates schema 1, repeat the procedure after launching the upgraded client before signing off SQLite persistence.

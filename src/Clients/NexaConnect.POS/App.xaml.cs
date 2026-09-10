@@ -41,11 +41,26 @@ public partial class App : Application
         _authentication = new PosAuthentication(configuration);
         _ = ListenForCallbacksAsync(_authentication, CancellationToken.None);
 
-        var window = new MainWindow(
-            _authentication,
-            new PosApiClient(configuration),
-            new LocalPosStore(),
-            configuration);
+        MainWindow window;
+        try
+        {
+            var scope = LocalPosScope.From(configuration);
+            window = new MainWindow(
+                _authentication,
+                new PosApiClient(configuration),
+                new LocalPosStore(scope),
+                new LocalOutboxStore(scope),
+                configuration);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException
+            or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
+        {
+            MessageBox.Show(
+                "Local POS recovery could not be opened safely. Preserve %LOCALAPPDATA%\\NexaConnect\\POS for reconciliation and contact support before taking another order.",
+                "Recovery required", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown();
+            return;
+        }
         MainWindow = window;
         window.Show();
         if (e.Args.Length > 0)

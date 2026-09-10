@@ -1,0 +1,11 @@
+# POS local SQLite
+
+The WPF POS owns `%LOCALAPPDATA%\NexaConnect\POS\pos-state.db` for current-user crash recovery and brief device-to-service interruption. Backend services never access this database. PostgreSQL remains authoritative for shifts, cash, Orders, settlements, and synchronization deduplication.
+
+Schema 1 uses WAL mode, `synchronous=FULL`, foreign-key enforcement, a five-second busy timeout, and startup `quick_check`. `local_state` stores one protected payload for terminal scope, active shift, cash session, pending checkout, and pending settlement. `outbox_operations` stores immutable operation identity and routing metadata with a DPAPI-protected payload. Its state is `queued`, `sending`, `rejected`, or `completed`; constraints keep rejection/completion timestamps consistent.
+
+The database binds to organization, branch, store, and terminal on first configured startup. A different scope, newer schema, failed integrity check, unreadable protected payload, or coexisting legacy and SQLite state stops startup. Preserve the complete directory and reconcile authoritative service state; do not delete rows or collect payment again to bypass recovery.
+
+On first safe upgrade, `state.json`, `cash-session.json`, `pending-checkout.bin`, `pending-settlement.bin`, and `outbox.json` import in one transaction. Files are removed only after commit. Checkout persists before placement; settlement uncertainty persists before confirmation; successful settlement clears checkout and settlement together. Cash movement enqueue precedes HTTP. Startup changes interrupted `sending` rows to `queued`; retryable transport/server failures do the same, `400`/`403`/`409` become `rejected`, and success records a retained `completed` acknowledgement. The UI blocks cash close while unresolved movement rows exist.
+
+This database does not provide offline authorization, cached menu/order execution, multi-terminal LAN coordination, or the branch edge. Back up and restore it only with the terminal stopped and as a unit with its WAL/SHM files. Payload recovery requires the same Windows user profile. The read-only `NexaConnect.PosLocalStateInspector` exposes only integrity/version and row counts for acceptance; it never decrypts payloads.

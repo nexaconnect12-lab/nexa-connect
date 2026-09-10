@@ -17,7 +17,7 @@ public sealed class PosPendingSettlementRecoveryTests : IDisposable
         LocalPendingSettlementState? restored = new LocalPosStore(directory).LoadPendingSettlement();
 
         Assert.Equal(expected, restored);
-        byte[] stored = File.ReadAllBytes(Path.Combine(directory, "pending-settlement.bin"));
+        byte[] stored = File.ReadAllBytes(Path.Combine(directory, "pos-state.db"));
         Assert.True(stored.AsSpan().IndexOf("receipt-reference"u8) < 0);
     }
 
@@ -28,10 +28,9 @@ public sealed class PosPendingSettlementRecoveryTests : IDisposable
         string path = Path.Combine(directory, "pending-settlement.bin");
         File.WriteAllBytes(path, RandomNumberGenerator.GetBytes(64));
 
-        InvalidDataException error = Assert.Throws<InvalidDataException>(
-            () => new LocalPosStore(directory).LoadPendingSettlement());
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => new LocalPosStore(directory));
 
-        Assert.Contains("do not collect payment again", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("cannot be opened safely", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.True(File.Exists(path));
     }
 
@@ -73,7 +72,7 @@ public sealed class PosPendingSettlementRecoveryTests : IDisposable
         Directory.CreateDirectory(directory);
         string path = Path.Combine(directory, "pending-checkout.bin");
         File.WriteAllBytes(path, RandomNumberGenerator.GetBytes(64));
-        Assert.Throws<InvalidDataException>(() => new LocalPosStore(directory).LoadPendingCheckout());
+        Assert.Throws<InvalidDataException>(() => new LocalPosStore(directory));
         Assert.True(File.Exists(path));
     }
 

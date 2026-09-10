@@ -40,6 +40,12 @@ public sealed class PosOutboxReplayer(PosClientConfiguration configuration, Loca
             }
             catch (HttpRequestException)
             {
+                outbox.MarkRetryable(operation.OperationId);
+                break;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                outbox.MarkRetryable(operation.OperationId);
                 break;
             }
             using (response)
@@ -52,6 +58,7 @@ public sealed class PosOutboxReplayer(PosClientConfiguration configuration, Loca
                         outbox.MarkTerminalFailure(operation.OperationId, statusCode);
                         continue;
                     }
+                    outbox.MarkRetryable(operation.OperationId);
                     break;
                 }
             }

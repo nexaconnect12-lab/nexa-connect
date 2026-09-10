@@ -1,6 +1,6 @@
 # NexaConnect Restaurant POS Architecture
 
-The WPF POS now separates Checkout, Payment, Shift & cash, and Terminal & sync, with touch product tiles, name/station filtering, quantity controls, and explicit currency totals. Settlement recovery is persisted as uncertain before sending and retains the original tender on restart. The client now routes tenant-scoped menu reads directly to Catalog and retains the original protected placement command before HTTP for identical restart/retry. The checked checkout launcher supervises the local service graph. Interactive acceptance and server-side intermediate-workflow recovery remain open; see the [POS cashier acceptance guide](../Deployment/POS-Cashier-Acceptance.md).
+The WPF POS now separates Checkout, Payment, Shift & cash, and Terminal & sync, with touch product tiles, filtering, quantity controls, and explicit currency totals. Terminal-bound SQLite stores protected operational/outbox payloads before network I/O, retains exact retry identity, recovers interrupted sends, and migrates the former JSON/DPAPI files only through a fail-closed transaction. The checked checkout launcher supervises the local service graph. Pre-upgrade local cash-checkout acceptance passed; fresh SQLite live evidence and server-side intermediate-workflow recovery remain open. See the [POS cashier acceptance guide](../Deployment/POS-Cashier-Acceptance.md).
 
 For the Bangkok MVP, cash and visually verified PromptPay settlement are Order-owned rather than Payment provider capture. The WPF Paid control requires explicit confirmation and a configured local QR plus verified reference for PromptPay. Its pending settlement file preserves the stable idempotency key and exact retry fields across a restart; uncertain outcomes are verified by identical replay rather than a new command. The optional POS migration-4 consumer applies `order.manual-tender-settled.v1` once against the event-time shift/session window. Cash posts one sale and late delivery reconciles historical variance; PromptPay creates no drawer movement. The safe event omits bank reference/operator identity.
 
@@ -361,7 +361,7 @@ Platform reporting contains approved ecosystem summaries. Detailed restaurant re
 - Schema-first PostgreSQL migrations are the source of truth, with paired and tested upgrade and downgrade paths for every released version.
 - Application releases declare required schema versions per service and prefer expand-and-contract compatibility for rollback.
 - PostgreSQL `jsonb` is used only for flexible attributes with clear ownership.
-- POS terminals use SQLite for local state and durable outboxes.
+- POS terminals use schema-versioned SQLite for terminal-bound local state and durable outboxes. Sensitive payloads remain protected for the current Windows user.
 - The branch edge service requires a durable local store; PostgreSQL versus SQLite remains a deployment decision.
 - MinIO is used for local image development and S3-compatible object storage for production.
 - RabbitMQ carries asynchronous cloud integration events and image-processing work.
