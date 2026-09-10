@@ -63,7 +63,7 @@ Click Sign in, then Cancel sign-in without completing the browser flow. Confirm 
 
 Post-integration acceptance includes direct Catalog routing with tenant/correlation headers, identical placement replay after a simulated lost response, rejection of changed terminal scope before HTTP, invalid configuration guards, and DPAPI restart/corruption tests for both placement and settlement. The original placement identity is generated once and retained until successful payment cleanup. Server intermediate states are retained for explicit verification/reconciliation; the client does not automatically resume abandoned service workflow steps.
 
-The local preflight now passes with the required secret names configured, and the supervised launcher reported all nine HTTP hosts ready on 2026-09-08. The development database was separately checked for enabled `nexa_connect` access and matching branch ownership. POS organization membership and branch-scoped cashier grants must use the stable Keycloak `sub`; username aliases such as `nexa_pos` do not satisfy the identity claims contract. Joined WPF interaction remains unexecuted. Earlier build-output locks were avoided with isolated output folders. The final expanded focused suite, including observability regression checks, passed 43 cases; five protected-state cases passed under the interactive Windows profile. These results do not certify live checkout.
+The local preflight passes with the required secret names configured, and the supervised launcher reported all nine HTTP hosts ready on 2026-09-10. The development database was separately checked for enabled `nexa_connect` access and matching branch ownership. POS organization membership and branch-scoped cashier grants use the stable Keycloak `sub`; username aliases such as `nexa_pos` do not satisfy the identity claims contract. The expanded focused suite passed 69 cases with five opt-in cases skipped in the final non-interactive run; the protected-state matrix had previously passed under the interactive Windows profile. Joined local OIDC/WPF cash checkout was then verified separately by the evidence gate described below.
 
 For the current WPF startup path, run `./scripts/run-checkout-development.ps1 -ValidateOnly` first. Once required secret names and configuration pass, run the same script without `-ValidateOnly` (optionally with `-StartInfrastructure`). Keep it running while performing the steps above. The launcher uses a bounded loopback listener probe so protected OpenAPI endpoints do not delay process supervision. Do not run the shift-only POS or Phase 8 launchers on the same ports concurrently.
 
@@ -74,3 +74,26 @@ If Platform Directory succeeds but Catalog or Order reports a Restaurant `401`, 
 If Restaurant authorization succeeds but Order fails before Catalog receives the request with an SSL frame or handshake error, verify the workflow adapter's `Authentication:TokenEndpoint`. It must use the token endpoint published by local Keycloak discovery (`http` in the checked local stack). Restart the supervised stack after correcting it, retain the original checkout, and verify that order again.
 
 If verification returns a matching terminal `Rejected` or `PaymentFailed` Order result, POS clears the checkout recovery lock and retains any in-memory cart for review because the original order can no longer advance. For all other conflicts and intermediate states, recovery remains locked. Order sends tenant context to Inventory; an Inventory `5xx` is a dependency failure and must not persist the response body as an inventory business rejection.
+
+## Final cash-checkout evidence
+
+Complete these steps in one WPF session against the supervised local stack:
+
+1. Sign in through Keycloak, open a new shift, and open its THB cash session.
+2. Refresh the menu, add an item, and send the order. Wait for **Order sent to the kitchen**.
+3. In Payment, confirm that the displayed amount and currency match the sale, select Cash, and choose **Confirm payment received** once. Copy the Paid Order ID from the footer.
+4. Wait for the POS settlement consumer, enter the counted drawer amount, close cash, then close the shift.
+5. Sign out and confirm the header shows **Signed out**.
+6. Run:
+
+```powershell
+./scripts/verify-pos-cashier-live-acceptance.ps1 `
+  -OrderId '<paid-order-uuid>' `
+  -ConfirmInteractiveOidc `
+  -ConfirmWpfCashCheckout `
+  -ConfirmSignedOut
+```
+
+The verifier refuses `DOCKER_HOST`, unapproved contexts, and every endpoint except Docker Desktop's local Windows named pipes. It pins Compose to this repository's `docker-compose.yml` and the `nexa-connect` project, then reads only `NexaConnect_Order` and `NexaConnect_POS`. It requires exactly one completed Order and exact-total THB cash settlement; the same amount in one POS cash projection and its Order-linked cash movement; that movement's associated cash session and shift to be closed; and no current-user POS token, active-shift, cash-session, pending-checkout, or pending-settlement file. Only then does it write a sanitized `.runstate/pos-cashier-live/<run-id>/evidence.json`. The confirmation switches attest to the human interaction; the script verifies their durable effects and does not automate or independently prove the UI clicks.
+
+The local gate passed on 2026-09-10 UTC for Order `28cea6a8-c0b8-4a4a-88db-fa60987da366`. Sanitized evidence is retained at `.runstate/pos-cashier-live/ca0dcf3292dd4bec9184204bf6d1c223/evidence.json`; it records confirmed interactive OIDC, WPF cash checkout, sign-out, one amount-matched cash lifecycle, closed cash and shift state, and cleared local credentials/recovery state.
