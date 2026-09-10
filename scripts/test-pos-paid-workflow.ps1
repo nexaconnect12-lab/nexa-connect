@@ -50,7 +50,7 @@ try {
     }
 
     & dotnet test $unitProject --no-build --no-restore --verbosity minimal `
-        --filter 'FullyQualifiedName~PosPendingSettlementRecoveryTests' `
+        --filter 'FullyQualifiedName~PosPendingSettlementRecoveryTests|FullyQualifiedName~PosLocalSqliteStoreTests' `
         --logger "trx;LogFileName=$unitTrx"
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $unitTrx)) {
         throw 'POS Paid protected-state recovery verification failed.'
@@ -67,15 +67,16 @@ try {
     [xml] $integrationDocument = Get-Content -LiteralPath $integrationTrx -Raw
     $unitCounters = $unitDocument.TestRun.ResultSummary.Counters
     $integrationCounters = $integrationDocument.TestRun.ResultSummary.Counters
-    if ([int] $unitCounters.total -ne 3 -or [int] $unitCounters.passed -ne 3 -or
+    if ([int] $unitCounters.total -ne 14 -or [int] $unitCounters.passed -ne 14 -or
         [int] $integrationCounters.total -ne 3 -or [int] $integrationCounters.passed -ne 3) {
-        throw 'POS Paid evidence is incomplete; expected 3 protected-state and 3 backend cases.'
+        throw 'POS Paid evidence is incomplete; expected 14 protected SQLite/recovery and 3 backend cases.'
     }
 
     [ordered]@{
         runId = Split-Path $run -Leaf
         completedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
-        testsPassed = 6
+        testsPassed = 17
+        localSqliteRecoveryPassed = $true
         protectedStateRecoveryPassed = $true
         postgresProjectionPassed = $true
         rabbitMqRecoveryPassed = $true

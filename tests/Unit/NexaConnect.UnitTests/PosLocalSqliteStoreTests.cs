@@ -86,6 +86,20 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
     }
 
     [Fact]
+    public void Outbox_rejects_unapproved_routes_and_malformed_payloads_before_persistence()
+    {
+        var store = new LocalOutboxStore(directory, protector);
+
+        Assert.Throws<ArgumentException>(() => store.Enqueue(
+            "cash-movement", "https://remote.example/api/pos/v1/cash-sessions/value/movements",
+            "POST", "{}", Guid.NewGuid()));
+        Assert.Throws<ArgumentException>(() => store.Enqueue(
+            "cash-movement", $"api/pos/v1/cash-sessions/{Guid.NewGuid():D}/movements",
+            "POST", "{broken", Guid.NewGuid()));
+        Assert.Empty(store.Load());
+    }
+
+    [Fact]
     public void Legacy_files_migrate_once_and_are_removed_after_commit()
     {
         Directory.CreateDirectory(directory);

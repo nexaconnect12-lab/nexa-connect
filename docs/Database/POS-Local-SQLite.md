@@ -2,7 +2,7 @@
 
 The WPF POS owns `%LOCALAPPDATA%\NexaConnect\POS\pos-state.db` for current-user crash recovery and brief device-to-service interruption. Backend services never access this database. PostgreSQL remains authoritative for shifts, cash, Orders, settlements, and synchronization deduplication.
 
-Schema 1 uses WAL mode, `synchronous=FULL`, foreign-key enforcement, a five-second busy timeout, and startup `quick_check`. `local_state` stores one protected payload for terminal scope, active shift, cash session, pending checkout, and pending settlement. `outbox_operations` stores immutable operation identity and routing metadata with a DPAPI-protected payload. Its state is `queued`, `sending`, `rejected`, or `completed`; constraints keep rejection/completion timestamps consistent.
+Schema 1 uses WAL mode, `synchronous=FULL`, foreign-key enforcement, a five-second busy timeout, and startup `quick_check`. `local_state` stores one protected payload for terminal scope, active shift, cash session, pending checkout, and pending settlement. `outbox_operations` stores immutable operation identity and routing metadata with a DPAPI-protected payload. Its state is `queued`, `sending`, `rejected`, or `completed`; constraints bind rejected state to a failure status code and completed state to a completion timestamp. Transition code records the corresponding rejection timestamp.
 
 The database binds to organization, branch, store, and terminal on first configured startup. A different scope, newer schema, failed integrity check, unreadable protected payload, or coexisting legacy and SQLite state stops startup. Preserve the complete directory and reconcile authoritative service state; do not delete rows or collect payment again to bypass recovery.
 

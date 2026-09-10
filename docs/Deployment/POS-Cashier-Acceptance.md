@@ -25,12 +25,12 @@ From the repository root:
 
 ```powershell
 dotnet build src/Clients/NexaConnect.POS/NexaConnect.POS.csproj --no-restore --verbosity minimal
-dotnet test tests/Unit/NexaConnect.UnitTests/NexaConnect.UnitTests.csproj --no-restore --filter 'FullyQualifiedName~CashierPresentationTests|FullyQualifiedName~SettlementAttemptTests|FullyQualifiedName~PosCheckoutIntegrationTests|FullyQualifiedName~ManualTender|FullyQualifiedName~PosCashSessionApplicationTests|FullyQualifiedName~PosShiftApplicationTests' --verbosity minimal
+dotnet test tests/Unit/NexaConnect.UnitTests/NexaConnect.UnitTests.csproj --no-restore --filter 'FullyQualifiedName~PosLocalSqliteStoreTests|FullyQualifiedName~PosPendingSettlementRecoveryTests|FullyQualifiedName~SettlementAttemptTests|FullyQualifiedName~CashierPresentationTests|FullyQualifiedName~PosCheckoutIntegrationTests' --verbosity minimal
 ```
 
 Windows protected-state tests require the normal interactive user's DPAPI key store. In a disposable test run, set `NEXACONNECT_POS_DPAPI_ACCEPTANCE=1` and include `FullyQualifiedName~PosPendingSettlementRecoveryTests|FullyQualifiedName~PosLocalSqliteStoreTests` in the filter. The tests create isolated temporary databases and legacy files. They do not drive WPF or authenticate against Keycloak.
 
-The preceding implementation turn passed three DPAPI cases under the normal Windows profile. The sandbox DPAPI run failed because user key storage was unavailable. Final post-correction verification passed 35 focused cases and a WPF build with no warnings or errors. The normal output build was blocked by the running POS executable; the successful build used .runstate/cashier-verification as its output directory. The initial signed-out Checkout window was visually inspected. These are component results, not joined checkout acceptance. Final verification for this slice is recorded in the implementation handoff.
+The SQLite implementation matrix passed 51/51 with current-user DPAPI enabled, covering state restart, atomic checkout/settlement cleanup, terminal-scope binding, legacy migration, corrupt/mixed-state refusal, queue transitions, acknowledgement retention, route/payload validation, and the count-only inspector. The complete unit project then passed 295/295 from isolated output. POS and inspector builds completed with no warnings or errors, and both dependency graphs reported no known vulnerable packages. These component results do not replace the fresh joined SQLite-backed checkout gate.
 
 ## Extended live acceptance scenarios
 
