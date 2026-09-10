@@ -6,10 +6,11 @@ The operational UI also provides cash-session open/close, terminal enrollment, o
 
 Keycloak client: `nexaconnect-pos`
 
-For a consistent local startup, run `scripts/run-pos-development.ps1` from the repository root. It stops duplicate API processes and starts Authorization, Restaurant, and POS with the Development PostgreSQL settings. The launcher accepts the conventional `ConnectionStrings__*` and `WorkloadIdentity__ClientSecret` names; when separate aliases are absent, it reuses the already-injected restricted `NEXACONNECT_RESTAURANT_IMPORT_DB`, `NEXACONNECT_POS_IMPORT_DB`, and `NEXACONNECT_POS_SERVICE_CLIENT_SECRET` values in process memory without printing them.
+`scripts/run-pos-development.ps1` is a shift-only diagnostic launcher for Authorization, Restaurant, and POS. It does not start Catalog or the order workflow and cannot support Refresh menu or checkout. Use the complete checkout launcher described below for the WPF cashier application. A Keycloak `401` during a POS workload token request can indicate an invalid client id, secret, or client configuration; check those values and restart the services after correcting them.
 
 - Public installed client
 - Authorization Code flow with mandatory PKCE S256
+- Access tokens explicitly include the stable Keycloak `sub` and `nexaconnect-api` audience
 - Redirect URI: `nexaconnect-pos://oauth/callback`
 - Access tokens must include the `nexaconnect-api` audience. The development realm configures this as a client-level audience mapper so POS tokens remain valid even when the optional client-scope claim is not expanded.
 - No embedded client secret
@@ -39,7 +40,7 @@ Run `powershell.exe -NoProfile -File scripts/test-pos-paid-workflow.ps1 -Confirm
 
 The combined matrix passed 6/6 on 2026-09-03 UTC. Sanitized evidence is retained under `.runstate/pos-paid-workflow/9c322b1ace3f422a9e7e6cd37b67658b`; it records `interactiveWpfVerified=false` and `liveOidcVerified=false`.
 
-Sign out from the POS window to clear the current access and refresh tokens from memory and Windows-protected storage. The client blocks sign-out while a shift, cash session, or pending settlement remains active.
+Sign out from the POS window to clear the current access and refresh tokens from memory and Windows-protected storage. When a shift, cash session, checkout, or settlement is active, Sign out remains clickable and explains the exact recovery step while preserving the work. Close shift behaves the same way when cash or payment work must be resolved first. After detecting an expired access token while idle, the client enables Sign in again and retains the saved operational state; authenticate again before closing or continuing it.
 
 Online Keycloak authentication enrolls the employee and device. Offline unlock, cached permissions, expiration, manager overrides, and audit records remain NexaConnect responsibilities and must not be represented as indefinitely valid Keycloak tokens. The POS must clear online credentials when a device is revoked or deregistered and must never treat a locally entered PIN as a Keycloak password.
 
@@ -47,8 +48,30 @@ Online Keycloak authentication enrolls the employee and device. Offline unlock, 
 
 Checkout now provides touch-sized product tiles, menu-name search, preparation-station filters, quantity controls, and explicit currency totals. Payment has its own view, while Shift & cash and Terminal & sync separate operational management from selling. The header shows abbreviated configured branch/terminal identifiers plus session state; employee/branch display-name resolution and continuous connectivity monitoring remain future work.
 
+For `cash_manual`, Send order remains available once an authenticated shift and cart are present. If no cash session is open, selecting it moves the cashier to **Shift & cash** and explains that a THB cash session is required; no order or recovery record is created until that prerequisite is satisfied. This preserves the cash-control rule without presenting an unexplained disabled action.
+
+A shift can own only one cash session. The client displays the POS API's bounded `409` recovery title: restore or reconcile an existing open session, or close the current shift after its cash session has been closed and open a new shift before opening cash again.
+
 Pending settlement resumes in Payment after restart. Attempted tender fields are locked and the stored method overrides the configured default. Recovery is written as uncertain before the HTTP attempt; failed persistence prevents sending, and cleanup happens only after success. Verify payment replays the same command without asking the cashier to collect again. Active operations disable workspace actions, and cash/shift closure is blocked by pending settlement.
 
-See [cashier acceptance and remaining limits](../../../docs/Deployment/POS-Cashier-Acceptance.md) for the test commands, live acceptance procedure, supported window size, and the distinction between settlement replay and the still-incomplete durable order-placement recovery. Interactive OIDC/checkout, full reconciliation reporting, named cashier context, and physical terminal acceptance are not signed off by the UI implementation.
+See [cashier acceptance and remaining limits](../../../docs/Deployment/POS-Cashier-Acceptance.md) for the test commands, live acceptance procedure, supported window size, and the distinction between protected client replay and incomplete server workflow recovery. Interactive OIDC/checkout, full reconciliation reporting, named cashier context, and physical terminal acceptance are not signed off by the UI implementation.
 
-Browser sign-in now offers Cancel sign-in and expires after three minutes if no callback completes. Cancellation restores the controls and retains pending cashier work. A late callback from a cancelled attempt cannot install credentials. When already authenticated with an active shift, cash session, or pending settlement, both Sign in and Sign out can remain disabled intentionally; finish that work before signing out.
+Browser sign-in offers Cancel sign-in and expires after three minutes if no callback completes. Cancellation restores the controls and retains pending cashier work. A late callback from a cancelled attempt cannot install credentials. The footer and button tooltips identify the next required step for active checkout, payment, cash movement, cash session, or shift state.
+
+## Durable checkout integration
+
+The POS now uses `Services:CatalogApi` for menu reads, with organization/application context and generated correlation IDs. `Services:PosApi` handles shifts/cash/terminals and `Services:OrderApi` handles placement and settlement. The default local ports are 5268, 5225, and 5230 respectively. Configuration validation rejects missing/unsafe URLs, empty scope identifiers, and non-THB/non-manual checkout. Loopback HTTP is development-only; remote endpoints require HTTPS. Service authorization still validates actual branch/terminal ownership.
+
+Before order submission, `pending-checkout.bin` is atomically replaced under current-user DPAPI. It retains the original order/idempotency identity, settlement key, organization, restaurant, branch, store, terminal, currency, method, and product quantities. The original record survives the placement response until settlement succeeds. Restart before pending-settlement persistence therefore returns to **Verify original order**. Cart edits, sign-out, and cash/shift closure are blocked while checkout is unresolved. Identical replay can recover a completed placement; intermediate states and unrecognized conflicts remain for operator reconciliation; matching terminal Rejected or PaymentFailed results release the checkout lock. This is not a server-side workflow resumer or offline ordering implementation.
+
+A recovered record must match terminal scope, currency and checkout mode. Restore the original configuration before retrying; never delete a pending file to bypass recovery. Corrupt protected files fail closed. Existing settlement-only records created before this change do not gain scope protection retroactively.
+
+Use `./scripts/run-checkout-development.ps1 -ValidateOnly` to validate configuration and required secret names, then `./scripts/run-checkout-development.ps1` to build and supervise the nine local service hosts. Add `-StartInfrastructure` to start the existing Compose postgres/redis/rabbitmq/keycloak services. Provision service-owned migrations, a THB branch/menu, cashier permissions and terminal before live acceptance. The script refuses occupied ports, uses separate build/log directories, waits on bounded loopback listener probes, and stops only its own children on exit. It does not stop shared infrastructure.
+
+Placement conflicts that contain a matching terminal `Rejected` or `PaymentFailed` Order result are definitive: the client clears only the protected checkout lock and keeps any in-memory cart for cashier review before a new order. After a client restart, the saved checkout protects the original product IDs and quantities for replay but does not reconstruct visible cart rows. Other conflicts, intermediate states, transport failures, and malformed responses retain recovery and continue to prohibit replacement orders.
+
+If Refresh menu returns `403` after changing an existing Keycloak realm, verify that `nexaconnect-pos` has the `oidc-sub-mapper`, provision Platform Directory membership and the branch-scoped cashier role for the user's stable Keycloak `sub`, then obtain a new POS token by signing in again. Running a second checkout launcher will only cause port conflicts.
+
+The launcher needs `ConnectionStrings__<Service>` for PlatformDirectory, Authorization, Restaurant, Catalog, Inventory, Kitchen, Order, POS and Reporting (matching `NEXACONNECT_<SERVICE>_IMPORT_DB` aliases are accepted); workload secrets `NEXACONNECT_<SERVICE>_SERVICE_CLIENT_SECRET` for Catalog, Inventory, Kitchen, Order and POS; and `NEXACONNECT_CHECKOUT_RABBITMQ`. Missing values are reported by name only. These may be supplied in local `.env`. TCP listener probes do not certify HTTP handling, database/migration state, seed data, or permissions.
+
+Checkout transport events use the shared observability foundation with service name `nexaconnect-pos-client`. The client emits operation code, status and generated correlation only; no credentials, tender data, HTTP bodies or arbitrary headers. Search JSON logs for `Checkout boundary rejected` / `Checkout transport failed`, then follow `CorrelationId` in `nexaconnect-order` or `nexaconnect-catalog` logs. Console visibility requires a console-attached host; WPF does not install a file sink or enable OTLP by default.

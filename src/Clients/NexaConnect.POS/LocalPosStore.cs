@@ -95,4 +95,30 @@ public sealed class LocalPosStore
     }
 
     public void ClearPendingSettlement() { if (File.Exists(SettlementPath)) File.Delete(SettlementPath); }
+
+    private string CheckoutPath => Path.Combine(Path.GetDirectoryName(_path)!, "pending-checkout.bin");
+
+    public PendingCheckout? LoadPendingCheckout()
+    {
+        if (!File.Exists(CheckoutPath)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<PendingCheckout>(WindowsDataProtection.Unprotect(File.ReadAllBytes(CheckoutPath)))
+                ?? throw new InvalidDataException("Empty pending checkout.");
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidDataException("Pending checkout recovery cannot be read. Preserve the file and reconcile; do not submit another order.", exception);
+        }
+    }
+
+    public void SavePendingCheckout(PendingCheckout checkout)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(CheckoutPath)!);
+        string temporary = CheckoutPath + ".tmp";
+        File.WriteAllBytes(temporary, WindowsDataProtection.Protect(JsonSerializer.SerializeToUtf8Bytes(checkout)));
+        File.Move(temporary, CheckoutPath, true);
+    }
+
+    public void ClearPendingCheckout() { if (File.Exists(CheckoutPath)) File.Delete(CheckoutPath); }
 }

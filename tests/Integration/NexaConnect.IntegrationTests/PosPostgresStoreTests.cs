@@ -20,6 +20,24 @@ namespace NexaConnect.IntegrationTests;
 public sealed class PosPostgresStoreTests : IAsyncLifetime
 {
     [PosPostgresFact]
+    public async Task Closed_cash_session_cannot_be_reopened_on_the_same_shift()
+    {
+        RequireDatabase();
+        Guid restaurantId = Guid.NewGuid(), branchId = Guid.NewGuid(), storeId = Guid.NewGuid(), terminalId = Guid.NewGuid();
+        await InsertStoreAndTerminalAsync(restaurantId, branchId, storeId, terminalId, "active", "active");
+        Shift shift = Shift.Open(Guid.NewGuid(), storeId, terminalId, "cashier-1", "SHIFT-CASH-REOPEN", Guid.NewGuid(), DateTimeOffset.UtcNow);
+        await _store!.CreateAsync(shift, default);
+        var cashStore = new CashStore(_dataSource!);
+        Guid cashSessionId = await cashStore.OpenAsync(shift.Id, storeId, "THB", 100m, default);
+        await cashStore.CloseAsync(cashSessionId, 100m, default);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => cashStore.OpenAsync(shift.Id, storeId, "THB", 100m, default));
+
+        Assert.Contains("closed cash session", exception.Message, StringComparison.Ordinal);
+    }
+
+    [PosPostgresFact]
     public async Task Order_manual_tenders_project_once_and_promptpay_does_not_change_drawer()
     {
         RequireDatabase();Guid restaurant=Guid.NewGuid(),branch=Guid.NewGuid(),store=Guid.NewGuid(),terminal=Guid.NewGuid();
@@ -405,7 +423,8 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
             variance_amount numeric(19,4) NULL, status text NOT NULL,
             opened_at_utc timestamptz NOT NULL, closed_at_utc timestamptz NULL,
             created_at_utc timestamptz NOT NULL, updated_at_utc timestamptz NOT NULL,
-            concurrency_version bigint NOT NULL DEFAULT 1
+            concurrency_version bigint NOT NULL DEFAULT 1,
+            CONSTRAINT uq_cash_sessions_shift_id UNIQUE (shift_id)
         );
         CREATE TABLE cash_movements
         (

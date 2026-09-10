@@ -212,9 +212,9 @@ public sealed class OrderPaymentCaptureReconciliationTests
     private sealed class RecordingInventory : IInventoryReservationPort
     {
         public int ReleaseCalls { get; private set; }
-        public Task<InventoryReservationResult> ReserveAsync(Guid orderId, Guid branchId,
+        public Task<InventoryReservationResult> ReserveAsync(Guid organizationId, Guid orderId, Guid branchId,
             IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task ReleaseAsync(Guid orderId, Guid branchId, CancellationToken cancellationToken)
+        public Task ReleaseAsync(Guid organizationId, Guid orderId, Guid branchId, CancellationToken cancellationToken)
         {
             ReleaseCalls++;
             return Task.CompletedTask;

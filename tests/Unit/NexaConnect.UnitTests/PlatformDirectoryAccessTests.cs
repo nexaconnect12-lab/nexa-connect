@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using NexaConnect.Contracts.Platform;
 using NexaConnect.Services.PlatformDirectory.Application.Access;
 using NexaConnect.Services.PlatformDirectory.Controllers;
@@ -15,7 +16,7 @@ public sealed class PlatformDirectoryAccessTests
         Guid organizationId = Guid.NewGuid();
         var reader = new FakeOrganizationAccessReader(
             [new OrganizationApplicationAccess(organizationId, "acme", "Acme", "nexa_connect")]);
-        var controller = new OrganizationAccessController(reader)
+        var controller = new OrganizationAccessController(reader, NullLogger<OrganizationAccessController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -40,7 +41,9 @@ public sealed class PlatformDirectoryAccessTests
     [Fact]
     public async Task Current_access_for_missing_subject_is_forbidden()
     {
-        var controller = new OrganizationAccessController(new FakeOrganizationAccessReader([]))
+        var controller = new OrganizationAccessController(
+            new FakeOrganizationAccessReader([]),
+            NullLogger<OrganizationAccessController>.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
@@ -54,7 +57,7 @@ public sealed class PlatformDirectoryAccessTests
     public async Task Current_access_accepts_the_standard_name_identifier_claim()
     {
         var reader = new FakeOrganizationAccessReader([]);
-        var controller = new OrganizationAccessController(reader)
+        var controller = new OrganizationAccessController(reader, NullLogger<OrganizationAccessController>.Instance)
         {
             ControllerContext = new ControllerContext
             {

@@ -82,7 +82,7 @@
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
         <Button x:Name="SignInButton" Content="Sign in" Click="SignIn_Click" Style="{StaticResource Primary}" />
-        <Button x:Name="SignOutButton" Content="Sign out" Click="SignOut_Click" />
+        <Button x:Name="SignOutButton" Content="Sign out" Click="SignOut_Click" ToolTipService.ShowOnDisabled="True" />
       </StackPanel>
     </Grid>
     <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Background="Transparent" BorderThickness="0">
@@ -168,7 +168,7 @@
               <StackPanel Grid.Row="2">
                 <TextBlock Text="Total" Foreground="#63756A" />
                 <TextBlock x:Name="TotalText" FontSize="30" FontWeight="Bold" Margin="0,4,0,16" />
-                <Button x:Name="PlaceOrderButton" Content="Send order · Continue to payment" Click="PlaceOrder_Click" Style="{StaticResource Primary}" />
+                <Button x:Name="PlaceOrderButton" Content="Send order · Continue to payment" Click="PlaceOrder_Click" Style="{StaticResource Primary}" ToolTipService.ShowOnDisabled="True" />
                 <TextBlock Text="Menu total. Final amount is confirmed by the order service." FontSize="12" Foreground="#63756A" TextWrapping="Wrap" />
               </StackPanel>
             </Grid>
@@ -199,7 +199,7 @@
           </Border>
         </ScrollViewer>
       </TabItem>
-      <TabItem Header="Shift &amp; cash">
+      <TabItem x:Name="ShiftCashTab" Header="Shift &amp; cash">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <Grid Margin="0,16,0,0">
             <Grid.ColumnDefinitions>
@@ -214,7 +214,7 @@
                 <TextBox x:Name="ShiftNumberTextBox" AutomationProperties.Name="Shift number" />
                 <WrapPanel>
                   <Button x:Name="OpenShiftButton" Content="Open shift" Click="OpenShift_Click" Style="{StaticResource Primary}" />
-                  <Button x:Name="CloseShiftButton" Content="Close shift" Click="CloseShift_Click" />
+                  <Button x:Name="CloseShiftButton" Content="Close shift" Click="CloseShift_Click" ToolTipService.ShowOnDisabled="True" />
                 </WrapPanel>
                 <TextBlock Text="Close the cash session and resolve pending payments before closing your shift." TextWrapping="Wrap" Foreground="#63756A" Margin="0,12" />
                 <TextBlock Text="Opening cash" />
@@ -268,7 +268,10 @@
       </TabItem>
     </TabControl>
     <Border Grid.Row="2" Background="#E6EDE7" Padding="16,12" CornerRadius="8" Margin="0,16,0,0">
-      <TextBlock x:Name="StatusText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+      <StackPanel>
+        <TextBlock x:Name="SessionGuidanceText" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,6" />
+        <TextBlock x:Name="StatusText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+      </StackPanel>
     </Border>
   </Grid>
 </Window>

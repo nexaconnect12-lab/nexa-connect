@@ -12,7 +12,7 @@ Migration 3 marks legacy rows with the empty organization UUID. Backfill those r
 
 The pre-production migration-4 scripts were corrected after full-sequence review exposed duplicate ownership of the migration-1 outbox. Any development database that recorded the earlier migration-4 checksum must be rebuilt from the corrected catalog or reconciled through an explicitly reviewed development-only procedure; the runner intentionally rejects silent checksum drift.
 
-Configure `Services:Restaurant`, `WorkloadIdentity:Authority`, `WorkloadIdentity:ClientId`, and the secret `WorkloadIdentity:ClientSecret` in deployment configuration. The Restaurant scope endpoint accepts the catalog and POS service workload policies; customer access tokens are not forwarded to that endpoint.
+Configure `Services:Restaurant`, `WorkloadIdentity:Authority`, `WorkloadIdentity:ClientId`, and the secret `WorkloadIdentity:ClientSecret` in deployment configuration. The `nexaconnect-catalog-service` access token must explicitly contain the `nexaconnect-api` audience. The Restaurant scope endpoint accepts the catalog and POS service workload policies; customer access tokens are not forwarded to that endpoint. A token without the API audience produces `401` at Restaurant even when Keycloak accepted the client credentials.
 
 Structured request and dependency logs use service name `nexaconnect-catalog`; validated correlation IDs propagate to Platform Directory, Restaurant, and Authorization.
 JSON stdout is always enabled. Set `Observability__OtlpEnabled=true` and `Observability__OtlpEndpoint=http://localhost:4317` for Loki/Grafana; see the [observability guide](../../../docs/Deployment/Observability.md) for queries.

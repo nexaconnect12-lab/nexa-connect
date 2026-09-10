@@ -1,6 +1,8 @@
 # NexaConnect Project Architecture
 
-The WPF POS now separates Checkout, Payment, Shift & cash, and Terminal & sync, with touch product tiles, name/station filtering, quantity controls, and explicit currency totals. Settlement recovery is persisted as uncertain before sending and retains the original tender on restart. Interactive checkout acceptance and durable order-placement recovery remain open; see the [POS cashier acceptance guide](../../docs/Deployment/POS-Cashier-Acceptance.md).
+Order now propagates organization/application context for Inventory reservation and release, selecting tenant-scoped persistence for these workload calls. Inventory dependency failures remain sanitized transport failures; matching terminal checkout rejection releases the POS recovery lock. Service ownership and database schemas are unchanged.
+
+The WPF POS now separates Checkout, Payment, Shift & cash, and Terminal & sync, with touch product tiles, name/station filtering, quantity controls, and explicit currency totals. Settlement recovery is persisted as uncertain before sending and retains the original tender on restart. The client now routes tenant-scoped menu reads directly to Catalog and retains the original protected placement command before HTTP for identical restart/retry. The checked checkout launcher supervises the local service graph. Interactive acceptance and server-side intermediate-workflow recovery remain open; see the [POS cashier acceptance guide](../../docs/Deployment/POS-Cashier-Acceptance.md).
 
 POS manual-tender hardening includes hosted RabbitMQ recovery/dead-letter acceptance, a guarded PowerShell evidence runner, correlated telemetry, and Prometheus backlog/dead-letter/retry rules. The disposable live matrix passed 3/3 on 2026-09-03 UTC with sanitized evidence.
 
@@ -202,7 +204,7 @@ Recommended clients:
 - `nexaconnect-admin-bff` â€” confidential client.
 - `platform-admin-bff` â€” separately deployed shared-platform dashboard client, owned outside NexaConnect.
 - `nexaconnect-mobile` â€” public client using Authorization Code with PKCE.
-- `nexaconnect-pos` â€” public client using Authorization Code with PKCE.
+- `nexaconnect-pos` â€” public client using Authorization Code with PKCE and an explicit stable-subject access-token mapper.
 - One confidential service account per machine-to-machine workload.
 
 Implemented platform roles:

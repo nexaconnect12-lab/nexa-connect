@@ -83,4 +83,6 @@ CSV requirements:
 - Include required destination columns without defaults. PostgreSQL validates types and constraints.
 - Keep files fictional and free from production personal data when packages are committed here.
 
-The repository includes one complete package for each of the 11 service databases. Together they cover all 83 baseline tables with 5,000 rows; every table has at least 50 deterministic records. The `CatalogSample` package remains as a smaller four-table example. Use the `--all` form with the `ImportPackages` root to validate or import every complete package in service dependency order.
+The repository includes one complete package for each of the 11 service databases. Together they cover all 83 baseline tables with 5,000 baseline rows plus the POS development membership and product-access fixtures; every table has at least 50 deterministic records. The `CatalogSample` package remains as a smaller four-table example. Use the `--all` form with the `ImportPackages` root to validate or import every complete package in service dependency order.
+
+The Platform Directory development package additionally contains synthetic `nexa_pos` and `local_platform_admin` membership fixtures and connects their sample organization to the canonical `nexa_connect` application. These username-shaped values support deterministic import tests; they are not durable identities for live OIDC acceptance. Live POS membership and the Authorization-owned branch cashier grant must use the same stable `sub` emitted by Keycloak for the signed-in user.

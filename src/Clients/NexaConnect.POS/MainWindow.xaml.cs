@@ -20,11 +20,17 @@ public partial class MainWindow : Window
     private readonly LocalOutboxStore outbox = new();
     private Guid? cashSessionId;
     private PosOrderResult? pendingOrder;
+    private PendingCheckout? pendingCheckout;
     private Guid? settlementIdempotencyKey;
     private bool settlementUncertain;
     private bool settlementInFlight;
     private bool viewInitialized;
     private bool busy;
+    private bool reauthenticationRequired;
+    private readonly System.Windows.Threading.DispatcherTimer sessionTimer = new()
+    {
+        Interval = TimeSpan.FromSeconds(1)
+    };
     private CancellationTokenSource? signInCancellation;
 
     public MainWindow(
@@ -41,8 +47,12 @@ public partial class MainWindow : Window
         _configuration = configuration;
         _activeShift = _localStore.LoadActiveShift();
         cashSessionId = _localStore.LoadCashSession()?.CashSessionId;
+        pendingCheckout = _localStore.LoadPendingCheckout();
+        pendingCheckout?.Validate(configuration);
         ConfigureTenderControls();
         LocalPendingSettlementState? savedSettlement = _localStore.LoadPendingSettlement();
+        if (savedSettlement is not null && pendingCheckout is not null && savedSettlement.OrderId != pendingCheckout.OrderId)
+            throw new InvalidDataException("Pending payment and checkout differ. Preserve recovery files and reconcile.");
         if (savedSettlement is not null)
         {
             pendingOrder = new PosOrderResult(savedSettlement.OrderId, PosOrderStatus.KitchenAccepted,
@@ -62,6 +72,8 @@ public partial class MainWindow : Window
         ShiftNumberTextBox.Text = $"SHIFT-{DateTime.Now:yyyyMMdd-HHmm}";
         CartList.ItemsSource = cart;
         _authentication.StatusChanged += OnStatusChanged;
+        sessionTimer.Tick += SessionTimer_Tick;
+        sessionTimer.Start();
         StatusText.Text = "Ready to sign in. Service connectivity is checked when you perform an action.";
         UpdateCartTotal();
         if (pendingOrder is not null) PaymentTab.IsSelected = true;
@@ -84,6 +96,7 @@ public partial class MainWindow : Window
         {
             StatusText.Text = "Opening secure sign-in…";
             await _authentication.SignInAsync(cancellation.Token);
+            reauthenticationRequired = false;
             StatusText.Text = "Signed in. POS session is ready.";
         }
         catch (OperationCanceledException)
@@ -135,11 +148,18 @@ public partial class MainWindow : Window
 
     private async void CloseShift_Click(object sender, RoutedEventArgs e)
     {
-        if (_activeShift is null || _authentication.CurrentToken is null)
+        if (_activeShift is null)
         {
             return;
         }
-        if (pendingOrder is not null || cashSessionId is not null)
+        if (!IsSignedIn())
+        {
+            reauthenticationRequired = true;
+            StatusText.Text = "Your session expired. Sign in again, then close the saved shift.";
+            UpdateOperationalState();
+            return;
+        }
+        if (pendingOrder is not null || pendingCheckout is not null || cashSessionId is not null)
         {
             StatusText.Text = "Close the cash session and resolve pending payment before closing this shift.";
             return;
@@ -148,7 +168,7 @@ public partial class MainWindow : Window
         try
         {
             SetBusy("Closing shift…");
-            await _api.CloseShiftAsync(_authentication.CurrentToken, _activeShift.ShiftId);
+            await _api.CloseShiftAsync(_authentication.CurrentToken!, _activeShift.ShiftId);
             string shiftNumber = _activeShift.ShiftNumber;
             _activeShift = null;
             _localStore.ClearActiveShift();
@@ -186,7 +206,7 @@ public partial class MainWindow : Window
     private async void CloseCash_Click(object sender, RoutedEventArgs e)
     {
         if (_authentication.CurrentToken is null || cashSessionId is null) return;
-        if (pendingOrder is not null)
+        if (pendingOrder is not null || pendingCheckout is not null)
         {
             StatusText.Text = "Confirm or reconcile the pending cash payment before closing this cash session.";
             return;
@@ -292,7 +312,7 @@ public partial class MainWindow : Window
 
     private bool CanEditCart() => CashierPresentation.CanEditCart(
         _authentication.CurrentToken?.ExpiresAtUtc > DateTimeOffset.UtcNow,
-        _activeShift is not null, busy, pendingOrder is not null);
+        _activeShift is not null, busy, pendingOrder is not null || pendingCheckout is not null);
 
     private void AddMenuItem_Click(object sender, RoutedEventArgs e)
     {
@@ -332,39 +352,69 @@ public partial class MainWindow : Window
     }
     private async void PlaceOrder_Click(object sender, RoutedEventArgs e)
     {
-        if (_authentication.CurrentToken is null || !CanEditCart() || cart.Count == 0 || !PlaceOrderButton.IsEnabled) return;
+        if (_authentication.CurrentToken is null || busy || !PlaceOrderButton.IsEnabled) return;
+        if (pendingCheckout is null && _configuration.PaymentMethod == "cash_manual" && cashSessionId is null)
+        {
+            ShiftCashTab.IsSelected = true;
+            StatusText.Text = "Open a THB cash session before sending this cash order.";
+            return;
+        }
         try
         {
-            SetBusy("Placing order…");
-            var result = await _api.PlaceOrderAsync(_authentication.CurrentToken, _configuration,
-                cart.Select(line => (line.ProductId, line.Quantity)).ToArray());
-            if (result.Status == PosOrderStatus.KitchenAccepted && _configuration.PaymentMethod is "cash_manual" or "promptpay_manual")
+            SetBusy(pendingCheckout is null ? "Sending order…" : "Verifying the original order…");
+            if (pendingCheckout is null)
+            {
+                var created = PendingCheckout.Create(_configuration,
+                    cart.Select(line => new CheckoutLine(line.ProductId, line.Quantity)).ToArray());
+                _localStore.SavePendingCheckout(created); // Never send until recovery is durable.
+                pendingCheckout = created;
+            }
+            var result = await _api.PlaceOrderAsync(_authentication.CurrentToken, pendingCheckout);
+            bool clearCart = false;
+            if (result.Status == PosOrderStatus.KitchenAccepted)
             {
                 pendingOrder = result;
-                settlementIdempotencyKey = Guid.NewGuid();
+                settlementIdempotencyKey = pendingCheckout.SettlementKey;
                 settlementUncertain = false;
                 PaymentTab.IsSelected = true;
                 _localStore.SavePendingSettlement(new(result.OrderId, result.TotalAmount, result.Currency,
                     settlementIdempotencyKey.Value));
                 StatusText.Text = "Order sent to the kitchen. Confirm payment when received.";
+                clearCart = true;
+            }
+            else if (result.Status == PosOrderStatus.Paid)
+            {
+                _localStore.ClearPendingCheckout();
+                pendingCheckout = null;
+                StatusText.Text = "The original order is already Paid. Do not collect payment again.";
+                clearCart = true;
+            }
+            else if (result.Status is PosOrderStatus.Rejected or PosOrderStatus.PaymentFailed)
+            {
+                _localStore.ClearPendingCheckout();
+                pendingCheckout = null;
+                StatusText.Text = "The original order was rejected and created no active sale. Its recovery lock is cleared; review the current cart before sending a new order.";
             }
             else
             {
-                StatusText.Text = $"Order {result.OrderId:D} completed with status {result.Status}.";
+                StatusText.Text = $"Original order is {result.Status}. Verify later or ask your manager to reconcile it. No new order was submitted.";
             }
-            cart.Clear();
-            UpdateCartTotal();
+            if (clearCart)
+            {
+                cart.Clear();
+                UpdateCartTotal();
+            }
         }
         catch (Exception exception)
         {
-            StatusText.Text = pendingOrder is not null
-                ? "Order received, but local recovery could not be saved. Keep the app open and ask for support. Do not submit another order."
-                : exception is PosApiException api ? api.Message
-                : "Order result could not be verified. Check order history with your manager before trying again.";
+            StatusText.Text = pendingCheckout is null
+                ? "Checkout was not sent because local recovery could not be saved. Check terminal setup and storage."
+                : exception is PosApiException api
+                    ? $"{api.Message} Original checkout retained. Use Verify order; do not create another order."
+                    : "Original checkout retained. Use Verify order to check its result; do not create another order.";
         }
         finally { UpdateOperationalState(); }
     }
-
     private async void Paid_Click(object sender, RoutedEventArgs e)
     {
         if (_authentication.CurrentToken is null || pendingOrder is null || settlementIdempotencyKey is null
@@ -407,7 +457,8 @@ public partial class MainWindow : Window
                     _authentication.CurrentToken, currentOrder.OrderId, currentIdempotencyKey, method,
                     currentOrder.TotalAmount, currentOrder.Currency, method == "promptpay_manual",
                     method == "promptpay_manual" ? bankReference : null),
-                _localStore.ClearPendingSettlement);
+                () => { _localStore.ClearPendingCheckout(); _localStore.ClearPendingSettlement(); });
+            pendingCheckout = null;
             pendingOrder = null;
             settlementIdempotencyKey = null;
             settlementUncertain = false;
@@ -459,13 +510,14 @@ public partial class MainWindow : Window
 
     private void SignOut_Click(object sender, RoutedEventArgs e)
     {
-        if (_activeShift is not null || cashSessionId is not null || pendingOrder is not null)
+        if (_activeShift is not null || cashSessionId is not null || pendingOrder is not null || pendingCheckout is not null)
         {
             StatusText.Text = "Resolve the pending payment, shift, and cash session before signing out.";
             return;
         }
 
         _authentication.SignOut();
+        reauthenticationRequired = false;
         StatusText.Text = "Signed out. Stored credentials were cleared.";
         UpdateOperationalState();
     }
@@ -503,21 +555,24 @@ public partial class MainWindow : Window
     {
         busy = false;
         WorkspaceTabs.IsEnabled = true;
-        bool signedIn = _authentication.CurrentToken is not null &&
-            _authentication.CurrentToken.ExpiresAtUtc > DateTimeOffset.UtcNow;
+        bool signedIn = IsSignedIn();
+        bool hasStoredSession = _authentication.CurrentToken is not null;
         bool hasActiveShift = _activeShift is not null;
         SignInButton.Content = "Sign in";
         SignInButton.IsEnabled = !signedIn;
-        SignOutButton.IsEnabled = signedIn && !hasActiveShift && cashSessionId is null && pendingOrder is null;
+        SignOutButton.IsEnabled = hasStoredSession;
         OpenShiftButton.IsEnabled = signedIn && !hasActiveShift;
-        CloseShiftButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is null && pendingOrder is null;
+        CloseShiftButton.IsEnabled = hasActiveShift;
         LoadMenuButton.IsEnabled = signedIn && hasActiveShift;
-        bool manualCheckout = _configuration.PaymentMethod is "cash_manual" or "promptpay_manual";
-        PlaceOrderButton.IsEnabled = signedIn && hasActiveShift && pendingOrder is null && cart.Count > 0
-            && (!manualCheckout || _configuration.PaymentMethod != "cash_manual" || cashSessionId is not null);
+        PlaceOrderButton.IsEnabled = CashierPresentation.CanAttemptOrder(
+            signedIn, hasActiveShift, pendingOrder is not null, pendingCheckout is not null, cart.Count);
+        PlaceOrderButton.Content = pendingCheckout is null ? "Send order · Continue to payment" : "Verify original order";
+        PlaceOrderButton.ToolTip = pendingCheckout is null && _configuration.PaymentMethod == "cash_manual" && cashSessionId is null
+            ? "Open a THB cash session before sending. Selecting Send order will take you to Shift & cash."
+            : "Send the current order and continue to payment.";
         OpenCashButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is null;
         CloseCashButton.IsEnabled = signedIn && cashSessionId is not null
-            && pendingOrder is null && !HasQueuedCashMovements(cashSessionId.Value);
+            && pendingOrder is null && pendingCheckout is null && !HasQueuedCashMovements(cashSessionId.Value);
         RecordMovementButton.IsEnabled = signedIn && cashSessionId is not null;
         MenuList.IsEnabled = CanEditCart();
         CartList.IsEnabled = CanEditCart();
@@ -535,6 +590,7 @@ public partial class MainWindow : Window
         EnrollTerminalButton.IsEnabled = signedIn;
         IReadOnlyList<LocalOutboxOperation> operations = outbox.Load();
         int rejected = operations.Count(operation => operation.TerminalFailureStatusCode is not null);
+        bool movementsPending = operations.Count > 0;
         ReplayOutboxButton.IsEnabled = signedIn && operations.Count > rejected;
         RetryRejectedOutboxButton.IsEnabled = signedIn && rejected > 0;
         OutboxStatusText.Text = $"Offline queue: {operations.Count - rejected} pending, {rejected} rejected";
@@ -542,6 +598,30 @@ public partial class MainWindow : Window
         ActiveShiftText.Text = hasActiveShift
             ? $"Shift {_activeShift!.ShiftNumber} · Cash session {(cashSessionId is null ? "closed" : "open")}"
             : "No active shift on this terminal.";
+        string guidance = CashierPresentation.SessionGuidance(
+            signedIn, hasActiveShift, cashSessionId is not null, pendingCheckout is not null,
+            pendingOrder is not null, movementsPending);
+        SessionGuidanceText.Text = guidance;
+        SignOutButton.ToolTip = guidance;
+        CloseShiftButton.ToolTip = guidance;
+    }
+
+    private bool IsSignedIn() => _authentication.CurrentToken is not null &&
+        _authentication.CurrentToken.ExpiresAtUtc > DateTimeOffset.UtcNow;
+
+    private void SessionTimer_Tick(object? sender, EventArgs e)
+    {
+        PosTokenSet? token = _authentication.CurrentToken;
+        if (busy || reauthenticationRequired || token is null || token.ExpiresAtUtc > DateTimeOffset.UtcNow)
+        {
+            return;
+        }
+
+        reauthenticationRequired = true;
+        UpdateOperationalState();
+        StatusText.Text = _activeShift is null && cashSessionId is null && pendingOrder is null && pendingCheckout is null
+            ? "Your session expired. Sign in again to continue."
+            : "Your session expired. Sign in again; saved shift and payment work has been retained.";
     }
 
     private void OnStatusChanged(object? sender, string status) =>
@@ -598,6 +678,8 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         signInCancellation?.Cancel();
+        sessionTimer.Stop();
+        sessionTimer.Tick -= SessionTimer_Tick;
         _authentication.StatusChanged -= OnStatusChanged;
         _api.Dispose();
         base.OnClosed(e);

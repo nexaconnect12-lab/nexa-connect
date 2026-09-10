@@ -7,12 +7,6 @@ using System.Text.Json;
 
 namespace NexaConnect.POS;
 
-public sealed record PosTokenSet(
-    string AccessToken,
-    string? RefreshToken,
-    DateTimeOffset ExpiresAtUtc,
-    string TokenType);
-
 public sealed class PosAuthentication : IDisposable
 {
     private const int MaxCallbackLength = 4096;

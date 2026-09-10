@@ -17,8 +17,22 @@ public sealed record PosClientConfiguration(
     string? PromptPayQrImagePath,
     Guid BranchId,
     Guid StoreId,
-    Guid TerminalId)
+    Guid TerminalId,
+    string CatalogApi = "")
 {
+    public void ValidateCheckout()
+    {
+        foreach (var (name, value) in new[] { ("Authority", Authority), ("PosApi", PosApi), ("OrderApi", OrderApi), ("CatalogApi", CatalogApi) })
+            if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != "https" && !(uri.Scheme == "http" && uri.IsLoopback)) ||
+                !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
+                throw new InvalidDataException($"{name} requires an HTTPS URL (HTTP is allowed only on loopback).");
+        if (new[] { OrganizationId, RestaurantId, BranchId, StoreId, TerminalId }.Any(id => id == Guid.Empty))
+            throw new InvalidDataException("Configure valid organization, restaurant, branch, store and terminal identifiers.");
+        if (Currency != "THB" || PaymentMethod is not ("cash_manual" or "promptpay_manual"))
+            throw new InvalidDataException("Cashier checkout requires THB and cash_manual or promptpay_manual.");
+    }
+
     public static PosClientConfiguration Load()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
@@ -26,7 +40,7 @@ public sealed record PosClientConfiguration(
         JsonElement root = document.RootElement;
         JsonElement identity = root.GetProperty("Identity");
         JsonElement services = root.GetProperty("Services");
-        return new PosClientConfiguration(
+        var configuration = new PosClientConfiguration(
             identity.GetProperty("Authority").GetString() ?? throw new InvalidDataException("Identity:Authority is required."),
             identity.GetProperty("ClientId").GetString() ?? throw new InvalidDataException("Identity:ClientId is required."),
             identity.GetProperty("RedirectUri").GetString() ?? throw new InvalidDataException("Identity:RedirectUri is required."),
@@ -42,7 +56,10 @@ public sealed record PosClientConfiguration(
                 : null,
             ParseGuid(root, "Pos", "BranchId"),
             ParseGuid(root, "Pos", "StoreId"),
-            ParseGuid(root, "Pos", "TerminalId"));
+            ParseGuid(root, "Pos", "TerminalId"),
+            services.TryGetProperty("CatalogApi", out var catalog) ? catalog.GetString() ?? "" : "");
+        configuration.ValidateCheckout();
+        return configuration;
     }
 
     private static Guid ParseGuid(JsonElement root, string section, string name) =>

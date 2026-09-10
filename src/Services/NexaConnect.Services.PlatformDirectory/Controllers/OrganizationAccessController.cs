@@ -9,7 +9,9 @@ namespace NexaConnect.Services.PlatformDirectory.Controllers;
 
 [ApiController]
 [Route("api/platform-directory/v1/organizations")]
-public sealed class OrganizationAccessController(IOrganizationAccessReader accessReader) : ControllerBase
+public sealed class OrganizationAccessController(
+    IOrganizationAccessReader accessReader,
+    ILogger<OrganizationAccessController> logger) : ControllerBase
 {
     [HttpGet("/api/platform-directory/v1/me/access")]
     public async Task<ActionResult<CurrentPlatformAccessResponse>> GetCurrentAccessAsync(
@@ -18,6 +20,8 @@ public sealed class OrganizationAccessController(IOrganizationAccessReader acces
         string? subjectId = AuthenticatedSubject();
         if (string.IsNullOrWhiteSpace(subjectId))
         {
+            logger.LogWarning(
+                "Current organization access denied because the authenticated token has no stable subject claim.");
             return Forbid();
         }
 
@@ -34,6 +38,9 @@ public sealed class OrganizationAccessController(IOrganizationAccessReader acces
         string? subjectId = AuthenticatedSubject();
         if (string.IsNullOrWhiteSpace(subjectId))
         {
+            logger.LogWarning(
+                "Organization access denied for organization {OrganizationId} because the authenticated token has no stable subject claim.",
+                organizationId);
             return Forbid();
         }
 
@@ -41,6 +48,13 @@ public sealed class OrganizationAccessController(IOrganizationAccessReader acces
             organizationId,
             subjectId,
             cancellationToken);
+        if (!granted)
+        {
+            logger.LogWarning(
+                "Organization access denied for organization {OrganizationId}; reason {DenialReason}.",
+                organizationId,
+                "membership-or-application-access");
+        }
         return granted ? Ok(new OrganizationAccessResponse(organizationId, granted)) : Forbid();
     }
 

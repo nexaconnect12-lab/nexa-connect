@@ -121,6 +121,26 @@ if ($orderClient.Count -ne 1 -or $orderAudience.Count -ne 1 -or
     throw 'The Order workload client must emit the nexaconnect-api audience in access tokens.'
 }
 
+$posClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-pos')
+$posSubject = @($posClient.protocolMappers | Where-Object protocolMapper -eq 'oidc-sub-mapper')
+$posAudience = @($posClient.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api'
+})
+if ($posClient.Count -ne 1 -or $posSubject.Count -ne 1 -or
+    $posSubject[0].config.'access.token.claim' -ne 'true' -or
+    $posAudience.Count -ne 1 -or $posAudience[0].config.'access.token.claim' -ne 'true') {
+    throw 'The POS client must emit subject and nexaconnect-api audience access-token claims.'
+}
+
+$catalogClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-catalog-service')
+$catalogAudience = @($catalogClient.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api'
+})
+if ($catalogClient.Count -ne 1 -or $catalogAudience.Count -ne 1 -or
+    $catalogAudience[0].config.'access.token.claim' -ne 'true') {
+    throw 'The Catalog workload client must emit the nexaconnect-api audience in access tokens.'
+}
+
 $publicClients = @($realm.clients | Where-Object publicClient)
 foreach ($client in $publicClients) {
     if ($client.attributes.'pkce.code.challenge.method' -ne 'S256') {

@@ -11,6 +11,23 @@ namespace NexaConnect.Observability;
 
 public static class NexaConnectObservabilityExtensions
 {
+    public static ILoggerFactory CreateClientLoggerFactory(string serviceName, ObservabilityOptions? options = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        Uri? endpoint = Validate(options ?? new ObservabilityOptions());
+        return LoggerFactory.Create(logging =>
+        {
+            logging.AddJsonConsole(console => { console.IncludeScopes = true; console.UseUtcTimestamp = true; });
+            logging.AddOpenTelemetry(logOptions =>
+            {
+                logOptions.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(serviceName));
+                logOptions.IncludeScopes = true;
+                logOptions.IncludeFormattedMessage = true;
+                if (endpoint is not null) logOptions.AddOtlpExporter(exporter => exporter.Endpoint = endpoint);
+            });
+        });
+    }
+
     public static WebApplicationBuilder AddNexaConnectObservability(
         this WebApplicationBuilder builder,
         string serviceName)

@@ -6,7 +6,7 @@ The local realm includes the confidential `platform-directory-admin` service acc
 
 The checked-in realm is a reproducible environment-driven baseline. It contains no human users or literal secrets; its only user entry is the generated `platform-directory-admin` service account. Local Docker Compose supplies development values and imports it into the `nexa-dev` realm on first startup. Production bootstrap supplies production realm, URI, SMTP, MFA, and secret values. If the realm already exists, Keycloak intentionally skips the import.
 
-The realm defines separate service-account clients for POS, Catalog, Order, Inventory, and Payment, plus separate confidential browser clients including the Platform Admin BFF. The Customer BFF client explicitly emits the stable subject and `nexaconnect-api` audience in access tokens, and the Order workload client explicitly emits the API audience required by downstream services. Supply every secret and redirect/origin placeholder listed in `.env.example`; workload credentials must not be shared between services.
+The realm defines separate service-account clients for POS, Catalog, Order, Inventory, and Payment, plus separate confidential browser clients including the Platform Admin BFF. The Customer BFF and public POS clients explicitly emit the stable Keycloak subject and `nexaconnect-api` audience in access tokens. Catalog and Order workload clients explicitly emit the API audience required by downstream services. Supply every secret and redirect/origin placeholder listed in `.env.example`; workload credentials must not be shared between services.
 
 The Phase 2 role fixture separates platform roles (`platform-owner`, `platform-admin`, `platform-support`, `platform-auditor`), customer roles (`customer-owner`, `customer-admin`, `customer-manager`, `customer-user`, `customer-viewer`), and product roles such as `store-manager` or `cashier`. These roles are mapped into the API `roles` claim. The legacy `system-admin` role remains only for compatibility with older endpoints; new Product Owner Portal assignments use the platform roles.
 
@@ -35,6 +35,8 @@ Health and metrics are bound locally on management port `9000`.
 ## Configuration lifecycle
 
 Startup imports are intentionally non-destructive: an existing realm is not overwritten. Treat changes to this file as reviewed desired-state changes and apply them to persistent environments through an explicit administrative automation or migration process. Do not delete the Keycloak database volume merely to apply configuration changes unless loss of all local identity data is intended.
+
+After adding or changing the POS subject mapper in an existing realm, apply that mapper through Keycloak administration and make the cashier sign in again. Provision Platform Directory membership and product authorization against the resulting stable `sub`; `preferred_username` is not a durable authorization identifier.
 
 Do not commit users, passwords, client secrets, signing keys, sessions, or exports from a real environment. Keycloak realm export is not a database backup strategy.
 

@@ -19,3 +19,5 @@ Configuration:
 Console logging always remains enabled. If OTLP is disabled, no collector is required. If enabled, the endpoint must be an absolute HTTP(S) URI; exporter delivery failures do not stop request handling. Operational logs are not an audit ledger and must not replace service-owned immutable business audit records.
 
 For request-chain clients, append `.AddNexaConnectCorrelationPropagation()` to the `AddHttpClient` registration. The handler forwards only the correlation identifier already validated by request middleware; it never forwards arbitrary inbound headers.
+
+CreateClientLoggerFactory supports native client hosts using the same JSON console/OpenTelemetry logging foundation. It requires a service name and accepts optional ObservabilityOptions for OTLP log export. Callers own/dispose the factory and emit only allow-listed safe properties. The POS checkout client uses nexaconnect-pos-client with export disabled by default; it does not register ASP.NET request middleware or automatic HTTP instrumentation.

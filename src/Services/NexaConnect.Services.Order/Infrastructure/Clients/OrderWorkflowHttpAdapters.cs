@@ -22,28 +22,40 @@ public sealed class HttpMenuCatalogPort(HttpClient client) : IMenuCatalogPort
 
 public sealed class HttpInventoryReservationPort(HttpClient client) : IInventoryReservationPort
 {
-    public async Task ReleaseAsync(Guid orderId, Guid branchId, CancellationToken cancellationToken)
+    public async Task ReleaseAsync(Guid organizationId, Guid orderId, Guid branchId, CancellationToken cancellationToken)
     {
-        using var response = await client.PostAsync($"api/inventory/v1/branches/{branchId:D}/reservations/{orderId:D}/release", null, cancellationToken);
+        using var request = TenantRequest(HttpMethod.Post,
+            $"api/inventory/v1/branches/{branchId:D}/reservations/{orderId:D}/release", organizationId);
+        using var response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
             throw new InvalidOperationException($"Inventory release failed with {(int)response.StatusCode}.");
     }
     public async Task<InventoryReservationResult> ReserveAsync(
-        Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
+        Guid organizationId, Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
     {
-        using HttpResponseMessage response = await client.PostAsJsonAsync(
-            $"api/inventory/v1/branches/{branchId:D}/reservations",
-            new ReservationRequest(orderId, lines.Select(line => new ReservationLine(line.ProductId, line.Quantity)).ToArray()),
-            cancellationToken);
+        using var request = TenantRequest(HttpMethod.Post,
+            $"api/inventory/v1/branches/{branchId:D}/reservations", organizationId);
+        request.Content = JsonContent.Create(
+            new ReservationRequest(orderId, lines.Select(line => new ReservationLine(line.ProductId, line.Quantity)).ToArray()));
+        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            string reason = await response.Content.ReadAsStringAsync(cancellationToken);
-            return new InventoryReservationResult(false, null, string.IsNullOrWhiteSpace(reason) ? response.StatusCode.ToString() : reason);
+            if ((int)response.StatusCode >= 500)
+                throw new HttpRequestException("Inventory reservation dependency failed.", null, response.StatusCode);
+            return new InventoryReservationResult(false, null, $"Inventory reservation was rejected with {(int)response.StatusCode}.");
         }
         ReservationResponse? reservation = await response.Content.ReadFromJsonAsync<ReservationResponse>(cancellationToken);
         return reservation is null
             ? new InventoryReservationResult(false, null, "Inventory returned an empty reservation response.")
             : new InventoryReservationResult(true, reservation.ReservationId, null);
+    }
+
+    private static HttpRequestMessage TenantRequest(HttpMethod method, string path, Guid organizationId)
+    {
+        var request = new HttpRequestMessage(method, path);
+        request.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId, organizationId.ToString("D"));
+        request.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode, "nexa_connect");
+        return request;
     }
 
     private sealed record ReservationRequest(Guid OrderId, IReadOnlyCollection<ReservationLine> Lines);

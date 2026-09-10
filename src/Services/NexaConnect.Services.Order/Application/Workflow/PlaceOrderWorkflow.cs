@@ -38,8 +38,8 @@ public interface IMenuCatalogPort
 public interface IInventoryReservationPort
 {
     Task<InventoryReservationResult> ReserveAsync(
-        Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken);
-    Task ReleaseAsync(Guid orderId, Guid branchId, CancellationToken cancellationToken) => Task.CompletedTask;
+        Guid organizationId, Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken);
+    Task ReleaseAsync(Guid organizationId, Guid orderId, Guid branchId, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 public interface IKitchenPort
@@ -121,7 +121,8 @@ public sealed class PlaceOrderWorkflow(
             Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, order.OrganizationId, order.BranchId,
             order.Lines.Select(ToSnapshot).ToArray(), order.TotalAmount, order.Currency), cancellationToken);
 
-        InventoryReservationResult reservation = await inventory.ReserveAsync(order.Id, order.BranchId, order.Lines, cancellationToken);
+        InventoryReservationResult reservation = await inventory.ReserveAsync(
+            order.OrganizationId, order.Id, order.BranchId, order.Lines, cancellationToken);
         if (!reservation.Reserved || reservation.ReservationId is null)
         {
             order.Reject();
@@ -160,7 +161,7 @@ public sealed class PlaceOrderWorkflow(
         }
         if (!paid.Completed || paid.PaymentId is null)
         {
-            await inventory.ReleaseAsync(order.Id, order.BranchId, cancellationToken);
+            await inventory.ReleaseAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
             await kitchen.CancelTicketAsync(order.OrganizationId,order.Id, order.BranchId, cancellationToken);
             order.MarkPaymentFailed();
             await PersistAsync(order, new PaymentFailedV1(

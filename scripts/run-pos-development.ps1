@@ -40,6 +40,11 @@ Get-Process NexaConnect.Services.Authorization,NexaConnect.Services.Restaurant,N
     Stop-Process -Force
 
 $env:ASPNETCORE_ENVIRONMENT = 'Development'
+# Pin the non-secret workload identity values in the launcher. This avoids an
+# empty machine/user environment value overriding appsettings.Development.json
+# and producing an opaque downstream 503 from shift operations.
+$env:WorkloadIdentity__Authority = 'http://localhost:8080/realms/nexa-dev'
+$env:WorkloadIdentity__ClientId = 'nexaconnect-pos-service'
 $requiredSecrets = @(
     'ConnectionStrings__Authorization',
     'ConnectionStrings__Restaurant',

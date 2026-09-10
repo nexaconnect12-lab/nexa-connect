@@ -6,7 +6,7 @@
 
 **Observed behavior:** The WPF POS client authenticates successfully, Restaurant returns the branch authorization scope with HTTP 200, and the Authorization decision endpoint returns HTTP 200 with `granted: false`. The POS displays “No active shift on this terminal. Your account is not authorized for this terminal.”
 
-**Verified data:** The Docker PostgreSQL query shows an active `cashier` assignment and active `allow` override for subject `nexa_pos`, permission `pos.shift.open`, organization `f0955e44-e8c8-56b6-a5d9-43cb1ebb17fe`, restaurant `fa9711c5-4a59-5910-b824-83392f64a533`, and branch `042f9a90-c603-52f8-9683-6dd865bd3467`.
+**Verified data:** The Docker PostgreSQL query shows an active `cashier` assignment and active `allow` override for subject `nexa_pos`, permission `pos.shift.open`, organization `f0955e44-e8c1-56b6-a5d9-43cb1ebb17fe`, restaurant `fa9711c5-4a59-5910-b824-83392f64a533`, and branch `042f9a90-c603-52f8-9683-6dd865bd3467`. The development Platform Directory sample also provisions this subject as an active member of the same organization so tenant-scoped Catalog reads reach product authorization.
 
 **Root cause:** The role-assignment provisioning path created the role assignment but did not reliably materialize the scoped `authorization_user_permission_overrides` row used by the decision query. The service therefore evaluated the same subject and branch with `explicitGrant=false` even when the assignment table appeared populated.
 

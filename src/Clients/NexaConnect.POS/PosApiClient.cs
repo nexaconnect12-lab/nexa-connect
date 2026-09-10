@@ -4,6 +4,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using NexaConnect.Observability;
 
 namespace NexaConnect.POS;
 
@@ -20,12 +22,17 @@ public sealed class PosApiClient : IDisposable
     private readonly PosClientConfiguration _configuration;
     private readonly HttpClient _httpClient;
     private readonly HttpClient _orderHttpClient;
+    private readonly HttpClient _catalogHttpClient;
+    private readonly ILoggerFactory loggerFactory = NexaConnectObservabilityExtensions.CreateClientLoggerFactory("nexaconnect-pos-client");
 
-    public PosApiClient(PosClientConfiguration configuration)
+    public PosApiClient(PosClientConfiguration configuration, HttpMessageHandler? posHandler = null,
+        HttpMessageHandler? orderHandler = null, HttpMessageHandler? catalogHandler = null)
     {
         _configuration = configuration;
-        _httpClient = new HttpClient { BaseAddress = new Uri(configuration.PosApi) };
-        _orderHttpClient = new HttpClient { BaseAddress = new Uri(configuration.OrderApi) };
+        configuration.ValidateCheckout();
+        _httpClient = new HttpClient(posHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.PosApi) };
+        _orderHttpClient = new HttpClient(orderHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.OrderApi) };
+        _catalogHttpClient = new HttpClient(catalogHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.CatalogApi) };
     }
 
     public async Task<PosShift> OpenShiftAsync(
@@ -69,24 +76,53 @@ public sealed class PosApiClient : IDisposable
     public async Task<IReadOnlyCollection<PosMenuItem>> GetMenuAsync(PosTokenSet token, Guid branchId, CancellationToken cancellationToken = default)
     {
         using var request = CreateRequest(HttpMethod.Get, $"api/catalog/v1/branches/{branchId:D}/menu-items", token);
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        if (branchId != _configuration.BranchId) throw new InvalidDataException("Menu branch differs from terminal configuration.");
+        AddTenantContext(request, _configuration.OrganizationId);
+        using var response = await SendCheckoutAsync(_catalogHttpClient, request, "catalog.menu", Guid.NewGuid(), cancellationToken);
         await EnsureSuccessAsync(response, "Menu could not be loaded.");
         return await response.Content.ReadFromJsonAsync<IReadOnlyCollection<PosMenuItem>>(cancellationToken) ?? [];
     }
 
-    public async Task<PosOrderResult> PlaceOrderAsync(PosTokenSet token, PosClientConfiguration configuration, IReadOnlyCollection<(Guid ProductId, int Quantity)> lines, CancellationToken cancellationToken = default)
+    public async Task<PosOrderResult> PlaceOrderAsync(PosTokenSet token, PendingCheckout checkout, CancellationToken cancellationToken = default)
     {
+        checkout.Validate(_configuration);
         using var request = CreateRequest(HttpMethod.Post, "api/order/v1/workflows/place", token);
-        AddTenantContext(request, configuration.OrganizationId);
+        AddTenantContext(request, checkout.OrganizationId);
         request.Content = JsonContent.Create(new
         {
-            restaurantId = configuration.RestaurantId, organizationId = configuration.OrganizationId, branchId = configuration.BranchId,
-            currency = configuration.Currency, paymentMethod = configuration.PaymentMethod, idempotencyKey = Guid.NewGuid().ToString("N"),
-            lines = lines.Select(line => new { productId = line.ProductId, quantity = line.Quantity }).ToArray()
+            restaurantId = checkout.RestaurantId, organizationId = checkout.OrganizationId, branchId = checkout.BranchId,
+            currency = checkout.Currency, paymentMethod = checkout.PaymentMethod, idempotencyKey = checkout.OrderId.ToString("N"),
+            orderId = checkout.OrderId, correlationId = checkout.OrderId,
+            lines = checkout.Lines.Select(line => new { productId = line.ProductId, quantity = line.Quantity }).ToArray()
         });
-        using var response = await _orderHttpClient.SendAsync(request, cancellationToken);
+        using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.place", checkout.OrderId, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            try
+            {
+                PosOrderResult? rejected = await response.Content.ReadFromJsonAsync<PosOrderResult>(cancellationToken);
+                if (rejected is not null && rejected.Status is PosOrderStatus.Rejected or PosOrderStatus.PaymentFailed)
+                {
+                    ValidateOrderResult(checkout, rejected);
+                    return rejected;
+                }
+            }
+            catch (JsonException)
+            {
+                // A non-order conflict continues through the normal safe error mapping.
+            }
+        }
         await EnsureSuccessAsync(response, "Order could not be placed.");
-        return await response.Content.ReadFromJsonAsync<PosOrderResult>(cancellationToken) ?? throw new InvalidDataException("The Order API returned an empty response.");
+        var result = await response.Content.ReadFromJsonAsync<PosOrderResult>(cancellationToken)
+            ?? throw new InvalidDataException("The Order API returned an empty response.");
+        ValidateOrderResult(checkout, result);
+        return result;
+    }
+
+    private static void ValidateOrderResult(PendingCheckout checkout, PosOrderResult result)
+    {
+        if (result.OrderId != checkout.OrderId || result.Currency != checkout.Currency || result.TotalAmount <= 0)
+            throw new InvalidDataException("Order response does not match the pending checkout.");
     }
 
     public async Task<ManualTenderResult> ConfirmManualSettlementAsync(
@@ -184,7 +220,8 @@ public sealed class PosApiClient : IDisposable
         }
 
         string? stage = null;
-        if (response.StatusCode == HttpStatusCode.Forbidden)
+        string? conflictTitle = null;
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Conflict)
         {
             try
             {
@@ -194,6 +231,15 @@ public sealed class PosApiClient : IDisposable
                     extensions.TryGetProperty("stage", out JsonElement stageElement))
                 {
                     stage = stageElement.GetString();
+                }
+                if (response.StatusCode == HttpStatusCode.Conflict
+                    && problem.RootElement.TryGetProperty("title", out JsonElement titleElement))
+                {
+                    string? title = titleElement.GetString();
+                    if (!string.IsNullOrWhiteSpace(title) && title.Length <= 300)
+                    {
+                        conflictTitle = title;
+                    }
                 }
             }
             catch (JsonException)
@@ -209,7 +255,7 @@ public sealed class PosApiClient : IDisposable
             {
                 HttpStatusCode.Unauthorized => "Sign in again to continue.",
                 HttpStatusCode.Forbidden => "Your account is not authorized for this operation.",
-                HttpStatusCode.Conflict => "The resource changed concurrently. Refresh its state before continuing.",
+                HttpStatusCode.Conflict => conflictTitle ?? "The resource changed concurrently. Refresh its state before continuing.",
                 HttpStatusCode.ServiceUnavailable => "A POS dependency is temporarily unavailable.",
                 _ => fallback
             }
@@ -221,6 +267,27 @@ public sealed class PosApiClient : IDisposable
     {
         _httpClient.Dispose();
         _orderHttpClient.Dispose();
+        _catalogHttpClient.Dispose();
+        loggerFactory.Dispose();
+    }
+
+    private async Task<HttpResponseMessage> SendCheckoutAsync(HttpClient client, HttpRequestMessage request,
+        string operation, Guid correlationId, CancellationToken cancellationToken)
+    {
+        request.Headers.Add("X-Correlation-ID", correlationId.ToString("D"));
+        var logger = loggerFactory.CreateLogger("NexaConnect.POS.Checkout");
+        try
+        {
+            var response = await client.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                logger.LogWarning("Checkout boundary rejected {Operation} {StatusCode} {CorrelationId}", operation, (int)response.StatusCode, correlationId);
+            return response;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            logger.LogWarning("Checkout transport failed {Operation} {CorrelationId}", operation, correlationId);
+            throw;
+        }
     }
 }
 

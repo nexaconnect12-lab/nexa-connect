@@ -48,6 +48,8 @@ The API does not redirect to Keycloak. Interactive login is owned by the BFF or 
 
 A successful open returns `200 OK` with `{ "cashSessionId": "...", "openedBy": "<subject>" }`.
 
+Each shift owns at most one cash session. A concurrent or repeated open returns `409 Conflict` with safe recovery guidance instead of exposing a database constraint failure. If that session is closed, close the shift and open a new shift before opening another cash session. An existing open session must be restored or reconciled rather than replaced.
+
 `POST /api/pos/v1/cash-sessions/{cashSessionId}/movements` records a positive sale, refund, pay-in, pay-out, or float-adjustment movement:
 
 ```json

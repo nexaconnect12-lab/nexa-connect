@@ -1,13 +1,46 @@
 using NexaConnect.Contracts.IntegrationEvents;
 using NexaConnect.Infrastructure.Messaging;
 using NexaConnect.Services.Order.Infrastructure.Messaging;
+using NexaConnect.Services.Order.Infrastructure.Clients;
 using NexaConnect.Services.Order.Application.Workflow;
 using NexaConnect.Services.Order.Domain;
+using System.Net;
+using System.Net.Http.Json;
 
 namespace NexaConnect.UnitTests;
 
 public sealed class RestaurantWorkflowTests
 {
+    [Fact]
+    public async Task Inventory_adapter_sends_tenant_context_and_returns_stable_reservation()
+    {
+        Guid organizationId=Guid.NewGuid(),branchId=Guid.NewGuid(),orderId=Guid.NewGuid(),productId=Guid.NewGuid(),reservationId=Guid.NewGuid();
+        using var client=new HttpClient(new RecordingHandler(request =>
+        {
+            Assert.Equal(organizationId.ToString("D"),request.Headers.GetValues("X-Nexa-Organization-Id").Single());
+            Assert.Equal("nexa_connect",request.Headers.GetValues("X-Nexa-Application-Code").Single());
+            return new HttpResponseMessage(HttpStatusCode.Created){Content=JsonContent.Create(new{reservationId,orderId,branchId,lines=new[]{new{productId,quantity=1m}}})};
+        })){BaseAddress=new Uri("http://inventory.test/")};
+        var adapter=new HttpInventoryReservationPort(client);
+
+        InventoryReservationResult result=await adapter.ReserveAsync(organizationId,orderId,branchId,[new OrderLine(productId,"Item",10m,1,"Kitchen")],CancellationToken.None);
+
+        Assert.True(result.Reserved);Assert.Equal(reservationId,result.ReservationId);
+    }
+
+    [Fact]
+    public async Task Inventory_adapter_does_not_persist_dependency_error_body_as_business_reason()
+    {
+        using var client=new HttpClient(new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError)
+            {Content=new StringContent("database exception and private diagnostics")})){BaseAddress=new Uri("http://inventory.test/")};
+        var adapter=new HttpInventoryReservationPort(client);
+
+        HttpRequestException exception=await Assert.ThrowsAsync<HttpRequestException>(()=>adapter.ReserveAsync(
+            Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),[new OrderLine(Guid.NewGuid(),"Item",10m,1,"Kitchen")],CancellationToken.None));
+
+        Assert.DoesNotContain("private diagnostics",exception.Message,StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Postgres_event_publisher_writes_versioned_event_to_outbox_port()
     {
@@ -173,7 +206,7 @@ public sealed class RestaurantWorkflowTests
         public int ReleaseCalls { get; private set; }
 
         public Task<InventoryReservationResult> ReserveAsync(
-            Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
+            Guid organizationId, Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
         {
             Calls++;
             return Task.FromResult(reserved
@@ -181,11 +214,16 @@ public sealed class RestaurantWorkflowTests
                 : new InventoryReservationResult(false, null, "insufficient stock"));
         }
 
-        public Task ReleaseAsync(Guid orderId, Guid branchId, CancellationToken cancellationToken)
+        public Task ReleaseAsync(Guid organizationId, Guid orderId, Guid branchId, CancellationToken cancellationToken)
         {
             ReleaseCalls++;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class RecordingHandler(Func<HttpRequestMessage,HttpResponseMessage> send):HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken cancellationToken)=>Task.FromResult(send(request));
     }
 
     private sealed class FakeKitchen : IKitchenPort

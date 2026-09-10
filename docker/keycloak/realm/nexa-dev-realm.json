@@ -454,6 +454,17 @@
       "defaultClientScopes": ["profile", "email", "nexaconnect-api"],
       "protocolMappers": [
         {
+          "name": "subject",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
           "name": "nexaconnect-api-audience",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
@@ -513,7 +524,20 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "fullScopeAllowed": false,
-      "defaultClientScopes": ["nexaconnect-api"]
+      "defaultClientScopes": ["nexaconnect-api"],
+      "protocolMappers": [
+        {
+          "name": "nexaconnect-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "nexaconnect-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
     },
     {
       "clientId": "nexaconnect-order-service",
@@ -574,7 +598,20 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "fullScopeAllowed": false,
-      "defaultClientScopes": ["nexaconnect-api"]
+      "defaultClientScopes": ["nexaconnect-api"],
+      "protocolMappers": [
+        {
+          "name": "nexaconnect-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "nexaconnect-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
     },
     {
       "clientId": "nexaconnect-media-service",

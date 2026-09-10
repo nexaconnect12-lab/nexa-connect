@@ -8,7 +8,7 @@ The POS service owns terminals, stores, shifts, and server-side POS operations. 
 
 - `POST /api/pos/v1/shifts/open` opens a shift after validating the branch scope, active store/terminal registration, and the `pos.shift.open` product authorization decision.
 - `POST /api/pos/v1/shifts/{shiftId}/close` closes an open shift after validating the restaurant scope and the `pos.shift.close` authorization decision.
-- `POST /api/pos/v1/cash-sessions/open` opens a cash session for an open shift.
+- `POST /api/pos/v1/cash-sessions/open` opens the single cash session allowed for an open shift. Reopening cash on that shift returns a safe `409`: restore/reconcile an existing open session, or close a shift whose session is already closed and start a new shift.
 - `POST /api/pos/v1/cash-sessions/{cashSessionId}/movements` records a sale, refund, pay-in, pay-out, or float adjustment.
 - `POST /api/pos/v1/cash-sessions/{cashSessionId}/close` closes a cash session and calculates the variance.
 - `POST /api/pos/v1/terminals/enroll` enrolls or reactivates a terminal after the `pos.terminal.enroll` authorization decision.

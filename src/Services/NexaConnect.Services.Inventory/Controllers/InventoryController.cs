@@ -62,7 +62,16 @@ public sealed class InventoryController(IInventoryReservations inventory, IInven
 
     private async Task<Guid?> GetCustomerOrganizationAsync(Guid branchId, string permission, CancellationToken cancellationToken)
     {
-        if (ServiceWorkloadPrincipal.IsTrusted(User)) return null;
+        if (ServiceWorkloadPrincipal.IsTrusted(User))
+        {
+            bool hasOrganization = Request.Headers.ContainsKey(TenantContextHeaders.OrganizationId);
+            bool hasApplication = Request.Headers.ContainsKey(TenantContextHeaders.ApplicationCode);
+            if (!hasOrganization && !hasApplication) return null;
+            return Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out Guid workloadOrganizationId)
+                && string.Equals(Request.Headers[TenantContextHeaders.ApplicationCode], "nexa_connect", StringComparison.Ordinal)
+                    ? workloadOrganizationId
+                    : Guid.Empty;
+        }
         if (!Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out Guid organizationId)) return Guid.Empty;
         return await HasCustomerAccessAsync(branchId, permission, cancellationToken) ? organizationId : Guid.Empty;
     }

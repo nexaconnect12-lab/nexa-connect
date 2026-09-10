@@ -29,7 +29,15 @@ public partial class App : Application
         }
 
         base.OnStartup(e);
-        PosClientConfiguration configuration = PosClientConfiguration.Load();
+        PosClientConfiguration configuration;
+        try { configuration = PosClientConfiguration.Load(); }
+        catch (Exception exception) when (exception is IOException or System.Text.Json.JsonException or InvalidOperationException)
+        {
+            MessageBox.Show("POS configuration is invalid. Check service URLs, branch/terminal identifiers and THB manual checkout settings before starting.",
+                "Terminal setup required", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Shutdown();
+            return;
+        }
         _authentication = new PosAuthentication(configuration);
         _ = ListenForCallbacksAsync(_authentication, CancellationToken.None);
 

@@ -64,7 +64,7 @@ public sealed class PaymentReviewApplicationService(IOrderRepository orders,IInv
         {
             if(resolution=="confirm_void")
             {
-                await inventory.ReleaseAsync(order.Id,order.BranchId,cancellationToken);
+                await inventory.ReleaseAsync(order.OrganizationId,order.Id,order.BranchId,cancellationToken);
                 await kitchen.CancelTicketAsync(order.OrganizationId,order.Id,order.BranchId,cancellationToken);
                 order.ResolvePaymentReviewAsVoided();
             }

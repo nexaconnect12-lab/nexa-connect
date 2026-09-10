@@ -39,7 +39,11 @@ Permission denials can be narrowed with `|= "Product permission"`. These events 
 
 Customer profile authorization can be narrowed with `{service_name="nexaconnect-customer"} |= "Customer authorization denied"`, `|= "Customer organization access lookup failed"`, or `|= "Customer organization access dependency failed"`, then correlated by `CorrelationId`. These events contain organization IDs, permission codes, and dependency status only; they exclude subjects, authorization values, and profile fields.
 
+POS menu organization denials can be narrowed with `{service_name="nexaconnect-platform-directory"} |= "Organization access denied"`, then correlated with the Catalog request by `CorrelationId`. The event distinguishes a missing stable token subject from membership/application-access denial and may include the organization UUID; it excludes the subject, token, username, and request body.
+
 POS offline cash replay can be narrowed with `{service_name="nexaconnect-pos"} |= "POS offline cash movement"`, then correlated by `CorrelationId`. The events contain cash-session, terminal, and client-operation UUIDs and the accepted/replayed/denied/conflict outcome; they exclude subjects, tokens, request bodies, reason codes, and cash values.
+
+The native POS checkout adapter uses the shared `CreateClientLoggerFactory` with service name `nexaconnect-pos-client`. Catalog reads and order placement attach generated `X-Correlation-ID` values and emit safe `Checkout boundary rejected` or `Checkout transport failed` events with operation code, correlation ID, and HTTP status when available. Search console-attached client JSON output for these event names, then follow `CorrelationId` in Catalog/Order service logs. The shipped WPF client has no file sink or OTLP export enabled; it does not automatically appear in Loki. The helper supports optional OTLP logging through `ObservabilityOptions`, but does not install ASP.NET middleware, HTTP instrumentation, or metrics for native callers.
 
 Copy `.env.example` to `.env`, set a strong `GRAFANA_ADMIN_PASSWORD`, and start the stack:
 

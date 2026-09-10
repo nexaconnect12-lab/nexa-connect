@@ -19,7 +19,8 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
                  opened_at_utc, created_at_utc, updated_at_utc)
             SELECT $1, $2, shift.id, $3, $4, 'open', now(), now(), now()
             FROM shifts shift
-            WHERE shift.id = $5 AND shift.store_id = $2 AND shift.status = 'open';
+            WHERE shift.id = $5 AND shift.store_id = $2 AND shift.status = 'open'
+            ON CONFLICT (shift_id) DO NOTHING;
             """;
         await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
@@ -30,6 +31,17 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
         command.Parameters.AddWithValue(shiftId);
         if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
         {
+            const string existingSql = "SELECT status FROM cash_sessions WHERE shift_id = $1 AND store_id = $2;";
+            await using var existing = new NpgsqlCommand(existingSql, connection);
+            existing.Parameters.AddWithValue(shiftId);
+            existing.Parameters.AddWithValue(storeId);
+            object? status = await existing.ExecuteScalarAsync(cancellationToken);
+            if (status is string existingStatus)
+            {
+                throw new InvalidOperationException(existingStatus == "closed"
+                    ? "This shift already has a closed cash session. Close the shift and open a new shift before opening another cash session."
+                    : "This shift already has an open cash session. Restore or reconcile that session before continuing.");
+            }
             throw new InvalidOperationException("The shift is not open or does not belong to the store.");
         }
 
