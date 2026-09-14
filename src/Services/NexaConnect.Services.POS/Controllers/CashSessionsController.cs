@@ -108,10 +108,17 @@ public sealed class CashSessionsController(
         CancellationToken cancellationToken)
     {
         if (!TryGetSubject(out string subject)) return Unauthorized();
+        if (!TryGetTerminalIdentifier(out Guid terminalId))
+            return BadRequest(new ProblemDetails
+            {
+                Title = "X-Nexa-Terminal-Id is required and must be a valid non-empty UUID.",
+                Status = StatusCodes.Status400BadRequest
+            });
 
         try
         {
-            await cashSessions.CloseAsync(cashSessionId, request.ActualClosingAmount, subject, cancellationToken);
+            await cashSessions.CloseAsync(cashSessionId, request.ActualClosingAmount,
+                request.ExpectedConcurrencyVersion, subject, terminalId, cancellationToken);
             return NoContent();
         }
         catch (CashSessionValidationException exception)
@@ -120,7 +127,44 @@ public sealed class CashSessionsController(
         }
         catch (CashSessionConflictException exception)
         {
+            logger.LogWarning(
+                "POS cash-session close conflicted for cash session {CashSessionId} and terminal {TerminalId}.",
+                cashSessionId, terminalId);
             return Conflict(new ProblemDetails { Title = exception.Message, Status = StatusCodes.Status409Conflict });
+        }
+    }
+
+    [HttpGet("{cashSessionId:guid}/summary")]
+    public async Task<IActionResult> SummaryAsync(Guid cashSessionId, CancellationToken cancellationToken)
+    {
+        if (!TryGetSubject(out string subject)) return Unauthorized();
+        if (!TryGetTerminalIdentifier(out Guid terminalId))
+            return BadRequest(new ProblemDetails
+            {
+                Title = "X-Nexa-Terminal-Id is required and must be a valid non-empty UUID.",
+                Status = StatusCodes.Status400BadRequest
+            });
+
+        try
+        {
+            CashSessionSummary summary = await cashSessions.GetSummaryAsync(
+                cashSessionId, subject, terminalId, cancellationToken);
+            return Ok(summary);
+        }
+        catch (CashSessionValidationException exception)
+        {
+            return BadRequest(new ProblemDetails { Title = exception.Message, Status = StatusCodes.Status400BadRequest });
+        }
+        catch (CashSessionNotFoundException)
+        {
+            logger.LogWarning(
+                "POS cash reconciliation summary unavailable for cash session {CashSessionId} and terminal {TerminalId}.",
+                cashSessionId, terminalId);
+            return NotFound(new ProblemDetails
+            {
+                Title = "The cash session was not found for this terminal and cashier.",
+                Status = StatusCodes.Status404NotFound
+            });
         }
     }
 
@@ -151,8 +195,16 @@ public sealed class CashSessionsController(
         terminalId = parsedTerminal;
         return true;
     }
+
+    private bool TryGetTerminalIdentifier(out Guid terminalId)
+    {
+        terminalId = Guid.Empty;
+        return Request.Headers.TryGetValue("X-Nexa-Terminal-Id", out var values)
+            && Guid.TryParse(values.ToString(), out terminalId)
+            && terminalId != Guid.Empty;
+    }
 }
 
 public sealed record OpenCashSessionRequest(Guid ShiftId, Guid StoreId, string? Currency, decimal OpeningAmount);
 public sealed record CashMovementRequest(string MovementType, decimal Amount, string? ReasonCode);
-public sealed record CloseCashSessionRequest(decimal ActualClosingAmount);
+public sealed record CloseCashSessionRequest(decimal ActualClosingAmount, long ExpectedConcurrencyVersion);

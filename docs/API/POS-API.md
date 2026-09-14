@@ -63,12 +63,34 @@ Every cash-movement submission supplies both `X-Client-Operation-Id: <uuid>` and
 `POST /api/pos/v1/cash-sessions/{cashSessionId}/close` closes the session and calculates the variance from the opening amount and movements:
 
 ```json
-{ "actualClosingAmount": 125.00 }
+{ "actualClosingAmount": 125.00, "expectedConcurrencyVersion": 3 }
 ```
 
-A successful close returns `204 No Content`.
+Supply `X-Nexa-Terminal-Id: <uuid>`. The version must come from the latest reconciliation summary. A successful close returns `204 No Content`; a stale version, closed session, or cashier/terminal mismatch returns `409 Conflict` without changing the drawer.
 
-All cash endpoints require an authenticated bearer token. Cash-session state is owned by the POS database; the client must not infer a successful close until the API returns `204`.
+`GET /api/pos/v1/cash-sessions/{cashSessionId}/summary` returns the terminal-bound cashier's authoritative reconciliation read model. Supply `X-Nexa-Terminal-Id: <uuid>`. The response contains opening amount, signed net movements, expected closing amount, optional actual and variance values, status, timestamps, concurrency version, and ordered movement rows:
+
+```json
+{
+  "cashSessionId": "00000000-0000-0000-0000-000000000000",
+  "shiftId": "00000000-0000-0000-0000-000000000000",
+  "storeId": "00000000-0000-0000-0000-000000000000",
+  "terminalId": "00000000-0000-0000-0000-000000000000",
+  "currency": "THB",
+  "openingAmount": 1000.00,
+  "netMovementAmount": 250.00,
+  "expectedClosingAmount": 1250.00,
+  "actualClosingAmount": null,
+  "varianceAmount": null,
+  "status": "open",
+  "concurrencyVersion": 3,
+  "movements": []
+}
+```
+
+Sales, pay-ins, and float adjustments increase expected cash; refunds and pay-outs decrease it. A missing bearer token returns `401`, a missing or malformed terminal header returns `400`, and a session outside the authenticated subject/terminal scope returns `404` to avoid resource disclosure. Safe summary-denial and close-conflict events include session and terminal identifiers without amounts, bodies, or credentials.
+
+All cash endpoints require an authenticated bearer token. Cash-session state and calculations are owned by the POS database; the client must not infer a successful close until the API returns `204`.
 Invalid identifiers, amounts, currencies, or movement types return `400`. A shift/session state conflict returns `409`.
 
 ## Terminal enrollment

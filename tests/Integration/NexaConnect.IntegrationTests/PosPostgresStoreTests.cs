@@ -29,7 +29,7 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
         await _store!.CreateAsync(shift, default);
         var cashStore = new CashStore(_dataSource!);
         Guid cashSessionId = await cashStore.OpenAsync(shift.Id, storeId, "THB", 100m, default);
-        await cashStore.CloseAsync(cashSessionId, 100m, default);
+        await cashStore.CloseAsync(cashSessionId, 100m, 1, "cashier-1", terminalId, default);
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => cashStore.OpenAsync(shift.Id, storeId, "THB", 100m, default));
@@ -182,6 +182,9 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
             cashStore.RecordMovementAsync(cashSessionId, "sale", 6m, "cashier-1", null, operationId, terminalId, "hash-2", CancellationToken.None));
 
         Assert.Equal(1, await CountCashMovementsAsync(cashSessionId));
+        var summary = await cashStore.GetSummaryAsync(
+            cashSessionId, "cashier-1", terminalId, CancellationToken.None);
+        Assert.Equal(2, summary!.ConcurrencyVersion);
     }
 
     [PosPostgresFact]
@@ -204,11 +207,49 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
     }
 
     [PosPostgresFact]
+    public async Task Cash_reconciliation_is_terminal_scoped_and_close_uses_reviewed_version()
+    {
+        RequireDatabase();
+        var setup = await CreateOpenCashSessionAsync("SHIFT-CASH-RECONCILIATION");
+        await setup.Store.RecordMovementAsync(setup.CashSessionId, "sale", 25m, "cashier-1", "ORDER",
+            Guid.NewGuid(), setup.TerminalId, "reconciliation-sale", CancellationToken.None);
+        await setup.Store.RecordMovementAsync(setup.CashSessionId, "pay_out", 5m, "cashier-1", "SAFE",
+            Guid.NewGuid(), setup.TerminalId, "reconciliation-payout", CancellationToken.None);
+
+        var summary = await setup.Store.GetSummaryAsync(
+            setup.CashSessionId, "cashier-1", setup.TerminalId, CancellationToken.None);
+
+        Assert.NotNull(summary);
+        Assert.Equal(10m, summary!.OpeningAmount);
+        Assert.Equal(20m, summary.NetMovementAmount);
+        Assert.Equal(30m, summary.ExpectedClosingAmount);
+        Assert.Equal(2, summary.Movements.Count);
+        Assert.Null(await setup.Store.GetSummaryAsync(
+            setup.CashSessionId, "another-cashier", setup.TerminalId, CancellationToken.None));
+        Assert.Null(await setup.Store.GetSummaryAsync(
+            setup.CashSessionId, "cashier-1", Guid.NewGuid(), CancellationToken.None));
+
+        await setup.Store.CloseAsync(setup.CashSessionId, 28m, summary.ConcurrencyVersion,
+            "cashier-1", setup.TerminalId, CancellationToken.None);
+        var closed = await setup.Store.GetSummaryAsync(
+            setup.CashSessionId, "cashier-1", setup.TerminalId, CancellationToken.None);
+        Assert.Equal("closed", closed!.Status);
+        Assert.Equal(30m, closed.ExpectedClosingAmount);
+        Assert.Equal(28m, closed.ActualClosingAmount);
+        Assert.Equal(-2m, closed.VarianceAmount);
+        Assert.Equal(summary.ConcurrencyVersion + 1, closed.ConcurrencyVersion);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => setup.Store.CloseAsync(
+            setup.CashSessionId, 30m, summary.ConcurrencyVersion, "cashier-1", setup.TerminalId,
+            CancellationToken.None));
+    }
+
+    [PosPostgresFact]
     public async Task Failed_cash_movement_rolls_back_sync_operation()
     {
         RequireDatabase();
         var setup = await CreateOpenCashSessionAsync("SHIFT-CASH-ROLLBACK");
-        await setup.Store.CloseAsync(setup.CashSessionId, 10m, CancellationToken.None);
+        await setup.Store.CloseAsync(setup.CashSessionId, 10m, 1, "cashier-1", setup.TerminalId,
+            CancellationToken.None);
         Guid operationId = Guid.NewGuid();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => setup.Store.RecordMovementAsync(

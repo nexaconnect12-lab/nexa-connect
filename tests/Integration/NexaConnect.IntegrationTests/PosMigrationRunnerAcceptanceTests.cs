@@ -145,7 +145,8 @@ public sealed class PosMigrationRunnerAcceptanceTests
         Assert.False(await cashStore.RecordMovementAsync(
             cashSessionId, "sale", 5m, "migration-cashier", "migration",
             operationId, terminalId, $"hash-{suffix}", CancellationToken.None));
-        await cashStore.CloseAsync(cashSessionId, 15m, CancellationToken.None);
+        await cashStore.CloseAsync(cashSessionId, 15m, 1, "migration-cashier", terminalId,
+            CancellationToken.None);
 
         shift.Close("migration-cashier", Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(1));
         Assert.True(await shiftStore.TryCloseAsync(shift, CancellationToken.None));

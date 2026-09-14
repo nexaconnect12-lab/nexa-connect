@@ -25,6 +25,59 @@ public sealed class PosCheckoutIntegrationTests
         Assert.Equal(guidance, exception.Message);
     }
 
+    [Fact]
+    public async Task Cash_reconciliation_and_close_send_terminal_scope_and_reviewed_version()
+    {
+        var config = Configuration();
+        Guid cashSessionId = Guid.NewGuid();
+        int requests = 0;
+        var handler = new Handler(async request =>
+        {
+            Assert.Equal(config.TerminalId.ToString("D"),
+                request.Headers.GetValues("X-Nexa-Terminal-Id").Single());
+            if (requests++ == 0)
+            {
+                Assert.Equal(HttpMethod.Get, request.Method);
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = JsonContent.Create(new PosCashSessionSummary(
+                        cashSessionId, Guid.NewGuid(), config.StoreId, config.TerminalId, "THB",
+                        100m, 25m, 125m, null, null, "open", DateTimeOffset.UtcNow, null, 7,
+                        [new PosCashMovementSummary(Guid.NewGuid(), "sale", 25m, "ORDER", DateTimeOffset.UtcNow)]))
+                };
+            }
+
+            Assert.Equal(HttpMethod.Post, request.Method);
+            using JsonDocument body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(124m, body.RootElement.GetProperty("actualClosingAmount").GetDecimal());
+            Assert.Equal(7, body.RootElement.GetProperty("expectedConcurrencyVersion").GetInt64());
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        });
+        using var api = new PosApiClient(config, posHandler: handler);
+
+        PosCashSessionSummary summary = await api.GetCashSessionSummaryAsync(Token(), cashSessionId);
+        await api.CloseCashSessionAsync(Token(), cashSessionId, 124m, summary.ConcurrencyVersion);
+
+        Assert.Equal(2, requests);
+    }
+
+    [Fact]
+    public async Task Cash_reconciliation_rejects_a_summary_for_another_terminal()
+    {
+        var config = Configuration();
+        Guid cashSessionId = Guid.NewGuid();
+        using var api = new PosApiClient(config, posHandler: new Handler(_ => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new PosCashSessionSummary(
+                    cashSessionId, Guid.NewGuid(), config.StoreId, Guid.NewGuid(), "THB",
+                    100m, 0m, 100m, null, null, "open", DateTimeOffset.UtcNow, null, 1, []))
+            })));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            api.GetCashSessionSummaryAsync(Token(), cashSessionId));
+    }
+
     internal static PosClientConfiguration Configuration() => new("http://localhost:8080/realms/nexa-dev", "nexaconnect-pos",
         "nexaconnect-pos://oauth/callback", "openid", "http://localhost:5225/", "http://localhost:5230/",
         Guid.NewGuid(), Guid.NewGuid(), "THB", "cash_manual", null, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "http://localhost:5268/");

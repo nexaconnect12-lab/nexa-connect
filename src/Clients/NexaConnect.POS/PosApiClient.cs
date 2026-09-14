@@ -16,6 +16,12 @@ public sealed record PosOrderResult(Guid OrderId, PosOrderStatus Status, decimal
 public sealed record ManualTenderResult(Guid SettlementId, Guid OrderId, string Status, string Method,
     decimal Amount, string Currency, DateTimeOffset OccurredAtUtc, bool Replayed);
 public sealed record CashSessionResult(Guid CashSessionId, string OpenedBy);
+public sealed record PosCashMovementSummary(Guid MovementId, string MovementType, decimal Amount,
+    string? ReasonCode, DateTimeOffset OccurredAtUtc);
+public sealed record PosCashSessionSummary(Guid CashSessionId, Guid ShiftId, Guid StoreId, Guid TerminalId,
+    string Currency, decimal OpeningAmount, decimal NetMovementAmount, decimal ExpectedClosingAmount,
+    decimal? ActualClosingAmount, decimal? VarianceAmount, string Status, DateTimeOffset OpenedAtUtc,
+    DateTimeOffset? ClosedAtUtc, long ConcurrencyVersion, IReadOnlyList<PosCashMovementSummary> Movements);
 
 public sealed class PosApiClient : IDisposable
 {
@@ -182,10 +188,51 @@ public sealed class PosApiClient : IDisposable
         using var response = await _httpClient.SendAsync(request, cancellationToken); await EnsureSuccessAsync(response, "Cash movement could not be recorded.");
     }
 
-    public async Task CloseCashSessionAsync(PosTokenSet token, Guid cashSessionId, decimal actualClosingAmount, CancellationToken cancellationToken = default)
+    public async Task<PosCashSessionSummary> GetCashSessionSummaryAsync(
+        PosTokenSet token,
+        Guid cashSessionId,
+        CancellationToken cancellationToken = default)
     {
-        using var request = CreateRequest(HttpMethod.Post, $"api/pos/v1/cash-sessions/{cashSessionId:D}/close", token); request.Content = JsonContent.Create(new { actualClosingAmount });
-        using var response = await _httpClient.SendAsync(request, cancellationToken); await EnsureSuccessAsync(response, "Cash session could not be closed.");
+        using var request = CreateRequest(HttpMethod.Get,
+            $"api/pos/v1/cash-sessions/{cashSessionId:D}/summary", token);
+        request.Headers.Add("X-Nexa-Terminal-Id", _configuration.TerminalId.ToString("D"));
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "Cash reconciliation could not be refreshed.");
+        PosCashSessionSummary summary = await response.Content.ReadFromJsonAsync<PosCashSessionSummary>(cancellationToken)
+            ?? throw new InvalidDataException("The POS API returned an empty cash reconciliation response.");
+        if (summary.CashSessionId != cashSessionId || summary.ShiftId == Guid.Empty ||
+            summary.StoreId != _configuration.StoreId ||
+            summary.TerminalId != _configuration.TerminalId ||
+            !string.Equals(summary.Currency, _configuration.Currency, StringComparison.Ordinal) ||
+            summary.ConcurrencyVersion <= 0 || summary.OpeningAmount < 0 ||
+            summary.ExpectedClosingAmount != summary.OpeningAmount + summary.NetMovementAmount ||
+            summary.Status is not ("open" or "closed") ||
+            summary.Movements is null ||
+            summary.Movements.Any(movement => movement.MovementId == Guid.Empty || movement.Amount <= 0 ||
+                movement.MovementType is not ("sale" or "refund" or "pay_in" or "pay_out" or "float_adjustment")) ||
+            summary.NetMovementAmount != summary.Movements.Sum(movement =>
+                movement.MovementType is "sale" or "pay_in" or "float_adjustment"
+                    ? movement.Amount
+                    : -movement.Amount) ||
+            summary.Status == "open" && (summary.ActualClosingAmount is not null ||
+                summary.VarianceAmount is not null || summary.ClosedAtUtc is not null) ||
+            summary.Status == "closed" && (summary.ActualClosingAmount is null ||
+                summary.VarianceAmount != summary.ActualClosingAmount - summary.ExpectedClosingAmount ||
+                summary.ClosedAtUtc is null))
+        {
+            throw new InvalidDataException("The cash reconciliation response does not match this terminal and session.");
+        }
+        return summary;
+    }
+
+    public async Task CloseCashSessionAsync(PosTokenSet token, Guid cashSessionId, decimal actualClosingAmount,
+        long expectedConcurrencyVersion, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Post, $"api/pos/v1/cash-sessions/{cashSessionId:D}/close", token);
+        request.Headers.Add("X-Nexa-Terminal-Id", _configuration.TerminalId.ToString("D"));
+        request.Content = JsonContent.Create(new { actualClosingAmount, expectedConcurrencyVersion });
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "Cash session could not be closed.");
     }
 
     public async Task EnrollTerminalAsync(PosTokenSet token, PosClientConfiguration configuration, string code, string deviceType, CancellationToken cancellationToken = default)

@@ -19,6 +19,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<CartLine> cart = new();
     private readonly LocalOutboxStore outbox;
     private Guid? cashSessionId;
+    private PosCashSessionSummary? cashSummary;
+    private bool cashSummaryVerified;
     private PosOrderResult? pendingOrder;
     private PendingCheckout? pendingCheckout;
     private Guid? settlementIdempotencyKey;
@@ -200,7 +202,27 @@ public partial class MainWindow : Window
     {
         if (_authentication.CurrentToken is null || _activeShift is null) return;
         if (!decimal.TryParse(OpeningCashTextBox.Text, out var amount) || amount < 0) { StatusText.Text = "Enter a valid opening cash amount."; return; }
-        try { SetBusy("Opening cash session…"); var result = await _api.OpenCashSessionAsync(_authentication.CurrentToken, _activeShift.ShiftId, _configuration.StoreId, _configuration.Currency, amount); cashSessionId = result.CashSessionId; _localStore.SaveCashSession(new LocalCashSessionState(result.CashSessionId, _activeShift.ShiftId, DateTimeOffset.UtcNow)); StatusText.Text = "Cash session is open."; }
+        try
+        {
+            SetBusy("Opening cash session…");
+            var result = await _api.OpenCashSessionAsync(_authentication.CurrentToken, _activeShift.ShiftId,
+                _configuration.StoreId, _configuration.Currency, amount);
+            cashSessionId = result.CashSessionId;
+            cashSummary = null;
+            cashSummaryVerified = false;
+            RenderCashSummary();
+            _localStore.SaveCashSession(new LocalCashSessionState(
+                result.CashSessionId, _activeShift.ShiftId, DateTimeOffset.UtcNow));
+            try
+            {
+                await RefreshCashSummaryAsync();
+                StatusText.Text = "Cash session is open. Review reconciliation before closing.";
+            }
+            catch
+            {
+                StatusText.Text = "Cash session is open, but reconciliation could not be refreshed. Keep the session and try Refresh reconciliation.";
+            }
+        }
         catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Cash session could not be opened."; }
         finally { UpdateOperationalState(); }
     }
@@ -219,8 +241,60 @@ public partial class MainWindow : Window
             return;
         }
         if (!decimal.TryParse(ClosingCashTextBox.Text, out var amount) || amount < 0) { StatusText.Text = "Enter a valid closing cash amount."; return; }
-        try { SetBusy("Closing cash session…"); await _api.CloseCashSessionAsync(_authentication.CurrentToken, cashSessionId.Value, amount); cashSessionId = null; _localStore.ClearCashSession(); StatusText.Text = "Cash session is closed."; }
-        catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Cash session could not be closed."; }
+        try
+        {
+            SetBusy("Refreshing cash reconciliation…");
+            long? reviewedVersion = cashSummary?.ConcurrencyVersion;
+            PosCashSessionSummary current = await _api.GetCashSessionSummaryAsync(
+                _authentication.CurrentToken, cashSessionId.Value);
+            cashSummary = current;
+            cashSummaryVerified = true;
+            RenderCashSummary();
+            if (reviewedVersion is null || reviewedVersion.Value != current.ConcurrencyVersion)
+            {
+                StatusText.Text = "Cash reconciliation changed or was not reviewed. Check the expected cash and variance, then choose Close cash session again.";
+                return;
+            }
+
+            SetBusy("Closing cash session…");
+            Guid closedSessionId = cashSessionId.Value;
+            await _api.CloseCashSessionAsync(_authentication.CurrentToken, closedSessionId, amount,
+                current.ConcurrencyVersion);
+            try
+            {
+                cashSummary = await _api.GetCashSessionSummaryAsync(_authentication.CurrentToken, closedSessionId);
+                cashSummaryVerified = true;
+                RenderCashSummary();
+            }
+            catch
+            {
+                cashSummary = current with
+                {
+                    ActualClosingAmount = amount,
+                    VarianceAmount = amount - current.ExpectedClosingAmount,
+                    Status = "closed",
+                    ClosedAtUtc = DateTimeOffset.UtcNow,
+                    ConcurrencyVersion = current.ConcurrencyVersion + 1
+                };
+                cashSummaryVerified = false;
+                RenderCashSummary();
+            }
+            cashSessionId = null;
+            _localStore.ClearCashSession();
+            StatusText.Text = cashSummaryVerified
+                ? "Cash session is closed. The server-verified final variance is shown in reconciliation."
+                : "Cash session is closed, but final reconciliation is not verified. Use Refresh reconciliation to load the authoritative result.";
+        }
+        catch (PosApiException exception) when (exception.StatusCode == 409)
+        {
+            try { await RefreshCashSummaryAsync(); }
+            catch { }
+            StatusText.Text = "Cash reconciliation changed or the session scope no longer matches. Review the refreshed state before closing.";
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = exception is PosApiException api ? api.Message : "Cash session could not be closed.";
+        }
         finally { UpdateOperationalState(); }
     }
 
@@ -264,7 +338,15 @@ public partial class MainWindow : Window
                 amount,
                 reason);
             outbox.Remove(operation.OperationId);
-            StatusText.Text = "Cash movement recorded.";
+            try
+            {
+                await RefreshCashSummaryAsync();
+                StatusText.Text = "Cash movement recorded and reconciliation refreshed.";
+            }
+            catch
+            {
+                StatusText.Text = "Cash movement was recorded, but reconciliation could not be refreshed. Use Refresh reconciliation before closing.";
+            }
         }
         catch (Exception exception)
         {
@@ -295,7 +377,20 @@ public partial class MainWindow : Window
     private async void ReplayOutbox_Click(object sender, RoutedEventArgs e)
     {
         if (_authentication.CurrentToken is null) return;
-        try { SetBusy("Replaying offline operations…"); var replayed = await new PosOutboxReplayer(_configuration, outbox).ReplayAsync(_authentication.CurrentToken); StatusText.Text = $"Replayed {replayed} offline operation(s)."; }
+        try
+        {
+            SetBusy("Replaying offline operations…");
+            var replayed = await new PosOutboxReplayer(_configuration, outbox).ReplayAsync(_authentication.CurrentToken);
+            bool summaryRefreshed = true;
+            if (cashSessionId is not null)
+            {
+                try { await RefreshCashSummaryAsync(); }
+                catch { summaryRefreshed = false; }
+            }
+            StatusText.Text = summaryRefreshed
+                ? $"Replayed {replayed} offline operation(s)."
+                : $"Replayed {replayed} offline operation(s), but reconciliation refresh failed. Refresh it before closing.";
+        }
         catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Offline replay stopped; operations remain queued."; }
         finally { UpdateOperationalState(); }
     }
@@ -514,6 +609,76 @@ public partial class MainWindow : Window
         UpdateOperationalState();
     }
 
+    private async void RefreshReconciliation_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsSignedIn() || (cashSessionId is null && cashSummary is null)) return;
+        try
+        {
+            SetBusy("Refreshing cash reconciliation…");
+            await RefreshCashSummaryAsync();
+            StatusText.Text = "Cash reconciliation refreshed. Review it before closing the drawer.";
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = exception is PosApiException api
+                ? api.Message
+                : "Cash reconciliation could not be refreshed.";
+        }
+        finally { UpdateOperationalState(); }
+    }
+
+    private async Task RefreshCashSummaryAsync()
+    {
+        Guid? reconciliationSessionId = cashSessionId ?? cashSummary?.CashSessionId;
+        if (_authentication.CurrentToken is null || reconciliationSessionId is null) return;
+        cashSummary = await _api.GetCashSessionSummaryAsync(
+            _authentication.CurrentToken, reconciliationSessionId.Value);
+        cashSummaryVerified = true;
+        RenderCashSummary();
+    }
+
+    private void ClosingCash_Changed(object sender, TextChangedEventArgs e) => RenderCashSummary();
+
+    private void RenderCashSummary()
+    {
+        if (!viewInitialized || cashSummary is null)
+        {
+            if (viewInitialized)
+            {
+                ReconciliationStatusText.Text = cashSessionId is null
+                    ? "Open a cash session to view reconciliation."
+                    : "Refresh reconciliation to load this cash session.";
+                ReconciliationOpeningText.Text = "—";
+                ReconciliationMovementsText.Text = "—";
+                ReconciliationExpectedText.Text = "—";
+                ReconciliationVarianceText.Text = "—";
+                ReconciliationVarianceText.Foreground = System.Windows.Media.Brushes.DimGray;
+                CashMovementList.ItemsSource = null;
+            }
+            return;
+        }
+
+        ReconciliationStatusText.Text = cashSummary.Status == "closed"
+            ? cashSummaryVerified
+                ? $"Closed · server verified · version {cashSummary.ConcurrencyVersion}"
+                : $"Closed · verification pending · provisional version {cashSummary.ConcurrencyVersion}"
+            : $"Open · version {cashSummary.ConcurrencyVersion} · refresh before close";
+        ReconciliationOpeningText.Text = CashierPresentation.Money(cashSummary.OpeningAmount, cashSummary.Currency);
+        ReconciliationMovementsText.Text = CashierPresentation.Money(cashSummary.NetMovementAmount, cashSummary.Currency);
+        ReconciliationExpectedText.Text = CashierPresentation.Money(cashSummary.ExpectedClosingAmount, cashSummary.Currency);
+        decimal? counted = decimal.TryParse(ClosingCashTextBox.Text, out decimal value) && value >= 0 ? value : null;
+        decimal? variance = cashSummary.Status == "closed"
+            ? cashSummary.VarianceAmount
+            : counted - cashSummary.ExpectedClosingAmount;
+        ReconciliationVarianceText.Text = variance is null
+            ? "Enter counted cash"
+            : CashierPresentation.Money(variance.Value, cashSummary.Currency);
+        ReconciliationVarianceText.Foreground = variance is 0 ? System.Windows.Media.Brushes.SeaGreen
+            : variance is null ? System.Windows.Media.Brushes.DimGray
+            : System.Windows.Media.Brushes.Firebrick;
+        CashMovementList.ItemsSource = cashSummary.Movements;
+    }
+
     private void SignOut_Click(object sender, RoutedEventArgs e)
     {
         if (_activeShift is not null || cashSessionId is not null || pendingOrder is not null || pendingCheckout is not null)
@@ -524,6 +689,9 @@ public partial class MainWindow : Window
 
         _authentication.SignOut();
         reauthenticationRequired = false;
+        cashSummary = null;
+        cashSummaryVerified = false;
+        RenderCashSummary();
         StatusText.Text = "Signed out. Stored credentials were cleared.";
         UpdateOperationalState();
     }
@@ -579,6 +747,7 @@ public partial class MainWindow : Window
         OpenCashButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is null;
         CloseCashButton.IsEnabled = signedIn && cashSessionId is not null
             && pendingOrder is null && pendingCheckout is null && !HasQueuedCashMovements(cashSessionId.Value);
+        RefreshReconciliationButton.IsEnabled = signedIn && (cashSessionId is not null || cashSummary is not null);
         RecordMovementButton.IsEnabled = signedIn && cashSessionId is not null;
         MenuList.IsEnabled = CanEditCart();
         CartList.IsEnabled = CanEditCart();
@@ -604,6 +773,7 @@ public partial class MainWindow : Window
             ? "no attempts yet"
             : $"last attempt {lastAttempt.Value.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
         OutboxStatusText.Text = $"Offline queue: {operations.Count - rejected} pending, {rejected} rejected · {lastAttemptText}";
+        OutboxOperationList.ItemsSource = operations;
         SessionText.Text = signedIn ? (hasActiveShift ? "Signed in · Shift open" : "Signed in · Open a shift") : "Signed out";
         ActiveShiftText.Text = hasActiveShift
             ? $"Shift {_activeShift!.ShiftNumber} · Cash session {(cashSessionId is null ? "closed" : "open")}"

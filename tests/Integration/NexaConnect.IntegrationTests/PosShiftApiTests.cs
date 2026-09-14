@@ -20,6 +20,8 @@ using IAuthorizationDecisionClient = POS::NexaConnect.Services.POS.Application.S
 using IRestaurantScopeReader = POS::NexaConnect.Services.POS.Application.Shifts.IRestaurantScopeReader;
 using IShiftStore = POS::NexaConnect.Services.POS.Application.Shifts.IShiftStore;
 using ICashSessionStore = POS::NexaConnect.Services.POS.Application.CashSessions.ICashSessionStore;
+using CashSessionSummary = POS::NexaConnect.Services.POS.Application.CashSessions.CashSessionSummary;
+using CashMovementSummary = POS::NexaConnect.Services.POS.Application.CashSessions.CashMovementSummary;
 using ITerminalStore = POS::NexaConnect.Services.POS.Application.Terminals.ITerminalStore;
 using PosUserContext = POS::NexaConnect.Services.POS.Application.Shifts.PosUserContext;
 using RestaurantAuthorizationScope = POS::NexaConnect.Services.POS.Application.Shifts.RestaurantAuthorizationScope;
@@ -149,9 +151,41 @@ public sealed class PosShiftApiTests : IClassFixture<PosShiftApiFactory>
             Guid.NewGuid());
         Assert.Equal(HttpStatusCode.Accepted, movement.StatusCode);
 
-        HttpResponseMessage close = await client.PostAsJsonAsync(
-            $"/api/pos/v1/cash-sessions/{opened.CashSessionId:D}/close",
-            new { actualClosingAmount = 125m });
+        using var summaryRequest = new HttpRequestMessage(HttpMethod.Get,
+            $"/api/pos/v1/cash-sessions/{opened.CashSessionId:D}/summary");
+        summaryRequest.Headers.Add("X-Nexa-Terminal-Id", PosShiftApiFactory.TerminalId.ToString("D"));
+        using HttpResponseMessage summaryResponse = await client.SendAsync(summaryRequest);
+        Assert.Equal(HttpStatusCode.OK, summaryResponse.StatusCode);
+        var summary = await summaryResponse.Content.ReadFromJsonAsync<CashSessionSummaryResponse>();
+        Assert.NotNull(summary);
+        Assert.Equal(105m, summary!.ExpectedClosingAmount);
+        Assert.Single(summary.Movements);
+
+        using var staleCloseRequest = new HttpRequestMessage(HttpMethod.Post,
+            $"/api/pos/v1/cash-sessions/{opened.CashSessionId:D}/close")
+        {
+            Content = JsonContent.Create(new
+            {
+                actualClosingAmount = 125m,
+                expectedConcurrencyVersion = summary.ConcurrencyVersion - 1
+            })
+        };
+        staleCloseRequest.Headers.Add("X-Nexa-Terminal-Id", PosShiftApiFactory.TerminalId.ToString("D"));
+        using HttpResponseMessage staleClose = await client.SendAsync(staleCloseRequest);
+        Assert.Equal(HttpStatusCode.Conflict, staleClose.StatusCode);
+        Assert.False(_factory.CashSessions.WasClosed(opened.CashSessionId));
+
+        using var closeRequest = new HttpRequestMessage(HttpMethod.Post,
+            $"/api/pos/v1/cash-sessions/{opened.CashSessionId:D}/close")
+        {
+            Content = JsonContent.Create(new
+            {
+                actualClosingAmount = 125m,
+                expectedConcurrencyVersion = summary.ConcurrencyVersion
+            })
+        };
+        closeRequest.Headers.Add("X-Nexa-Terminal-Id", PosShiftApiFactory.TerminalId.ToString("D"));
+        using HttpResponseMessage close = await client.SendAsync(closeRequest);
         Assert.Equal(HttpStatusCode.NoContent, close.StatusCode);
         Assert.True(_factory.CashSessions.WasClosed(opened.CashSessionId));
     }
@@ -174,6 +208,25 @@ public sealed class PosShiftApiTests : IClassFixture<PosShiftApiFactory>
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(0, _factory.CashSessions.MovementCount(cashSessionId));
+    }
+
+    [Fact]
+    public async Task Cash_reconciliation_requires_authentication_and_terminal_scope()
+    {
+        _factory.Reset();
+        using var authenticated = AuthenticatedClient();
+        Guid cashSessionId = await OpenCashSessionAsync(authenticated);
+
+        using HttpResponseMessage missingTerminal = await authenticated.GetAsync(
+            $"/api/pos/v1/cash-sessions/{cashSessionId:D}/summary");
+        Assert.Equal(HttpStatusCode.BadRequest, missingTerminal.StatusCode);
+
+        using var anonymous = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get,
+            $"/api/pos/v1/cash-sessions/{cashSessionId:D}/summary");
+        request.Headers.Add("X-Nexa-Terminal-Id", PosShiftApiFactory.TerminalId.ToString("D"));
+        using HttpResponseMessage unauthorized = await anonymous.SendAsync(request);
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
     }
 
     [Fact]
@@ -266,6 +319,8 @@ public sealed class PosShiftApiTests : IClassFixture<PosShiftApiFactory>
 
     private sealed record OpenResponse(Guid ShiftId, Guid AuthorizationDecisionId);
     private sealed record CashSessionResponse(Guid CashSessionId, string OpenedBy);
+    private sealed record CashSessionSummaryResponse(decimal ExpectedClosingAmount, long ConcurrencyVersion,
+        IReadOnlyList<CashMovementSummary> Movements);
 }
 
 public sealed class PosShiftApiFactory : WebApplicationFactory<PosProgram>
@@ -427,6 +482,7 @@ internal sealed class InMemoryCashSessionStore : ICashSessionStore
 {
     private readonly Dictionary<Guid, CashSessionState> _sessions = [];
     private readonly Dictionary<(Guid TerminalId, Guid OperationId), string> _operations = [];
+    private readonly Dictionary<Guid, List<CashMovementSummary>> _movements = [];
 
     public Task<Guid> OpenAsync(
         Guid shiftId,
@@ -437,6 +493,7 @@ internal sealed class InMemoryCashSessionStore : ICashSessionStore
     {
         Guid id = Guid.NewGuid();
         _sessions[id] = new CashSessionState(shiftId, storeId, openingAmount, openingAmount, false);
+        _movements[id] = [];
         return Task.FromResult(id);
     }
 
@@ -475,19 +532,43 @@ internal sealed class InMemoryCashSessionStore : ICashSessionStore
         _sessions[cashSessionId] = session with
         {
             ExpectedAmount = session.ExpectedAmount + signedAmount,
-            MovementCount = session.MovementCount + 1
+            MovementCount = session.MovementCount + 1,
+            ConcurrencyVersion = session.ConcurrencyVersion + 1
         };
+        _movements[cashSessionId].Add(new CashMovementSummary(Guid.NewGuid(), movementType, amount,
+            reasonCode, DateTimeOffset.UtcNow));
         return Task.FromResult(true);
     }
 
-    public Task CloseAsync(Guid cashSessionId, decimal actualClosingAmount, CancellationToken cancellationToken)
+    public Task<CashSessionSummary?> GetSummaryAsync(Guid cashSessionId, string subject, Guid terminalId,
+        CancellationToken cancellationToken)
     {
-        if (!_sessions.TryGetValue(cashSessionId, out CashSessionState? session) || session.Closed)
+        if (!_sessions.TryGetValue(cashSessionId, out CashSessionState? session))
+            return Task.FromResult<CashSessionSummary?>(null);
+        decimal? actual = session.Closed ? session.ActualClosingAmount : null;
+        decimal? variance = actual - session.ExpectedAmount;
+        return Task.FromResult<CashSessionSummary?>(new CashSessionSummary(
+            cashSessionId, session.ShiftId, session.StoreId, terminalId, "USD", session.OpeningAmount,
+            session.ExpectedAmount - session.OpeningAmount, session.ExpectedAmount, actual, variance,
+            session.Closed ? "closed" : "open", DateTimeOffset.UtcNow, session.Closed ? DateTimeOffset.UtcNow : null,
+            session.ConcurrencyVersion, _movements[cashSessionId]));
+    }
+
+    public Task CloseAsync(Guid cashSessionId, decimal actualClosingAmount, long expectedConcurrencyVersion,
+        string subject, Guid terminalId, CancellationToken cancellationToken)
+    {
+        if (!_sessions.TryGetValue(cashSessionId, out CashSessionState? session) || session.Closed ||
+            session.ConcurrencyVersion != expectedConcurrencyVersion)
         {
-            throw new InvalidOperationException("The cash session is missing or already closed.");
+            throw new InvalidOperationException("The cash session changed.");
         }
 
-        _sessions[cashSessionId] = session with { Closed = true };
+        _sessions[cashSessionId] = session with
+        {
+            Closed = true,
+            ActualClosingAmount = actualClosingAmount,
+            ConcurrencyVersion = session.ConcurrencyVersion + 1
+        };
         return Task.CompletedTask;
     }
 
@@ -503,6 +584,7 @@ internal sealed class InMemoryCashSessionStore : ICashSessionStore
     {
         _sessions.Clear();
         _operations.Clear();
+        _movements.Clear();
     }
 
     private sealed record CashSessionState(
@@ -511,7 +593,9 @@ internal sealed class InMemoryCashSessionStore : ICashSessionStore
         decimal OpeningAmount,
         decimal ExpectedAmount,
         bool Closed,
-        int MovementCount = 0);
+        int MovementCount = 0,
+        decimal? ActualClosingAmount = null,
+        long ConcurrencyVersion = 1);
 }
 
 internal sealed class InMemoryShiftStore : IShiftStore

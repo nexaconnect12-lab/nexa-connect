@@ -6,7 +6,7 @@ The WPF cashier has Checkout, Payment, Shift & cash, and Terminal & sync views. 
 
 The header identifies the configured branch/terminal with abbreviated IDs and displays authentication/shift state. It does not resolve employee display names or branch names. Connectivity is checked by each operation; the header does not claim continuous health or offline order capability. The layout supports a minimum 1000 × 680 device-independent window with scrollable payment and management views, 48-unit action buttons, keyboard focus indicators, and accessible input names.
 
-Service authorization, tenant ownership, Order totals, cash attribution, and transactional audit/event publication remain authoritative. UI visibility is not authorization. The cart rejects products whose menu currency differs from the configured checkout currency; it does not convert currencies. No service schema or endpoint changed in this slice.
+Service authorization, tenant ownership, Order totals, cash attribution, and transactional audit/event publication remain authoritative. UI visibility is not authorization. The cart rejects products whose menu currency differs from the configured checkout currency; it does not convert currencies. This slice adds a scoped summary endpoint and changes the close request contract without changing the POS schema.
 
 ## Recovery and operator boundaries
 
@@ -17,6 +17,8 @@ Service authorization, tenant ownership, Order totals, cash attribution, and tra
 - Recovery is persisted with `OutcomeUncertain=true` before sending payment confirmation. Failure to persist prevents the network call. Timeout, rejected HTTP responses, process loss, or failure to remove recovery state retain the same settlement identity for verification.
 - The cashier must explicitly confirm receipt before the first settlement. Verify payment reuses the original command and warns against collecting again. PromptPay requires the configured readable QR, receipt confirmation, and reference.
 - Close cash is unavailable while any payment is pending or that session has queued/rejected cash movements. Close shift requires a closed cash session and no pending payment. Sign-out remains blocked while any of these are active.
+- Shift & cash displays authoritative opening cash, signed net movements, expected cash, counted-cash variance preview, and movement history. Close sends the reviewed concurrency version and terminal scope. If the version changed, the session remains open and the cashier must review refreshed figures before trying again. If the post-close read fails, the UI labels its calculated display as verification pending and permits refreshing the closed session; do not treat it as final until the service returns the closed summary.
+- Terminal & sync lists unresolved operation IDs, states, attempt counts, bounded HTTP status, and last-attempt time. Protected request payloads remain hidden and rejected operations have authenticated retry without an unaudited discard action.
 - Manual cash movements do not settle or refund an Order. The screen explains that cash checkout is projected automatically when the settlement consumer is enabled.
 
 ## Automated verification
@@ -25,7 +27,7 @@ From the repository root:
 
 ```powershell
 dotnet build src/Clients/NexaConnect.POS/NexaConnect.POS.csproj --no-restore --verbosity minimal
-dotnet test tests/Unit/NexaConnect.UnitTests/NexaConnect.UnitTests.csproj --no-restore --filter 'FullyQualifiedName~PosLocalSqliteStoreTests|FullyQualifiedName~PosPendingSettlementRecoveryTests|FullyQualifiedName~SettlementAttemptTests|FullyQualifiedName~CashierPresentationTests|FullyQualifiedName~PosCheckoutIntegrationTests' --verbosity minimal
+dotnet test tests/Unit/NexaConnect.UnitTests/NexaConnect.UnitTests.csproj --no-restore --filter 'FullyQualifiedName~PosLocalSqliteStoreTests|FullyQualifiedName~PosPendingSettlementRecoveryTests|FullyQualifiedName~SettlementAttemptTests|FullyQualifiedName~CashierPresentationTests|FullyQualifiedName~PosCheckoutIntegrationTests|FullyQualifiedName~PosCashSessionApplicationTests' --verbosity minimal
 ```
 
 Windows protected-state tests require the normal interactive user's DPAPI key store. In a disposable test run, set `NEXACONNECT_POS_DPAPI_ACCEPTANCE=1` and include `FullyQualifiedName~PosPendingSettlementRecoveryTests|FullyQualifiedName~PosLocalSqliteStoreTests` in the filter. The tests create isolated temporary databases and legacy files. They do not drive WPF or authenticate against Keycloak.
@@ -42,7 +44,7 @@ Use a disposable test branch, cashier identity, matching menu, enrolled terminal
 4. Repeat with manually verified PromptPay. Missing QR/reference/receipt confirmation must prevent settlement. Verify no drawer movement is attributed to PromptPay.
 5. In disposable infrastructure, interrupt a settlement response and restart the client under the same Windows user. The Payment view must restore the original amount, method, reference, and verification action. Verify once and confirm one Order settlement/event projection.
 6. Repeat with a denied branch permission and a concurrent settlement. Confirm recovery is retained, no automatic new payment is made, and operator guidance explains reconciliation.
-7. Queue a cash movement with the service unavailable, restore it, and sync. Rejected/pending movements must block cash closure. Enter the counted cash, close cash, then close shift. Inspect server-side reconciliation and audit; the current UI does not display a full expected-versus-counted reconciliation report.
+7. Queue a cash movement with the service unavailable, restore it, and sync. Rejected/pending movements must block cash closure. Refresh reconciliation and confirm opening plus signed movements equals expected cash. Enter an exact count and verify zero preview variance, close cash, then close shift. In disposable data, repeat with a non-zero count and verify the closed summary retains the variance. Insert a concurrent movement after review and confirm the first close returns conflict/refreshed guidance without closing.
 8. Interrupt the placement response and restart under the same Windows user before payment recovery is saved. Verify the original order and confirm its order identity and settlement key are retained. Intermediate outcomes and unrecognized conflicts must keep checkout locked; a matching terminal Rejected or PaymentFailed result releases the checkout lock. Changing terminal scope or checkout mode must reject recovery before another HTTP placement.
 
 Retain sanitized boolean evidence for these scenarios. Do not include tokens, QR banking details, receipt references, personal data, or full HTTP bodies. Record real OIDC, WPF interaction, service graph, and terminal hardware coverage separately.
@@ -51,7 +53,7 @@ Keep terminal configuration unchanged while checkout or settlement is pending. N
 
 ## Remaining boundaries
 
-Full offline order/shift/device synchronization, hardware drivers, human-readable identity context, full reconciliation reporting, and Thai localization are subsequent work. SQLite now protects current operational state and cash-movement replay across brief client/service interruption; it does not execute orders without the service graph or cache offline authorization. Incomplete server workflow steps still require reconciliation. Only a matching terminal Rejected or PaymentFailed result releases the checkout lock; other failed commands remain retained.
+Full offline order/shift/device synchronization, hardware drivers, human-readable identity context, reconciliation history/supervisor sign-off/export, and Thai localization are subsequent work. The current reconciliation view covers the active or just-closed terminal cash session and its movement rows. SQLite protects current operational state and cash-movement replay across brief client/service interruption; it does not execute orders without the service graph or cache offline authorization. Incomplete server workflow steps still require reconciliation. Only a matching terminal Rejected or PaymentFailed result releases the checkout lock; other failed commands remain retained.
 
 ## Sign-in recovery check
 

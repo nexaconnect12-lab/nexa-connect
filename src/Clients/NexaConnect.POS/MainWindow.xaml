@@ -221,12 +221,33 @@
                 <TextBox x:Name="OpeningCashTextBox" Text="0" AutomationProperties.Name="Opening cash" />
                 <Button x:Name="OpenCashButton" Content="Open cash session" Click="OpenCash_Click" />
                 <TextBlock Text="Counted closing cash" />
-                <TextBox x:Name="ClosingCashTextBox" Text="0" AutomationProperties.Name="Counted closing cash" />
+                <TextBox x:Name="ClosingCashTextBox" Text="0" AutomationProperties.Name="Counted closing cash" TextChanged="ClosingCash_Changed" />
                 <Button x:Name="CloseCashButton" Content="Close cash session" Click="CloseCash_Click" />
               </StackPanel>
             </Border>
             <Border Grid.Column="1" Style="{StaticResource Card}">
               <StackPanel>
+                <TextBlock Text="Cash reconciliation" Style="{StaticResource Heading}" />
+                <TextBlock x:Name="ReconciliationStatusText" Text="Open a cash session to view reconciliation." TextWrapping="Wrap" Margin="0,0,0,12" />
+                <UniformGrid Columns="2" Margin="0,0,0,8">
+                  <TextBlock Text="Opening" Foreground="#63756A" />
+                  <TextBlock x:Name="ReconciliationOpeningText" Text="—" FontWeight="SemiBold" />
+                  <TextBlock Text="Net movements" Foreground="#63756A" />
+                  <TextBlock x:Name="ReconciliationMovementsText" Text="—" FontWeight="SemiBold" />
+                  <TextBlock Text="Expected cash" Foreground="#63756A" />
+                  <TextBlock x:Name="ReconciliationExpectedText" Text="—" FontWeight="SemiBold" />
+                  <TextBlock Text="Projected variance" Foreground="#63756A" />
+                  <TextBlock x:Name="ReconciliationVarianceText" Text="—" FontWeight="SemiBold" />
+                </UniformGrid>
+                <Button x:Name="RefreshReconciliationButton" Content="Refresh reconciliation" Click="RefreshReconciliation_Click" HorizontalAlignment="Left" />
+                <DataGrid x:Name="CashMovementList" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Height="180" Margin="0,8,0,20" HeadersVisibility="Column">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Time" Binding="{Binding OccurredAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="145" />
+                    <DataGridTextColumn Header="Type" Binding="{Binding MovementType}" Width="110" />
+                    <DataGridTextColumn Header="Amount" Binding="{Binding Amount, StringFormat=N2}" Width="90" />
+                    <DataGridTextColumn Header="Reason" Binding="{Binding ReasonCode}" Width="*" />
+                  </DataGrid.Columns>
+                </DataGrid>
                 <TextBlock Text="Cash movements" Style="{StaticResource Heading}" />
                 <TextBlock Text="Movement type" />
                 <ComboBox x:Name="MovementTypeComboBox" SelectedIndex="0" AutomationProperties.Name="Cash movement type">
@@ -257,6 +278,15 @@
               <Button x:Name="EnrollTerminalButton" Content="Enroll terminal" Click="EnrollTerminal_Click" HorizontalAlignment="Left" />
               <TextBlock Text="Cash movement synchronization" Style="{StaticResource Heading}" Margin="0,24,0,16" />
               <TextBlock x:Name="OutboxStatusText" Margin="0,0,0,16" />
+              <DataGrid x:Name="OutboxOperationList" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Height="220" Margin="0,0,0,12" HeadersVisibility="Column">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Operation" Binding="{Binding OperationId}" Width="230" />
+                  <DataGridTextColumn Header="State" Binding="{Binding State}" Width="90" />
+                  <DataGridTextColumn Header="Attempts" Binding="{Binding Attempts}" Width="75" />
+                  <DataGridTextColumn Header="HTTP" Binding="{Binding TerminalFailureStatusCode}" Width="65" />
+                  <DataGridTextColumn Header="Last attempt" Binding="{Binding LastAttemptAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="*" />
+                </DataGrid.Columns>
+              </DataGrid>
               <WrapPanel>
                 <Button x:Name="ReplayOutboxButton" Content="Sync pending movements" Click="ReplayOutbox_Click" />
                 <Button x:Name="RetryRejectedOutboxButton" Content="Retry rejected movements" Click="RetryRejectedOutbox_Click" />

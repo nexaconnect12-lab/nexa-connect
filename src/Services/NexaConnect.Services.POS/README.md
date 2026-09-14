@@ -10,12 +10,13 @@ The POS service owns terminals, stores, shifts, and server-side POS operations. 
 - `POST /api/pos/v1/shifts/{shiftId}/close` closes an open shift after validating the restaurant scope and the `pos.shift.close` authorization decision.
 - `POST /api/pos/v1/cash-sessions/open` opens the single cash session allowed for an open shift. Reopening cash on that shift returns a safe `409`: restore/reconcile an existing open session, or close a shift whose session is already closed and start a new shift.
 - `POST /api/pos/v1/cash-sessions/{cashSessionId}/movements` records a sale, refund, pay-in, pay-out, or float adjustment.
-- `POST /api/pos/v1/cash-sessions/{cashSessionId}/close` closes a cash session and calculates the variance.
+- `GET /api/pos/v1/cash-sessions/{cashSessionId}/summary` returns the cashier/terminal reconciliation, expected cash, movement history, status, and concurrency version.
+- `POST /api/pos/v1/cash-sessions/{cashSessionId}/close` closes a session using its reviewed concurrency version and calculates the stored expected amount and variance.
 - `POST /api/pos/v1/terminals/enroll` enrolls or reactivates a terminal after the `pos.terminal.enroll` authorization decision.
 
 All listed endpoints require an authenticated bearer token with the `nexaconnect-api` audience. Missing authentication context is rejected. Shift and terminal-enrollment operations reject invalid branch/store/terminal scope and denied authorization. Concurrent terminal or shift-number conflicts return `409`; a stale close returns `409` rather than overwriting another change. If Restaurant or Authorization is unavailable, shift and terminal-enrollment operations return `503` without exposing provider details.
 
-Every cash movement requires the paired POS outbox headers `X-Client-Operation-Id` and `X-Nexa-Terminal-Id`; the native client persists the operation before its first HTTP attempt. Missing, malformed, or incomplete headers return `400`. PostgreSQL verifies the terminal and authenticated subject against the cash session's shift, then records the terminal-scoped operation in `sync_operations` and commits it with the movement. Retrying the same operation id and payload is accepted without duplicating the cash movement; a scope mismatch returns `403`, and reusing the id with a different movement returns `409`.
+Every cash movement requires the paired POS outbox headers `X-Client-Operation-Id` and `X-Nexa-Terminal-Id`; the native client persists the operation before its first HTTP attempt. Missing, malformed, or incomplete headers return `400`. PostgreSQL verifies the terminal and authenticated subject against the cash session's shift, then records the terminal-scoped operation and commits it with the movement and an advanced cash-session version. Retrying the same operation id and payload is accepted without duplicating the movement or advancing the version again; a scope mismatch returns `403`, and reusing the id with a different movement returns `409`. Summary and close also require the terminal header. Summary uses the shift subject and terminal as resource predicates. Close additionally compares the reviewed concurrency version in the same update that stores expected cash, counted cash, variance, closure time, and the next version.
 
 ## Configuration
 
@@ -32,7 +33,7 @@ Production requests must use HTTPS. The service rejects cleartext HTTP requests 
 
 For local development, start the service with the `https` launch profile (`https://localhost:7120` and `http://localhost:5225`) and run the Restaurant and Authorization services at their configured development addresses.
 
-POS emits structured JSON request logs and safe cash replay accepted/replayed/denied/conflict events without request bodies, tokens, or cash values. In Grafana Explore, query `{service_name="nexaconnect-pos"} |= "POS offline cash movement"`, then narrow by `CorrelationId`, `CashSessionId`, `TerminalId`, or `ClientOperationId`.
+POS emits structured JSON request logs and safe cash replay accepted/replayed/denied/conflict events plus reconciliation-denial and close-conflict events without request bodies, tokens, or cash values. In Grafana Explore, query `{service_name="nexaconnect-pos"} |= "POS cash"`, then narrow by `CorrelationId`, `CashSessionId`, `TerminalId`, or `ClientOperationId`.
 
 ## Verification
 

@@ -56,6 +56,36 @@ public sealed class PosCashSessionApplicationTests
         Assert.Equal(64, store.PayloadHash?.Length);
     }
 
+    [Fact]
+    public async Task Summary_requires_terminal_scope_and_returns_server_calculated_amounts()
+    {
+        var store = new FakeCashSessionStore();
+        var service = new CashSessionApplicationService(store);
+
+        CashSessionSummary result = await service.GetSummaryAsync(
+            store.SessionId, "cashier-1", store.TerminalIdValue, CancellationToken.None);
+
+        Assert.Equal(125m, result.ExpectedClosingAmount);
+        Assert.Equal(25m, result.NetMovementAmount);
+        await Assert.ThrowsAsync<CashSessionValidationException>(() => service.GetSummaryAsync(
+            store.SessionId, "cashier-1", Guid.Empty, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Close_requires_reviewed_version_and_passes_cashier_terminal_scope()
+    {
+        var store = new FakeCashSessionStore();
+        var service = new CashSessionApplicationService(store);
+
+        await service.CloseAsync(store.SessionId, 124m, 7, "cashier-1", store.TerminalIdValue,
+            CancellationToken.None);
+
+        Assert.Equal(7, store.ClosedVersion);
+        Assert.Equal("cashier-1", store.ClosedSubject);
+        await Assert.ThrowsAsync<CashSessionValidationException>(() => service.CloseAsync(
+            store.SessionId, 124m, 0, "cashier-1", store.TerminalIdValue, CancellationToken.None));
+    }
+
     private sealed class FakeCashSessionStore : ICashSessionStore
     {
         public Guid SessionId { get; } = Guid.NewGuid();
@@ -64,6 +94,9 @@ public sealed class PosCashSessionApplicationTests
         public Guid? ClientOperationId { get; private set; }
         public Guid? TerminalId { get; private set; }
         public string? PayloadHash { get; private set; }
+        public Guid TerminalIdValue { get; } = Guid.NewGuid();
+        public long? ClosedVersion { get; private set; }
+        public string? ClosedSubject { get; private set; }
 
         public Task<Guid> OpenAsync(Guid shiftId, Guid storeId, string currency, decimal openingAmount, CancellationToken cancellationToken)
         {
@@ -80,7 +113,19 @@ public sealed class PosCashSessionApplicationTests
             return Task.FromResult(true);
         }
 
-        public Task CloseAsync(Guid cashSessionId, decimal actualClosingAmount, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
+        public Task<CashSessionSummary?> GetSummaryAsync(Guid cashSessionId, string subject, Guid terminalId,
+            CancellationToken cancellationToken) => Task.FromResult<CashSessionSummary?>(
+                cashSessionId == SessionId && subject == "cashier-1" && terminalId == TerminalIdValue
+                    ? new CashSessionSummary(SessionId, Guid.NewGuid(), Guid.NewGuid(), TerminalIdValue, "THB",
+                        100m, 25m, 125m, null, null, "open", DateTimeOffset.UtcNow, null, 7, [])
+                    : null);
+
+        public Task CloseAsync(Guid cashSessionId, decimal actualClosingAmount, long expectedConcurrencyVersion,
+            string subject, Guid terminalId, CancellationToken cancellationToken)
+        {
+            ClosedVersion = expectedConcurrencyVersion;
+            ClosedSubject = subject;
+            return Task.CompletedTask;
+        }
     }
 }

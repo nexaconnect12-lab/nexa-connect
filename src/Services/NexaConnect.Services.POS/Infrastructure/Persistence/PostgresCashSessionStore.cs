@@ -1,3 +1,4 @@
+using System.Data;
 using Npgsql;
 using NexaConnect.Services.POS.Application.CashSessions;
 
@@ -99,6 +100,18 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
             {
                 throw new InvalidOperationException("The cash session is not open.");
             }
+        }
+
+        const string advanceSessionSql = """
+            UPDATE cash_sessions
+            SET updated_at_utc = now(), concurrency_version = concurrency_version + 1
+            WHERE id = $1 AND status = 'open';
+            """;
+        await using (var advanceSession = new NpgsqlCommand(advanceSessionSql, connection, transaction))
+        {
+            advanceSession.Parameters.AddWithValue(cashSessionId);
+            if (await advanceSession.ExecuteNonQueryAsync(cancellationToken) != 1)
+                throw new InvalidOperationException("The cash session changed while recording the movement.");
         }
 
         if (clientOperationId is not null)
@@ -225,26 +238,119 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
     public async Task CloseAsync(
         Guid cashSessionId,
         decimal actualClosingAmount,
+        long expectedConcurrencyVersion,
+        string subject,
+        Guid terminalId,
         CancellationToken cancellationToken)
     {
         const string sql = """
-            UPDATE cash_sessions
+            UPDATE cash_sessions session
             SET status = 'closed', actual_closing_amount = $2,
+                expected_closing_amount = opening_amount + COALESCE(
+                    (SELECT SUM(CASE WHEN movement_type IN ('sale', 'pay_in', 'float_adjustment')
+                                     THEN amount ELSE -amount END)
+                     FROM cash_movements WHERE cash_session_id = session.id), 0),
                 variance_amount = $2 - (opening_amount + COALESCE(
                     (SELECT SUM(CASE WHEN movement_type IN ('sale', 'pay_in', 'float_adjustment')
                                      THEN amount ELSE -amount END)
-                     FROM cash_movements WHERE cash_session_id = cash_sessions.id), 0)),
-                closed_at_utc = now(), updated_at_utc = now()
-            WHERE id = $1 AND status = 'open';
+                     FROM cash_movements WHERE cash_session_id = session.id), 0)),
+                closed_at_utc = now(), updated_at_utc = now(), concurrency_version = concurrency_version + 1
+            WHERE session.id = $1 AND session.status = 'open' AND session.concurrency_version = $3
+              AND EXISTS (
+                  SELECT 1 FROM shifts shift
+                  WHERE shift.id = session.shift_id AND shift.store_id = session.store_id
+                    AND shift.terminal_id = $4 AND shift.employee_identity_subject_id = $5);
             """;
         await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue(cashSessionId);
         command.Parameters.AddWithValue(actualClosingAmount);
+        command.Parameters.AddWithValue(expectedConcurrencyVersion);
+        command.Parameters.AddWithValue(terminalId);
+        command.Parameters.AddWithValue(subject);
         if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
         {
-            throw new InvalidOperationException("The cash session is missing or already closed.");
+            throw new InvalidOperationException(
+                "The cash session is missing, closed, belongs to another terminal or cashier, or changed after reconciliation was reviewed.");
         }
+    }
+
+    public async Task<CashSessionSummary?> GetSummaryAsync(
+        Guid cashSessionId,
+        string subject,
+        Guid terminalId,
+        CancellationToken cancellationToken)
+    {
+        const string sessionSql = """
+            SELECT session.shift_id, session.store_id, shift.terminal_id, btrim(session.currency),
+                   session.opening_amount,
+                   COALESCE(SUM(CASE WHEN movement.movement_type IN ('sale', 'pay_in', 'float_adjustment')
+                                     THEN movement.amount ELSE -movement.amount END), 0),
+                   session.opening_amount + COALESCE(SUM(
+                       CASE WHEN movement.movement_type IN ('sale', 'pay_in', 'float_adjustment')
+                            THEN movement.amount ELSE -movement.amount END), 0),
+                   session.actual_closing_amount, session.variance_amount, session.status,
+                   session.opened_at_utc, session.closed_at_utc, session.concurrency_version
+            FROM cash_sessions session
+            JOIN shifts shift ON shift.id = session.shift_id AND shift.store_id = session.store_id
+            LEFT JOIN cash_movements movement ON movement.cash_session_id = session.id
+            WHERE session.id = $1 AND shift.terminal_id = $2
+              AND shift.employee_identity_subject_id = $3
+            GROUP BY session.id, shift.terminal_id;
+            """;
+        await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(
+            IsolationLevel.RepeatableRead, cancellationToken);
+        await using var sessionCommand = new NpgsqlCommand(sessionSql, connection, transaction);
+        sessionCommand.Parameters.AddWithValue(cashSessionId);
+        sessionCommand.Parameters.AddWithValue(terminalId);
+        sessionCommand.Parameters.AddWithValue(subject);
+        await using NpgsqlDataReader reader = await sessionCommand.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            await reader.CloseAsync();
+            await transaction.CommitAsync(cancellationToken);
+            return null;
+        }
+
+        Guid shiftId = reader.GetGuid(0);
+        Guid storeId = reader.GetGuid(1);
+        Guid persistedTerminalId = reader.GetGuid(2);
+        string currency = reader.GetString(3);
+        decimal openingAmount = reader.GetDecimal(4);
+        decimal netMovementAmount = reader.GetDecimal(5);
+        decimal expectedClosingAmount = reader.GetDecimal(6);
+        decimal? actualClosingAmount = reader.IsDBNull(7) ? null : reader.GetDecimal(7);
+        decimal? varianceAmount = reader.IsDBNull(8) ? null : reader.GetDecimal(8);
+        string status = reader.GetString(9);
+        DateTimeOffset openedAtUtc = reader.GetFieldValue<DateTimeOffset>(10);
+        DateTimeOffset? closedAtUtc = reader.IsDBNull(11) ? null : reader.GetFieldValue<DateTimeOffset>(11);
+        long concurrencyVersion = reader.GetInt64(12);
+        await reader.CloseAsync();
+
+        const string movementsSql = """
+            SELECT id, movement_type, amount, reason_code, occurred_at_utc
+            FROM cash_movements
+            WHERE cash_session_id = $1
+            ORDER BY occurred_at_utc, id;
+            """;
+        await using var movementCommand = new NpgsqlCommand(movementsSql, connection, transaction);
+        movementCommand.Parameters.AddWithValue(cashSessionId);
+        await using NpgsqlDataReader movementReader = await movementCommand.ExecuteReaderAsync(cancellationToken);
+        var movements = new List<CashMovementSummary>();
+        while (await movementReader.ReadAsync(cancellationToken))
+        {
+            movements.Add(new CashMovementSummary(
+                movementReader.GetGuid(0), movementReader.GetString(1), movementReader.GetDecimal(2),
+                movementReader.IsDBNull(3) ? null : movementReader.GetString(3),
+                movementReader.GetFieldValue<DateTimeOffset>(4)));
+        }
+        await movementReader.CloseAsync();
+        await transaction.CommitAsync(cancellationToken);
+
+        return new CashSessionSummary(cashSessionId, shiftId, storeId, persistedTerminalId, currency,
+            openingAmount, netMovementAmount, expectedClosingAmount, actualClosingAmount, varianceAmount,
+            status, openedAtUtc, closedAtUtc, concurrencyVersion, movements);
     }
 
     private enum SyncOperationStatus

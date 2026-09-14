@@ -14,11 +14,37 @@ public sealed record RecordCashMovementCommand(
     Guid? ClientOperationId = null,
     Guid? TerminalId = null);
 
+public sealed record CashMovementSummary(
+    Guid MovementId,
+    string MovementType,
+    decimal Amount,
+    string? ReasonCode,
+    DateTimeOffset OccurredAtUtc);
+
+public sealed record CashSessionSummary(
+    Guid CashSessionId,
+    Guid ShiftId,
+    Guid StoreId,
+    Guid TerminalId,
+    string Currency,
+    decimal OpeningAmount,
+    decimal NetMovementAmount,
+    decimal ExpectedClosingAmount,
+    decimal? ActualClosingAmount,
+    decimal? VarianceAmount,
+    string Status,
+    DateTimeOffset OpenedAtUtc,
+    DateTimeOffset? ClosedAtUtc,
+    long ConcurrencyVersion,
+    IReadOnlyList<CashMovementSummary> Movements);
+
 public interface ICashSessionStore
 {
     Task<Guid> OpenAsync(Guid shiftId, Guid storeId, string currency, decimal openingAmount, CancellationToken cancellationToken);
     Task<bool> RecordMovementAsync(Guid cashSessionId, string movementType, decimal amount, string recordedBy, string? reasonCode, Guid? clientOperationId, Guid? terminalId, string payloadHash, CancellationToken cancellationToken);
-    Task CloseAsync(Guid cashSessionId, decimal actualClosingAmount, CancellationToken cancellationToken);
+    Task<CashSessionSummary?> GetSummaryAsync(Guid cashSessionId, string subject, Guid terminalId, CancellationToken cancellationToken);
+    Task CloseAsync(Guid cashSessionId, decimal actualClosingAmount, long expectedConcurrencyVersion,
+        string subject, Guid terminalId, CancellationToken cancellationToken);
 }
 
 public sealed class CashSessionApplicationService(ICashSessionStore store)
@@ -96,21 +122,40 @@ public sealed class CashSessionApplicationService(ICashSessionStore store)
         }
     }
 
-    public async Task CloseAsync(
+    public async Task<CashSessionSummary> GetSummaryAsync(
         Guid cashSessionId,
-        decimal actualClosingAmount,
         string subject,
+        Guid terminalId,
         CancellationToken cancellationToken)
     {
         RequireSubject(subject);
-        if (cashSessionId == Guid.Empty || actualClosingAmount < 0)
+        if (cashSessionId == Guid.Empty || terminalId == Guid.Empty)
+            throw new CashSessionValidationException("Cash session and terminal identifiers are required.");
+
+        return await store.GetSummaryAsync(cashSessionId, subject, terminalId, cancellationToken)
+            ?? throw new CashSessionNotFoundException();
+    }
+
+    public async Task CloseAsync(
+        Guid cashSessionId,
+        decimal actualClosingAmount,
+        long expectedConcurrencyVersion,
+        string subject,
+        Guid terminalId,
+        CancellationToken cancellationToken)
+    {
+        RequireSubject(subject);
+        if (cashSessionId == Guid.Empty || terminalId == Guid.Empty || actualClosingAmount < 0 ||
+            expectedConcurrencyVersion <= 0)
         {
-            throw new CashSessionValidationException("Cash session and a non-negative closing amount are required.");
+            throw new CashSessionValidationException(
+                "Cash session, terminal, reviewed version, and a non-negative closing amount are required.");
         }
 
         try
         {
-            await store.CloseAsync(cashSessionId, actualClosingAmount, cancellationToken);
+            await store.CloseAsync(cashSessionId, actualClosingAmount, expectedConcurrencyVersion,
+                subject, terminalId, cancellationToken);
         }
         catch (InvalidOperationException exception)
         {
@@ -139,6 +184,7 @@ public sealed class CashSessionApplicationService(ICashSessionStore store)
 
 public sealed class CashSessionValidationException(string message) : Exception(message);
 public sealed class CashSessionAuthorizationException() : Exception("An authenticated POS subject is required.");
+public sealed class CashSessionNotFoundException() : Exception("The cash session was not found for this terminal and cashier.");
 public sealed class CashSessionReplayAuthorizationException() : Exception("The offline operation does not belong to this terminal and shift subject.");
 public sealed class CashSessionConflictException(string message, Exception innerException) : Exception(message, innerException);
 public sealed class DuplicateSyncOperationException(string message) : Exception(message);
