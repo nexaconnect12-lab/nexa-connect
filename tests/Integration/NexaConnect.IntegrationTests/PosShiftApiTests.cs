@@ -20,6 +20,12 @@ using IAuthorizationDecisionClient = POS::NexaConnect.Services.POS.Application.S
 using IRestaurantScopeReader = POS::NexaConnect.Services.POS.Application.Shifts.IRestaurantScopeReader;
 using IShiftStore = POS::NexaConnect.Services.POS.Application.Shifts.IShiftStore;
 using ICashSessionStore = POS::NexaConnect.Services.POS.Application.CashSessions.ICashSessionStore;
+using ICashReviewStore = POS::NexaConnect.Services.POS.Application.CashReviews.ICashReviewStore;
+using CashReviewScope = POS::NexaConnect.Services.POS.Application.CashReviews.CashReviewScope;
+using CashReviewListItem = POS::NexaConnect.Services.POS.Application.CashReviews.CashReviewListItem;
+using CashReviewDetail = POS::NexaConnect.Services.POS.Application.CashReviews.CashReviewDetail;
+using CashReviewHistoryEntry = POS::NexaConnect.Services.POS.Application.CashReviews.CashReviewHistoryEntry;
+using CashReviewDecision = POS::NexaConnect.Services.POS.Domain.CashReviews.CashReviewDecision;
 using CashSessionSummary = POS::NexaConnect.Services.POS.Application.CashSessions.CashSessionSummary;
 using CashMovementSummary = POS::NexaConnect.Services.POS.Application.CashSessions.CashMovementSummary;
 using ITerminalStore = POS::NexaConnect.Services.POS.Application.Terminals.ITerminalStore;
@@ -261,6 +267,58 @@ public sealed class PosShiftApiTests : IClassFixture<PosShiftApiFactory>
     }
 
     [Fact]
+    public async Task Cash_review_api_lists_resolves_replays_and_enforces_resolve_permission()
+    {
+        _factory.Reset();
+        using var client = AuthenticatedClient();
+        string scope = $"organizationId={PosShiftApiFactory.OrganizationId:D}&branchId={PosShiftApiFactory.BranchId:D}&storeId={PosShiftApiFactory.StoreId:D}";
+        string from = Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(-1).ToString("O"));
+        string to = Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(1).ToString("O"));
+
+        using HttpResponseMessage list = await client.GetAsync(
+            $"/api/pos/v1/cash-reviews?{scope}&fromUtc={from}&toUtc={to}&limit=20");
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        Assert.Contains(_factory.CashReviews.SessionId.ToString("D"),
+            await list.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+
+        Guid operationId = Guid.NewGuid();
+        object command = new
+        {
+            organizationId = PosShiftApiFactory.OrganizationId,
+            branchId = PosShiftApiFactory.BranchId,
+            storeId = PosShiftApiFactory.StoreId,
+            decision = "investigate",
+            reason = "Count evidence required",
+            expectedSessionVersion = 2,
+            expectedReviewVersion = 0,
+            idempotencyKey = operationId
+        };
+        using HttpResponseMessage resolved = await client.PostAsJsonAsync(
+            $"/api/pos/v1/cash-reviews/{_factory.CashReviews.SessionId:D}/decisions", command);
+        Assert.Equal(HttpStatusCode.OK, resolved.StatusCode);
+        using HttpResponseMessage replay = await client.PostAsJsonAsync(
+            $"/api/pos/v1/cash-reviews/{_factory.CashReviews.SessionId:D}/decisions", command);
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        Assert.Equal(1, _factory.CashReviews.HistoryCount);
+
+        _factory.Authorization.DeniedPermissions.Add("pos.cash-review.resolve");
+        using HttpResponseMessage denied = await client.PostAsJsonAsync(
+            $"/api/pos/v1/cash-reviews/{_factory.CashReviews.SessionId:D}/decisions",
+            new
+            {
+                organizationId = PosShiftApiFactory.OrganizationId,
+                branchId = PosShiftApiFactory.BranchId,
+                storeId = PosShiftApiFactory.StoreId,
+                decision = "approve",
+                reason = "Evidence checked",
+                expectedSessionVersion = 2,
+                expectedReviewVersion = 1,
+                idempotencyKey = Guid.NewGuid()
+            });
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+    }
+
+    [Fact]
     public async Task Open_maps_unavailable_restaurant_to_service_unavailable()
     {
         _factory.Reset();
@@ -339,6 +397,8 @@ public sealed class PosShiftApiFactory : WebApplicationFactory<PosProgram>
     internal InMemoryCashSessionStore CashSessions { get; } = new();
     internal InMemoryTerminalStore Terminals { get; } = new();
     internal TestScopeReader ScopeReader { get; } = new();
+    internal InMemoryCashReviewStore CashReviews { get; } = new();
+    internal TestAuthorizationClient Authorization { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -376,14 +436,16 @@ public sealed class PosShiftApiFactory : WebApplicationFactory<PosProgram>
             });
             services.RemoveAll<IShiftStore>();
             services.RemoveAll<ICashSessionStore>();
+            services.RemoveAll<ICashReviewStore>();
             services.RemoveAll<ITerminalStore>();
             services.RemoveAll<IRestaurantScopeReader>();
             services.RemoveAll<IAuthorizationDecisionClient>();
             services.AddSingleton<IShiftStore>(Store);
             services.AddSingleton<ICashSessionStore>(CashSessions);
+            services.AddSingleton<ICashReviewStore>(CashReviews);
             services.AddSingleton<ITerminalStore>(Terminals);
             services.AddSingleton<IRestaurantScopeReader>(ScopeReader);
-            services.AddSingleton<IAuthorizationDecisionClient, TestAuthorizationClient>();
+            services.AddSingleton<IAuthorizationDecisionClient>(Authorization);
         });
     }
 
@@ -415,6 +477,8 @@ public sealed class PosShiftApiFactory : WebApplicationFactory<PosProgram>
         CashSessions.Reset();
         Terminals.Reset();
         ScopeReader.Fail = false;
+        CashReviews.Reset();
+        Authorization.DeniedPermissions.Clear();
     }
 
     protected override void Dispose(bool disposing)
@@ -447,12 +511,73 @@ internal sealed class TestScopeReader : IRestaurantScopeReader
 
 internal sealed class TestAuthorizationClient : IAuthorizationDecisionClient
 {
+    public HashSet<string> DeniedPermissions { get; } = [];
+
     public Task<AuthorizationDecision> DecideAsync(
         PosUserContext user,
         RestaurantAuthorizationScope scope,
         string permission,
         CancellationToken cancellationToken) =>
-        Task.FromResult(new AuthorizationDecision(Guid.NewGuid(), true, null));
+        Task.FromResult(new AuthorizationDecision(Guid.NewGuid(), !DeniedPermissions.Contains(permission), null));
+}
+
+internal sealed class InMemoryCashReviewStore : ICashReviewStore
+{
+    private readonly List<CashReviewHistoryEntry> _history = [];
+    private readonly Dictionary<Guid, string> _operations = [];
+    public Guid SessionId { get; } = Guid.Parse("66666666-6666-6666-6666-666666666666");
+    public int HistoryCount => _history.Count;
+    private string _status = "review_required";
+    private long _reviewVersion;
+
+    public Task<bool> StoreMatchesScopeAsync(Guid restaurantId, Guid branchId, Guid storeId,
+        CancellationToken cancellationToken) => Task.FromResult(restaurantId == PosShiftApiFactory.RestaurantId &&
+            branchId == PosShiftApiFactory.BranchId && storeId == PosShiftApiFactory.StoreId);
+
+    public Task<IReadOnlyList<CashReviewListItem>> ListAsync(CashReviewScope scope, DateTimeOffset fromUtc,
+        DateTimeOffset toUtc, DateTimeOffset? beforeClosedAtUtc, Guid? beforeId, int take,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<CashReviewListItem>>([Item()]);
+
+    public Task<CashReviewDetail?> GetAsync(CashReviewScope scope, Guid cashSessionId,
+        CancellationToken cancellationToken) => Task.FromResult<CashReviewDetail?>(
+            cashSessionId == SessionId ? Detail() : null);
+
+    public Task<CashReviewDetail?> ResolveAsync(CashReviewScope scope, Guid cashSessionId,
+        CashReviewDecision decision, string actorSubjectId, Guid authorizationDecisionId,
+        long expectedSessionVersion, long expectedReviewVersion, Guid idempotencyKey,
+        string payloadHash, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken)
+    {
+        if (cashSessionId != SessionId) return Task.FromResult<CashReviewDetail?>(null);
+        if (_operations.TryGetValue(idempotencyKey, out string? existing))
+        {
+            if (existing != payloadHash) throw new InvalidOperationException("Duplicate payload conflict.");
+            return Task.FromResult<CashReviewDetail?>(Detail());
+        }
+        if (expectedSessionVersion != 2 || expectedReviewVersion != _reviewVersion)
+            throw new InvalidOperationException("Cash review concurrency conflict.");
+        _operations[idempotencyKey] = payloadHash;
+        _reviewVersion++;
+        _status = decision.Code == "approve" ? "approved" : "investigating";
+        _history.Add(new CashReviewHistoryEntry(idempotencyKey, 2, decision.Code, decision.Reason,
+            actorSubjectId, authorizationDecisionId, _reviewVersion, occurredAtUtc));
+        return Task.FromResult<CashReviewDetail?>(Detail());
+    }
+
+    public void Reset()
+    {
+        _history.Clear();
+        _operations.Clear();
+        _status = "review_required";
+        _reviewVersion = 0;
+    }
+
+    private CashReviewListItem Item() => new(SessionId, Guid.NewGuid(), PosShiftApiFactory.StoreId,
+        PosShiftApiFactory.TerminalId, "SHIFT-REVIEW", "cashier", "THB", 100m, 98m, -2m,
+        DateTimeOffset.UtcNow, 2, _status, _reviewVersion,
+        _history.Count == 0 ? null : _history[^1].OccurredAtUtc);
+
+    private CashReviewDetail Detail() => new(Item(), [], _history.ToArray());
 }
 
 internal sealed class InMemoryTerminalStore : ITerminalStore

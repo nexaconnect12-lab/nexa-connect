@@ -3,6 +3,9 @@ extern alias POS;
 
 using MigrationApplication = MIGRATIONS::MigrationApplication;
 using CashStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.PostgresCashSessionStore;
+using CashReviewStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.PostgresCashReviewStore;
+using CashReviewScope = POS::NexaConnect.Services.POS.Application.CashReviews.CashReviewScope;
+using CashReviewDecision = POS::NexaConnect.Services.POS.Domain.CashReviews.CashReviewDecision;
 using Shift = POS::NexaConnect.Services.POS.Domain.Shifts.Shift;
 using ShiftStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.PostgresShiftStore;
 using Npgsql;
@@ -13,7 +16,7 @@ namespace NexaConnect.IntegrationTests;
 public sealed class PosMigrationRunnerAcceptanceTests
 {
     [PosMigrationAcceptanceFact]
-    public async Task Empty_database_runs_0_to_4_to_3_to_4()
+    public async Task Empty_database_runs_0_to_5_to_4_to_3_to_5()
     {
         string adminConnectionString = Environment.GetEnvironmentVariable(
             "NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB")!;
@@ -32,12 +35,18 @@ public sealed class PosMigrationRunnerAcceptanceTests
             string scriptsRoot = Path.Combine(
                 FindRepositoryRoot(), "src", "Tools", "NexaConnect.DataMigration", "Scripts");
 
-            Assert.Equal(0, await RunMigrationAsync(scriptsRoot, 4));
+            Assert.Equal(0, await RunMigrationAsync(scriptsRoot, 5));
             await using NpgsqlDataSource posDataSource = NpgsqlDataSource.Create(posBuilder.ConnectionString);
-            await AssertHistoryAsync(posDataSource, [1, 2, 3, 4]);
+            await AssertHistoryAsync(posDataSource, [1, 2, 3, 4, 5]);
             await AssertSchema3Async(posDataSource);
+            await AssertSchema5Async(posDataSource);
             Assert.Equal("pos_order_settlements",await RelationAsync(posDataSource,"pos_order_settlements"));
             await ExerciseRepositoriesAsync(posDataSource, "FIRST");
+
+            Assert.Equal(0, await RunMigrationAsync(scriptsRoot, 4));
+            await AssertHistoryAsync(posDataSource, [1, 2, 3, 4]);
+            Assert.Null(await RelationAsync(posDataSource, "cash_session_review_states"));
+            Assert.Null(await RelationAsync(posDataSource, "cash_session_review_history"));
 
             Assert.Equal(0, await RunMigrationAsync(scriptsRoot, 3));
             await AssertHistoryAsync(posDataSource, [1, 2, 3]);
@@ -45,12 +54,17 @@ public sealed class PosMigrationRunnerAcceptanceTests
             Assert.Equal(1L, await ScalarLongAsync(posDataSource, "SELECT count(*) FROM cash_movements"));
             Assert.Equal(1L, await ScalarLongAsync(posDataSource, "SELECT count(*) FROM sync_operations"));
 
-            Assert.Equal(0, await RunMigrationAsync(scriptsRoot, 4));
-            await AssertHistoryAsync(posDataSource, [1, 2, 3, 4]);
+            Assert.Equal(0, await RunMigrationAsync(scriptsRoot, 5));
+            await AssertHistoryAsync(posDataSource, [1, 2, 3, 4, 5]);
             await AssertSchema3Async(posDataSource);
+            await AssertSchema5Async(posDataSource);
             await ExerciseRepositoriesAsync(posDataSource, "SECOND");
             Assert.Equal(2L, await ScalarLongAsync(posDataSource, "SELECT count(*) FROM cash_movements"));
             Assert.Equal(2L, await ScalarLongAsync(posDataSource, "SELECT count(*) FROM sync_operations"));
+            await ExerciseReviewAsync(posDataSource);
+            Assert.NotEqual(0, await RunMigrationAsync(scriptsRoot, 4));
+            await AssertHistoryAsync(posDataSource, [1, 2, 3, 4, 5]);
+            Assert.Equal(1L, await ScalarLongAsync(posDataSource, "SELECT count(*) FROM cash_session_review_history"));
         }
         finally
         {
@@ -65,10 +79,10 @@ public sealed class PosMigrationRunnerAcceptanceTests
             "--service", "POS",
             "--scripts-root", scriptsRoot,
             "--target", target.ToString(),
-            "--application-version", "0.13.0",
+            "--application-version", "0.14.0",
             "--confirm"
         ]);
-        if(target<4)arguments.AddRange(["--allow-destructive","--backup-verified"]);
+        if(target<5)arguments.AddRange(["--allow-destructive","--backup-verified"]);
         return MigrationApplication.RunAsync(arguments.ToArray());
     }
 
@@ -110,6 +124,13 @@ public sealed class PosMigrationRunnerAcceptanceTests
         Assert.Equal("uq_shifts_close_authorization_decision_id", await RelationAsync(dataSource, "uq_shifts_close_authorization_decision_id"));
     }
 
+    private static async Task AssertSchema5Async(NpgsqlDataSource dataSource)
+    {
+        Assert.Equal("cash_session_review_states", await RelationAsync(dataSource, "cash_session_review_states"));
+        Assert.Equal("cash_session_review_history", await RelationAsync(dataSource, "cash_session_review_history"));
+        Assert.Equal("ix_cash_sessions_store_closed_review", await RelationAsync(dataSource, "ix_cash_sessions_store_closed_review"));
+    }
+
     private static async Task AssertSchema2Async(NpgsqlDataSource dataSource)
     {
         Assert.Equal("shifts", await RelationAsync(dataSource, "shifts"));
@@ -145,7 +166,9 @@ public sealed class PosMigrationRunnerAcceptanceTests
         Assert.False(await cashStore.RecordMovementAsync(
             cashSessionId, "sale", 5m, "migration-cashier", "migration",
             operationId, terminalId, $"hash-{suffix}", CancellationToken.None));
-        await cashStore.CloseAsync(cashSessionId, 15m, 1, "migration-cashier", terminalId,
+        var summary = await cashStore.GetSummaryAsync(cashSessionId, "migration-cashier", terminalId,
+            CancellationToken.None);
+        await cashStore.CloseAsync(cashSessionId, 15m, summary!.ConcurrencyVersion, "migration-cashier", terminalId,
             CancellationToken.None);
 
         shift.Close("migration-cashier", Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(1));
@@ -187,6 +210,28 @@ public sealed class PosMigrationRunnerAcceptanceTests
         terminal.Parameters.AddWithValue(storeId);
         terminal.Parameters.AddWithValue($"terminal-{suffix.ToLowerInvariant()}-{terminalId:N}");
         await terminal.ExecuteNonQueryAsync();
+    }
+
+    private static async Task ExerciseReviewAsync(NpgsqlDataSource dataSource)
+    {
+        Guid organizationId = Guid.NewGuid(), restaurantId = Guid.NewGuid(), branchId = Guid.NewGuid();
+        Guid storeId = Guid.NewGuid(), terminalId = Guid.NewGuid();
+        await InsertStoreAndTerminalAsync(dataSource, restaurantId, branchId, storeId, terminalId, "REVIEW");
+        var shiftStore = new ShiftStore(dataSource);
+        Shift shift = Shift.Open(Guid.NewGuid(), storeId, terminalId, "review-cashier", "SHIFT-REVIEW",
+            Guid.NewGuid(), DateTimeOffset.UtcNow);
+        await shiftStore.CreateAsync(shift, default);
+        var cashStore = new CashStore(dataSource);
+        Guid sessionId = await cashStore.OpenAsync(shift.Id, storeId, "USD", 10m, default);
+        var summary = await cashStore.GetSummaryAsync(sessionId, "review-cashier", terminalId, default);
+        await cashStore.CloseAsync(sessionId, 9m, summary!.ConcurrencyVersion, "review-cashier", terminalId, default);
+        var reviewStore = new CashReviewStore(dataSource);
+        var scope = new CashReviewScope(organizationId, restaurantId, branchId, storeId);
+        var detail = await reviewStore.GetAsync(scope, sessionId, default);
+        Assert.NotNull(await reviewStore.ResolveAsync(scope, sessionId,
+            CashReviewDecision.Create("approve", "Migration acceptance"), "review-manager", Guid.NewGuid(),
+            detail!.Session.SessionVersion, detail.Session.ReviewVersion, Guid.NewGuid(),
+            new string('a', 64), DateTimeOffset.UtcNow, default));
     }
 
     private static async Task<string?> RelationAsync(NpgsqlDataSource dataSource, string relation)

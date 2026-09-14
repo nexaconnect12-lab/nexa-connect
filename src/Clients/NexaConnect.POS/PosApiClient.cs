@@ -22,6 +22,16 @@ public sealed record PosCashSessionSummary(Guid CashSessionId, Guid ShiftId, Gui
     string Currency, decimal OpeningAmount, decimal NetMovementAmount, decimal ExpectedClosingAmount,
     decimal? ActualClosingAmount, decimal? VarianceAmount, string Status, DateTimeOffset OpenedAtUtc,
     DateTimeOffset? ClosedAtUtc, long ConcurrencyVersion, IReadOnlyList<PosCashMovementSummary> Movements);
+public sealed record PosCashReviewAccess(bool CanRead, bool CanResolve);
+public sealed record PosCashReviewListItem(Guid CashSessionId, Guid ShiftId, Guid StoreId, Guid TerminalId,
+    string ShiftNumber, string CashierSubjectId, string Currency, decimal ExpectedClosingAmount,
+    decimal ActualClosingAmount, decimal VarianceAmount, DateTimeOffset ClosedAtUtc, long SessionVersion,
+    string ReviewStatus, long ReviewVersion, DateTimeOffset? ReviewedAtUtc);
+public sealed record PosCashReviewHistoryEntry(Guid Id, long SessionVersion, string Decision, string Reason,
+    string ReviewerSubjectId, Guid AuthorizationDecisionId, long ReviewVersion, DateTimeOffset OccurredAtUtc);
+public sealed record PosCashReviewDetail(PosCashReviewListItem Session,
+    IReadOnlyList<PosCashMovementSummary> Movements, IReadOnlyList<PosCashReviewHistoryEntry> History);
+public sealed record PosCashReviewPage(IReadOnlyList<PosCashReviewListItem> Items, string? NextCursor);
 
 public sealed class PosApiClient : IDisposable
 {
@@ -235,6 +245,74 @@ public sealed class PosApiClient : IDisposable
         await EnsureSuccessAsync(response, "Cash session could not be closed.");
     }
 
+    public async Task<PosCashReviewAccess> GetCashReviewAccessAsync(PosTokenSet token,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Get, $"api/pos/v1/cash-reviews/access?{CashReviewScopeQuery()}", token);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "Cash-review access could not be checked.");
+        PosCashReviewAccess access = await response.Content.ReadFromJsonAsync<PosCashReviewAccess>(cancellationToken)
+            ?? throw new InvalidDataException("The POS API returned an empty cash-review access response.");
+        if (access.CanResolve && !access.CanRead)
+            throw new InvalidDataException("The cash-review access response is inconsistent.");
+        return access;
+    }
+
+    public async Task<PosCashReviewPage> GetCashReviewsAsync(PosTokenSet token, DateTimeOffset fromUtc,
+        DateTimeOffset toUtc, string? cursor = null, CancellationToken cancellationToken = default)
+    {
+        string path = $"api/pos/v1/cash-reviews?{CashReviewScopeQuery()}&fromUtc={Uri.EscapeDataString(fromUtc.ToUniversalTime().ToString("O"))}&toUtc={Uri.EscapeDataString(toUtc.ToUniversalTime().ToString("O"))}&limit=50";
+        if (!string.IsNullOrWhiteSpace(cursor)) path += $"&cursor={Uri.EscapeDataString(cursor)}";
+        using var request = CreateRequest(HttpMethod.Get, path, token);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "Cash-review history could not be loaded.");
+        PosCashReviewPage page = await response.Content.ReadFromJsonAsync<PosCashReviewPage>(cancellationToken)
+            ?? throw new InvalidDataException("The POS API returned an empty cash-review page.");
+        if (page.Items is null || page.Items.Any(item => !ValidReviewItem(item)))
+            throw new InvalidDataException("Cash-review history does not match this store.");
+        return page;
+    }
+
+    public async Task<PosCashReviewDetail> GetCashReviewAsync(PosTokenSet token, Guid cashSessionId,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Get,
+            $"api/pos/v1/cash-reviews/{cashSessionId:D}?{CashReviewScopeQuery()}", token);
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "Cash-review detail could not be loaded.");
+        PosCashReviewDetail detail = await response.Content.ReadFromJsonAsync<PosCashReviewDetail>(cancellationToken)
+            ?? throw new InvalidDataException("The POS API returned an empty cash-review detail.");
+        ValidateReviewDetail(cashSessionId, detail);
+        return detail;
+    }
+
+    public async Task<PosCashReviewDetail> ResolveCashReviewAsync(PosTokenSet token, Guid cashSessionId,
+        string decision, string reason, long expectedSessionVersion, long expectedReviewVersion,
+        Guid idempotencyKey, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Post,
+            $"api/pos/v1/cash-reviews/{cashSessionId:D}/decisions", token);
+        request.Content = JsonContent.Create(new
+        {
+            organizationId = _configuration.OrganizationId,
+            branchId = _configuration.BranchId,
+            storeId = _configuration.StoreId,
+            decision,
+            reason,
+            expectedSessionVersion,
+            expectedReviewVersion,
+            idempotencyKey
+        });
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "Cash-review decision could not be saved.");
+        PosCashReviewDetail detail = await response.Content.ReadFromJsonAsync<PosCashReviewDetail>(cancellationToken)
+            ?? throw new InvalidDataException("The POS API returned an empty cash-review decision response.");
+        ValidateReviewDetail(cashSessionId, detail);
+        if (!detail.History.Any(entry => entry.Id == idempotencyKey))
+            throw new InvalidDataException("The cash-review response did not confirm this decision identity.");
+        return detail;
+    }
+
     public async Task EnrollTerminalAsync(PosTokenSet token, PosClientConfiguration configuration, string code, string deviceType, CancellationToken cancellationToken = default)
     {
         using var request = CreateRequest(HttpMethod.Post, "api/pos/v1/terminals/enroll", token); request.Content = JsonContent.Create(new { branchId = configuration.BranchId, storeId = configuration.StoreId, terminalId = configuration.TerminalId, code, deviceType });
@@ -257,6 +335,50 @@ public sealed class PosApiClient : IDisposable
     {
         request.Headers.Add("X-Nexa-Organization-Id", organizationId.ToString("D"));
         request.Headers.Add("X-Nexa-Application-Code", "nexa_connect");
+    }
+
+    private string CashReviewScopeQuery() =>
+        $"organizationId={_configuration.OrganizationId:D}&branchId={_configuration.BranchId:D}&storeId={_configuration.StoreId:D}";
+
+    private bool ValidReviewItem(PosCashReviewListItem item) => item.CashSessionId != Guid.Empty &&
+        item.ShiftId != Guid.Empty && item.StoreId == _configuration.StoreId && item.TerminalId != Guid.Empty &&
+        item.Currency == _configuration.Currency && item.SessionVersion > 0 && item.ReviewVersion >= 0 &&
+        item.ClosedAtUtc != default && item.ActualClosingAmount - item.ExpectedClosingAmount == item.VarianceAmount &&
+        item.ReviewStatus is "balanced" or "review_required" or "investigating" or "approved" &&
+        (item.VarianceAmount == 0 ? item.ReviewStatus == "balanced" : item.ReviewStatus != "balanced");
+
+    private void ValidateReviewDetail(Guid cashSessionId, PosCashReviewDetail detail)
+    {
+        PosCashReviewHistoryEntry[] orderedHistory = detail.History?.ToArray() ?? [];
+        bool historySequenceIsValid = orderedHistory.Select((entry, index) =>
+                entry.ReviewVersion == index + 1 &&
+                (index == 0 || entry.OccurredAtUtc >= orderedHistory[index - 1].OccurredAtUtc))
+            .All(valid => valid);
+        PosCashReviewHistoryEntry? latest = orderedHistory.LastOrDefault();
+        bool currentStateIsValid = detail.Session.ReviewStatus switch
+        {
+            "investigating" => latest is { Decision: "investigate" } &&
+                latest.SessionVersion == detail.Session.SessionVersion,
+            "approved" => latest is { Decision: "approve" } &&
+                latest.SessionVersion == detail.Session.SessionVersion,
+            "review_required" => latest is null || latest.SessionVersion < detail.Session.SessionVersion,
+            "balanced" => true,
+            _ => false
+        };
+
+        if (detail.Session.CashSessionId != cashSessionId || !ValidReviewItem(detail.Session) ||
+            detail.Movements is null || detail.History is null ||
+            detail.Movements.Any(movement => movement.MovementId == Guid.Empty || movement.Amount <= 0 ||
+                movement.MovementType is not ("sale" or "refund" or "pay_in" or "pay_out" or "float_adjustment")) ||
+            detail.History.Any(entry => entry.Id == Guid.Empty || entry.SessionVersion <= 0 ||
+                entry.SessionVersion > detail.Session.SessionVersion || entry.ReviewVersion <= 0 ||
+                entry.AuthorizationDecisionId == Guid.Empty || string.IsNullOrWhiteSpace(entry.Reason) ||
+                entry.Decision is not ("approve" or "investigate")) ||
+            detail.History.Select(entry => entry.ReviewVersion).Distinct().Count() != detail.History.Count ||
+            (detail.History.Count == 0 ? detail.Session.ReviewVersion != 0 :
+                detail.History.Max(entry => entry.ReviewVersion) != detail.Session.ReviewVersion) ||
+            !historySequenceIsValid || !currentStateIsValid)
+            throw new InvalidDataException("Cash-review detail does not match this store or review history.");
     }
 
     private static async Task EnsureSuccessAsync(HttpResponseMessage response, string fallback)

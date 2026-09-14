@@ -268,6 +268,87 @@
           </Grid>
         </ScrollViewer>
       </TabItem>
+      <TabItem x:Name="CashReviewTab" Header="Cash review">
+        <Grid Margin="0,16,0,0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+            <StackPanel>
+              <TextBlock Text="Supervisor cash review" Style="{StaticResource Heading}" />
+              <TextBlock x:Name="CashReviewAccessText" Text="Load review history to check your access." TextWrapping="Wrap" Foreground="#63756A" Margin="0,0,0,12" />
+              <WrapPanel>
+                <StackPanel Margin="0,0,16,0">
+                  <TextBlock Text="From date" />
+                  <DatePicker x:Name="CashReviewFromDatePicker" Width="170" AutomationProperties.Name="Cash review from date" />
+                </StackPanel>
+                <StackPanel Margin="0,0,16,0">
+                  <TextBlock Text="To date" />
+                  <DatePicker x:Name="CashReviewToDatePicker" Width="170" AutomationProperties.Name="Cash review to date" />
+                </StackPanel>
+                <Button x:Name="LoadCashReviewsButton" Content="Load history" Click="LoadCashReviews_Click" Style="{StaticResource Primary}" VerticalAlignment="Bottom" />
+                <Button x:Name="LoadMoreCashReviewsButton" Content="Load more" Click="LoadMoreCashReviews_Click" VerticalAlignment="Bottom" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+          <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="1.15*" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border Style="{StaticResource Card}" Margin="0,0,16,0">
+              <StackPanel>
+                <TextBlock Text="Closed sessions" Style="{StaticResource Heading}" />
+                <DataGrid x:Name="CashReviewList" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                          SelectionMode="Single" SelectionChanged="CashReviewList_SelectionChanged" Height="430" HeadersVisibility="Column">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Closed" Binding="{Binding ClosedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="145" />
+                    <DataGridTextColumn Header="Shift" Binding="{Binding ShiftNumber}" Width="120" />
+                    <DataGridTextColumn Header="Expected" Binding="{Binding ExpectedClosingAmount, StringFormat=N2}" Width="90" />
+                    <DataGridTextColumn Header="Counted" Binding="{Binding ActualClosingAmount, StringFormat=N2}" Width="90" />
+                    <DataGridTextColumn Header="Variance" Binding="{Binding VarianceAmount, StringFormat=N2}" Width="90" />
+                    <DataGridTextColumn Header="Review" Binding="{Binding ReviewStatus}" Width="*" />
+                  </DataGrid.Columns>
+                </DataGrid>
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource Card}">
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                  <TextBlock Text="Review detail" Style="{StaticResource Heading}" />
+                  <TextBlock x:Name="CashReviewDetailText" Text="Select a closed cash session." TextWrapping="Wrap" Margin="0,0,0,12" />
+                  <TextBlock Text="Movements" FontWeight="SemiBold" />
+                  <DataGrid x:Name="CashReviewMovementList" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Height="135" HeadersVisibility="Column">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="Time" Binding="{Binding OccurredAtUtc, StringFormat={}{0:MM-dd HH:mm}}" Width="100" />
+                      <DataGridTextColumn Header="Type" Binding="{Binding MovementType}" Width="100" />
+                      <DataGridTextColumn Header="Amount" Binding="{Binding Amount, StringFormat=N2}" Width="85" />
+                      <DataGridTextColumn Header="Reason" Binding="{Binding ReasonCode}" Width="*" />
+                    </DataGrid.Columns>
+                  </DataGrid>
+                  <TextBlock Text="Supervisor reason" Margin="0,14,0,0" />
+                  <TextBox x:Name="CashReviewReasonTextBox" MaxLength="200" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="64" AutomationProperties.Name="Cash review reason" />
+                  <WrapPanel>
+                    <Button x:Name="InvestigateCashReviewButton" Content="Mark investigating" Click="InvestigateCashReview_Click" />
+                    <Button x:Name="ApproveCashReviewButton" Content="Approve variance" Click="ApproveCashReview_Click" Style="{StaticResource Primary}" />
+                  </WrapPanel>
+                  <TextBlock Text="A decision records your authenticated identity and the reviewed financial version. Changed financial data requires a fresh decision." TextWrapping="Wrap" Foreground="#63756A" Margin="0,4,0,14" />
+                  <TextBlock Text="Decision history" FontWeight="SemiBold" />
+                  <DataGrid x:Name="CashReviewHistoryList" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Height="150" HeadersVisibility="Column">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="Time" Binding="{Binding OccurredAtUtc, StringFormat={}{0:MM-dd HH:mm}}" Width="100" />
+                      <DataGridTextColumn Header="Decision" Binding="{Binding Decision}" Width="95" />
+                      <DataGridTextColumn Header="Reviewer" Binding="{Binding ReviewerSubjectId}" Width="120" />
+                      <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="*" />
+                    </DataGrid.Columns>
+                  </DataGrid>
+                </StackPanel>
+              </ScrollViewer>
+            </Border>
+          </Grid>
+        </Grid>
+      </TabItem>
       <TabItem Header="Terminal &amp; sync">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <Border Style="{StaticResource Card}" Margin="0,16,0,0">

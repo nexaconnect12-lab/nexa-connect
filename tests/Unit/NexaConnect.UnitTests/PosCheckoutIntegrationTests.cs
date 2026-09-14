@@ -78,6 +78,86 @@ public sealed class PosCheckoutIntegrationTests
             api.GetCashSessionSummaryAsync(Token(), cashSessionId));
     }
 
+    [Fact]
+    public async Task Cash_review_client_sends_configured_scope_and_validates_decision_identity()
+    {
+        var config = Configuration();
+        Guid sessionId = Guid.NewGuid();
+        Guid operationId = Guid.NewGuid();
+        int requestNumber = 0;
+        PosCashReviewListItem openItem = ReviewItem(config, sessionId, "review_required", 0);
+        var handler = new Handler(async request =>
+        {
+            if (request.Content is null)
+            {
+                Assert.Contains($"organizationId={config.OrganizationId:D}", request.RequestUri!.Query);
+                Assert.Contains($"branchId={config.BranchId:D}", request.RequestUri.Query);
+                Assert.Contains($"storeId={config.StoreId:D}", request.RequestUri.Query);
+            }
+            else
+            {
+                using JsonDocument scopeBody = JsonDocument.Parse(await request.Content.ReadAsStringAsync());
+                Assert.Equal(config.OrganizationId, scopeBody.RootElement.GetProperty("organizationId").GetGuid());
+                Assert.Equal(config.BranchId, scopeBody.RootElement.GetProperty("branchId").GetGuid());
+                Assert.Equal(config.StoreId, scopeBody.RootElement.GetProperty("storeId").GetGuid());
+            }
+            return requestNumber++ switch
+            {
+                0 => new HttpResponseMessage(HttpStatusCode.OK)
+                    { Content = JsonContent.Create(new PosCashReviewAccess(true, true)) },
+                1 => new HttpResponseMessage(HttpStatusCode.OK)
+                    { Content = JsonContent.Create(new PosCashReviewPage([openItem], null)) },
+                2 => new HttpResponseMessage(HttpStatusCode.OK)
+                    { Content = JsonContent.Create(new PosCashReviewDetail(openItem, [], [])) },
+                _ => await DecisionResponseAsync(request)
+            };
+        });
+        using var api = new PosApiClient(config, posHandler: handler);
+
+        Assert.True((await api.GetCashReviewAccessAsync(Token())).CanResolve);
+        Assert.Single((await api.GetCashReviewsAsync(Token(), DateTimeOffset.UtcNow.AddDays(-1),
+            DateTimeOffset.UtcNow)).Items);
+        Assert.Equal(sessionId, (await api.GetCashReviewAsync(Token(), sessionId)).Session.CashSessionId);
+        PosCashReviewDetail resolved = await api.ResolveCashReviewAsync(Token(), sessionId, "approve",
+            "Drawer checked", 2, 0, operationId);
+
+        Assert.Equal("approved", resolved.Session.ReviewStatus);
+        Assert.Contains(resolved.History, entry => entry.Id == operationId);
+
+        async Task<HttpResponseMessage> DecisionResponseAsync(HttpRequestMessage request)
+        {
+            using JsonDocument body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(operationId, body.RootElement.GetProperty("idempotencyKey").GetGuid());
+            Assert.Equal(2, body.RootElement.GetProperty("expectedSessionVersion").GetInt64());
+            var approved = ReviewItem(config, sessionId, "approved", 1);
+            var history = new PosCashReviewHistoryEntry(operationId, 2, "approve", "Drawer checked",
+                "manager", Guid.NewGuid(), 1, DateTimeOffset.UtcNow);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+                { Content = JsonContent.Create(new PosCashReviewDetail(approved, [], [history])) };
+        }
+    }
+
+    [Fact]
+    public async Task Cash_review_client_rejects_cross_store_response()
+    {
+        var config = Configuration();
+        using var api = new PosApiClient(config, posHandler: new Handler(_ => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new PosCashReviewPage(
+                    [ReviewItem(config with { StoreId = Guid.NewGuid() }, Guid.NewGuid(), "review_required", 0)], null))
+            })));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => api.GetCashReviewsAsync(Token(),
+            DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow));
+    }
+
+    private static PosCashReviewListItem ReviewItem(PosClientConfiguration config, Guid sessionId,
+        string status, long reviewVersion) => new(sessionId, Guid.NewGuid(), config.StoreId,
+        config.TerminalId, "SHIFT-REVIEW", "cashier", "THB", 100m, 98m, -2m,
+        DateTimeOffset.UtcNow, 2, status, reviewVersion,
+        reviewVersion == 0 ? null : DateTimeOffset.UtcNow);
+
     internal static PosClientConfiguration Configuration() => new("http://localhost:8080/realms/nexa-dev", "nexaconnect-pos",
         "nexaconnect-pos://oauth/callback", "openid", "http://localhost:5225/", "http://localhost:5230/",
         Guid.NewGuid(), Guid.NewGuid(), "THB", "cash_manual", null, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "http://localhost:5268/");

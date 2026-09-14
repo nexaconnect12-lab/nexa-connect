@@ -17,10 +17,15 @@ public partial class MainWindow : Window
     private LocalShiftState? _activeShift;
     private readonly ObservableCollection<PosMenuItem> menu = new();
     private readonly ObservableCollection<CartLine> cart = new();
+    private readonly ObservableCollection<PosCashReviewListItem> cashReviews = new();
     private readonly LocalOutboxStore outbox;
     private Guid? cashSessionId;
     private PosCashSessionSummary? cashSummary;
     private bool cashSummaryVerified;
+    private PosCashReviewAccess? cashReviewAccess;
+    private PosCashReviewDetail? selectedCashReview;
+    private string? cashReviewCursor;
+    private PendingCashReviewAttempt? pendingCashReviewAttempt;
     private PosOrderResult? pendingOrder;
     private PendingCheckout? pendingCheckout;
     private Guid? settlementIdempotencyKey;
@@ -75,6 +80,9 @@ public partial class MainWindow : Window
         StationComboBox.SelectedIndex = 0;
         ShiftNumberTextBox.Text = $"SHIFT-{DateTime.Now:yyyyMMdd-HHmm}";
         CartList.ItemsSource = cart;
+        CashReviewList.ItemsSource = cashReviews;
+        CashReviewFromDatePicker.SelectedDate = DateTime.Today.AddDays(-7);
+        CashReviewToDatePicker.SelectedDate = DateTime.Today;
         _authentication.StatusChanged += OnStatusChanged;
         sessionTimer.Tick += SessionTimer_Tick;
         sessionTimer.Start();
@@ -609,6 +617,205 @@ public partial class MainWindow : Window
         UpdateOperationalState();
     }
 
+    private async void LoadCashReviews_Click(object sender, RoutedEventArgs e) =>
+        await LoadCashReviewsAsync(loadMore: false);
+
+    private async void LoadMoreCashReviews_Click(object sender, RoutedEventArgs e) =>
+        await LoadCashReviewsAsync(loadMore: true);
+
+    private async Task LoadCashReviewsAsync(bool loadMore)
+    {
+        if (_authentication.CurrentToken is null) return;
+        if (CashReviewFromDatePicker.SelectedDate is not DateTime fromDate ||
+            CashReviewToDatePicker.SelectedDate is not DateTime toDate || fromDate.Date > toDate.Date ||
+            toDate.Date.AddDays(1) - fromDate.Date > TimeSpan.FromDays(31))
+        {
+            StatusText.Text = "Choose a valid cash-review date range of at most 31 days.";
+            return;
+        }
+        if (loadMore && string.IsNullOrWhiteSpace(cashReviewCursor)) return;
+        try
+        {
+            SetBusy(loadMore ? "Loading more cash reviews…" : "Loading cash-review history…");
+            if (!loadMore)
+            {
+                cashReviewAccess = await _api.GetCashReviewAccessAsync(_authentication.CurrentToken);
+                if (!cashReviewAccess.CanRead)
+                {
+                    cashReviews.Clear();
+                    selectedCashReview = null;
+                    RenderCashReviewDetail();
+                    CashReviewAccessText.Text = "Your account does not have pos.cash-review.read for this branch.";
+                    StatusText.Text = "Your account is not authorized to read cash reviews.";
+                    return;
+                }
+                cashReviews.Clear();
+                selectedCashReview = null;
+                cashReviewCursor = null;
+                RenderCashReviewDetail();
+            }
+            DateTimeOffset fromUtc = LocalDateBoundary(fromDate.Date);
+            DateTimeOffset toUtc = LocalDateBoundary(toDate.Date.AddDays(1));
+            PosCashReviewPage page = await _api.GetCashReviewsAsync(_authentication.CurrentToken,
+                fromUtc, toUtc, loadMore ? cashReviewCursor : null);
+            foreach (PosCashReviewListItem item in page.Items) cashReviews.Add(item);
+            cashReviewCursor = page.NextCursor;
+            CashReviewAccessText.Text = cashReviewAccess?.CanResolve == true
+                ? "Supervisor access · decisions enabled"
+                : "Read-only access · decisions require pos.cash-review.resolve";
+            StatusText.Text = cashReviews.Count == 0
+                ? "No closed cash sessions were found in this date range."
+                : $"Loaded {cashReviews.Count} closed cash session(s).";
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = exception is PosApiException api ? api.Message : "Cash-review history could not be loaded.";
+        }
+        finally { UpdateOperationalState(); }
+    }
+
+    private async void CashReviewList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!viewInitialized || _authentication.CurrentToken is null ||
+            CashReviewList.SelectedItem is not PosCashReviewListItem selected) return;
+        selectedCashReview = null;
+        RenderCashReviewDetail();
+        try
+        {
+            SetBusy("Loading cash-review detail…");
+            PosCashReviewDetail detail = await _api.GetCashReviewAsync(
+                _authentication.CurrentToken, selected.CashSessionId);
+            if (CashReviewList.SelectedItem is PosCashReviewListItem current &&
+                current.CashSessionId == detail.Session.CashSessionId)
+            {
+                selectedCashReview = detail;
+                if (pendingCashReviewAttempt is not null &&
+                    detail.History.Any(entry => entry.Id == pendingCashReviewAttempt.IdempotencyKey))
+                    pendingCashReviewAttempt = null;
+                ReplaceCashReviewItem(detail.Session);
+                RenderCashReviewDetail();
+                StatusText.Text = "Cash-review detail loaded.";
+            }
+        }
+        catch (Exception exception)
+        {
+            StatusText.Text = exception is PosApiException api ? api.Message : "Cash-review detail could not be loaded.";
+        }
+        finally { UpdateOperationalState(); }
+    }
+
+    private async void InvestigateCashReview_Click(object sender, RoutedEventArgs e) =>
+        await SubmitCashReviewAsync("investigate");
+
+    private async void ApproveCashReview_Click(object sender, RoutedEventArgs e) =>
+        await SubmitCashReviewAsync("approve");
+
+    private async Task SubmitCashReviewAsync(string decision)
+    {
+        if (_authentication.CurrentToken is null || selectedCashReview is null ||
+            cashReviewAccess?.CanResolve != true) return;
+        string reason = CashReviewReasonTextBox.Text.Trim();
+        if (reason.Length is < 1 or > 200)
+        {
+            StatusText.Text = "Enter a supervisor reason from 1 to 200 characters.";
+            return;
+        }
+        PosCashReviewListItem session = selectedCashReview.Session;
+        if (session.VarianceAmount == 0 || session.ReviewStatus == "balanced")
+        {
+            StatusText.Text = "This session is balanced and does not require a decision.";
+            return;
+        }
+        if (session.ReviewStatus == "approved")
+        {
+            StatusText.Text = "This financial version is already approved.";
+            return;
+        }
+
+        var candidate = new PendingCashReviewAttempt(Guid.NewGuid(), session.CashSessionId, decision,
+            reason, session.SessionVersion, session.ReviewVersion);
+        if (pendingCashReviewAttempt is not null)
+        {
+            if (!pendingCashReviewAttempt.SameRequest(candidate))
+            {
+                StatusText.Text = "A previous review result is uncertain. Refresh the selected session before changing the decision.";
+                return;
+            }
+            candidate = pendingCashReviewAttempt;
+        }
+        string action = decision == "approve" ? "approve this variance" : "mark this variance for investigation";
+        if (MessageBox.Show($"Confirm that you want to {action}. The reason and your identity will be retained.",
+                "Confirm cash review", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
+            return;
+
+        pendingCashReviewAttempt = candidate;
+        try
+        {
+            SetBusy("Saving cash-review decision…");
+            selectedCashReview = await _api.ResolveCashReviewAsync(_authentication.CurrentToken,
+                candidate.CashSessionId, candidate.Decision, candidate.Reason,
+                candidate.ExpectedSessionVersion, candidate.ExpectedReviewVersion, candidate.IdempotencyKey);
+            pendingCashReviewAttempt = null;
+            ReplaceCashReviewItem(selectedCashReview.Session);
+            CashReviewReasonTextBox.Clear();
+            RenderCashReviewDetail();
+            StatusText.Text = decision == "approve"
+                ? "Cash variance approved and recorded in immutable history."
+                : "Cash variance marked for investigation and recorded in immutable history.";
+        }
+        catch (PosApiException exception) when (exception.StatusCode is 400 or 403 or 404 or 409)
+        {
+            pendingCashReviewAttempt = null;
+            try
+            {
+                selectedCashReview = await _api.GetCashReviewAsync(_authentication.CurrentToken,
+                    candidate.CashSessionId);
+                ReplaceCashReviewItem(selectedCashReview.Session);
+                RenderCashReviewDetail();
+            }
+            catch { }
+            StatusText.Text = exception.StatusCode == 409
+                ? "The cash review changed. Review the refreshed values before making another decision."
+                : exception.Message;
+        }
+        catch
+        {
+            StatusText.Text = "The review result is uncertain. Refresh this session; retrying the same decision in this app reuses its identity.";
+        }
+        finally { UpdateOperationalState(); }
+    }
+
+    private void ReplaceCashReviewItem(PosCashReviewListItem item)
+    {
+        int index = cashReviews.ToList().FindIndex(existing => existing.CashSessionId == item.CashSessionId);
+        if (index >= 0) cashReviews[index] = item;
+    }
+
+    private void RenderCashReviewDetail()
+    {
+        if (!viewInitialized || selectedCashReview is null)
+        {
+            if (viewInitialized)
+            {
+                CashReviewDetailText.Text = "Select a closed cash session.";
+                CashReviewMovementList.ItemsSource = null;
+                CashReviewHistoryList.ItemsSource = null;
+            }
+            return;
+        }
+        PosCashReviewListItem session = selectedCashReview.Session;
+        CashReviewDetailText.Text =
+            $"{session.ShiftNumber} · {session.Currency}\nExpected {session.ExpectedClosingAmount:N2} · Counted {session.ActualClosingAmount:N2} · Variance {session.VarianceAmount:N2}\n{session.ReviewStatus} · financial v{session.SessionVersion} · review v{session.ReviewVersion}";
+        CashReviewMovementList.ItemsSource = selectedCashReview.Movements;
+        CashReviewHistoryList.ItemsSource = selectedCashReview.History;
+    }
+
+    private static DateTimeOffset LocalDateBoundary(DateTime localDate)
+    {
+        DateTime unspecified = DateTime.SpecifyKind(localDate, DateTimeKind.Unspecified);
+        return new DateTimeOffset(unspecified, TimeZoneInfo.Local.GetUtcOffset(unspecified)).ToUniversalTime();
+    }
+
     private async void RefreshReconciliation_Click(object sender, RoutedEventArgs e)
     {
         if (!IsSignedIn() || (cashSessionId is null && cashSummary is null)) return;
@@ -691,7 +898,13 @@ public partial class MainWindow : Window
         reauthenticationRequired = false;
         cashSummary = null;
         cashSummaryVerified = false;
+        cashReviews.Clear();
+        cashReviewAccess = null;
+        selectedCashReview = null;
+        cashReviewCursor = null;
+        pendingCashReviewAttempt = null;
         RenderCashSummary();
+        RenderCashReviewDetail();
         StatusText.Text = "Signed out. Stored credentials were cleared.";
         UpdateOperationalState();
     }
@@ -723,6 +936,10 @@ public partial class MainWindow : Window
         CloseCashButton.IsEnabled = false;
         RecordMovementButton.IsEnabled = false;
         PaidButton.IsEnabled = false;
+        LoadCashReviewsButton.IsEnabled = false;
+        LoadMoreCashReviewsButton.IsEnabled = false;
+        InvestigateCashReviewButton.IsEnabled = false;
+        ApproveCashReviewButton.IsEnabled = false;
     }
 
     private void UpdateOperationalState()
@@ -749,6 +966,15 @@ public partial class MainWindow : Window
             && pendingOrder is null && pendingCheckout is null && !HasQueuedCashMovements(cashSessionId.Value);
         RefreshReconciliationButton.IsEnabled = signedIn && (cashSessionId is not null || cashSummary is not null);
         RecordMovementButton.IsEnabled = signedIn && cashSessionId is not null;
+        LoadCashReviewsButton.IsEnabled = signedIn;
+        LoadMoreCashReviewsButton.IsEnabled = signedIn && !string.IsNullOrWhiteSpace(cashReviewCursor);
+        bool canResolveCashReview = signedIn && cashReviewAccess?.CanResolve == true &&
+            selectedCashReview is not null && selectedCashReview.Session.VarianceAmount != 0 &&
+            selectedCashReview.Session.ReviewStatus is not ("balanced" or "approved");
+        InvestigateCashReviewButton.IsEnabled = canResolveCashReview &&
+            selectedCashReview!.Session.ReviewStatus != "investigating";
+        ApproveCashReviewButton.IsEnabled = canResolveCashReview;
+        CashReviewReasonTextBox.IsEnabled = canResolveCashReview;
         MenuList.IsEnabled = CanEditCart();
         CartList.IsEnabled = CanEditCart();
         UpdateTenderControls();
@@ -866,6 +1092,15 @@ public partial class MainWindow : Window
     }
 
     private void UpdateCartTotal() => TotalText.Text = CashierPresentation.Money(cart.Sum(line => line.LineTotal), _configuration.Currency);
+
+    private sealed record PendingCashReviewAttempt(Guid IdempotencyKey, Guid CashSessionId, string Decision,
+        string Reason, long ExpectedSessionVersion, long ExpectedReviewVersion)
+    {
+        public bool SameRequest(PendingCashReviewAttempt other) => CashSessionId == other.CashSessionId &&
+            Decision == other.Decision && Reason == other.Reason &&
+            ExpectedSessionVersion == other.ExpectedSessionVersion &&
+            ExpectedReviewVersion == other.ExpectedReviewVersion;
+    }
 
     private sealed class CartLine(PosMenuItem item)
     {

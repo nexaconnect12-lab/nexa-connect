@@ -8,4 +8,6 @@ Owns product-scoped authorization decisions and role assignments. Operational te
 
 Payment Review provisioning requires migration 5. Newly assigned `tenant-admin` and `store-manager` roles receive both `order.payment-review.read` and `order.payment-review.resolve`; branch-scoped `accountant` receives read only. Migration 5 backfills the accountant read grant for roles that already exist. This separation is used by joined operator acceptance and must not be replaced with platform roles or a gateway-only check.
 
+POS Cash Review provisioning requires migration 7. Newly assigned `tenant-admin` and `store-manager` roles receive `pos.cash-review.read` and `pos.cash-review.resolve`; `accountant` receives read only. Migration 7 backfills the same grants for existing roles. POS supplies the exact organization/restaurant/branch scope after Restaurant and store validation; a UI access probe never replaces the decision made for the subsequent request. Downgrading `7→6` removes only these permission associations and must follow disabling the Cash Review routes and client actions.
+
 JSON stdout is always enabled. For centralized local debugging set `Observability__OtlpEnabled=true` and `Observability__OtlpEndpoint=http://localhost:4317`, then use the correlation and denial queries in the [observability guide](../../../docs/Deployment/Observability.md).

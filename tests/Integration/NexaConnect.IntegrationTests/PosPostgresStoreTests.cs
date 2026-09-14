@@ -5,6 +5,9 @@ using Shift = POS::NexaConnect.Services.POS.Domain.Shifts.Shift;
 using ShiftStatus = POS::NexaConnect.Services.POS.Domain.Shifts.ShiftStatus;
 using ShiftConflictException = POS::NexaConnect.Services.POS.Application.Shifts.ShiftConflictException;
 using CashStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.PostgresCashSessionStore;
+using CashReviewStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.PostgresCashReviewStore;
+using CashReviewScope = POS::NexaConnect.Services.POS.Application.CashReviews.CashReviewScope;
+using CashReviewDecision = POS::NexaConnect.Services.POS.Domain.CashReviews.CashReviewDecision;
 using ShiftStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.PostgresShiftStore;
 using SettlementStore = POS::NexaConnect.Services.POS.Infrastructure.Persistence.PostgresOrderSettlementProjectionStore;
 using NexaConnect.Contracts.IntegrationEvents;
@@ -241,6 +244,90 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
         await Assert.ThrowsAsync<InvalidOperationException>(() => setup.Store.CloseAsync(
             setup.CashSessionId, 30m, summary.ConcurrencyVersion, "cashier-1", setup.TerminalId,
             CancellationToken.None));
+    }
+
+    [PosPostgresFact]
+    public async Task Cash_review_is_scoped_idempotent_versioned_and_invalidated_by_late_financial_change()
+    {
+        RequireDatabase();
+        Guid organizationId = Guid.NewGuid(), restaurantId = Guid.NewGuid(), branchId = Guid.NewGuid();
+        Guid storeId = Guid.NewGuid(), terminalId = Guid.NewGuid();
+        await InsertStoreAndTerminalAsync(restaurantId, branchId, storeId, terminalId, "active", "active");
+        Shift shift = Shift.Open(Guid.NewGuid(), storeId, terminalId, "cashier-1", "SHIFT-CASH-REVIEW",
+            Guid.NewGuid(), DateTimeOffset.UtcNow);
+        await _store!.CreateAsync(shift, default);
+        var cashStore = new CashStore(_dataSource!);
+        Guid sessionId = await cashStore.OpenAsync(shift.Id, storeId, "USD", 10m, default);
+        await cashStore.RecordMovementAsync(sessionId, "sale", 5m, "cashier-1", "SALE",
+            Guid.NewGuid(), terminalId, "review-sale", default);
+        var open = await cashStore.GetSummaryAsync(sessionId, "cashier-1", terminalId, default);
+        await cashStore.CloseAsync(sessionId, 13m, open!.ConcurrencyVersion, "cashier-1", terminalId, default);
+
+        var reviews = new CashReviewStore(_dataSource!);
+        var scope = new CashReviewScope(organizationId, restaurantId, branchId, storeId);
+        var first = await reviews.GetAsync(scope, sessionId, default);
+        Assert.Equal("review_required", first!.Session.ReviewStatus);
+        Assert.Equal(-2m, first.Session.VarianceAmount);
+        Assert.Null(await reviews.GetAsync(scope with { StoreId = Guid.NewGuid() }, sessionId, default));
+
+        Guid investigateId = Guid.NewGuid();
+        var concurrentInvestigations = Enumerable.Range(0, 2).Select(_ =>
+            reviews.ResolveAsync(scope, sessionId,
+                CashReviewDecision.Create("investigate", "Count requires review"), "manager-1", Guid.NewGuid(),
+                first.Session.SessionVersion, 0, investigateId, "a".PadLeft(64, 'a'),
+                DateTimeOffset.UtcNow, default)).ToArray();
+        var concurrentResults = await Task.WhenAll(concurrentInvestigations);
+        var investigating = concurrentResults[0];
+        Assert.Equal("investigating", investigating!.Session.ReviewStatus);
+        Assert.Equal(1, investigating.Session.ReviewVersion);
+        Assert.Single(investigating.History);
+        Assert.All(concurrentResults, result => Assert.Single(result!.History));
+
+        var replay = await reviews.ResolveAsync(scope, sessionId,
+            CashReviewDecision.Create("investigate", "Count requires review"), "manager-1", Guid.NewGuid(),
+            first.Session.SessionVersion, 0, investigateId, "a".PadLeft(64, 'a'), DateTimeOffset.UtcNow, default);
+        Assert.Single(replay!.History);
+        await Assert.ThrowsAsync<POS::NexaConnect.Services.POS.Application.CashReviews.CashReviewDuplicateOperationException>(() =>
+            reviews.ResolveAsync(scope, sessionId, CashReviewDecision.Create("approve", "Different request"),
+                "manager-1", Guid.NewGuid(), first.Session.SessionVersion, 1, investigateId,
+                "b".PadLeft(64, 'b'), DateTimeOffset.UtcNow, default));
+
+        var approved = await reviews.ResolveAsync(scope, sessionId,
+            CashReviewDecision.Create("approve", "Drawer evidence checked"), "manager-2", Guid.NewGuid(),
+            first.Session.SessionVersion, 1, Guid.NewGuid(), "c".PadLeft(64, 'c'), DateTimeOffset.UtcNow, default);
+        Assert.Equal("approved", approved!.Session.ReviewStatus);
+        Assert.Equal(2, approved.History.Count);
+
+        await using (NpgsqlConnection connection = await _dataSource!.OpenConnectionAsync())
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            await using var movement = new NpgsqlCommand("""
+                INSERT INTO cash_movements
+                    (id, cash_session_id, movement_type, amount, reason_code, occurred_at_utc, recorded_by)
+                VALUES ($1, $2, 'sale', 1, 'LATE_SETTLEMENT', now(), 'consumer');
+                """, connection, transaction);
+            movement.Parameters.AddWithValue(Guid.NewGuid());
+            movement.Parameters.AddWithValue(sessionId);
+            await movement.ExecuteNonQueryAsync();
+            await using var update = new NpgsqlCommand("""
+                UPDATE cash_sessions
+                SET expected_closing_amount = expected_closing_amount + 1,
+                    variance_amount = actual_closing_amount - (expected_closing_amount + 1),
+                    concurrency_version = concurrency_version + 1, updated_at_utc = now()
+                WHERE id = $1;
+                """, connection, transaction);
+            update.Parameters.AddWithValue(sessionId);
+            await update.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
+        }
+
+        var stale = await reviews.GetAsync(scope, sessionId, default);
+        Assert.Equal("review_required", stale!.Session.ReviewStatus);
+        Assert.Equal(2, stale.Session.ReviewVersion);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => reviews.ResolveAsync(scope, sessionId,
+            CashReviewDecision.Create("approve", "Stale version"), "manager-2", Guid.NewGuid(),
+            approved.Session.SessionVersion, 2, Guid.NewGuid(), "d".PadLeft(64, 'd'),
+            DateTimeOffset.UtcNow, default));
     }
 
     [PosPostgresFact]
@@ -490,6 +577,20 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
             occurred_at_utc timestamptz NOT NULL, projected_at_utc timestamptz NOT NULL
         );
         CREATE UNIQUE INDEX uq_cash_movements_manual_order ON cash_movements(order_id) WHERE movement_type='sale' AND order_id IS NOT NULL AND reason_code='ORDER_MANUAL_TENDER';
+        CREATE TABLE cash_session_review_states
+        (
+            cash_session_id uuid PRIMARY KEY, reviewed_session_version bigint NOT NULL,
+            status text NOT NULL, reviewed_by text NOT NULL, authorization_decision_id uuid NOT NULL,
+            reviewed_at_utc timestamptz NOT NULL, concurrency_version bigint NOT NULL DEFAULT 1
+        );
+        CREATE TABLE cash_session_review_history
+        (
+            id uuid PRIMARY KEY, cash_session_id uuid NOT NULL, session_version bigint NOT NULL,
+            decision text NOT NULL, reason text NOT NULL, reviewer_subject_id text NOT NULL,
+            authorization_decision_id uuid NOT NULL, payload_hash char(64) NOT NULL,
+            review_version bigint NOT NULL, occurred_at_utc timestamptz NOT NULL,
+            CONSTRAINT uq_cash_session_review_history_version UNIQUE(cash_session_id, review_version)
+        );
         """;
 }
 

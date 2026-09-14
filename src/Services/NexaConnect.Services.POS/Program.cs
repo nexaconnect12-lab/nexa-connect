@@ -8,6 +8,7 @@ using NexaConnect.Services.POS.Infrastructure.Identity;
 using NexaConnect.Services.POS.Infrastructure.Persistence;
 using NexaConnect.Services.POS.Infrastructure.Restaurant;
 using NexaConnect.Services.POS.Application.OrderSettlements;
+using NexaConnect.Services.POS.Application.CashReviews;
 using NexaConnect.Services.POS.Infrastructure.Messaging;
 using Npgsql;
 
@@ -30,12 +31,14 @@ builder.Services.AddHttpClient<RestaurantHierarchyClient>().AddNexaConnectCorrel
 builder.Services.AddHttpClient("Authorization").AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<IShiftStore, PostgresShiftStore>();
 builder.Services.AddScoped<ICashSessionStore, PostgresCashSessionStore>();
+builder.Services.AddScoped<ICashReviewStore, PostgresCashReviewStore>();
 builder.Services.AddScoped<IOrderSettlementProjectionStore, PostgresOrderSettlementProjectionStore>();
 builder.Services.AddScoped<ITerminalStore, PostgresTerminalStore>();
 builder.Services.AddScoped<IRestaurantScopeReader, RestaurantHierarchyClient>();
 builder.Services.AddScoped<IAuthorizationDecisionClient, AuthorizationDecisionClient>();
 builder.Services.AddScoped<ShiftApplicationService>();
 builder.Services.AddScoped<CashSessionApplicationService>();
+builder.Services.AddScoped<CashReviewApplicationService>();
 builder.Services.AddScoped<OrderSettlementProjectionService>();
 builder.Services.AddScoped<TerminalEnrollmentApplicationService>();
 builder.Services.AddSingleton(TimeProvider.System);

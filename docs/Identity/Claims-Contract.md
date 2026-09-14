@@ -37,6 +37,8 @@ Support elevation is resolved from Platform Directory data, not minted as a long
 
 Payment Review uses the existing Customer Portal identity boundary and introduces no claim, client, or role grant. The BFF revalidates the protected tenant's subject and current organization/product membership; Order then checks `order.payment-review.read` or `order.payment-review.resolve` against Restaurant-owned branch scope. Permission probes control presentation only and do not authorize later requests. Resolution also requires the session-bound anti-forgery cookie and `X-Nexa-CSRF` token; this requirement is scoped to the new Payment Review mutation route, not all existing BFF mutations. See [the operator contract](../API/Payment-Review-Operator-UI.md).
 
+POS Cash Review uses the existing public `nexaconnect-pos` Authorization Code + PKCE identity and introduces no token claim or client secret. POS checks `pos.cash-review.read` or `pos.cash-review.resolve` through Authorization against the revalidated organization/restaurant/branch/store scope. Tenant administrators and store managers receive both permissions; accountants receive read only. Access probes control presentation only, and every list, detail, and decision call performs its own service-side scope and permission checks.
+
 - Validate signature, issuer, audience, lifetime, and signing-key rollover.
 - Fetch signing keys only from the configured authority's discovery metadata.
 - Require HTTPS metadata outside local development.

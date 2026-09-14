@@ -31,6 +31,8 @@ public static class ProductPermissions
     public const string NotificationRead = "notification.read";
     public const string KitchenTicketRead = "kitchen.ticket.read";
     public const string KitchenTicketTransition = "kitchen.ticket.transition";
+    public const string PosCashReviewRead = "pos.cash-review.read";
+    public const string PosCashReviewResolve = "pos.cash-review.resolve";
 
     public static IReadOnlyCollection<string> CustomerTenantApiPermissions { get; } =
     [
@@ -42,6 +44,7 @@ public static class ProductPermissions
         RestaurantBranchRead, RestaurantBranchManage,
         RestaurantConfigurationRead, RestaurantConfigurationManage,
         ReportingDashboardRead, ReportingSalesRead, ReportingActivityRead, MediaAssetRead, MediaAssetManage,
-        NotificationSend, NotificationRead, KitchenTicketRead, KitchenTicketTransition
+        NotificationSend, NotificationRead, KitchenTicketRead, KitchenTicketTransition,
+        PosCashReviewRead, PosCashReviewResolve
     ];
 }

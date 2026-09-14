@@ -2,11 +2,11 @@
 
 ## Implemented scope
 
-The WPF cashier has Checkout, Payment, Shift & cash, and Terminal & sync views. Checkout uses named product tiles, case-insensitive name search, preparation-station filters, quantity controls, explicit currency totals, and a separate payment step. Station filters use the existing menu contract, not Catalog categories. Cashier operations do not require typing service identifiers; deployment still supplies the organization, restaurant, branch, store, and terminal IDs.
+The WPF client has Checkout, Payment, Shift & cash, Cash review, and Terminal & sync views. Checkout uses named product tiles, case-insensitive name search, preparation-station filters, quantity controls, explicit currency totals, and a separate payment step. Station filters use the existing menu contract, not Catalog categories. Cashier operations do not require typing service identifiers; deployment still supplies the organization, restaurant, branch, store, and terminal IDs.
 
 The header identifies the configured branch/terminal with abbreviated IDs and displays authentication/shift state. It does not resolve employee display names or branch names. Connectivity is checked by each operation; the header does not claim continuous health or offline order capability. The layout supports a minimum 1000 × 680 device-independent window with scrollable payment and management views, 48-unit action buttons, keyboard focus indicators, and accessible input names.
 
-Service authorization, tenant ownership, Order totals, cash attribution, and transactional audit/event publication remain authoritative. UI visibility is not authorization. The cart rejects products whose menu currency differs from the configured checkout currency; it does not convert currencies. This slice adds a scoped summary endpoint and changes the close request contract without changing the POS schema.
+Service authorization, tenant ownership, Order totals, cash attribution, and transactional audit remain authoritative. UI visibility is not authorization. The cart rejects products whose menu currency differs from the configured checkout currency; it does not convert currencies. Active reconciliation uses the existing cash schema; supervisor history requires POS migration 5 and Authorization migration 7.
 
 ## Recovery and operator boundaries
 
@@ -20,6 +20,7 @@ Service authorization, tenant ownership, Order totals, cash attribution, and tra
 - Shift & cash displays authoritative opening cash, signed net movements, expected cash, counted-cash variance preview, and movement history. Close sends the reviewed concurrency version and terminal scope. If the version changed, the session remains open and the cashier must review refreshed figures before trying again. If the post-close read fails, the UI labels its calculated display as verification pending and permits refreshing the closed session; do not treat it as final until the service returns the closed summary.
 - Terminal & sync lists unresolved operation IDs, states, attempt counts, bounded HTTP status, and last-attempt time. Protected request payloads remain hidden and rejected operations have authenticated retry without an unaudited discard action.
 - Manual cash movements do not settle or refund an Order. The screen explains that cash checkout is projected automatically when the settlement consumer is enabled.
+- Cash review lists closed sessions for the configured store over at most 31 days. Read access and resolve access are separate. Investigate/approve requires a 1-200 character reason, explicit confirmation, and the displayed financial/review versions. Conflict refreshes instead of retrying automatically. After an uncertain response, retry the identical action during the same process or refresh committed history after restart. A late cash settlement supersedes the earlier decision: the session becomes `review_required` when variance remains nonzero or `balanced` when it becomes zero.
 
 ## Automated verification
 
@@ -36,7 +37,7 @@ The SQLite implementation matrix passed 51/51 with current-user DPAPI enabled, c
 
 ## Extended live acceptance scenarios
 
-Use a disposable test branch, cashier identity, matching menu, enrolled terminal, and the required Order 5 / Authorization 6 / Reporting 14 / POS 4 migrations. The client requires `Pos:Currency=THB` and `cash_manual` or `promptpay_manual`; incompatible configuration is rejected at startup. Configure all service URLs and a test-only PromptPay QR. The POS launcher alone does not prove the whole Catalog/Inventory/Kitchen/Order graph is ready.
+Use a disposable test branch, cashier identity, supervisor identities, matching menu, enrolled terminal, and the required Order 5 / Authorization 7 / Reporting 14 / POS 5 migrations. Authorization 7 includes the migration-6 manual-tender grants, and POS 5 includes the migration-4 settlement projection. The client requires `Pos:Currency=THB` and `cash_manual` or `promptpay_manual`; incompatible configuration is rejected at startup. Configure all service URLs and a test-only PromptPay QR. The POS launcher alone does not prove the whole Catalog/Inventory/Kitchen/Order graph is ready.
 
 1. Sign in interactively using OIDC. Open a shift and a THB cash session with a known opening amount.
 2. Load the menu; test search, station filtering, unavailable products, keyboard focus, quantity increase/decrease, and removal at quantity one. Check the actual terminal resolution and display scaling.
@@ -46,6 +47,9 @@ Use a disposable test branch, cashier identity, matching menu, enrolled terminal
 6. Repeat with a denied branch permission and a concurrent settlement. Confirm recovery is retained, no automatic new payment is made, and operator guidance explains reconciliation.
 7. Queue a cash movement with the service unavailable, restore it, and sync. Rejected/pending movements must block cash closure. Refresh reconciliation and confirm opening plus signed movements equals expected cash. Enter an exact count and verify zero preview variance, close cash, then close shift. In disposable data, repeat with a non-zero count and verify the closed summary retains the variance. Insert a concurrent movement after review and confirm the first close returns conflict/refreshed guidance without closing.
 8. Interrupt the placement response and restart under the same Windows user before payment recovery is saved. Verify the original order and confirm its order identity and settlement key are retained. Intermediate outcomes and unrecognized conflicts must keep checkout locked; a matching terminal Rejected or PaymentFailed result releases the checkout lock. Changing terminal scope or checkout mode must reject recovery before another HTTP placement.
+9. Sign in as an accountant and open Cash review. Load a nonzero closed variance and confirm detail/history are readable while both decision actions remain unavailable. Verify a different store/session cannot be disclosed.
+10. Sign in as a store manager. Mark the variance investigating with a reason, refresh, then approve it with a second reason. Confirm two ordered immutable history entries, the recorded Authorization decision identities, and one current approved projection. Replay the exact decision operation and confirm no duplicate history.
+11. Open the same detail in two clients. Commit one decision, then submit the stale version from the other and confirm `409` plus refreshed state. In disposable data, project a late cash settlement into the closed session and confirm its financial version advances and status returns to review required before another decision can be made.
 
 Retain sanitized boolean evidence for these scenarios. Do not include tokens, QR banking details, receipt references, personal data, or full HTTP bodies. Record real OIDC, WPF interaction, service graph, and terminal hardware coverage separately.
 
@@ -53,7 +57,7 @@ Keep terminal configuration unchanged while checkout or settlement is pending. N
 
 ## Remaining boundaries
 
-Full offline order/shift/device synchronization, hardware drivers, human-readable identity context, reconciliation history/supervisor sign-off/export, and Thai localization are subsequent work. The current reconciliation view covers the active or just-closed terminal cash session and its movement rows. SQLite protects current operational state and cash-movement replay across brief client/service interruption; it does not execute orders without the service graph or cache offline authorization. Incomplete server workflow steps still require reconciliation. Only a matching terminal Rejected or PaymentFailed result releases the checkout lock; other failed commands remain retained.
+Full offline order/shift/device synchronization, hardware drivers, human-readable identity context, multi-store review, review export/Reporting projection, durable offline supervisor actions, and Thai localization are subsequent work. The cashier reconciliation view covers the active or just-closed terminal cash session; Cash review covers online closed-session history for one configured store. SQLite protects current operational state and cash-movement replay across brief client/service interruption; it does not execute orders without the service graph or cache offline authorization. Incomplete server workflow steps still require reconciliation. Only a matching terminal Rejected or PaymentFailed result releases the checkout lock; other failed commands remain retained.
 
 ## Sign-in recovery check
 
