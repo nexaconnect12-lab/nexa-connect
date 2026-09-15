@@ -27,6 +27,8 @@ public sealed class OrderHttpPaymentPortTests
     [InlineData("requires_action")]
     [InlineData("capturing")]
     [InlineData("capture_unknown")]
+    [InlineData("voiding")]
+    [InlineData("void_unknown")]
     public async Task Existing_uncertain_intent_is_returned_without_replaying_provider_operations(string status)
     {
         Guid paymentId = Guid.NewGuid();
@@ -96,6 +98,25 @@ public sealed class OrderHttpPaymentPortTests
             100m, "THB", "card", default);
 
         Assert.True(result.Completed);
+        Assert.Equal(HttpMethod.Get, handler.Methods[2]);
+    }
+
+    [Fact]
+    public async Task Lost_capture_response_with_unchanged_authorized_state_is_retried_by_the_durable_caller()
+    {
+        Guid paymentId = Guid.NewGuid();
+        var handler = new PaymentHandler((request, call) => call switch
+        {
+            1 => Json(HttpStatusCode.Created, paymentId, "authorized"),
+            2 => throw new HttpRequestException("response lost"),
+            3 when request.Method == HttpMethod.Get => Json(HttpStatusCode.OK, paymentId, "authorized"),
+            _ => throw new InvalidOperationException("Unexpected payment request.")
+        });
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => Create(handler).AuthorizeAsync(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 100m, "THB", "card", default));
+
+        Assert.Single(handler.Requests, path => path.EndsWith("/capture", StringComparison.Ordinal));
         Assert.Equal(HttpMethod.Get, handler.Methods[2]);
     }
 

@@ -148,6 +148,33 @@ public sealed class PaymentPostgresIntegrationTests : IAsyncLifetime
     }
 
     [PaymentDatabaseFact]
+    public async Task Exhausted_authorization_claim_publishes_requires_action_atomically()
+    {
+        Guid organization = Guid.NewGuid(), correlation = Guid.NewGuid();
+        var repository = new PaymentRepository(dataSource!);
+        var intent = repository.Create(organization,
+            new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "authorization-exhaustion", 35m, "USD", "card"),
+            new("order-service", correlation));
+        await using (NpgsqlConnection connection = await dataSource!.OpenConnectionAsync())
+        {
+            await using var prepare = new NpgsqlCommand("UPDATE payment_intents SET status='unknown',authorization_attempt_count=3,concurrency_version=concurrency_version+1 WHERE organization_id=$1 AND id=$2", connection);
+            prepare.Parameters.AddWithValue(organization);
+            prepare.Parameters.AddWithValue(intent.Id);
+            Assert.Equal(1, await prepare.ExecuteNonQueryAsync());
+        }
+
+        var claim = repository.ClaimExpiredAuthorization(organization, intent.Id,
+            new("payment-recovery-worker", correlation));
+
+        Assert.False(claim.Acquired);
+        Assert.Equal("requires_action", claim.Intent.Status);
+        await using NpgsqlConnection verify = await dataSource!.OpenConnectionAsync();
+        Assert.Equal(1L, await ScalarAsync(verify,
+            "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.authorization-reconciled.v1' AND correlation_id=$2 AND payload->>'Outcome'='requires_action'",
+            intent.Id, correlation.ToString("D")));
+    }
+
+    [PaymentDatabaseFact]
     public async Task Void_is_atomic_idempotent_and_unknown_is_reconciled_after_restart()
     {
         Guid organization=Guid.NewGuid(),correlation=Guid.NewGuid();

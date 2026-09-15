@@ -13,6 +13,7 @@ public sealed class PaymentReconciliationApplicationService(
     IInventoryReservationPort inventory,
     IKitchenPort kitchen,
     IIntegrationEventPublisher events,
+    IPaymentPort payment,
     TimeProvider? timeProvider = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
@@ -25,6 +26,7 @@ public sealed class PaymentReconciliationApplicationService(
         if (order is null) return false;
         if (order.OrganizationId != reconciliation.OrganizationId)
             throw new InvalidOperationException("Payment reconciliation organization does not match the order.");
+        if (IsAwaitingProviderBinding(order)) return false;
         EnsurePaymentIntent(order, reconciliation.PaymentIntentId);
         if (order.Status is OrderStatus.Paid or OrderStatus.PaymentFailed or OrderStatus.Rejected)
             return true;
@@ -32,8 +34,37 @@ public sealed class PaymentReconciliationApplicationService(
 
         if (string.Equals(reconciliation.Outcome, "authorized", StringComparison.Ordinal))
         {
-            // Authorization is not settlement. Capture (including capture recovery) is the only
-            // payment result that is allowed to complete an order.
+            string paymentMethod = order.WorkflowPaymentMethod
+                ?? throw new InvalidOperationException("An authorized recoverable order must retain its payment method.");
+            PaymentResult capture = await payment.AuthorizeAsync(order.OrganizationId, order.RestaurantId,
+                order.BranchId, order.Id, order.TotalAmount, order.Currency, paymentMethod, cancellationToken);
+            EnsurePaymentIntent(order, capture.PaymentId ?? Guid.Empty);
+            if (capture.Completed)
+            {
+                order.MarkPaid();
+                await PersistAsync(order, new PaymentCompletedV1(Guid.NewGuid(), reconciliation.CorrelationId,
+                    clock.GetUtcNow(), order.Id, reconciliation.PaymentIntentId, order.TotalAmount, order.Currency,
+                    paymentMethod), cancellationToken);
+                return true;
+            }
+            if (string.Equals(capture.Outcome, "failed", StringComparison.Ordinal))
+            {
+                await inventory.ReleaseAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
+                await kitchen.CancelTicketAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
+                order.MarkPaymentFailed();
+                await PersistAsync(order, new PaymentFailedV1(Guid.NewGuid(), reconciliation.CorrelationId,
+                    clock.GetUtcNow(), order.Id, capture.Reason ?? "capture_failed"), cancellationToken);
+                return true;
+            }
+            if (string.Equals(capture.Outcome, "requires_action", StringComparison.Ordinal))
+            {
+                order.MarkPaymentReview();
+                await PersistAsync(order, new OrderPaymentReviewRequiredV1(Guid.NewGuid(), reconciliation.CorrelationId,
+                    clock.GetUtcNow(), order.OrganizationId, order.Id, reconciliation.PaymentIntentId,
+                    capture.Reason ?? "capture_attempts_exhausted"), cancellationToken);
+            }
+            // capturing/capture_unknown is now owned by Payment capture recovery. The state-aware
+            // adapter throws for an unchanged authorized intent, causing inbox redelivery instead.
             return true;
         }
 
@@ -68,6 +99,7 @@ public sealed class PaymentReconciliationApplicationService(
         if (order is null) return false;
         if (order.OrganizationId != reconciliation.OrganizationId)
             throw new InvalidOperationException("Payment capture reconciliation organization does not match the order.");
+        if (IsAwaitingProviderBinding(order)) return false;
         EnsurePaymentIntent(order, reconciliation.PaymentIntentId);
         if (order.Status is OrderStatus.Paid or OrderStatus.PaymentFailed or OrderStatus.Rejected)
             return true;
@@ -104,7 +136,10 @@ public sealed class PaymentReconciliationApplicationService(
         }
 
         // Unknown/in-progress provider results intentionally retain Inventory and Kitchen work.
-        return false;
+        // The current event is handled; Payment owns publication of a later definitive result.
+        return string.Equals(outcome, "unknown", StringComparison.Ordinal)
+            || string.Equals(outcome, "capturing", StringComparison.Ordinal)
+            || string.Equals(outcome, "capture_unknown", StringComparison.Ordinal);
     }
 
     public Task<bool> ApplyAsync(PaymentVoidedV1 message, CancellationToken cancellationToken) =>
@@ -170,6 +205,12 @@ public sealed class PaymentReconciliationApplicationService(
         if (order.PaymentIntentId is null || order.PaymentIntentId != paymentIntentId)
             throw new InvalidOperationException("Payment reconciliation intent does not match the order.");
     }
+
+    private static bool IsAwaitingProviderBinding(OrderAggregate order) =>
+        order.Status == OrderStatus.KitchenAccepted
+        && order.PaymentIntentId is null
+        && order.WorkflowPaymentMethod is not null
+        && order.WorkflowPaymentMethod is not ("cash_manual" or "promptpay_manual");
 
     private async Task PersistAsync(OrderAggregate order, IIntegrationEvent integrationEvent,
         CancellationToken cancellationToken)

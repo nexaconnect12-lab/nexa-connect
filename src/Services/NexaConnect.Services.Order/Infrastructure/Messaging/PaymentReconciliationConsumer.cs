@@ -82,7 +82,7 @@ public sealed class PaymentReconciliationConsumer(
             }
             try
             {
-                _ = message switch
+                bool applied = message switch
                 {
                     PaymentAuthorizationReconciledV1 authorization => await handler.ApplyAsync(authorization, cancellationToken),
                     PaymentCaptureReconciledV1 capture => await handler.ApplyAsync(capture, cancellationToken),
@@ -92,6 +92,12 @@ public sealed class PaymentReconciliationConsumer(
                     PaymentVoidReconciledV1 value => await handler.ApplyAsync(value, cancellationToken),
                     _ => false
                 };
+                if (!applied)
+                {
+                    await inbox.ReleaseAsync(message.EventId, Consumer, "order_not_ready", cancellationToken);
+                    await channel.BasicNackAsync(delivery.DeliveryTag, false, true, cancellationToken);
+                    return;
+                }
                 await inbox.MarkCompletedAsync(message.EventId, Consumer, cancellationToken);
                 await channel.BasicAckAsync(delivery.DeliveryTag, false, cancellationToken);
                 logger.LogInformation("Payment reconciliation event {EventId} was applied for organization {OrganizationId}",

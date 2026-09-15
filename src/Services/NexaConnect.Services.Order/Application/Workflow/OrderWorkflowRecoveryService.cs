@@ -131,5 +131,6 @@ public sealed class OrderWorkflowRecoveryService(
     private static bool IsManualTender(string? method) => method is "cash_manual" or "promptpay_manual";
 
     internal static bool IsUncertain(string outcome) => outcome is
-        "unknown" or "authorizing" or "requires_action" or "capturing" or "capture_unknown";
+        "unknown" or "authorizing" or "requires_action" or "capturing" or "capture_unknown"
+        or "voiding" or "void_unknown";
 }

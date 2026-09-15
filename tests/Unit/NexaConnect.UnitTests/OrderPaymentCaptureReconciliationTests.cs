@@ -14,7 +14,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
         var repository = new RecordingRepository(order);
         var publisher = new InMemoryIntegrationEventPublisher();
         var service = new PaymentReconciliationApplicationService(repository, new RecordingInventory(),
-            new RecordingKitchen(), publisher);
+            new RecordingKitchen(), publisher, new RecordingPayment());
 
         bool applied = await service.ApplyAsync(Capture(order, "captured"), default);
 
@@ -33,7 +33,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
         var inventory = new RecordingInventory();
         var kitchen = new RecordingKitchen();
         var service = new PaymentReconciliationApplicationService(repository, inventory, kitchen,
-            new InMemoryIntegrationEventPublisher());
+            new InMemoryIntegrationEventPublisher(), new RecordingPayment());
 
         bool applied = await service.ApplyAsync(Capture(order, "failed", "provider_declined"), default);
 
@@ -54,11 +54,11 @@ public sealed class OrderPaymentCaptureReconciliationTests
         var inventory = new RecordingInventory();
         var kitchen = new RecordingKitchen();
         var service = new PaymentReconciliationApplicationService(repository, inventory, kitchen,
-            new InMemoryIntegrationEventPublisher());
+            new InMemoryIntegrationEventPublisher(), new RecordingPayment());
 
         bool applied = await service.ApplyAsync(Capture(order, outcome), default);
 
-        Assert.False(applied);
+        Assert.True(applied);
         Assert.Equal(OrderStatus.PaymentPending, order.Status);
         Assert.Null(repository.Event);
         Assert.Equal(0, inventory.ReleaseCalls);
@@ -74,7 +74,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
         var inventory = new RecordingInventory();
         var kitchen = new RecordingKitchen();
         var service = new PaymentReconciliationApplicationService(repository, inventory, kitchen,
-            new InMemoryIntegrationEventPublisher());
+            new InMemoryIntegrationEventPublisher(), new RecordingPayment());
 
         Assert.True(await service.ApplyAsync(Capture(order, "failed"), default));
         Assert.Equal(OrderStatus.Paid, order.Status);
@@ -84,17 +84,39 @@ public sealed class OrderPaymentCaptureReconciliationTests
     }
 
     [Fact]
-    public async Task Authorization_recovery_does_not_complete_order_before_capture()
+    public async Task Recovered_authorization_resumes_capture_and_completes_order()
     {
         var order = PendingOrder();
         var repository = new RecordingRepository(order);
+        var payment = new RecordingPayment(new PaymentResult(true, order.PaymentIntentId, null, "captured"));
         var service = new PaymentReconciliationApplicationService(repository, new RecordingInventory(),
-            new RecordingKitchen(), new InMemoryIntegrationEventPublisher());
+            new RecordingKitchen(), new InMemoryIntegrationEventPublisher(), payment);
         var message = new PaymentAuthorizationReconciledV1(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow,
             order.OrganizationId, order.Id, order.PaymentIntentId!.Value, "authorized", null);
 
         Assert.True(await service.ApplyAsync(message, default));
-        Assert.Equal(OrderStatus.PaymentPending, order.Status);
+        Assert.Equal(OrderStatus.Paid, order.Status);
+        Assert.IsType<PaymentCompletedV1>(repository.Event);
+        Assert.Equal(1, payment.Calls);
+    }
+
+    [Fact]
+    public async Task Reconciliation_arriving_before_provider_intent_binding_requests_redelivery()
+    {
+        var order = OrderAggregate.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            [new OrderLine(Guid.NewGuid(), "Soup", 10m, 1, "kitchen")], "USD",
+            workflowPaymentMethod: "card");
+        order.Submit();
+        order.MarkInventoryReserved();
+        order.MarkKitchenAccepted();
+        var repository = new RecordingRepository(order);
+        var service = new PaymentReconciliationApplicationService(repository, new RecordingInventory(),
+            new RecordingKitchen(), new InMemoryIntegrationEventPublisher(), new RecordingPayment());
+        var message = new PaymentAuthorizationReconciledV1(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow,
+            order.OrganizationId, order.Id, Guid.NewGuid(), "authorized", null);
+
+        Assert.False(await service.ApplyAsync(message, default));
+        Assert.Equal(OrderStatus.KitchenAccepted, order.Status);
         Assert.Null(repository.Event);
     }
 
@@ -104,7 +126,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
         var order = PendingOrder();
         var repository = new RecordingRepository(order);
         var service = new PaymentReconciliationApplicationService(repository, new RecordingInventory(),
-            new RecordingKitchen(), new InMemoryIntegrationEventPublisher());
+            new RecordingKitchen(), new InMemoryIntegrationEventPublisher(), new RecordingPayment());
         var message = new PaymentAuthorizationReconciledV1(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow,
             order.OrganizationId, order.Id, order.PaymentIntentId!.Value, "requires_action",
             "authorization_attempts_exhausted");
@@ -120,7 +142,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
         var order = PendingOrder();
         var repository = new RecordingRepository(order);
         var service = new PaymentReconciliationApplicationService(repository, new RecordingInventory(),
-            new RecordingKitchen(), new InMemoryIntegrationEventPublisher());
+            new RecordingKitchen(), new InMemoryIntegrationEventPublisher(), new RecordingPayment());
 
         Assert.True(await service.ApplyAsync(Capture(order, "requires_action", "capture_attempts_exhausted"), default));
         Assert.Equal(OrderStatus.PaymentReview, order.Status);
@@ -134,7 +156,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
         var repository=new RecordingRepository(order);
         var inventory=new RecordingInventory();
         var kitchen=new FailOnceKitchen();
-        var service=new PaymentReconciliationApplicationService(repository,inventory,kitchen,new InMemoryIntegrationEventPublisher());
+        var service=new PaymentReconciliationApplicationService(repository,inventory,kitchen,new InMemoryIntegrationEventPublisher(), new RecordingPayment());
         PaymentCaptureReconciledV1 message=Capture(order,"failed","provider_capture_failed");
 
         await Assert.ThrowsAsync<HttpRequestException>(()=>service.ApplyAsync(message,default));
@@ -151,7 +173,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
     public async Task Reconciled_void_compensates_and_cancels_unpaid_order()
     {
         var order=PendingOrder(); var repository=new RecordingRepository(order); var inventory=new RecordingInventory(); var kitchen=new RecordingKitchen();
-        var service=new PaymentReconciliationApplicationService(repository,inventory,kitchen,new InMemoryIntegrationEventPublisher());
+        var service=new PaymentReconciliationApplicationService(repository,inventory,kitchen,new InMemoryIntegrationEventPublisher(), new RecordingPayment());
         var message=new PaymentVoidReconciledV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,order.OrganizationId,order.Id,order.PaymentIntentId!.Value,"voided",null);
         Assert.True(await service.ApplyAsync(message,default));
         Assert.Equal(OrderStatus.PaymentFailed,order.Status); Assert.Equal(1,inventory.ReleaseCalls); Assert.Equal(1,kitchen.CancelCalls);
@@ -164,7 +186,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
     public async Task Uncertain_void_is_acknowledged_without_releasing_work(string status)
     {
         var order=PendingOrder(); var repository=new RecordingRepository(order); var inventory=new RecordingInventory(); var kitchen=new RecordingKitchen();
-        var service=new PaymentReconciliationApplicationService(repository,inventory,kitchen,new InMemoryIntegrationEventPublisher());
+        var service=new PaymentReconciliationApplicationService(repository,inventory,kitchen,new InMemoryIntegrationEventPublisher(), new RecordingPayment());
         var message=new PaymentVoidReconciledV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,order.OrganizationId,order.Id,order.PaymentIntentId!.Value,status,"provider_timeout");
         Assert.True(await service.ApplyAsync(message,default)); Assert.Equal(OrderStatus.PaymentPending,order.Status);
         Assert.Equal(0,inventory.ReleaseCalls); Assert.Equal(0,kitchen.CancelCalls); Assert.Null(repository.Event);
@@ -176,7 +198,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
     public async Task Definitive_or_exhausted_void_problem_enters_financial_review(string status)
     {
         var order=PendingOrder(); var repository=new RecordingRepository(order);
-        var service=new PaymentReconciliationApplicationService(repository,new RecordingInventory(),new RecordingKitchen(),new InMemoryIntegrationEventPublisher());
+        var service=new PaymentReconciliationApplicationService(repository,new RecordingInventory(),new RecordingKitchen(),new InMemoryIntegrationEventPublisher(), new RecordingPayment());
         Guid paymentIntent=order.PaymentIntentId!.Value;
         var message=new PaymentVoidReconciledV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,order.OrganizationId,order.Id,paymentIntent,status,"void_problem");
         Assert.True(await service.ApplyAsync(message,default)); Assert.Equal(OrderStatus.PaymentReview,order.Status);
@@ -187,7 +209,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
     public async Task Void_event_cannot_change_captured_paid_order()
     {
         var order=PendingOrder(); order.MarkPaid(); var repository=new RecordingRepository(order); var inventory=new RecordingInventory();
-        var service=new PaymentReconciliationApplicationService(repository,inventory,new RecordingKitchen(),new InMemoryIntegrationEventPublisher());
+        var service=new PaymentReconciliationApplicationService(repository,inventory,new RecordingKitchen(),new InMemoryIntegrationEventPublisher(), new RecordingPayment());
         var message=new PaymentVoidedV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,order.OrganizationId,order.Id,order.PaymentIntentId!.Value);
         Assert.True(await service.ApplyAsync(message,default)); Assert.Equal(OrderStatus.Paid,order.Status); Assert.Equal(0,inventory.ReleaseCalls); Assert.Null(repository.Event);
     }
@@ -195,7 +217,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
     [Fact]
     public async Task Cross_tenant_void_event_is_rejected()
     {
-        var order=PendingOrder(); var service=new PaymentReconciliationApplicationService(new RecordingRepository(order),new RecordingInventory(),new RecordingKitchen(),new InMemoryIntegrationEventPublisher());
+        var order=PendingOrder(); var service=new PaymentReconciliationApplicationService(new RecordingRepository(order),new RecordingInventory(),new RecordingKitchen(),new InMemoryIntegrationEventPublisher(), new RecordingPayment());
         var message=new PaymentVoidReconciledV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,Guid.NewGuid(),order.Id,Guid.NewGuid(),"voided",null);
         await Assert.ThrowsAsync<InvalidOperationException>(()=>service.ApplyAsync(message,default));
     }
@@ -203,7 +225,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
     [Fact]
     public async Task Void_event_for_another_payment_intent_is_rejected()
     {
-        var order=PendingOrder(); var service=new PaymentReconciliationApplicationService(new RecordingRepository(order),new RecordingInventory(),new RecordingKitchen(),new InMemoryIntegrationEventPublisher());
+        var order=PendingOrder(); var service=new PaymentReconciliationApplicationService(new RecordingRepository(order),new RecordingInventory(),new RecordingKitchen(),new InMemoryIntegrationEventPublisher(), new RecordingPayment());
         var message=new PaymentVoidReconciledV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,order.OrganizationId,order.Id,Guid.NewGuid(),"voided",null);
         await Assert.ThrowsAsync<InvalidOperationException>(()=>service.ApplyAsync(message,default));
     }
@@ -215,7 +237,8 @@ public sealed class OrderPaymentCaptureReconciliationTests
     private static OrderAggregate PendingOrder()
     {
         var order = OrderAggregate.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-            [new OrderLine(Guid.NewGuid(), "Soup", 10m, 1, "kitchen")], "USD");
+            [new OrderLine(Guid.NewGuid(), "Soup", 10m, 1, "kitchen")], "USD",
+            workflowPaymentMethod: "card");
         order.Submit();
         order.MarkInventoryReserved();
         order.MarkKitchenAccepted();
@@ -261,6 +284,19 @@ public sealed class OrderPaymentCaptureReconciliationTests
         {
             CancelCalls++;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingPayment(PaymentResult? result = null) : IPaymentPort
+    {
+        private readonly PaymentResult response = result ?? new PaymentResult(false, Guid.NewGuid(), "unused", "unknown");
+        public int Calls { get; private set; }
+
+        public Task<PaymentResult> AuthorizeAsync(Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId,
+            decimal amount, string currency, string method, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(response);
         }
     }
 

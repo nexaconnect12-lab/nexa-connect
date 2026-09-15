@@ -80,6 +80,8 @@ public sealed class OrderWorkflowRecoveryTests
     [InlineData("requires_action")]
     [InlineData("capturing")]
     [InlineData("capture_unknown")]
+    [InlineData("voiding")]
+    [InlineData("void_unknown")]
     public async Task Uncertain_provider_payment_moves_to_payment_pending_and_leaves_reconciliation_to_payment(string outcome)
     {
         Guid paymentId = Guid.NewGuid();

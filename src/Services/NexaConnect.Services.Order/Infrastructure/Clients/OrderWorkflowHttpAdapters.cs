@@ -118,20 +118,16 @@ public sealed class HttpPaymentPort(HttpClient client) : IPaymentPort
         string status = Normalize(payment.Status);
         if (status == "pending")
         {
-            PaymentResponse? authorized = await PostAndReconcileAsync(
+            PaymentResponse authorized = await PostAndReconcileAsync(
                 organizationId, payment.Id, "authorize", "authorization", cancellationToken);
-            if (authorized is null)
-                return Uncertain(payment.Id, "Payment authorization outcome is unknown.");
             status = Normalize(authorized.Status);
             payment = authorized;
         }
 
         if (status == "authorized")
         {
-            PaymentResponse? captured = await PostAndReconcileAsync(
+            PaymentResponse captured = await PostAndReconcileAsync(
                 organizationId, payment.Id, "capture", "capture", cancellationToken);
-            if (captured is null)
-                return Uncertain(payment.Id, "Payment capture outcome is unknown.");
             payment = captured;
             status = Normalize(captured.Status);
         }
@@ -145,11 +141,13 @@ public sealed class HttpPaymentPort(HttpClient client) : IPaymentPort
                 or "voiding" or "void_unknown" =>
                 new PaymentResult(false, payment.Id,
                     payment.FailureCode ?? "Payment requires server-side reconciliation.", status),
+            "pending" or "authorized" => throw new HttpRequestException(
+                $"Payment intent {payment.Id} remained {status} after the requested operation."),
             _ => throw new InvalidOperationException($"Payment intent {payment.Id} returned unsupported status '{payment.Status}'.")
         };
     }
 
-    private async Task<PaymentResponse?> PostAndReconcileAsync(Guid organizationId, Guid paymentId, string action,
+    private async Task<PaymentResponse> PostAndReconcileAsync(Guid organizationId, Guid paymentId, string action,
         string operation, CancellationToken cancellationToken)
     {
         using var request = TenantRequest(HttpMethod.Post, $"api/payment/v1/intents/{paymentId:D}/{action}", organizationId);
@@ -161,7 +159,9 @@ public sealed class HttpPaymentPort(HttpClient client) : IPaymentPort
         }
         catch (HttpRequestException)
         {
-            return null;
+            // The request may have reached Payment. Reading its state prevents a blind replay;
+            // an unchanged pending/authorized state is rejected below so the durable caller retries.
+            return await ReadCurrentAsync(organizationId, paymentId, cancellationToken);
         }
 
         // A state-changing response may be lost or race another worker. Read the
@@ -192,9 +192,6 @@ public sealed class HttpPaymentPort(HttpClient client) : IPaymentPort
         request.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode, "nexa_connect");
         return request;
     }
-
-    private static PaymentResult Uncertain(Guid paymentId, string reason) =>
-        new(false, paymentId, reason, "unknown");
 
     private static string Normalize(string status) => status.Trim().ToLowerInvariant();
 
