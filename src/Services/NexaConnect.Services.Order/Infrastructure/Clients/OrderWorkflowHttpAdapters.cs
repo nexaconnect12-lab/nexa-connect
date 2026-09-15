@@ -106,51 +106,97 @@ public sealed class HttpPaymentPort(HttpClient client) : IPaymentPort
         request.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode, "nexa_connect");
         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
-            return new PaymentResult(false, null, await response.Content.ReadAsStringAsync(cancellationToken));
-        PaymentResponse? payment = await response.Content.ReadFromJsonAsync<PaymentResponse>(cancellationToken);
-        if (payment is null) return new PaymentResult(false, null, "Payment returned an empty response.");
-        using var authorize = new HttpRequestMessage(HttpMethod.Post, $"api/payment/v1/intents/{payment.Id:D}/authorize");
-        authorize.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId, organizationId.ToString("D"));
-        authorize.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode, "nexa_connect");
-        HttpResponseMessage authorization;
+            throw new HttpRequestException($"Payment intent creation failed with {(int)response.StatusCode}.", null,
+                response.StatusCode);
+        PaymentResponse payment = await ReadRequiredAsync(response, "creation", cancellationToken);
+        return await ResumeAsync(organizationId, payment, cancellationToken);
+    }
+
+    private async Task<PaymentResult> ResumeAsync(Guid organizationId, PaymentResponse payment,
+        CancellationToken cancellationToken)
+    {
+        string status = Normalize(payment.Status);
+        if (status == "pending")
+        {
+            PaymentResponse? authorized = await PostAndReconcileAsync(
+                organizationId, payment.Id, "authorize", "authorization", cancellationToken);
+            if (authorized is null)
+                return Uncertain(payment.Id, "Payment authorization outcome is unknown.");
+            status = Normalize(authorized.Status);
+            payment = authorized;
+        }
+
+        if (status == "authorized")
+        {
+            PaymentResponse? captured = await PostAndReconcileAsync(
+                organizationId, payment.Id, "capture", "capture", cancellationToken);
+            if (captured is null)
+                return Uncertain(payment.Id, "Payment capture outcome is unknown.");
+            payment = captured;
+            status = Normalize(captured.Status);
+        }
+
+        return status switch
+        {
+            "captured" => new PaymentResult(true, payment.Id, null, "captured"),
+            "failed" or "voided" or "void_failed" =>
+                new PaymentResult(false, payment.Id, payment.FailureCode ?? "Payment was not completed.", "failed"),
+            "authorizing" or "unknown" or "requires_action" or "capturing" or "capture_unknown"
+                or "voiding" or "void_unknown" =>
+                new PaymentResult(false, payment.Id,
+                    payment.FailureCode ?? "Payment requires server-side reconciliation.", status),
+            _ => throw new InvalidOperationException($"Payment intent {payment.Id} returned unsupported status '{payment.Status}'.")
+        };
+    }
+
+    private async Task<PaymentResponse?> PostAndReconcileAsync(Guid organizationId, Guid paymentId, string action,
+        string operation, CancellationToken cancellationToken)
+    {
+        using var request = TenantRequest(HttpMethod.Post, $"api/payment/v1/intents/{paymentId:D}/{action}", organizationId);
         try
         {
-            authorization = await client.SendAsync(authorize, cancellationToken);
+            using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+            if (response.IsSuccessStatusCode)
+                return await ReadRequiredAsync(response, operation, cancellationToken);
         }
         catch (HttpRequestException)
         {
-            return new PaymentResult(false, payment.Id, "Payment provider outcome is unknown.", "unknown");
+            return null;
         }
-        using (authorization)
-        {
-            if (!authorization.IsSuccessStatusCode)
-                return new PaymentResult(false, payment.Id, $"Payment authorization failed with {(int)authorization.StatusCode}.",
-                    (int)authorization.StatusCode >= 500 ? "unknown" : "failed");
-            PaymentResponse? authorized = await authorization.Content.ReadFromJsonAsync<PaymentResponse>(cancellationToken);
-            if (authorized?.Status != "authorized")
-                return new PaymentResult(false, payment.Id, authorized?.FailureCode ?? "Payment authorization was not approved.",
-                    authorized?.Status is "authorizing" or "unknown" or "requires_action" ? authorized.Status : "failed");
-            using var capture = new HttpRequestMessage(HttpMethod.Post, $"api/payment/v1/intents/{payment.Id:D}/capture");
-            capture.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId, organizationId.ToString("D"));
-            capture.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode, "nexa_connect");
-            try
-            {
-                using HttpResponseMessage captureResponse = await client.SendAsync(capture, cancellationToken);
-                if (!captureResponse.IsSuccessStatusCode)
-                    return new PaymentResult(false, payment.Id, $"Payment capture failed with {(int)captureResponse.StatusCode}.",
-                        (int)captureResponse.StatusCode >= 500 ? "unknown" : "failed");
-                PaymentResponse? captured = await captureResponse.Content.ReadFromJsonAsync<PaymentResponse>(cancellationToken);
-                return captured?.Status == "captured"
-                    ? new PaymentResult(true, captured.Id, null, "captured")
-                    : new PaymentResult(false, payment.Id, captured?.FailureCode ?? "Payment capture was not completed.",
-                        captured?.Status is "capturing" or "capture_unknown" ? "unknown" : "failed");
-            }
-            catch (HttpRequestException)
-            {
-                return new PaymentResult(false, payment.Id, "Payment capture outcome is unknown.", "unknown");
-            }
-        }
+
+        // A state-changing response may be lost or race another worker. Read the
+        // authoritative intent before deciding whether another operation is safe.
+        return await ReadCurrentAsync(organizationId, paymentId, cancellationToken);
     }
+
+    private async Task<PaymentResponse> ReadCurrentAsync(Guid organizationId, Guid paymentId,
+        CancellationToken cancellationToken)
+    {
+        using var request = TenantRequest(HttpMethod.Get, $"api/payment/v1/intents/{paymentId:D}", organizationId);
+        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException($"Payment intent reconciliation failed with {(int)response.StatusCode}.", null,
+                response.StatusCode);
+        return await ReadRequiredAsync(response, "reconciliation", cancellationToken);
+    }
+
+    private static async Task<PaymentResponse> ReadRequiredAsync(HttpResponseMessage response, string operation,
+        CancellationToken cancellationToken) =>
+        await response.Content.ReadFromJsonAsync<PaymentResponse>(cancellationToken)
+        ?? throw new InvalidOperationException($"Payment returned an empty {operation} response.");
+
+    private static HttpRequestMessage TenantRequest(HttpMethod method, string path, Guid organizationId)
+    {
+        var request = new HttpRequestMessage(method, path);
+        request.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId, organizationId.ToString("D"));
+        request.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode, "nexa_connect");
+        return request;
+    }
+
+    private static PaymentResult Uncertain(Guid paymentId, string reason) =>
+        new(false, paymentId, reason, "unknown");
+
+    private static string Normalize(string status) => status.Trim().ToLowerInvariant();
 
     private sealed record PaymentRequest(Guid RestaurantId, Guid BranchId, Guid OrderId, string IdempotencyKey,
         decimal Amount, string Currency, string PaymentMethod);

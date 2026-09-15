@@ -173,10 +173,14 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
         {
             if (intent.AuthorizationAttemptCount >= 3)
             {
-                using var exhaustedCommand = new NpgsqlCommand("UPDATE payment_intents SET status='requires_action',failure_code='authorization_attempts_exhausted',updated_at_utc=$1,concurrency_version=concurrency_version+1 WHERE organization_id=$2 AND id=$3 AND concurrency_version=$4", connection, transaction);
-                exhaustedCommand.Parameters.AddWithValue(DateTimeOffset.UtcNow); exhaustedCommand.Parameters.AddWithValue(organizationId); exhaustedCommand.Parameters.AddWithValue(id); exhaustedCommand.Parameters.AddWithValue(intent.ConcurrencyVersion);
+                DateTimeOffset exhaustedAt = DateTimeOffset.UtcNow;
+                using var exhaustedCommand = new NpgsqlCommand("UPDATE payment_intents SET status='requires_action',failure_code='authorization_attempts_exhausted',lease_owner=NULL,lease_expires_at_utc=NULL,updated_at_utc=$1,concurrency_version=concurrency_version+1 WHERE organization_id=$2 AND id=$3 AND concurrency_version=$4", connection, transaction);
+                exhaustedCommand.Parameters.AddWithValue(exhaustedAt); exhaustedCommand.Parameters.AddWithValue(organizationId); exhaustedCommand.Parameters.AddWithValue(id); exhaustedCommand.Parameters.AddWithValue(intent.ConcurrencyVersion);
                 exhaustedCommand.ExecuteNonQuery();
                 PaymentIntent exhausted = ReadForUpdate(connection, transaction, organizationId, id)!;
+                AppendLifecycle(connection, transaction, exhausted, "payment.authorization.reconciled", context, exhaustedAt,
+                    new PaymentAuthorizationReconciledV1(Guid.NewGuid(), context.CorrelationId, exhaustedAt,
+                        organizationId, exhausted.OrderId, id, "requires_action", exhausted.FailureCode));
                 transaction.Commit();
                 return new PaymentAuthorizationLease(exhausted, false);
             }

@@ -151,7 +151,7 @@ public sealed class PlaceOrderWorkflow(
         PaymentResult paid = await payment.AuthorizeAsync(
             order.OrganizationId, order.RestaurantId,
             order.BranchId, order.Id, order.TotalAmount, order.Currency, command.PaymentMethod, cancellationToken);
-        if (!paid.Completed && paid.Outcome is "unknown" or "authorizing" or "requires_action")
+        if (!paid.Completed && OrderWorkflowRecoveryService.IsUncertain(paid.Outcome))
         {
             if (paid.PaymentId is null)
                 throw new InvalidOperationException("An uncertain payment authorization must identify its payment intent.");

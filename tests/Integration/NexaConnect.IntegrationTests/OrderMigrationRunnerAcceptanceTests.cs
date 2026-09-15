@@ -16,7 +16,7 @@ namespace NexaConnect.IntegrationTests;
 public sealed class OrderMigrationRunnerAcceptanceTests
 {
     [OrderMigrationAcceptanceFact]
-    public async Task Empty_database_runs_0_to_6_to_5_to_6_and_guards_recoverable_workflows()
+    public async Task Empty_database_runs_0_to_7_to_6_to_7_and_guards_recoverable_workflows()
     {
         string adminConnectionString=Environment.GetEnvironmentVariable("NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB")!;
         string databaseName=$"nexaconnect_order_clean_it_{Guid.NewGuid():N}";ValidateDatabaseName(databaseName);
@@ -29,19 +29,20 @@ public sealed class OrderMigrationRunnerAcceptanceTests
             var databaseBuilder=new NpgsqlConnectionStringBuilder(adminConnectionString){Database=databaseName};
             Environment.SetEnvironmentVariable("NEXACONNECT_ORDER_DB",databaseBuilder.ConnectionString);
             string scriptsRoot=Path.Combine(FindRepositoryRoot(),"src","Tools","NexaConnect.DataMigration","Scripts");
-            Assert.Equal(0,await RunAsync(scriptsRoot,6));
+            Assert.Equal(0,await RunAsync(scriptsRoot,7));
             await using NpgsqlDataSource dataSource=NpgsqlDataSource.Create(databaseBuilder.ConnectionString);
-            await AssertVersion6Async(dataSource);
-            Assert.Equal(0,await RunAsync(scriptsRoot,5,true));
-            await AssertVersion5Async(dataSource);
+            await AssertVersion7Async(dataSource);
             Assert.Equal(0,await RunAsync(scriptsRoot,6));
             await AssertVersion6Async(dataSource);
+            Assert.Equal(0,await RunAsync(scriptsRoot,7));
+            await AssertVersion7Async(dataSource);
             await AssertPersistedOwnershipAndOutboxAsync(dataSource);
             await AssertRecoveryClaimFencesForegroundProgressAsync(dataSource);
+            await AssertKitchenAcceptedProviderPaymentCanBeClaimedAsync(dataSource);
             await AssertKitchenAcceptedManualTenderCanSettleAsync(dataSource);
             await SeedRecoverableOrderAsync(dataSource);
             Assert.NotEqual(0,await RunAsync(scriptsRoot,5,true));
-            await AssertVersion6Async(dataSource);
+            await AssertVersion7Async(dataSource);
         }
         finally
         {
@@ -52,7 +53,7 @@ public sealed class OrderMigrationRunnerAcceptanceTests
 
     private static Task<int> RunAsync(string root,int target,bool destructive=false)
     {
-        var args=new List<string>{"--service","Order","--scripts-root",root,"--target",target.ToString(),"--application-version","0.15.0","--confirm"};
+        var args=new List<string>{"--service","Order","--scripts-root",root,"--target",target.ToString(),"--application-version","0.16.0","--confirm"};
         if(destructive)args.AddRange(["--allow-destructive","--backup-verified"]);
         return MigrationApplication.RunAsync(args.ToArray());
     }
@@ -108,6 +109,15 @@ public sealed class OrderMigrationRunnerAcceptanceTests
         Assert.Contains("kitchen_accepted",definition,StringComparison.Ordinal);
     }
 
+    private static async Task AssertVersion7Async(NpgsqlDataSource source)
+    {
+        await using NpgsqlConnection connection=await source.OpenConnectionAsync();
+        Assert.Equal(7L,Convert.ToInt64(await new NpgsqlCommand("SELECT max(version) FROM nexaconnect_schema_migrations",connection).ExecuteScalarAsync()));
+        string predicate=Convert.ToString(await new NpgsqlCommand("SELECT pg_get_expr(indpred,indrelid) FROM pg_index WHERE indexrelid='ix_orders_workflow_recovery'::regclass",connection).ExecuteScalarAsync())!;
+        Assert.Contains("kitchen_accepted",predicate,StringComparison.Ordinal);
+        Assert.Contains("workflow_payment_method",predicate,StringComparison.Ordinal);
+    }
+
     private static async Task SeedRecoverableOrderAsync(NpgsqlDataSource source)
     {
         var order=OrderAggregate.Create(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),
@@ -136,6 +146,22 @@ public sealed class OrderMigrationRunnerAcceptanceTests
         await using var status=new NpgsqlCommand("SELECT status FROM orders WHERE id=$1",connection);
         status.Parameters.AddWithValue(order.Id);
         Assert.Equal("completed",Convert.ToString(await status.ExecuteScalarAsync()));
+    }
+
+    private static async Task AssertKitchenAcceptedProviderPaymentCanBeClaimedAsync(NpgsqlDataSource source)
+    {
+        var order=OrderAggregate.Create(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),
+            [new OrderLine(Guid.NewGuid(),"Provider recovery item",30m,1,"kitchen")],"THB",Guid.NewGuid(),
+            workflowPaymentMethod:"card",workflowCorrelationId:Guid.NewGuid());
+        order.Submit();order.MarkInventoryReserved();order.MarkKitchenAccepted();
+        var repository=new PostgresOrderRepository(source);
+        await repository.SaveAsync(order,default);
+        await using(var prioritize=source.CreateCommand("UPDATE orders SET workflow_recovery_next_attempt_at_utc=now()-interval '1 day' WHERE id=$1"))
+        {prioritize.Parameters.AddWithValue(order.Id);await prioritize.ExecuteNonQueryAsync();}
+        var claim=Assert.IsType<ORDER::NexaConnect.Services.Order.Application.Workflow.ClaimedOrderWorkflow>(
+            await repository.ClaimNextAsync(DateTimeOffset.UtcNow.AddMinutes(1),TimeSpan.FromMinutes(1),default));
+        Assert.Equal(order.Id,claim.Order.Id);
+        await repository.ReleaseAsync(claim,"acceptance_complete",DateTimeOffset.UtcNow.AddDays(1),default);
     }
 
     private static async Task AssertRecoveryClaimFencesForegroundProgressAsync(NpgsqlDataSource source)

@@ -47,6 +47,15 @@ public sealed class PaymentReconciliationApplicationService(
             return true;
         }
 
+        if (string.Equals(reconciliation.Outcome, "requires_action", StringComparison.Ordinal))
+        {
+            order.MarkPaymentReview();
+            await PersistAsync(order, new OrderPaymentReviewRequiredV1(Guid.NewGuid(), reconciliation.CorrelationId,
+                clock.GetUtcNow(), order.OrganizationId, order.Id, reconciliation.PaymentIntentId,
+                reconciliation.FailureCode ?? "authorization_attempts_exhausted"), cancellationToken);
+            return true;
+        }
+
         return false;
     }
 
@@ -82,6 +91,15 @@ public sealed class PaymentReconciliationApplicationService(
             order.MarkPaymentFailed();
             await PersistAsync(order, new PaymentFailedV1(Guid.NewGuid(), reconciliation.CorrelationId,
                 clock.GetUtcNow(), order.Id, failureCode ?? "capture_failed"), cancellationToken);
+            return true;
+        }
+
+        if (string.Equals(outcome, "requires_action", StringComparison.Ordinal))
+        {
+            order.MarkPaymentReview();
+            await PersistAsync(order, new OrderPaymentReviewRequiredV1(Guid.NewGuid(), reconciliation.CorrelationId,
+                clock.GetUtcNow(), order.OrganizationId, order.Id, reconciliation.PaymentIntentId,
+                failureCode ?? "capture_attempts_exhausted"), cancellationToken);
             return true;
         }
 

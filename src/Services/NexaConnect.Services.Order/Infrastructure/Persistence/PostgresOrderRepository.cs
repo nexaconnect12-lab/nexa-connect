@@ -207,14 +207,15 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
     {
         await using var command = new NpgsqlCommand("""
             INSERT INTO orders (id,organization_id,restaurant_id,branch_id,payment_intent_id,order_number,currency,channel,service_type,subtotal_amount,total_amount,status,workflow_payment_method,workflow_correlation_id,workflow_recovery_next_attempt_at_utc,created_at_utc,created_by,updated_at_utc,updated_by)
-            VALUES (@id,@organization,@restaurant,@branch,@payment_intent,@number,@currency,@channel,@service,@subtotal,@total,@status,@workflow_method,@workflow_correlation,CASE WHEN @status='submitted' AND @workflow_method IN ('cash_manual','promptpay_manual') THEN @recovery_at ELSE NULL END,@now,'order-service',@now,'order-service')
-            ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,payment_intent_id=COALESCE(orders.payment_intent_id,EXCLUDED.payment_intent_id),total_amount=EXCLUDED.total_amount,workflow_payment_method=COALESCE(orders.workflow_payment_method,EXCLUDED.workflow_payment_method),workflow_correlation_id=COALESCE(orders.workflow_correlation_id,EXCLUDED.workflow_correlation_id),workflow_recovery_next_attempt_at_utc=CASE WHEN EXCLUDED.status IN('inventory_reserved') THEN @recovery_at ELSE NULL END,workflow_recovery_claim_id=NULL,workflow_recovery_locked_until_utc=NULL,updated_at_utc=EXCLUDED.updated_at_utc,updated_by=EXCLUDED.updated_by,concurrency_version=orders.concurrency_version+1
+            VALUES (@id,@organization,@restaurant,@branch,@payment_intent,@number,@currency,@channel,@service,@subtotal,@total,@status,@workflow_method,@workflow_correlation,CASE WHEN @status='submitted' AND @workflow_method IS NOT NULL THEN @recovery_at ELSE NULL END,@now,'order-service',@now,'order-service')
+            ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,payment_intent_id=COALESCE(orders.payment_intent_id,EXCLUDED.payment_intent_id),total_amount=EXCLUDED.total_amount,workflow_payment_method=COALESCE(orders.workflow_payment_method,EXCLUDED.workflow_payment_method),workflow_correlation_id=COALESCE(orders.workflow_correlation_id,EXCLUDED.workflow_correlation_id),workflow_recovery_next_attempt_at_utc=CASE WHEN EXCLUDED.status='inventory_reserved' AND EXCLUDED.workflow_payment_method IS NOT NULL THEN @recovery_at WHEN EXCLUDED.status='kitchen_accepted' AND EXCLUDED.workflow_payment_method NOT IN('cash_manual','promptpay_manual') THEN @recovery_at ELSE NULL END,workflow_recovery_claim_id=NULL,workflow_recovery_locked_until_utc=NULL,updated_at_utc=EXCLUDED.updated_at_utc,updated_by=EXCLUDED.updated_by,concurrency_version=orders.concurrency_version+1
             WHERE orders.organization_id=EXCLUDED.organization_id
               AND (orders.payment_intent_id IS NULL OR EXCLUDED.payment_intent_id IS NULL OR orders.payment_intent_id=EXCLUDED.payment_intent_id)
               AND (orders.status NOT IN ('completed','cancelled') OR orders.status=EXCLUDED.status)
               AND (orders.workflow_recovery_claim_id IS NULL OR orders.workflow_recovery_claim_id=@recovery_claim)
               AND NOT (orders.status='inventory_reserved' AND EXCLUDED.status='submitted')
               AND NOT (orders.status='kitchen_accepted' AND EXCLUDED.status IN('submitted','inventory_reserved'))
+              AND NOT (orders.status IN('payment_pending','payment_review') AND EXCLUDED.status IN('submitted','inventory_reserved','kitchen_accepted'))
             """, connection, transaction);
         var now = DateTime.UtcNow;
         command.Parameters.AddWithValue("id", order.Id); command.Parameters.AddWithValue("organization", order.OrganizationId); command.Parameters.AddWithValue("restaurant", order.RestaurantId); command.Parameters.AddWithValue("branch", order.BranchId);
@@ -249,8 +250,8 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         await using (var command = dataSource.CreateCommand("""
             WITH candidate AS (
               SELECT id FROM orders
-              WHERE status IN('submitted','inventory_reserved')
-                AND workflow_payment_method IN('cash_manual','promptpay_manual')
+              WHERE ((status IN('submitted','inventory_reserved') AND workflow_payment_method IS NOT NULL)
+                  OR (status='kitchen_accepted' AND workflow_payment_method NOT IN('cash_manual','promptpay_manual')))
                 AND COALESCE(workflow_recovery_next_attempt_at_utc,updated_at_utc) <= $1
                 AND (workflow_recovery_locked_until_utc IS NULL OR workflow_recovery_locked_until_utc <= $1)
               ORDER BY COALESCE(workflow_recovery_next_attempt_at_utc,updated_at_utc),id

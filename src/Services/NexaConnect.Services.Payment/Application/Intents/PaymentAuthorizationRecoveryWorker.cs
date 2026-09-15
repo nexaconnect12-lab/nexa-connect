@@ -20,13 +20,13 @@ public sealed class PaymentAuthorizationRecoveryWorker(
             {
                 try
                 {
+                    var context = new PaymentMutationContext("payment-recovery-worker", Guid.NewGuid());
                     PaymentAuthorizationLease claim = intents.ClaimExpiredAuthorization(expired.OrganizationId, expired.Id,
-                        new PaymentMutationContext("payment-recovery-worker", Guid.NewGuid()));
+                        context);
                     if (!claim.Acquired) continue;
                     using IServiceScope scope = scopeFactory.CreateScope();
                     PaymentAuthorizationService authorization = scope.ServiceProvider.GetRequiredService<PaymentAuthorizationService>();
-                    await authorization.ReconcileAsync(expired.OrganizationId, expired.Id,
-                        new PaymentMutationContext("payment-recovery-worker", Guid.NewGuid()), stoppingToken);
+                    await authorization.ReconcileAsync(expired.OrganizationId, expired.Id, context, stoppingToken);
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {

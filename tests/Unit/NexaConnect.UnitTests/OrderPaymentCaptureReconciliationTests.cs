@@ -99,6 +99,35 @@ public sealed class OrderPaymentCaptureReconciliationTests
     }
 
     [Fact]
+    public async Task Exhausted_authorization_recovery_enters_financial_review()
+    {
+        var order = PendingOrder();
+        var repository = new RecordingRepository(order);
+        var service = new PaymentReconciliationApplicationService(repository, new RecordingInventory(),
+            new RecordingKitchen(), new InMemoryIntegrationEventPublisher());
+        var message = new PaymentAuthorizationReconciledV1(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow,
+            order.OrganizationId, order.Id, order.PaymentIntentId!.Value, "requires_action",
+            "authorization_attempts_exhausted");
+
+        Assert.True(await service.ApplyAsync(message, default));
+        Assert.Equal(OrderStatus.PaymentReview, order.Status);
+        Assert.IsType<OrderPaymentReviewRequiredV1>(repository.Event);
+    }
+
+    [Fact]
+    public async Task Exhausted_capture_recovery_enters_financial_review()
+    {
+        var order = PendingOrder();
+        var repository = new RecordingRepository(order);
+        var service = new PaymentReconciliationApplicationService(repository, new RecordingInventory(),
+            new RecordingKitchen(), new InMemoryIntegrationEventPublisher());
+
+        Assert.True(await service.ApplyAsync(Capture(order, "requires_action", "capture_attempts_exhausted"), default));
+        Assert.Equal(OrderStatus.PaymentReview, order.Status);
+        Assert.IsType<OrderPaymentReviewRequiredV1>(repository.Event);
+    }
+
+    [Fact]
     public async Task Partial_compensation_failure_keeps_order_pending_and_redelivery_retries_safely()
     {
         var order=PendingOrder();

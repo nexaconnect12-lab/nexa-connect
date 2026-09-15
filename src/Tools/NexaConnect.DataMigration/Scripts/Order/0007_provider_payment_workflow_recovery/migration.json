@@ -1,0 +1,1 @@
+{"version":7,"name":"provider_payment_workflow_recovery","transactional":true,"downgradeSafety":"safe","minimumApplicationVersion":"0.16.0"}
