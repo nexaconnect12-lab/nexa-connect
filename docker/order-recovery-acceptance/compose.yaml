@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: ${NEXACONNECT_ORDER_RECOVERY_ACCEPTANCE_PASSWORD:?Run the Order recovery acceptance launcher}
+    ports: ["127.0.0.1::5432"]
+    tmpfs: [/var/lib/postgresql/data]
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/01-acceptance.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d order_recovery"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: acceptance
+      RABBITMQ_DEFAULT_PASS: ${NEXACONNECT_ORDER_RECOVERY_ACCEPTANCE_PASSWORD:?Run the Order recovery acceptance launcher}
+    ports: ["127.0.0.1::5672"]
+    tmpfs: [/var/lib/rabbitmq]
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 2s
+      timeout: 5s
+      retries: 45

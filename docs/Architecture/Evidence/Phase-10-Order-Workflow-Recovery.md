@@ -1,0 +1,22 @@
+# Order pre-payment workflow recovery evidence
+
+The guarded live acceptance passed locally on 2026-09-15 against a generated PostgreSQL 17 and RabbitMQ 4 Compose project. The runner built an isolated real Order host, applied Order migrations through version 6, started a loopback-only idempotent Inventory/Kitchen/token fixture, terminated two Order child processes at controlled dependency-response boundaries, and verified recovery after restart.
+
+The single coordinated matrix established:
+
+- a Submitted manual-tender Order remained Submitted when Order was terminated while its first Inventory response was withheld, then reused the original Order identity, received the fixture's stable reservation identity on retry, and reached KitchenAccepted;
+- an InventoryReserved Order remained InventoryReserved when Order was terminated while its first Kitchen response was withheld, then reused the original Order identity and received the fixture's stable ticket identity on retry;
+- three consecutive Inventory `503` responses exhausted the HTTP adapter retry boundary, released the durable recovery claim, and succeeded on the next claimed attempt;
+- each recovered Order produced exactly one accepted transition event for each completed stage, despite repeated downstream attempts;
+- every downstream replay carried the original durable correlation identifier; and
+- a recovered KitchenAccepted Order completed the existing exact-total THB cash settlement path.
+
+Sanitized evidence records two process interruptions, Inventory attempts `2` for the Submitted interruption, Kitchen attempts `2` for the InventoryReserved interruption, dependency attempts `4`, zero duplicate transitions, successful final settlement, and verified project cleanup. Credentials, connection strings, bearer tokens, request bodies, and raw child-process logs are not retained.
+
+Run the gate from the repository root:
+
+```powershell
+pwsh -NoProfile -File scripts/test-order-workflow-recovery-live.ps1 -ConfirmDisposableInfrastructure
+```
+
+This evidence covers the manual-tender pre-payment stages owned by Order migration 6. It does not prove provider-payment recovery, production dependency behavior, a remote broker, live-traffic rollback, or cashier interaction with a physical terminal.
