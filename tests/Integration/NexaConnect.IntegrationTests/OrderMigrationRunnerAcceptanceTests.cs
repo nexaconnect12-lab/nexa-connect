@@ -5,6 +5,8 @@ using MigrationApplication = MIGRATIONS::MigrationApplication;
 using OrderAggregate = ORDER::NexaConnect.Services.Order.Domain.OrderAggregate;
 using OrderLine = ORDER::NexaConnect.Services.Order.Domain.OrderLine;
 using PostgresOrderRepository = ORDER::NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderRepository;
+using ManualTenderApplicationService = ORDER::NexaConnect.Services.Order.Application.ManualTenders.ManualTenderApplicationService;
+using ConfirmManualTenderCommand = ORDER::NexaConnect.Services.Order.Application.ManualTenders.ConfirmManualTenderCommand;
 using NexaConnect.Contracts.IntegrationEvents;
 using Npgsql;
 
@@ -35,6 +37,8 @@ public sealed class OrderMigrationRunnerAcceptanceTests
             Assert.Equal(0,await RunAsync(scriptsRoot,6));
             await AssertVersion6Async(dataSource);
             await AssertPersistedOwnershipAndOutboxAsync(dataSource);
+            await AssertRecoveryClaimFencesForegroundProgressAsync(dataSource);
+            await AssertKitchenAcceptedManualTenderCanSettleAsync(dataSource);
             await SeedRecoverableOrderAsync(dataSource);
             Assert.NotEqual(0,await RunAsync(scriptsRoot,5,true));
             await AssertVersion6Async(dataSource);
@@ -112,6 +116,50 @@ public sealed class OrderMigrationRunnerAcceptanceTests
         order.Submit();
         await new PostgresOrderRepository(source).SaveWithEventAsync(order,new OrderSubmittedV1(Guid.NewGuid(),Guid.NewGuid(),
             DateTimeOffset.UtcNow,order.Id,order.OrganizationId,order.BranchId,[],order.TotalAmount,order.Currency),default);
+    }
+
+    private static async Task AssertKitchenAcceptedManualTenderCanSettleAsync(NpgsqlDataSource source)
+    {
+        var order=OrderAggregate.Create(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),
+            [new OrderLine(Guid.NewGuid(),"Recovered item",25m,1,"kitchen")],"THB",Guid.NewGuid(),
+            workflowPaymentMethod:"cash_manual",workflowCorrelationId:Guid.NewGuid());
+        order.Submit();order.MarkInventoryReserved();order.MarkKitchenAccepted();
+        var repository=new PostgresOrderRepository(source);
+        await repository.SaveAsync(order,default);
+        var service=new ManualTenderApplicationService(repository);
+        var command=new ConfirmManualTenderCommand(order.OrganizationId,order.BranchId,order.Id,Guid.NewGuid(),
+            Guid.NewGuid(),"cash",order.TotalAmount,"THB",false,null,"migration-acceptance",Guid.NewGuid(),Guid.NewGuid());
+        var result=Assert.IsType<ORDER::NexaConnect.Services.Order.Application.ManualTenders.ManualTenderResult>(
+            await service.ConfirmAsync(command,default));
+        Assert.Equal("Paid",result.Status);
+        await using NpgsqlConnection connection=await source.OpenConnectionAsync();
+        await using var status=new NpgsqlCommand("SELECT status FROM orders WHERE id=$1",connection);
+        status.Parameters.AddWithValue(order.Id);
+        Assert.Equal("completed",Convert.ToString(await status.ExecuteScalarAsync()));
+    }
+
+    private static async Task AssertRecoveryClaimFencesForegroundProgressAsync(NpgsqlDataSource source)
+    {
+        var order=OrderAggregate.Create(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),
+            [new OrderLine(Guid.NewGuid(),"Fenced item",15m,1,"kitchen")],"THB",Guid.NewGuid(),
+            workflowPaymentMethod:"cash_manual",workflowCorrelationId:Guid.NewGuid());
+        order.Submit();
+        var repository=new PostgresOrderRepository(source);
+        await repository.SaveAsync(order,default);
+        OrderAggregate foreground=Assert.IsType<OrderAggregate>(await repository.GetAsync(order.Id,default));
+        OrderAggregate staleSubmitted=Assert.IsType<OrderAggregate>(await repository.GetAsync(order.Id,default));
+        DateTimeOffset claimTime=DateTimeOffset.UtcNow.AddMinutes(1);
+        var claim=Assert.IsType<ORDER::NexaConnect.Services.Order.Application.Workflow.ClaimedOrderWorkflow>(
+            await repository.ClaimNextAsync(claimTime,TimeSpan.FromMinutes(1),default));
+        foreground.MarkInventoryReserved();
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>repository.SaveAsync(foreground,default));
+        claim.Order.MarkInventoryReserved();
+        Assert.True(await repository.CommitAsync(claim,claim.Order,
+            new InventoryReservedV1(Guid.NewGuid(),claim.Order.WorkflowCorrelationId!.Value,claimTime,
+                claim.Order.Id,Guid.NewGuid()),claimTime,default));
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>repository.SaveAsync(staleSubmitted,default));
+        OrderAggregate stored=Assert.IsType<OrderAggregate>(await repository.GetAsync(order.Id,default));
+        Assert.Equal(ORDER::NexaConnect.Services.Order.Domain.OrderStatus.InventoryReserved,stored.Status);
     }
 
     private static async Task<bool> ColumnExistsAsync(NpgsqlDataSource source,string table,string column)

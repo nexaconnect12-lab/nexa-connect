@@ -6,7 +6,9 @@ public sealed class CorrelationPropagationHandler(IHttpContextAccessor accessor)
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (accessor.HttpContext?.Items[CorrelationLoggingMiddleware.ItemName] is string correlationId
+        string? correlationId = accessor.HttpContext?.Items[CorrelationLoggingMiddleware.ItemName] as string
+            ?? CorrelationContext.Current;
+        if (correlationId is not null
             && !request.Headers.Contains(CorrelationLoggingMiddleware.HeaderName))
             request.Headers.TryAddWithoutValidation(CorrelationLoggingMiddleware.HeaderName, correlationId);
         return base.SendAsync(request, cancellationToken);

@@ -20,6 +20,7 @@ public sealed partial class CorrelationLoggingMiddleware(
         context.Response.Headers[HeaderName] = correlationId;
 
         Stopwatch stopwatch = Stopwatch.StartNew();
+        using IDisposable correlationScope = CorrelationContext.Push(correlationId);
         using IDisposable? scope = logger.BeginScope(new Dictionary<string, object>
         {
             ["CorrelationId"] = correlationId,

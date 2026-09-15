@@ -33,7 +33,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
                 return new(value.Fingerprint==fingerprint?ManualTenderCommitStatus.Replayed:ManualTenderCommitStatus.IdempotencyConflict,value);
             }
         }
-        await using(var update=new NpgsqlCommand("UPDATE orders SET status='completed',updated_at_utc=$1,updated_by=$2,concurrency_version=concurrency_version+1 WHERE id=$3 AND organization_id=$4 AND branch_id=$5 AND payment_intent_id IS NULL AND status IN('accepted','payment_pending') AND total_amount=$6 AND btrim(currency)=$7",connection,transaction))
+        await using(var update=new NpgsqlCommand("UPDATE orders SET status='completed',updated_at_utc=$1,updated_by=$2,concurrency_version=concurrency_version+1 WHERE id=$3 AND organization_id=$4 AND branch_id=$5 AND payment_intent_id IS NULL AND status IN('accepted','kitchen_accepted','payment_pending') AND total_amount=$6 AND btrim(currency)=$7",connection,transaction))
         {
             update.Parameters.AddWithValue(settlement.OccurredAtUtc);update.Parameters.AddWithValue(settlement.OperatorSubjectId);update.Parameters.AddWithValue(order.Id);update.Parameters.AddWithValue(order.OrganizationId);update.Parameters.AddWithValue(order.BranchId);update.Parameters.AddWithValue(settlement.Amount);update.Parameters.AddWithValue(settlement.Currency);
             if(await update.ExecuteNonQueryAsync(cancellationToken)!=1){await transaction.RollbackAsync(cancellationToken);return new(ManualTenderCommitStatus.StateConflict,null);}
@@ -202,7 +202,8 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         return order;
     }
 
-    private static async Task SaveOrderAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, OrderAggregate order, CancellationToken cancellationToken)
+    private static async Task SaveOrderAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, OrderAggregate order,
+        CancellationToken cancellationToken, Guid? recoveryClaimId = null)
     {
         await using var command = new NpgsqlCommand("""
             INSERT INTO orders (id,organization_id,restaurant_id,branch_id,payment_intent_id,order_number,currency,channel,service_type,subtotal_amount,total_amount,status,workflow_payment_method,workflow_correlation_id,workflow_recovery_next_attempt_at_utc,created_at_utc,created_by,updated_at_utc,updated_by)
@@ -211,6 +212,9 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
             WHERE orders.organization_id=EXCLUDED.organization_id
               AND (orders.payment_intent_id IS NULL OR EXCLUDED.payment_intent_id IS NULL OR orders.payment_intent_id=EXCLUDED.payment_intent_id)
               AND (orders.status NOT IN ('completed','cancelled') OR orders.status=EXCLUDED.status)
+              AND (orders.workflow_recovery_claim_id IS NULL OR orders.workflow_recovery_claim_id=@recovery_claim)
+              AND NOT (orders.status='inventory_reserved' AND EXCLUDED.status='submitted')
+              AND NOT (orders.status='kitchen_accepted' AND EXCLUDED.status IN('submitted','inventory_reserved'))
             """, connection, transaction);
         var now = DateTime.UtcNow;
         command.Parameters.AddWithValue("id", order.Id); command.Parameters.AddWithValue("organization", order.OrganizationId); command.Parameters.AddWithValue("restaurant", order.RestaurantId); command.Parameters.AddWithValue("branch", order.BranchId);
@@ -220,6 +224,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         command.Parameters.AddWithValue("workflow_method", (object?)order.WorkflowPaymentMethod ?? DBNull.Value);
         command.Parameters.AddWithValue("workflow_correlation", (object?)order.WorkflowCorrelationId ?? DBNull.Value);
         command.Parameters.AddWithValue("recovery_at", now.AddSeconds(30));
+        command.Parameters.AddWithValue("recovery_claim", (object?)recoveryClaimId ?? DBNull.Value);
         int affected = await command.ExecuteNonQueryAsync(cancellationToken);
         if (affected == 0)
             throw new InvalidOperationException($"Order {order.Id} has already reached a conflicting terminal state.");
@@ -278,7 +283,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
             fence.Parameters.AddWithValue(order.Id); fence.Parameters.AddWithValue(claim.ClaimId); fence.Parameters.AddWithValue(now);
             if (await fence.ExecuteScalarAsync(cancellationToken) is null) { await transaction.RollbackAsync(cancellationToken); return false; }
         }
-        await SaveOrderAsync(connection, transaction, order, cancellationToken);
+        await SaveOrderAsync(connection, transaction, order, cancellationToken, claim.ClaimId);
         await EnqueueAsync(connection, transaction, integrationEvent, EventType(integrationEvent), order.Id, cancellationToken);
         await transaction.CommitAsync(cancellationToken); return true;
     }

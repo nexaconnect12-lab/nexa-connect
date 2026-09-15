@@ -1,4 +1,5 @@
 using NexaConnect.Contracts.IntegrationEvents;
+using NexaConnect.Observability;
 using NexaConnect.Services.Order.Domain;
 
 namespace NexaConnect.Services.Order.Application.Workflow;
@@ -18,7 +19,8 @@ public sealed class OrderWorkflowRecoveryService(
     IOrderWorkflowRecoveryRepository repository,
     IInventoryReservationPort inventory,
     IKitchenPort kitchen,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null,
+    ILogger<OrderWorkflowRecoveryService>? logger = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
@@ -28,10 +30,17 @@ public sealed class OrderWorkflowRecoveryService(
         ClaimedOrderWorkflow? claim = await repository.ClaimNextAsync(now, lease, cancellationToken);
         if (claim is null) return false;
 
+        OrderAggregate order = claim.Order;
+        Guid correlationId = order.WorkflowCorrelationId ?? order.Id;
+        using IDisposable correlationScope = CorrelationContext.Push(correlationId.ToString("D"));
+        using IDisposable? logScope = logger?.BeginScope(new Dictionary<string, object>
+        {
+            ["CorrelationId"] = correlationId.ToString("D"),
+            ["RecoveryStage"] = order.Status.ToString(),
+            ["RecoveryAttempt"] = claim.AttemptCount
+        });
         try
         {
-            OrderAggregate order = claim.Order;
-            Guid correlationId = order.WorkflowCorrelationId ?? order.Id;
             if (order.Status == OrderStatus.Submitted)
             {
                 InventoryReservationResult reservation = await inventory.ReserveAsync(
@@ -70,8 +79,10 @@ public sealed class OrderWorkflowRecoveryService(
             throw new InvalidOperationException("Only submitted or inventory-reserved orders can be recovered.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch
+        catch (Exception exception)
         {
+            logger?.LogWarning(exception,
+                "Order workflow recovery dependency or fencing boundary failed; the durable claim will be released when still owned.");
             await repository.ReleaseAsync(claim, "dependency_unavailable", clock.GetUtcNow() + retryDelay,
                 CancellationToken.None);
             throw;

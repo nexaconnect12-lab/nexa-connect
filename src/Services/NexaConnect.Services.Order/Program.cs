@@ -93,7 +93,13 @@ if (builder.Configuration.GetValue<bool>("WorkflowRecovery:Enabled"))
 {
     if (!usePostgres || !builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
         throw new InvalidOperationException("Order workflow recovery requires PostgreSQL persistence and HTTP workflow adapters.");
-    builder.Services.Configure<OrderWorkflowRecoveryOptions>(builder.Configuration.GetSection("WorkflowRecovery"));
+    builder.Services.AddOptions<OrderWorkflowRecoveryOptions>()
+        .Bind(builder.Configuration.GetSection("WorkflowRecovery"))
+        .Validate(value => value.PollInterval > TimeSpan.Zero
+            && value.LeaseDuration > TimeSpan.Zero
+            && value.RetryDelay > TimeSpan.Zero,
+            "Workflow recovery poll, lease, and retry durations must be positive.")
+        .ValidateOnStart();
     builder.Services.AddHostedService<OrderWorkflowRecoveryWorker>();
 }
 

@@ -108,6 +108,18 @@ public sealed class ObservabilityTests
         Assert.Equal("phase4-debug-123", terminal.CorrelationId);
     }
 
+    [Fact]
+    public async Task Outbound_handler_propagates_ambient_worker_correlation_without_http_context()
+    {
+        var terminal = new RecordingHandler();
+        var handler = new CorrelationPropagationHandler(new HttpContextAccessor()) { InnerHandler = terminal };
+        using var client = new HttpClient(handler);
+        using (CorrelationContext.Push("order-recovery-123"))
+            await client.GetAsync("https://dependency.test/resource");
+        Assert.Equal("order-recovery-123", terminal.CorrelationId);
+        Assert.Null(CorrelationContext.Current);
+    }
+
     private sealed class CapturingLogger<T> : ILogger<T>
     {
         public List<string> Messages { get; } = [];
