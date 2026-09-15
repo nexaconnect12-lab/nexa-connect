@@ -4,6 +4,21 @@ namespace NexaConnect.UnitTests;
 
 public sealed class CashierPresentationTests
 {
+    [Fact]
+    public void New_shift_number_is_readable_and_distinguishes_restarts_in_the_same_second()
+    {
+        var now = new DateTimeOffset(2026, 9, 15, 11, 5, 7, TimeSpan.FromHours(8));
+
+        string first = CashierPresentation.NewShiftNumber(now,
+            Guid.Parse("abcdef12-0000-0000-0000-000000000000"));
+        string second = CashierPresentation.NewShiftNumber(now,
+            Guid.Parse("12345678-0000-0000-0000-000000000000"));
+
+        Assert.Equal("SHIFT-20260915-110507-ABCDEF", first);
+        Assert.Equal("SHIFT-20260915-110507-123456", second);
+        Assert.NotEqual(first, second);
+    }
+
     [Theory]
     [InlineData(true, true, false, false, true)]
     [InlineData(false, true, false, false, false)]

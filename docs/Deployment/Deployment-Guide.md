@@ -24,7 +24,7 @@ For Payment Review acceptance, prefer `scripts/test-payment-review-isolated.ps1 
    This includes the local OpenTelemetry Collector, Loki, and Grafana logging stack. Set `GRAFANA_ADMIN_PASSWORD` before startup.
 3. Wait for the `postgres`, `keycloak-db`, and `keycloak` health checks.
 4. Restore the solution once with `dotnet restore NexaConnect.sln`. The migration launcher uses `dotnet run --no-restore` so each service does not repeat NuGet access; rerun restore explicitly after dependency changes.
-5. Preview every service migration with `.\scripts\migrate-databases.ps1`. Its default application compatibility version is `0.10.0`, the highest minimum application version required by the checked-in migration catalog. This compatibility value does not choose the schema target; the launcher discovers the latest migration for each service. Override `-ApplicationVersion` only when intentionally validating an older release boundary, in which case migrations requiring a newer application version fail safely.
+5. Preview every service migration with `.\scripts\migrate-databases.ps1`. Its default application compatibility version is `0.14.0`, the highest minimum application version required by the checked-in migration catalog. This compatibility value does not choose the schema target; the launcher discovers the latest migration for each service. Override `-ApplicationVersion` only when intentionally validating an older release boundary, in which case migrations requiring a newer application version fail safely.
 6. After reviewing the plans, apply them with `.\scripts\migrate-databases.ps1 -Confirm`.
 
 The application PostgreSQL container listens on `127.0.0.1:5432`. Redis (`127.0.0.1:6379`) and RabbitMQ AMQP, management, and Prometheus metrics (`127.0.0.1:5672`, `127.0.0.1:15672`, and `127.0.0.1:15692/metrics`) are local-only Compose endpoints and must not be exposed publicly. Prometheus and Alertmanager are available locally on `127.0.0.1:9090` and `127.0.0.1:9093`; Alertmanager has no external receiver. Keycloak uses a separate PostgreSQL container and database because Keycloak owns its schema and lifecycle.
@@ -42,7 +42,7 @@ Startup import skips an existing realm. Apply subsequent realm changes through a
 
 The checked-in realm contains no users. Create local users in the Admin Console and assign only the coarse roles needed for development. Product Owner Portal users receive one of `platform-owner`, `platform-admin`, `platform-support`, or `platform-auditor`; customer and product roles remain separate. See [Client Matrix](../Identity/Client-Matrix.md) and [Claims Contract](../Identity/Claims-Contract.md).
 
-To run the WPF POS client locally, build it and register its custom callback protocol for the current Windows user:
+To run the WPF POS client locally, build it and register its custom callback protocol for the current Windows user. Configure `Session:IdleTimeoutMinutes` (1-60, default 5), `Session:AbsoluteTimeoutHours` (1-24, default 10), and `Session:TokenRefreshLeadSeconds` (15-240, default 60) in the client settings. Keep the absolute boundary at or below the Keycloak realm maximum. Timeout locks preserve operational recovery and never close cash or shifts automatically.
 
 ```powershell
 dotnet build src/Clients/NexaConnect.POS/NexaConnect.POS.csproj

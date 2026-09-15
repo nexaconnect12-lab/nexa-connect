@@ -35,6 +35,17 @@ public sealed class PostgresOrderSettlementProjectionStore(NpgsqlDataSource data
         }
         if(value.Method=="cash"&&cashSessionId is null)throw new OrderSettlementProjectionConflictException("Cash settlement has no matching THB cash session at its occurrence time.");
         if(value.Method=="promptpay_manual")cashSessionId=null;
+        if(cashSessionId is not null)
+        {
+            // Serialize every movement and total recalculation for this drawer. Without this lock,
+            // concurrent distinct events can each aggregate a snapshot that excludes the other's
+            // uncommitted movement and the last updater can persist stale closing totals.
+            await using var sessionLock = new NpgsqlCommand(
+                "SELECT id FROM cash_sessions WHERE id=$1 FOR UPDATE", connection, transaction);
+            sessionLock.Parameters.AddWithValue(cashSessionId.Value);
+            if(await sessionLock.ExecuteScalarAsync(cancellationToken) is null)
+                throw new OrderSettlementProjectionConflictException("Cash settlement has no matching cash session.");
+        }
         await using(var orderConflict=new NpgsqlCommand("SELECT event_id FROM pos_order_settlements WHERE order_id=$1",connection,transaction))
         {orderConflict.Parameters.AddWithValue(value.OrderId);if(await orderConflict.ExecuteScalarAsync(cancellationToken) is Guid other&&other!=value.EventId)throw new OrderSettlementProjectionConflictException("The Order already has a different POS settlement projection.");}
         await using(var insert=new NpgsqlCommand("INSERT INTO pos_order_settlements(event_id,settlement_id,order_id,organization_id,restaurant_id,branch_id,terminal_id,cash_session_id,method,amount,currency,occurred_at_utc,projected_at_utc) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())",connection,transaction))
@@ -45,7 +56,29 @@ public sealed class PostgresOrderSettlementProjectionStore(NpgsqlDataSource data
         {
             await using var movement=new NpgsqlCommand("INSERT INTO cash_movements(id,cash_session_id,movement_type,amount,order_id,payment_id,reason_code,occurred_at_utc,recorded_by) VALUES($1,$2,'sale',$3,$4,$5,'ORDER_MANUAL_TENDER',$6,'order-settlement-consumer')",connection,transaction);
             movement.Parameters.AddWithValue(Guid.NewGuid());movement.Parameters.AddWithValue(cashSessionId!.Value);movement.Parameters.AddWithValue(value.Amount);movement.Parameters.AddWithValue(value.OrderId);movement.Parameters.AddWithValue(value.SettlementId);movement.Parameters.AddWithValue(value.OccurredAtUtc);await movement.ExecuteNonQueryAsync(cancellationToken);
-            await using var reconcile=new NpgsqlCommand("UPDATE cash_sessions SET variance_amount=CASE WHEN status='closed' THEN actual_closing_amount-(opening_amount+COALESCE((SELECT SUM(CASE WHEN movement_type IN('sale','pay_in','float_adjustment') THEN amount ELSE -amount END) FROM cash_movements WHERE cash_session_id=cash_sessions.id),0)) ELSE variance_amount END,updated_at_utc=now(),concurrency_version=concurrency_version+1 WHERE id=$1",connection,transaction);
+            await using var reconcile = new NpgsqlCommand("""
+                WITH total AS (
+                    SELECT session.id,
+                           session.opening_amount + COALESCE(SUM(
+                               CASE WHEN movement.movement_type IN ('sale', 'pay_in', 'float_adjustment')
+                                    THEN movement.amount ELSE -movement.amount END), 0) AS expected_amount
+                    FROM cash_sessions session
+                    LEFT JOIN cash_movements movement ON movement.cash_session_id = session.id
+                    WHERE session.id = $1
+                    GROUP BY session.id
+                )
+                UPDATE cash_sessions session
+                SET expected_closing_amount = CASE WHEN session.status = 'closed'
+                                                   THEN total.expected_amount
+                                                   ELSE session.expected_closing_amount END,
+                    variance_amount = CASE WHEN session.status = 'closed'
+                                           THEN session.actual_closing_amount - total.expected_amount
+                                           ELSE session.variance_amount END,
+                    updated_at_utc = now(),
+                    concurrency_version = session.concurrency_version + 1
+                FROM total
+                WHERE session.id = total.id;
+                """, connection, transaction);
             reconcile.Parameters.AddWithValue(cashSessionId.Value);await reconcile.ExecuteNonQueryAsync(cancellationToken);
         }
         await transaction.CommitAsync(cancellationToken);return OrderSettlementProjectionStatus.Applied;

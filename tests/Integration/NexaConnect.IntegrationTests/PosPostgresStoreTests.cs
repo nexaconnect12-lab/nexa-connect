@@ -54,8 +54,27 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
         var promptpay=new OrderManualTenderSettledV1(Guid.NewGuid(),Guid.NewGuid(),DateTimeOffset.UtcNow,Guid.NewGuid(),restaurant,branch,Guid.NewGuid(),Guid.NewGuid(),terminal,"promptpay_manual",80m,"THB");
         await projections.ProjectAsync(promptpay,default);
         Assert.Equal(1,await CountCashMovementsAsync(session));
+        DateTimeOffset lateOccurrence = DateTimeOffset.UtcNow;
+        var beforeClose = await cashStore.GetSummaryAsync(session, "cashier-1", terminal, default);
+        await cashStore.CloseAsync(session, 215m, beforeClose!.ConcurrencyVersion, "cashier-1", terminal, default);
+        var lateCashOne = new OrderManualTenderSettledV1(Guid.NewGuid(), Guid.NewGuid(), lateOccurrence,
+            Guid.NewGuid(), restaurant, branch, Guid.NewGuid(), Guid.NewGuid(), terminal, "cash", 30m, "THB");
+        var lateCashTwo = new OrderManualTenderSettledV1(Guid.NewGuid(), Guid.NewGuid(), lateOccurrence,
+            Guid.NewGuid(), restaurant, branch, Guid.NewGuid(), Guid.NewGuid(), terminal, "cash", 20m, "THB");
+        await Task.WhenAll(
+            projections.ProjectAsync(lateCashOne, default),
+            projections.ProjectAsync(lateCashTwo, default));
+        var review = await new CashReviewStore(_dataSource!).GetAsync(
+            new CashReviewScope(Guid.NewGuid(), restaurant, branch, store), session, default);
+        Assert.Equal(270m, review!.Session.ExpectedClosingAmount);
+        Assert.Equal(215m, review.Session.ActualClosingAmount);
+        Assert.Equal(-55m, review.Session.VarianceAmount);
+        Assert.Equal(review.Session.ActualClosingAmount - review.Session.ExpectedClosingAmount,
+            review.Session.VarianceAmount);
+        Assert.Equal("review_required", review.Session.ReviewStatus);
         await using var command=_dataSource!.CreateCommand("SELECT count(*) FROM pos_order_settlements");
-        Assert.Equal(2L,Convert.ToInt64(await command.ExecuteScalarAsync()));
+        Assert.Equal(4L,Convert.ToInt64(await command.ExecuteScalarAsync()));
+        Assert.Equal(3,await CountCashMovementsAsync(session));
     }
 
     [PosRabbitMqFact]
@@ -262,6 +281,12 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
             Guid.NewGuid(), terminalId, "review-sale", default);
         var open = await cashStore.GetSummaryAsync(sessionId, "cashier-1", terminalId, default);
         await cashStore.CloseAsync(sessionId, 13m, open!.ConcurrencyVersion, "cashier-1", terminalId, default);
+        await using (var legacy = _dataSource!.CreateCommand(
+            "UPDATE cash_sessions SET expected_closing_amount = NULL WHERE id = $1"))
+        {
+            legacy.Parameters.AddWithValue(sessionId);
+            await legacy.ExecuteNonQueryAsync();
+        }
 
         var reviews = new CashReviewStore(_dataSource!);
         var scope = new CashReviewScope(organizationId, restaurantId, branchId, storeId);
@@ -311,8 +336,8 @@ public sealed class PosPostgresStoreTests : IAsyncLifetime
             await movement.ExecuteNonQueryAsync();
             await using var update = new NpgsqlCommand("""
                 UPDATE cash_sessions
-                SET expected_closing_amount = expected_closing_amount + 1,
-                    variance_amount = actual_closing_amount - (expected_closing_amount + 1),
+                SET expected_closing_amount = 16,
+                    variance_amount = actual_closing_amount - 16,
                     concurrency_version = concurrency_version + 1, updated_at_utc = now()
                 WHERE id = $1;
                 """, connection, transaction);

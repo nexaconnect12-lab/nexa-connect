@@ -87,7 +87,7 @@ $output = & $dockerPath compose --project-name nexa-connect --project-directory 
     -f $composeFile exec -T postgres psql -X -q -A -t -v ON_ERROR_STOP=1 `
     -U postgres -d NexaConnect_POS -c $sql 2>$null
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($output -join ''))) {
-    throw 'POS cash-review database verification failed.'
+    throw 'POS cash-review database verification failed. Confirm local Docker is running and POS migration 5 is applied to NexaConnect_POS.'
 }
 try { $review = (($output -join '') | ConvertFrom-Json) }
 catch { throw 'POS cash-review database verification returned an invalid result.' }

@@ -32,9 +32,11 @@ public sealed class PostgresCashReviewStore(NpgsqlDataSource dataSource) : ICash
         const string sql = """
             SELECT session.id, session.shift_id, session.store_id, shift.terminal_id,
                    shift.shift_number, shift.employee_identity_subject_id, btrim(session.currency),
-                   session.expected_closing_amount, session.actual_closing_amount, session.variance_amount,
+                   totals.expected_amount,
+                   session.actual_closing_amount,
+                   session.actual_closing_amount - totals.expected_amount,
                    session.closed_at_utc, session.concurrency_version,
-                   CASE WHEN session.variance_amount = 0 THEN 'balanced'
+                   CASE WHEN session.actual_closing_amount - totals.expected_amount = 0 THEN 'balanced'
                         WHEN state.reviewed_session_version IS DISTINCT FROM session.concurrency_version
                             THEN 'review_required'
                         ELSE state.status END,
@@ -42,12 +44,17 @@ public sealed class PostgresCashReviewStore(NpgsqlDataSource dataSource) : ICash
             FROM cash_sessions session
             JOIN shifts shift ON shift.id = session.shift_id AND shift.store_id = session.store_id
             JOIN stores store ON store.id = session.store_id
+            CROSS JOIN LATERAL (
+                SELECT session.opening_amount + COALESCE(SUM(
+                    CASE WHEN movement.movement_type IN ('sale', 'pay_in', 'float_adjustment')
+                         THEN movement.amount ELSE -movement.amount END), 0) AS expected_amount
+                FROM cash_movements movement WHERE movement.cash_session_id = session.id
+            ) totals
             LEFT JOIN cash_session_review_states state ON state.cash_session_id = session.id
             WHERE session.status = 'closed' AND session.store_id = $1
               AND store.restaurant_id = $2 AND store.branch_id = $3
               AND session.closed_at_utc >= $4 AND session.closed_at_utc < $5
-              AND session.expected_closing_amount IS NOT NULL
-              AND session.actual_closing_amount IS NOT NULL AND session.variance_amount IS NOT NULL
+              AND session.actual_closing_amount IS NOT NULL
               AND ($6::timestamptz IS NULL OR (session.closed_at_utc, session.id) < ($6, $7))
             ORDER BY session.closed_at_utc DESC, session.id DESC
             LIMIT $8;
@@ -100,15 +107,18 @@ public sealed class PostgresCashReviewStore(NpgsqlDataSource dataSource) : ICash
         }
 
         const string lockSql = """
-            SELECT session.concurrency_version, session.variance_amount,
+            SELECT session.concurrency_version,
+                   session.actual_closing_amount - session.opening_amount - COALESCE((SELECT SUM(
+                       CASE WHEN movement.movement_type IN ('sale', 'pay_in', 'float_adjustment')
+                            THEN movement.amount ELSE -movement.amount END)
+                       FROM cash_movements movement WHERE movement.cash_session_id = session.id), 0),
                    state.reviewed_session_version, state.status, COALESCE(state.concurrency_version, 0)
             FROM cash_sessions session
             JOIN stores store ON store.id = session.store_id
             LEFT JOIN cash_session_review_states state ON state.cash_session_id = session.id
             WHERE session.id = $1 AND session.status = 'closed' AND session.store_id = $2
               AND store.restaurant_id = $3 AND store.branch_id = $4
-              AND session.expected_closing_amount IS NOT NULL
-              AND session.actual_closing_amount IS NOT NULL AND session.variance_amount IS NOT NULL
+              AND session.actual_closing_amount IS NOT NULL
             FOR UPDATE OF session;
             """;
         long sessionVersion;
@@ -254,9 +264,11 @@ public sealed class PostgresCashReviewStore(NpgsqlDataSource dataSource) : ICash
         const string sessionSql = """
             SELECT session.id, session.shift_id, session.store_id, shift.terminal_id,
                    shift.shift_number, shift.employee_identity_subject_id, btrim(session.currency),
-                   session.expected_closing_amount, session.actual_closing_amount, session.variance_amount,
+                   totals.expected_amount,
+                   session.actual_closing_amount,
+                   session.actual_closing_amount - totals.expected_amount,
                    session.closed_at_utc, session.concurrency_version,
-                   CASE WHEN session.variance_amount = 0 THEN 'balanced'
+                   CASE WHEN session.actual_closing_amount - totals.expected_amount = 0 THEN 'balanced'
                         WHEN state.reviewed_session_version IS DISTINCT FROM session.concurrency_version
                             THEN 'review_required'
                         ELSE state.status END,
@@ -264,11 +276,16 @@ public sealed class PostgresCashReviewStore(NpgsqlDataSource dataSource) : ICash
             FROM cash_sessions session
             JOIN shifts shift ON shift.id = session.shift_id AND shift.store_id = session.store_id
             JOIN stores store ON store.id = session.store_id
+            CROSS JOIN LATERAL (
+                SELECT session.opening_amount + COALESCE(SUM(
+                    CASE WHEN movement.movement_type IN ('sale', 'pay_in', 'float_adjustment')
+                         THEN movement.amount ELSE -movement.amount END), 0) AS expected_amount
+                FROM cash_movements movement WHERE movement.cash_session_id = session.id
+            ) totals
             LEFT JOIN cash_session_review_states state ON state.cash_session_id = session.id
             WHERE session.id = $1 AND session.status = 'closed' AND session.store_id = $2
               AND store.restaurant_id = $3 AND store.branch_id = $4
-              AND session.expected_closing_amount IS NOT NULL
-              AND session.actual_closing_amount IS NOT NULL AND session.variance_amount IS NOT NULL;
+              AND session.actual_closing_amount IS NOT NULL;
             """;
         CashReviewListItem item;
         await using (var command = new NpgsqlCommand(sessionSql, connection, transaction))

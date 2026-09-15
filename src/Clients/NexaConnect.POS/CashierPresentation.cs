@@ -5,6 +5,9 @@ namespace NexaConnect.POS;
 /// <summary>Presentation only; service authorization and totals remain authoritative.</summary>
 public static class CashierPresentation
 {
+    public static string NewShiftNumber(DateTimeOffset localNow, Guid nonce) =>
+        $"SHIFT-{localNow:yyyyMMdd-HHmmss}-{nonce.ToString("N")[..6].ToUpperInvariant()}";
+
     public static string SessionGuidance(bool signedIn, bool shiftOpen, bool cashOpen,
         bool checkoutPending, bool paymentPending, bool movementsPending)
     {

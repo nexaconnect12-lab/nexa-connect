@@ -115,7 +115,9 @@ public sealed class PlaceOrderWorkflow(
                 throw new InvalidOperationException("Menu prices use a different currency than the order.");
             return new OrderLine(item.ProductId, item.Name, item.UnitPrice, line.Quantity, item.PreparationStation);
         }).ToArray();
-        var order = OrderAggregate.Create(orderId, command.OrganizationId, command.BranchId, orderLines, command.Currency, command.RestaurantId, idempotencyKey: command.IdempotencyKey);
+        var order = OrderAggregate.Create(orderId, command.OrganizationId, command.BranchId, orderLines, command.Currency,
+            command.RestaurantId, idempotencyKey: command.IdempotencyKey,
+            workflowPaymentMethod: command.PaymentMethod, workflowCorrelationId: correlationId);
         order.Submit();
         await PersistAsync(order, new OrderSubmittedV1(
             Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, order.OrganizationId, order.BranchId,

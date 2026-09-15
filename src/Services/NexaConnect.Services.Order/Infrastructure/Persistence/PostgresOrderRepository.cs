@@ -9,7 +9,7 @@ using NexaConnect.Services.Order.Domain;
 namespace NexaConnect.Services.Order.Infrastructure.Persistence;
 
 public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
-    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderLookup, IPaymentReviewRepository, IPaymentReviewHistoryRepository, IManualTenderRepository
+    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderWorkflowRecoveryRepository, IOrderLookup, IPaymentReviewRepository, IPaymentReviewHistoryRepository, IManualTenderRepository
 {
     public async Task<StoredManualTender?> FindAsync(Guid organizationId,Guid branchId,Guid idempotencyKey,CancellationToken cancellationToken)
     {
@@ -179,7 +179,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
     public async Task<OrderAggregate?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("SELECT organization_id, restaurant_id, branch_id, currency, status, order_number, channel, service_type, payment_intent_id FROM orders WHERE id=@id", connection);
+        await using var command = new NpgsqlCommand("SELECT organization_id, restaurant_id, branch_id, currency, status, order_number, channel, service_type, payment_intent_id, workflow_payment_method, workflow_correlation_id FROM orders WHERE id=@id", connection);
         command.Parameters.AddWithValue("id", id);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
@@ -187,13 +187,16 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         var organization = reader.GetGuid(0); var restaurant = reader.GetGuid(1); var branch = reader.GetGuid(2); var currency = reader.GetString(3).Trim();
         var status = reader.GetString(4); var orderNumber = reader.GetString(5); var channel = reader.GetString(6); var serviceType = reader.GetString(7);
         Guid? paymentIntentId = reader.IsDBNull(8) ? null : reader.GetGuid(8);
+        string? workflowPaymentMethod = reader.IsDBNull(9) ? null : reader.GetString(9);
+        Guid? workflowCorrelationId = reader.IsDBNull(10) ? null : reader.GetGuid(10);
         await reader.CloseAsync();
         await using var linesCommand = new NpgsqlCommand("SELECT product_id, name_snapshot, unit_price, quantity, COALESCE(notes,'') FROM order_lines WHERE order_id=@id ORDER BY line_number", connection);
         linesCommand.Parameters.AddWithValue("id", id);
         var lines = new List<OrderLine>();
         await using var linesReader = await linesCommand.ExecuteReaderAsync(cancellationToken);
         while (await linesReader.ReadAsync(cancellationToken)) lines.Add(new OrderLine(linesReader.GetGuid(0), linesReader.GetString(1), linesReader.GetDecimal(2), (int)linesReader.GetDecimal(3), linesReader.GetString(4)));
-        var order = OrderAggregate.Create(id, organization, branch, lines, currency, restaurant, channel, serviceType, orderNumber);
+        var order = OrderAggregate.Create(id, organization, branch, lines, currency, restaurant, channel, serviceType,
+            orderNumber, workflowPaymentMethod: workflowPaymentMethod, workflowCorrelationId: workflowCorrelationId);
         order.RestorePaymentIntent(paymentIntentId);
         ApplyStatus(order, status);
         return order;
@@ -202,9 +205,9 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
     private static async Task SaveOrderAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, OrderAggregate order, CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand("""
-            INSERT INTO orders (id,organization_id,restaurant_id,branch_id,payment_intent_id,order_number,currency,channel,service_type,subtotal_amount,total_amount,status,created_at_utc,created_by,updated_at_utc,updated_by)
-            VALUES (@id,@organization,@restaurant,@branch,@payment_intent,@number,@currency,@channel,@service,@subtotal,@total,@status,@now,'order-service',@now,'order-service')
-            ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,payment_intent_id=COALESCE(orders.payment_intent_id,EXCLUDED.payment_intent_id),total_amount=EXCLUDED.total_amount,updated_at_utc=EXCLUDED.updated_at_utc,updated_by=EXCLUDED.updated_by,concurrency_version=orders.concurrency_version+1
+            INSERT INTO orders (id,organization_id,restaurant_id,branch_id,payment_intent_id,order_number,currency,channel,service_type,subtotal_amount,total_amount,status,workflow_payment_method,workflow_correlation_id,workflow_recovery_next_attempt_at_utc,created_at_utc,created_by,updated_at_utc,updated_by)
+            VALUES (@id,@organization,@restaurant,@branch,@payment_intent,@number,@currency,@channel,@service,@subtotal,@total,@status,@workflow_method,@workflow_correlation,CASE WHEN @status='submitted' AND @workflow_method IN ('cash_manual','promptpay_manual') THEN @recovery_at ELSE NULL END,@now,'order-service',@now,'order-service')
+            ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,payment_intent_id=COALESCE(orders.payment_intent_id,EXCLUDED.payment_intent_id),total_amount=EXCLUDED.total_amount,workflow_payment_method=COALESCE(orders.workflow_payment_method,EXCLUDED.workflow_payment_method),workflow_correlation_id=COALESCE(orders.workflow_correlation_id,EXCLUDED.workflow_correlation_id),workflow_recovery_next_attempt_at_utc=CASE WHEN EXCLUDED.status IN('inventory_reserved') THEN @recovery_at ELSE NULL END,workflow_recovery_claim_id=NULL,workflow_recovery_locked_until_utc=NULL,updated_at_utc=EXCLUDED.updated_at_utc,updated_by=EXCLUDED.updated_by,concurrency_version=orders.concurrency_version+1
             WHERE orders.organization_id=EXCLUDED.organization_id
               AND (orders.payment_intent_id IS NULL OR EXCLUDED.payment_intent_id IS NULL OR orders.payment_intent_id=EXCLUDED.payment_intent_id)
               AND (orders.status NOT IN ('completed','cancelled') OR orders.status=EXCLUDED.status)
@@ -214,6 +217,9 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         command.Parameters.AddWithValue("payment_intent", (object?)order.PaymentIntentId ?? DBNull.Value);
         command.Parameters.AddWithValue("number", order.OrderNumber); command.Parameters.AddWithValue("currency", order.Currency); command.Parameters.AddWithValue("channel", order.Channel); command.Parameters.AddWithValue("service", order.ServiceType);
         command.Parameters.AddWithValue("subtotal", order.TotalAmount); command.Parameters.AddWithValue("total", order.TotalAmount); command.Parameters.AddWithValue("status", ToDbStatus(order.Status)); command.Parameters.AddWithValue("now", now);
+        command.Parameters.AddWithValue("workflow_method", (object?)order.WorkflowPaymentMethod ?? DBNull.Value);
+        command.Parameters.AddWithValue("workflow_correlation", (object?)order.WorkflowCorrelationId ?? DBNull.Value);
+        command.Parameters.AddWithValue("recovery_at", now.AddSeconds(30));
         int affected = await command.ExecuteNonQueryAsync(cancellationToken);
         if (affected == 0)
             throw new InvalidOperationException($"Order {order.Id} has already reached a conflicting terminal state.");
@@ -232,12 +238,66 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         }
     }
 
-    private static string ToDbStatus(OrderStatus status) => status switch { OrderStatus.Paid => "completed", OrderStatus.PaymentFailed or OrderStatus.Rejected => "cancelled", OrderStatus.PaymentPending => "payment_pending", OrderStatus.PaymentReview => "payment_review", OrderStatus.KitchenAccepted => "accepted", OrderStatus.InventoryReserved => "accepted", _ => status.ToString().ToLowerInvariant() };
+    public async Task<ClaimedOrderWorkflow?> ClaimNextAsync(DateTimeOffset now, TimeSpan lease, CancellationToken cancellationToken)
+    {
+        Guid claimId = Guid.NewGuid(); Guid? orderId;
+        await using (var command = dataSource.CreateCommand("""
+            WITH candidate AS (
+              SELECT id FROM orders
+              WHERE status IN('submitted','inventory_reserved')
+                AND workflow_payment_method IN('cash_manual','promptpay_manual')
+                AND COALESCE(workflow_recovery_next_attempt_at_utc,updated_at_utc) <= $1
+                AND (workflow_recovery_locked_until_utc IS NULL OR workflow_recovery_locked_until_utc <= $1)
+              ORDER BY COALESCE(workflow_recovery_next_attempt_at_utc,updated_at_utc),id
+              FOR UPDATE SKIP LOCKED LIMIT 1
+            )
+            UPDATE orders value SET workflow_recovery_claim_id=$2,workflow_recovery_locked_until_utc=$3,
+              workflow_recovery_attempt_count=workflow_recovery_attempt_count+1,workflow_recovery_last_error_category=NULL
+            FROM candidate WHERE value.id=candidate.id RETURNING value.id
+            """))
+        {
+            command.Parameters.AddWithValue(now); command.Parameters.AddWithValue(claimId); command.Parameters.AddWithValue(now + lease);
+            orderId = await command.ExecuteScalarAsync(cancellationToken) as Guid?;
+        }
+        if (orderId is null) return null;
+        OrderAggregate order = await GetAsync(orderId.Value, cancellationToken)
+            ?? throw new InvalidOperationException("Claimed Order no longer exists.");
+        await using var attempts = dataSource.CreateCommand("SELECT workflow_recovery_attempt_count FROM orders WHERE id=$1 AND workflow_recovery_claim_id=$2");
+        attempts.Parameters.AddWithValue(orderId.Value); attempts.Parameters.AddWithValue(claimId);
+        int count = Convert.ToInt32(await attempts.ExecuteScalarAsync(cancellationToken));
+        return new ClaimedOrderWorkflow(order, claimId, count);
+    }
+
+    public async Task<bool> CommitAsync(ClaimedOrderWorkflow claim, OrderAggregate order, IIntegrationEvent integrationEvent,
+        DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using (var fence = new NpgsqlCommand("SELECT 1 FROM orders WHERE id=$1 AND workflow_recovery_claim_id=$2 AND workflow_recovery_locked_until_utc>$3 FOR UPDATE", connection, transaction))
+        {
+            fence.Parameters.AddWithValue(order.Id); fence.Parameters.AddWithValue(claim.ClaimId); fence.Parameters.AddWithValue(now);
+            if (await fence.ExecuteScalarAsync(cancellationToken) is null) { await transaction.RollbackAsync(cancellationToken); return false; }
+        }
+        await SaveOrderAsync(connection, transaction, order, cancellationToken);
+        await EnqueueAsync(connection, transaction, integrationEvent, EventType(integrationEvent), order.Id, cancellationToken);
+        await transaction.CommitAsync(cancellationToken); return true;
+    }
+
+    public async Task ReleaseAsync(ClaimedOrderWorkflow claim, string errorCategory, DateTimeOffset nextAttemptAtUtc,
+        CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("UPDATE orders SET workflow_recovery_claim_id=NULL,workflow_recovery_locked_until_utc=NULL,workflow_recovery_next_attempt_at_utc=$1,workflow_recovery_last_error_category=$2 WHERE id=$3 AND workflow_recovery_claim_id=$4");
+        command.Parameters.AddWithValue(nextAttemptAtUtc); command.Parameters.AddWithValue(errorCategory);
+        command.Parameters.AddWithValue(claim.Order.Id); command.Parameters.AddWithValue(claim.ClaimId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static string ToDbStatus(OrderStatus status) => status switch { OrderStatus.Paid => "completed", OrderStatus.PaymentFailed or OrderStatus.Rejected => "cancelled", OrderStatus.PaymentPending => "payment_pending", OrderStatus.PaymentReview => "payment_review", OrderStatus.KitchenAccepted => "kitchen_accepted", OrderStatus.InventoryReserved => "inventory_reserved", _ => status.ToString().ToLowerInvariant() };
     private static string EventType(IIntegrationEvent integrationEvent) => integrationEvent switch
     {
         OrderPaymentReviewRequiredV1 => "order.payment-review-required.v1",
         OrderPaymentReviewResolvedV1 => "order.payment-review-resolved.v1",
         _ => integrationEvent.GetType().Name
     };
-    private static void ApplyStatus(OrderAggregate order, string status) { if (status == "submitted") order.Submit(); else if (status == "accepted") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); } else if (status is "payment_pending" or "payment_review") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaymentPending(); if(status=="payment_review")order.MarkPaymentReview(); } else if (status == "completed") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaid(); } else if (status == "cancelled") order.Reject(); }
+    private static void ApplyStatus(OrderAggregate order, string status) { if (status == "submitted") order.Submit(); else if (status == "inventory_reserved") { order.Submit(); order.MarkInventoryReserved(); } else if (status is "accepted" or "kitchen_accepted") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); } else if (status is "payment_pending" or "payment_review") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaymentPending(); if(status=="payment_review")order.MarkPaymentReview(); } else if (status == "completed") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaid(); } else if (status == "cancelled") order.Reject(); }
 }

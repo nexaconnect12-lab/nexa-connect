@@ -39,6 +39,7 @@ if (usePostgres)
     builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(connectionString).Build());
     builder.Services.AddSingleton<PostgresOrderRepository>();
     builder.Services.AddSingleton<IOrderRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
+    builder.Services.AddSingleton<IOrderWorkflowRecoveryRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
     builder.Services.AddSingleton<IManualTenderRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
     builder.Services.AddSingleton<IOrderApplicationService, PostgresOrderApplicationService>();
     builder.Services.Configure<OrderOperationalMetricsOptions>(builder.Configuration.GetSection("OperationalMetrics"));
@@ -54,6 +55,7 @@ builder.Services.AddSingleton<InMemoryIntegrationEventPublisher>();
 builder.Services.AddSingleton<IIntegrationEventPublisher>(services =>
     services.GetRequiredService<InMemoryIntegrationEventPublisher>());
 builder.Services.AddScoped<PlaceOrderWorkflow>();
+builder.Services.AddScoped<OrderWorkflowRecoveryService>();
 builder.Services.AddScoped<PaymentReconciliationApplicationService>();
 builder.Services.AddScoped<PaymentReviewApplicationService>();
 builder.Services.AddScoped<ManualTenderApplicationService>();
@@ -86,6 +88,13 @@ if (builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
     builder.Services.AddHttpClient<IPaymentPort, HttpPaymentPort>(client =>
         client.BaseAddress = new Uri(builder.Configuration["Services:Payment"] ?? throw new InvalidOperationException("Services:Payment is required.")))
         .AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>().AddHttpMessageHandler<RetryingHttpMessageHandler>();
+}
+if (builder.Configuration.GetValue<bool>("WorkflowRecovery:Enabled"))
+{
+    if (!usePostgres || !builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
+        throw new InvalidOperationException("Order workflow recovery requires PostgreSQL persistence and HTTP workflow adapters.");
+    builder.Services.Configure<OrderWorkflowRecoveryOptions>(builder.Configuration.GetSection("WorkflowRecovery"));
+    builder.Services.AddHostedService<OrderWorkflowRecoveryWorker>();
 }
 
 var app = builder.Build();

@@ -20,6 +20,8 @@ public sealed class PaymentReconciliationOperationalMetricsWorker : BackgroundSe
     private double unpublishedOutboxOldestAgeSeconds;
     private long openPaymentReviews;
     private double oldestPaymentReviewAgeSeconds;
+    private long pendingWorkflowRecoveries;
+    private double oldestWorkflowRecoveryAgeSeconds;
     private readonly NpgsqlDataSource dataSource;
     private readonly IOptions<OrderOperationalMetricsOptions> options;
     private readonly ILogger<PaymentReconciliationOperationalMetricsWorker> logger;
@@ -29,6 +31,8 @@ public sealed class PaymentReconciliationOperationalMetricsWorker : BackgroundSe
     private readonly ObservableGauge<double> outboxAgeGauge;
     private readonly ObservableGauge<long> paymentReviewGauge;
     private readonly ObservableGauge<double> paymentReviewAgeGauge;
+    private readonly ObservableGauge<long> workflowRecoveryGauge;
+    private readonly ObservableGauge<double> workflowRecoveryAgeGauge;
 
     public PaymentReconciliationOperationalMetricsWorker(
         NpgsqlDataSource dataSource,
@@ -49,6 +53,8 @@ public sealed class PaymentReconciliationOperationalMetricsWorker : BackgroundSe
             "order.outbox.oldest_age_seconds", () => Volatile.Read(ref unpublishedOutboxOldestAgeSeconds));
         paymentReviewGauge=Meter.CreateObservableGauge("order.payment_review.open",()=>Volatile.Read(ref openPaymentReviews));
         paymentReviewAgeGauge=Meter.CreateObservableGauge("order.payment_review.oldest_age_seconds",()=>Volatile.Read(ref oldestPaymentReviewAgeSeconds));
+        workflowRecoveryGauge=Meter.CreateObservableGauge("order.workflow_recovery.pending",()=>Volatile.Read(ref pendingWorkflowRecoveries));
+        workflowRecoveryAgeGauge=Meter.CreateObservableGauge("order.workflow_recovery.oldest_age_seconds",()=>Volatile.Read(ref oldestWorkflowRecoveryAgeSeconds));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -81,6 +87,10 @@ public sealed class PaymentReconciliationOperationalMetricsWorker : BackgroundSe
 
             SELECT count(*)::bigint,COALESCE(EXTRACT(EPOCH FROM now()-min(created_at_utc)),0)::double precision
             FROM order_payment_reviews WHERE status IN('open','resolving');
+
+            SELECT count(*)::bigint,COALESCE(EXTRACT(EPOCH FROM now()-min(updated_at_utc)),0)::double precision
+            FROM orders WHERE status IN('submitted','inventory_reserved')
+              AND workflow_payment_method IN('cash_manual','promptpay_manual');
             """;
         try
         {
@@ -97,6 +107,9 @@ public sealed class PaymentReconciliationOperationalMetricsWorker : BackgroundSe
             await reader.NextResultAsync(cancellationToken);await reader.ReadAsync(cancellationToken);
             Interlocked.Exchange(ref openPaymentReviews,reader.GetInt64(0));
             Volatile.Write(ref oldestPaymentReviewAgeSeconds,Math.Max(0,reader.GetDouble(1)));
+            await reader.NextResultAsync(cancellationToken);await reader.ReadAsync(cancellationToken);
+            Interlocked.Exchange(ref pendingWorkflowRecoveries,reader.GetInt64(0));
+            Volatile.Write(ref oldestWorkflowRecoveryAgeSeconds,Math.Max(0,reader.GetDouble(1)));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

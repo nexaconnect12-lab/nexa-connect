@@ -1,0 +1,1 @@
+{"version":6,"name":"pre_payment_workflow_recovery","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.15.0"}

@@ -70,7 +70,7 @@ The initial realm configuration provides:
 - realm and administrative events;
 - a dedicated API audience and deliberately mapped coarse roles.
 
-For managed Windows POS devices, the deployment package must register the `nexaconnect-pos` URI scheme to the signed POS executable and verify that the exact redirect URI is present in the realm client configuration. The POS client is public and must not receive a client secret.
+For managed Windows POS devices, the deployment package must register the `nexaconnect-pos` URI scheme to the signed POS executable and verify that the exact redirect URI is present in the realm client configuration. The POS client is public and must not receive a client secret. Set its idle and absolute session controls at or below organizational and Keycloak realm limits. Verify refresh-token rotation, rejected-refresh credential clearing, transient identity outage at access-token expiry, five-minute idle lock, forced interactive reauthentication, and preservation of active financial/recovery state before release. Never configure timeout handling to close a shift or cash session automatically.
 
 Platform Directory remains authoritative for organizations and memberships. Product services remain authoritative for restaurant resources and fine-grained permissions.
 

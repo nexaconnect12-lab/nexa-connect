@@ -3,7 +3,14 @@ using System.Text.Json;
 
 namespace NexaConnect.POS;
 
-internal sealed class WindowsTokenStore
+internal interface IPosTokenStore
+{
+    PosTokenSet? Load();
+    void Save(PosTokenSet token);
+    void Delete();
+}
+
+internal sealed class WindowsTokenStore : IPosTokenStore
 {
     private readonly string _path = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

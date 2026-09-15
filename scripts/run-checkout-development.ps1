@@ -100,6 +100,7 @@ try {
         }
         Set-RunEnvironment 'OrderSettlementConsumer__Enabled' $(if($service -eq 'POS') {'true'} else {'false'})
         Set-RunEnvironment 'OrderSettlementConsumer__ConnectionString' $env:NEXACONNECT_CHECKOUT_RABBITMQ
+        Set-RunEnvironment 'WorkflowRecovery__Enabled' $(if($service -eq 'Order') {'true'} else {'false'})
         Set-RunEnvironment 'ActivityConsumer__Enabled' $(if($service -eq 'Reporting') {'true'} else {'false'})
         Set-RunEnvironment 'ActivityConsumer__ConnectionString' $env:NEXACONNECT_CHECKOUT_RABBITMQ
         $dll = Join-Path $out "NexaConnect.Services.$service.dll"

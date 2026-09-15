@@ -18,7 +18,10 @@ public sealed record PosClientConfiguration(
     Guid BranchId,
     Guid StoreId,
     Guid TerminalId,
-    string CatalogApi = "")
+    string CatalogApi = "",
+    int SessionIdleTimeoutMinutes = 5,
+    int SessionAbsoluteTimeoutHours = 10,
+    int TokenRefreshLeadSeconds = 60)
 {
     public void ValidateCheckout()
     {
@@ -31,6 +34,12 @@ public sealed record PosClientConfiguration(
             throw new InvalidDataException("Configure valid organization, restaurant, branch, store and terminal identifiers.");
         if (Currency != "THB" || PaymentMethod is not ("cash_manual" or "promptpay_manual"))
             throw new InvalidDataException("Cashier checkout requires THB and cash_manual or promptpay_manual.");
+        if (SessionIdleTimeoutMinutes is < 1 or > 60)
+            throw new InvalidDataException("Session:IdleTimeoutMinutes must be between 1 and 60.");
+        if (SessionAbsoluteTimeoutHours is < 1 or > 24)
+            throw new InvalidDataException("Session:AbsoluteTimeoutHours must be between 1 and 24.");
+        if (TokenRefreshLeadSeconds is < 15 or > 240)
+            throw new InvalidDataException("Session:TokenRefreshLeadSeconds must be between 15 and 240.");
     }
 
     public static PosClientConfiguration Load()
@@ -40,6 +49,9 @@ public sealed record PosClientConfiguration(
         JsonElement root = document.RootElement;
         JsonElement identity = root.GetProperty("Identity");
         JsonElement services = root.GetProperty("Services");
+        JsonElement session = root.TryGetProperty("Session", out JsonElement configuredSession)
+            ? configuredSession
+            : default;
         var configuration = new PosClientConfiguration(
             identity.GetProperty("Authority").GetString() ?? throw new InvalidDataException("Identity:Authority is required."),
             identity.GetProperty("ClientId").GetString() ?? throw new InvalidDataException("Identity:ClientId is required."),
@@ -57,7 +69,10 @@ public sealed record PosClientConfiguration(
             ParseGuid(root, "Pos", "BranchId"),
             ParseGuid(root, "Pos", "StoreId"),
             ParseGuid(root, "Pos", "TerminalId"),
-            services.TryGetProperty("CatalogApi", out var catalog) ? catalog.GetString() ?? "" : "");
+            services.TryGetProperty("CatalogApi", out var catalog) ? catalog.GetString() ?? "" : "",
+            GetInt32(session, "IdleTimeoutMinutes", 5),
+            GetInt32(session, "AbsoluteTimeoutHours", 10),
+            GetInt32(session, "TokenRefreshLeadSeconds", 60));
         configuration.ValidateCheckout();
         return configuration;
     }
@@ -66,4 +81,9 @@ public sealed record PosClientConfiguration(
         Guid.TryParse(root.GetProperty(section).GetProperty(name).GetString(), out Guid value)
             ? value
             : Guid.Empty;
+
+    private static int GetInt32(JsonElement section, string name, int fallback) =>
+        section.ValueKind == JsonValueKind.Object && section.TryGetProperty(name, out JsonElement value)
+            ? value.GetInt32()
+            : fallback;
 }

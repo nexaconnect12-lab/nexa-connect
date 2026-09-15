@@ -37,7 +37,9 @@ public sealed class OrderAggregate
         string channel = "pos",
         string serviceType = "takeaway",
         string? orderNumber = null,
-        string? idempotencyKey = null)
+        string? idempotencyKey = null,
+        string? workflowPaymentMethod = null,
+        Guid? workflowCorrelationId = null)
     {
         Id = id;
         OrganizationId = organizationId;
@@ -49,6 +51,8 @@ public sealed class OrderAggregate
         ServiceType = serviceType;
         OrderNumber = orderNumber ?? id.ToString("N")[..12];
         IdempotencyKey = idempotencyKey;
+        WorkflowPaymentMethod = workflowPaymentMethod;
+        WorkflowCorrelationId = workflowCorrelationId;
         Status = OrderStatus.Draft;
     }
 
@@ -61,6 +65,8 @@ public sealed class OrderAggregate
     public string ServiceType { get; }
     public string OrderNumber { get; }
     public string? IdempotencyKey { get; }
+    public string? WorkflowPaymentMethod { get; }
+    public Guid? WorkflowCorrelationId { get; }
     public Guid? PaymentIntentId { get; private set; }
     public OrderStatus Status { get; private set; }
     public IReadOnlyList<OrderLine> Lines => lines;
@@ -76,13 +82,15 @@ public sealed class OrderAggregate
         string channel = "pos",
         string serviceType = "takeaway",
         string? orderNumber = null,
-        string? idempotencyKey = null)
+        string? idempotencyKey = null,
+        string? workflowPaymentMethod = null,
+        Guid? workflowCorrelationId = null)
     {
         if (lines.Count == 0) throw new ArgumentException("An order requires at least one line.", nameof(lines));
         if (lines.Any(line => line.Quantity <= 0 || line.UnitPrice < 0))
             throw new ArgumentException("Order lines must have a positive quantity and non-negative price.", nameof(lines));
         if (string.IsNullOrWhiteSpace(currency)) throw new ArgumentException("Currency is required.", nameof(currency));
-        return new OrderAggregate(id, organizationId, branchId, lines, currency.ToUpperInvariant(), restaurantId, channel, serviceType, orderNumber, idempotencyKey);
+        return new OrderAggregate(id, organizationId, branchId, lines, currency.ToUpperInvariant(), restaurantId, channel, serviceType, orderNumber, idempotencyKey, workflowPaymentMethod, workflowCorrelationId);
     }
 
     public void Submit() => Transition(OrderStatus.Draft, OrderStatus.Submitted);

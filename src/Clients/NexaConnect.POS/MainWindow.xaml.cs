@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Text.Json;
 using System.IO;
 using System.Windows.Media.Imaging;
+using System.Windows.Input;
 
 namespace NexaConnect.POS;
 
@@ -34,6 +35,10 @@ public partial class MainWindow : Window
     private bool viewInitialized;
     private bool busy;
     private bool reauthenticationRequired;
+    private string? sessionLockMessage;
+    private bool tokenRefreshInFlight;
+    private DateTimeOffset lastOperatorActivityUtc = DateTimeOffset.UtcNow;
+    private DateTimeOffset nextTokenRefreshAttemptUtc = DateTimeOffset.MinValue;
     private readonly System.Windows.Threading.DispatcherTimer sessionTimer = new()
     {
         Interval = TimeSpan.FromSeconds(1)
@@ -50,6 +55,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         _authentication = authentication;
+        reauthenticationRequired = authentication.RequiresInteractiveSignIn;
         _api = api;
         _localStore = localStore;
         outbox = outboxStore;
@@ -79,7 +85,7 @@ public partial class MainWindow : Window
         System.Windows.Data.CollectionViewSource.GetDefaultView(menu).Filter = value => value is PosMenuItem item && CashierPresentation.MatchesMenu(item.Name, item.PreparationStation, MenuSearchTextBox.Text, StationComboBox.SelectedItem as string);
         StationComboBox.ItemsSource = new[] { "All stations" };
         StationComboBox.SelectedIndex = 0;
-        ShiftNumberTextBox.Text = $"SHIFT-{DateTime.Now:yyyyMMdd-HHmm}";
+        ShiftNumberTextBox.Text = CashierPresentation.NewShiftNumber(DateTimeOffset.Now, Guid.NewGuid());
         CartList.ItemsSource = cart;
         CashReviewList.ItemsSource = cashReviews;
         CashReviewFromDatePicker.SelectedDate = DateTime.Today.AddDays(-7);
@@ -111,8 +117,11 @@ public partial class MainWindow : Window
         try
         {
             StatusText.Text = "Opening secure sign-in…";
-            await _authentication.SignInAsync(cancellation.Token);
+            await _authentication.SignInAsync(reauthenticationRequired, cancellation.Token);
             reauthenticationRequired = false;
+            sessionLockMessage = null;
+            lastOperatorActivityUtc = DateTimeOffset.UtcNow;
+            nextTokenRefreshAttemptUtc = DateTimeOffset.MinValue;
             StatusText.Text = "Signed in. POS session is ready.";
         }
         catch (OperationCanceledException)
@@ -188,6 +197,7 @@ public partial class MainWindow : Window
             string shiftNumber = _activeShift.ShiftNumber;
             _activeShift = null;
             _localStore.ClearActiveShift();
+            ShiftNumberTextBox.Text = CashierPresentation.NewShiftNumber(DateTimeOffset.Now, Guid.NewGuid());
             StatusText.Text = $"Shift {shiftNumber} is closed.";
         }
         catch (Exception exception)
@@ -965,6 +975,7 @@ public partial class MainWindow : Window
 
         _authentication.SignOut();
         reauthenticationRequired = false;
+        sessionLockMessage = null;
         cashSummary = null;
         cashSummaryVerified = false;
         cashReviews.Clear();
@@ -1091,25 +1102,126 @@ public partial class MainWindow : Window
             ? guidance
             : "Verify the pending cash-review decision before signing out.";
         CloseShiftButton.ToolTip = guidance;
+        if (reauthenticationRequired && sessionLockMessage is not null)
+            StatusText.Text = sessionLockMessage;
     }
 
-    private bool IsSignedIn() => _authentication.CurrentToken is not null &&
-        _authentication.CurrentToken.ExpiresAtUtc > DateTimeOffset.UtcNow;
-
-    private void SessionTimer_Tick(object? sender, EventArgs e)
+    private bool IsSignedIn()
     {
         PosTokenSet? token = _authentication.CurrentToken;
-        if (busy || reauthenticationRequired || token is null || token.ExpiresAtUtc > DateTimeOffset.UtcNow)
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        return !reauthenticationRequired && token is not null && token.ExpiresAtUtc > now &&
+            !PosSessionPolicy.IsAbsoluteExpired(token, now) &&
+            !PosSessionPolicy.IsIdleExpired(lastOperatorActivityUtc, now,
+                TimeSpan.FromMinutes(_configuration.SessionIdleTimeoutMinutes));
+    }
+
+    private async void SessionTimer_Tick(object? sender, EventArgs e)
+    {
+        PosTokenSet? token = _authentication.CurrentToken;
+        if (busy || reauthenticationRequired || token is null)
         {
             return;
         }
 
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (PosSessionPolicy.IsAbsoluteExpired(token, now))
+        {
+            _authentication.RequireInteractiveSignIn();
+            LockSession("The maximum POS session time was reached. Sign in again; saved operational and review recovery has been retained.");
+            return;
+        }
+        if (PosSessionPolicy.IsIdleExpired(lastOperatorActivityUtc, now,
+            TimeSpan.FromMinutes(_configuration.SessionIdleTimeoutMinutes)))
+        {
+            _authentication.RequireInteractiveSignIn();
+            LockSession("POS locked after inactivity. Sign in again; saved operational and review recovery has been retained.");
+            return;
+        }
+        bool shouldRefresh = PosSessionPolicy.ShouldRefresh(token, now,
+            TimeSpan.FromSeconds(_configuration.TokenRefreshLeadSeconds));
+        if (token.ExpiresAtUtc <= now && !shouldRefresh)
+        {
+            _authentication.RequireInteractiveSignIn();
+            LockSession("Your access token expired and cannot be renewed. Sign in again; saved operational and review recovery has been retained.");
+            return;
+        }
+        if (tokenRefreshInFlight || now < nextTokenRefreshAttemptUtc || !shouldRefresh)
+        {
+            return;
+        }
+
+        tokenRefreshInFlight = true;
+        try
+        {
+            await _authentication.RefreshAsync();
+            nextTokenRefreshAttemptUtc = DateTimeOffset.MinValue;
+            if (!busy) UpdateOperationalState();
+        }
+        catch (PosReauthenticationRequiredException)
+        {
+            LockSession("Your identity session ended. Sign in again; saved operational and review recovery has been retained.");
+        }
+        catch (HttpRequestException)
+        {
+            nextTokenRefreshAttemptUtc = DateTimeOffset.UtcNow.AddSeconds(15);
+            if (token.ExpiresAtUtc <= DateTimeOffset.UtcNow)
+                LockSession("The access token expired while identity was unavailable. Sign in again when connectivity returns; saved operational state is retained.");
+        }
+        catch (OperationCanceledException)
+        {
+            // Window shutdown can cancel an in-flight refresh.
+        }
+        catch (Exception)
+        {
+            LockSession("The POS could not securely renew this session. Sign in again; saved operational and review recovery has been retained.");
+        }
+        finally
+        {
+            tokenRefreshInFlight = false;
+        }
+    }
+
+    private void LockSession(string message)
+    {
         reauthenticationRequired = true;
-        UpdateOperationalState();
-        StatusText.Text = _activeShift is null && cashSessionId is null && pendingOrder is null &&
-            pendingCheckout is null && pendingCashReviewAttempt is null
-            ? "Your session expired. Sign in again to continue."
-            : "Your session expired. Sign in again; saved operational and review recovery has been retained.";
+        sessionLockMessage = message;
+        if (!busy) UpdateOperationalState();
+        StatusText.Text = message;
+    }
+
+    private bool RecordOperatorActivity()
+    {
+        if (reauthenticationRequired) return true;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (_authentication.CurrentToken is not null &&
+            PosSessionPolicy.IsIdleExpired(lastOperatorActivityUtc, now,
+                TimeSpan.FromMinutes(_configuration.SessionIdleTimeoutMinutes)))
+        {
+            _authentication.RequireInteractiveSignIn();
+            LockSession("POS locked after inactivity. Sign in again; saved operational and review recovery has been retained.");
+            return false;
+        }
+        lastOperatorActivityUtc = now;
+        return true;
+    }
+
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (!RecordOperatorActivity()) e.Handled = true;
+        base.OnPreviewKeyDown(e);
+    }
+
+    protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
+    {
+        if (!RecordOperatorActivity()) e.Handled = true;
+        base.OnPreviewMouseDown(e);
+    }
+
+    protected override void OnPreviewTouchDown(TouchEventArgs e)
+    {
+        if (!RecordOperatorActivity()) e.Handled = true;
+        base.OnPreviewTouchDown(e);
     }
 
     private void OnStatusChanged(object? sender, string status) =>

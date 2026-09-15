@@ -55,6 +55,10 @@
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosApiClient.cs" Link="POS\PosApiClient.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosClientConfiguration.cs" Link="POS\PosClientConfiguration.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosTokenSet.cs" Link="POS\PosTokenSet.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosSessionPolicy.cs" Link="POS\PosSessionPolicy.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosAuthentication.cs" Link="POS\PosAuthentication.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\WindowsTokenStore.cs" Link="POS\WindowsTokenStore.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Pkce.cs" Link="POS\Pkce.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\SettlementAttempt.cs" Link="POS\SettlementAttempt.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\CashierPresentation.cs" Link="POS\CashierPresentation.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalPosStore.cs" Link="POS\LocalPosStore.cs" />
