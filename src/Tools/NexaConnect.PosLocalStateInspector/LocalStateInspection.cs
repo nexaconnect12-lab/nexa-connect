@@ -7,6 +7,7 @@ public sealed record LocalStateInspectionResult(
     bool IntegrityOk,
     int SchemaVersion,
     int OperationalStateCount,
+    int PendingCashReviewCount,
     int UnresolvedOutboxCount,
     int InterruptedSendCount);
 
@@ -34,8 +35,9 @@ public static class LocalStateInspection
             ScalarInt(connection, "PRAGMA user_version;"),
             ScalarInt(connection, """
                 SELECT count(*) FROM local_state
-                WHERE state_key IN ('active-shift','cash-session','pending-checkout','pending-settlement');
+                WHERE state_key IN ('active-shift','cash-session','pending-checkout','pending-settlement','pending-cash-review');
                 """),
+            ScalarInt(connection, "SELECT count(*) FROM local_state WHERE state_key='pending-cash-review';"),
             ScalarInt(connection, "SELECT count(*) FROM outbox_operations WHERE state <> 'completed';"),
             ScalarInt(connection, "SELECT count(*) FROM outbox_operations WHERE state = 'sending';"));
     }

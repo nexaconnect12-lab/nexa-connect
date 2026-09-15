@@ -17,12 +17,16 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
         var shift = new LocalShiftState(Guid.NewGuid(), "SHIFT-SQLITE", DateTimeOffset.UtcNow);
         var cash = new LocalCashSessionState(Guid.NewGuid(), shift.ShiftId, DateTimeOffset.UtcNow);
         var settlement = new LocalPendingSettlementState(Guid.NewGuid(), 175m, "THB", Guid.NewGuid(), "cash", OutcomeUncertain: true);
+        PosClientConfiguration configuration = PosCheckoutIntegrationTests.Configuration();
+        var cashReview = LocalPendingCashReviewState.Create(configuration, Guid.NewGuid(), "approve",
+            "Count and receipt checked", 4, 1);
         PendingCheckout checkout = PendingCheckout.Create(PosCheckoutIntegrationTests.Configuration(), [new(Guid.NewGuid(), 2)]);
         var first = new LocalPosStore(directory, protector);
         first.SaveActiveShift(shift);
         first.SaveCashSession(cash);
         first.SavePendingCheckout(checkout);
         first.SavePendingSettlement(settlement);
+        first.SavePendingCashReview(cashReview, configuration);
 
         var restarted = new LocalPosStore(directory, protector);
         Assert.Equal(shift, restarted.LoadActiveShift());
@@ -32,6 +36,7 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
         Assert.Equal(checkout.SettlementKey, restoredCheckout.SettlementKey);
         Assert.Equal(checkout.Lines, restoredCheckout.Lines);
         Assert.Equal(settlement, restarted.LoadPendingSettlement());
+        Assert.Equal(cashReview, restarted.LoadPendingCashReview(configuration));
 
         restarted.ClearCheckoutAndSettlement();
 
@@ -39,8 +44,9 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
         Assert.Null(restarted.LoadPendingSettlement());
         Assert.Equal(shift, restarted.LoadActiveShift());
         Assert.Equal(cash, restarted.LoadCashSession());
+        Assert.Equal(cashReview, restarted.LoadPendingCashReview(configuration));
         Assert.DoesNotContain("SHIFT-SQLITE", Encoding.UTF8.GetString(File.ReadAllBytes(Path.Combine(directory, "pos-state.db"))));
-        Assert.Equal("1", Scalar("PRAGMA user_version;"));
+        Assert.Equal("2", Scalar("PRAGMA user_version;"));
         Assert.Equal("wal", Scalar("PRAGMA journal_mode;"));
     }
 
@@ -169,16 +175,84 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
         var outbox = new LocalOutboxStore(directory, protector);
         LocalStateInspectionResult empty = LocalStateInspection.Read(Path.Combine(directory, "pos-state.db"));
         Assert.True(empty.IntegrityOk);
-        Assert.Equal(1, empty.SchemaVersion);
+        Assert.Equal(2, empty.SchemaVersion);
         Assert.Equal(0, empty.OperationalStateCount);
+        Assert.Equal(0, empty.PendingCashReviewCount);
         Assert.Equal(0, empty.UnresolvedOutboxCount);
 
         state.SaveActiveShift(new(Guid.NewGuid(), "SHIFT-INSPECT", DateTimeOffset.UtcNow));
+        PosClientConfiguration configuration = PosCheckoutIntegrationTests.Configuration();
+        state.SavePendingCashReview(LocalPendingCashReviewState.Create(configuration, Guid.NewGuid(),
+            "investigate", "Recount requested", 2, 0), configuration);
         outbox.Enqueue("cash-movement", $"api/pos/v1/cash-sessions/{Guid.NewGuid():D}/movements", "POST", "{}", Guid.NewGuid());
         LocalStateInspectionResult active = LocalStateInspection.Read(Path.Combine(directory, "pos-state.db"));
-        Assert.Equal(1, active.OperationalStateCount);
+        Assert.Equal(2, active.OperationalStateCount);
+        Assert.Equal(1, active.PendingCashReviewCount);
         Assert.Equal(1, active.UnresolvedOutboxCount);
         Assert.Equal(0, active.InterruptedSendCount);
+        string inspectionJson = JsonSerializer.Serialize(active);
+        Assert.DoesNotContain("Recount requested", inspectionJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Pending_cash_review_survives_restart_and_rejects_scope_or_payload_changes()
+    {
+        PosClientConfiguration configuration = PosCheckoutIntegrationTests.Configuration();
+        var pending = LocalPendingCashReviewState.Create(configuration, Guid.NewGuid(), "investigate",
+            "Recount requested", 7, 2);
+        var first = new LocalPosStore(directory, protector, LocalPosScope.From(configuration));
+        first.SavePendingCashReview(pending, configuration);
+
+        var restarted = new LocalPosStore(directory, protector, LocalPosScope.From(configuration));
+        Assert.Equal(pending, restarted.LoadPendingCashReview(configuration));
+        Assert.True(pending.SameRequest(pending with { IdempotencyKey = Guid.NewGuid() }));
+        Assert.False(pending.SameRequest(pending with { Decision = "approve" }));
+        Assert.Throws<InvalidDataException>(() => restarted.LoadPendingCashReview(
+            configuration with { StoreId = Guid.NewGuid() }));
+        Assert.Throws<InvalidDataException>(() => restarted.SavePendingCashReview(
+            pending with { Reason = " " }, configuration));
+
+        restarted.ClearPendingCashReview();
+        Assert.Null(restarted.LoadPendingCashReview(configuration));
+    }
+
+    [Fact]
+    public void Schema_one_database_upgrades_to_two_without_losing_state()
+    {
+        var shift = new LocalShiftState(Guid.NewGuid(), "SHIFT-V1", DateTimeOffset.UtcNow);
+        var first = new LocalPosStore(directory, protector);
+        first.SaveActiveShift(shift);
+        using (var connection = new SqliteConnection($"Data Source={Path.Combine(directory, "pos-state.db")};Pooling=False"))
+        {
+            connection.Open();
+            using SqliteCommand command = connection.CreateCommand();
+            command.CommandText = "PRAGMA user_version=1;";
+            command.ExecuteNonQuery();
+        }
+
+        var upgraded = new LocalPosStore(directory, protector);
+
+        Assert.Equal(shift, upgraded.LoadActiveShift());
+        Assert.Equal("2", Scalar("PRAGMA user_version;"));
+    }
+
+    [Fact]
+    public void Corrupt_pending_cash_review_fails_closed_and_remains_present()
+    {
+        PosClientConfiguration configuration = PosCheckoutIntegrationTests.Configuration();
+        var store = new LocalPosStore(directory, protector, LocalPosScope.From(configuration));
+        store.SavePendingCashReview(LocalPendingCashReviewState.Create(configuration, Guid.NewGuid(),
+            "approve", "Evidence checked", 3, 1), configuration);
+        using (var connection = new SqliteConnection($"Data Source={Path.Combine(directory, "pos-state.db")};Pooling=False"))
+        {
+            connection.Open();
+            using SqliteCommand command = connection.CreateCommand();
+            command.CommandText = "UPDATE local_state SET protected_payload=x'010203' WHERE state_key='pending-cash-review';";
+            Assert.Equal(1, command.ExecuteNonQuery());
+        }
+
+        Assert.Throws<InvalidDataException>(() => store.LoadPendingCashReview(configuration));
+        Assert.Equal("1", Scalar("SELECT count(*) FROM local_state WHERE state_key='pending-cash-review';"));
     }
 
     public void Dispose()

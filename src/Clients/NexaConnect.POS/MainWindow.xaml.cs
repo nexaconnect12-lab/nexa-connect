@@ -25,7 +25,7 @@ public partial class MainWindow : Window
     private PosCashReviewAccess? cashReviewAccess;
     private PosCashReviewDetail? selectedCashReview;
     private string? cashReviewCursor;
-    private PendingCashReviewAttempt? pendingCashReviewAttempt;
+    private LocalPendingCashReviewState? pendingCashReviewAttempt;
     private PosOrderResult? pendingOrder;
     private PendingCheckout? pendingCheckout;
     private Guid? settlementIdempotencyKey;
@@ -58,6 +58,7 @@ public partial class MainWindow : Window
         cashSessionId = _localStore.LoadCashSession()?.CashSessionId;
         pendingCheckout = _localStore.LoadPendingCheckout();
         pendingCheckout?.Validate(configuration);
+        pendingCashReviewAttempt = _localStore.LoadPendingCashReview(configuration);
         ConfigureTenderControls();
         LocalPendingSettlementState? savedSettlement = _localStore.LoadPendingSettlement();
         if (savedSettlement is not null && pendingCheckout is not null && savedSettlement.OrderId != pendingCheckout.OrderId)
@@ -86,9 +87,12 @@ public partial class MainWindow : Window
         _authentication.StatusChanged += OnStatusChanged;
         sessionTimer.Tick += SessionTimer_Tick;
         sessionTimer.Start();
-        StatusText.Text = "Ready to sign in. Service connectivity is checked when you perform an action.";
+        StatusText.Text = pendingCashReviewAttempt is null
+            ? "Ready to sign in. Service connectivity is checked when you perform an action."
+            : "A cash-review decision needs verification. Sign in and load Cash review to reconcile it.";
         UpdateCartTotal();
         if (pendingOrder is not null) PaymentTab.IsSelected = true;
+        else if (pendingCashReviewAttempt is not null) CashReviewTab.IsSelected = true;
         UpdateOperationalState();
     }
 
@@ -660,12 +664,39 @@ public partial class MainWindow : Window
                 fromUtc, toUtc, loadMore ? cashReviewCursor : null);
             foreach (PosCashReviewListItem item in page.Items) cashReviews.Add(item);
             cashReviewCursor = page.NextCursor;
+            if (!loadMore && pendingCashReviewAttempt is not null)
+            {
+                PosCashReviewDetail pendingDetail = await _api.GetCashReviewAsync(
+                    _authentication.CurrentToken, pendingCashReviewAttempt.CashSessionId);
+                if (pendingDetail.History.Any(entry => entry.Id == pendingCashReviewAttempt.IdempotencyKey))
+                {
+                    if (TryClearPendingCashReviewRecovery())
+                    {
+                        CashReviewReasonTextBox.Clear();
+                        StatusText.Text = "The pending cash-review decision was found in immutable history and recovery was cleared.";
+                    }
+                    else
+                    {
+                        StatusText.Text = "The decision is committed, but local recovery cleanup failed. Preserve the POS database and try again.";
+                    }
+                }
+                else
+                {
+                    if (cashReviews.All(item => item.CashSessionId != pendingDetail.Session.CashSessionId))
+                        cashReviews.Insert(0, pendingDetail.Session);
+                    CashReviewList.SelectedItem = cashReviews.First(item =>
+                        item.CashSessionId == pendingDetail.Session.CashSessionId);
+                    CashReviewReasonTextBox.Text = pendingCashReviewAttempt.Reason;
+                    StatusText.Text = "Pending cash-review recovery loaded. Use Verify decision with the original values.";
+                }
+            }
             CashReviewAccessText.Text = cashReviewAccess?.CanResolve == true
                 ? "Supervisor access · decisions enabled"
                 : "Read-only access · decisions require pos.cash-review.resolve";
-            StatusText.Text = cashReviews.Count == 0
-                ? "No closed cash sessions were found in this date range."
-                : $"Loaded {cashReviews.Count} closed cash session(s).";
+            if (pendingCashReviewAttempt is null && !StatusText.Text.StartsWith("The pending cash-review", StringComparison.Ordinal))
+                StatusText.Text = cashReviews.Count == 0
+                    ? "No closed cash sessions were found in this date range."
+                    : $"Loaded {cashReviews.Count} closed cash session(s).";
         }
         catch (Exception exception)
         {
@@ -691,7 +722,13 @@ public partial class MainWindow : Window
                 selectedCashReview = detail;
                 if (pendingCashReviewAttempt is not null &&
                     detail.History.Any(entry => entry.Id == pendingCashReviewAttempt.IdempotencyKey))
-                    pendingCashReviewAttempt = null;
+                {
+                    if (TryClearPendingCashReviewRecovery()) CashReviewReasonTextBox.Clear();
+                }
+                else if (pendingCashReviewAttempt?.CashSessionId == detail.Session.CashSessionId)
+                {
+                    CashReviewReasonTextBox.Text = pendingCashReviewAttempt.Reason;
+                }
                 ReplaceCashReviewItem(detail.Session);
                 RenderCashReviewDetail();
                 StatusText.Text = "Cash-review detail loaded.";
@@ -714,58 +751,66 @@ public partial class MainWindow : Window
     {
         if (_authentication.CurrentToken is null || selectedCashReview is null ||
             cashReviewAccess?.CanResolve != true) return;
-        string reason = CashReviewReasonTextBox.Text.Trim();
+        if (pendingCashReviewAttempt is not null &&
+            (pendingCashReviewAttempt.CashSessionId != selectedCashReview.Session.CashSessionId ||
+             pendingCashReviewAttempt.Decision != decision))
+        {
+            StatusText.Text = "Verify the saved cash-review decision before making another decision.";
+            return;
+        }
+        string reason = pendingCashReviewAttempt?.Reason ?? CashReviewReasonTextBox.Text.Trim();
         if (reason.Length is < 1 or > 200)
         {
             StatusText.Text = "Enter a supervisor reason from 1 to 200 characters.";
             return;
         }
         PosCashReviewListItem session = selectedCashReview.Session;
-        if (session.VarianceAmount == 0 || session.ReviewStatus == "balanced")
+        if (pendingCashReviewAttempt is null &&
+            (session.VarianceAmount == 0 || session.ReviewStatus == "balanced"))
         {
             StatusText.Text = "This session is balanced and does not require a decision.";
             return;
         }
-        if (session.ReviewStatus == "approved")
+        if (pendingCashReviewAttempt is null && session.ReviewStatus == "approved")
         {
             StatusText.Text = "This financial version is already approved.";
             return;
         }
 
-        var candidate = new PendingCashReviewAttempt(Guid.NewGuid(), session.CashSessionId, decision,
-            reason, session.SessionVersion, session.ReviewVersion);
-        if (pendingCashReviewAttempt is not null)
-        {
-            if (!pendingCashReviewAttempt.SameRequest(candidate))
-            {
-                StatusText.Text = "A previous review result is uncertain. Refresh the selected session before changing the decision.";
-                return;
-            }
-            candidate = pendingCashReviewAttempt;
-        }
-        string action = decision == "approve" ? "approve this variance" : "mark this variance for investigation";
+        LocalPendingCashReviewState candidate = pendingCashReviewAttempt ??
+            LocalPendingCashReviewState.Create(_configuration, session.CashSessionId, decision,
+                reason, session.SessionVersion, session.ReviewVersion);
+        string action = pendingCashReviewAttempt is null
+            ? decision == "approve" ? "approve this variance" : "mark this variance for investigation"
+            : "verify the saved decision using its original identity and values";
         if (MessageBox.Show($"Confirm that you want to {action}. The reason and your identity will be retained.",
                 "Confirm cash review", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
             return;
 
-        pendingCashReviewAttempt = candidate;
         try
         {
+            if (pendingCashReviewAttempt is null)
+            {
+                _localStore.SavePendingCashReview(candidate, _configuration);
+                pendingCashReviewAttempt = candidate;
+            }
             SetBusy("Saving cash-review decision…");
             selectedCashReview = await _api.ResolveCashReviewAsync(_authentication.CurrentToken,
                 candidate.CashSessionId, candidate.Decision, candidate.Reason,
                 candidate.ExpectedSessionVersion, candidate.ExpectedReviewVersion, candidate.IdempotencyKey);
-            pendingCashReviewAttempt = null;
+            bool recoveryCleared = TryClearPendingCashReviewRecovery();
             ReplaceCashReviewItem(selectedCashReview.Session);
-            CashReviewReasonTextBox.Clear();
+            if (recoveryCleared) CashReviewReasonTextBox.Clear();
             RenderCashReviewDetail();
-            StatusText.Text = decision == "approve"
-                ? "Cash variance approved and recorded in immutable history."
-                : "Cash variance marked for investigation and recorded in immutable history.";
+            StatusText.Text = !recoveryCleared
+                ? "The decision is committed, but local recovery cleanup failed. Preserve the POS database and verify again."
+                : decision == "approve"
+                    ? "Cash variance approved and recorded in immutable history."
+                    : "Cash variance marked for investigation and recorded in immutable history.";
         }
-        catch (PosApiException exception) when (exception.StatusCode is 400 or 403 or 404 or 409)
+        catch (PosApiException exception) when (exception.StatusCode is 400 or 409)
         {
-            pendingCashReviewAttempt = null;
+            bool recoveryCleared = TryClearPendingCashReviewRecovery();
             try
             {
                 selectedCashReview = await _api.GetCashReviewAsync(_authentication.CurrentToken,
@@ -774,13 +819,19 @@ public partial class MainWindow : Window
                 RenderCashReviewDetail();
             }
             catch { }
-            StatusText.Text = exception.StatusCode == 409
+            StatusText.Text = !recoveryCleared
+                ? "The decision was rejected, but local recovery cleanup failed. Preserve the POS database and verify again."
+                : exception.StatusCode == 409
                 ? "The cash review changed. Review the refreshed values before making another decision."
                 : exception.Message;
         }
+        catch (PosApiException exception) when (exception.StatusCode is 403 or 404)
+        {
+            StatusText.Text = "The review result remains uncertain because access or scope changed. Recovery was retained; restore read access and reconcile immutable history.";
+        }
         catch
         {
-            StatusText.Text = "The review result is uncertain. Refresh this session; retrying the same decision in this app reuses its identity.";
+            StatusText.Text = "The review result is uncertain. Recovery was retained; sign in and use Verify decision with the original values.";
         }
         finally { UpdateOperationalState(); }
     }
@@ -789,6 +840,21 @@ public partial class MainWindow : Window
     {
         int index = cashReviews.ToList().FindIndex(existing => existing.CashSessionId == item.CashSessionId);
         if (index >= 0) cashReviews[index] = item;
+    }
+
+    private bool TryClearPendingCashReviewRecovery()
+    {
+        try
+        {
+            _localStore.ClearPendingCashReview();
+            pendingCashReviewAttempt = null;
+            return true;
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or
+            UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            return false;
+        }
     }
 
     private void RenderCashReviewDetail()
@@ -888,9 +954,12 @@ public partial class MainWindow : Window
 
     private void SignOut_Click(object sender, RoutedEventArgs e)
     {
-        if (_activeShift is not null || cashSessionId is not null || pendingOrder is not null || pendingCheckout is not null)
+        if (_activeShift is not null || cashSessionId is not null || pendingOrder is not null ||
+            pendingCheckout is not null || pendingCashReviewAttempt is not null)
         {
-            StatusText.Text = "Resolve the pending payment, shift, and cash session before signing out.";
+            StatusText.Text = pendingCashReviewAttempt is not null
+                ? "Verify the pending cash-review decision before signing out."
+                : "Resolve the pending payment, shift, and cash session before signing out.";
             return;
         }
 
@@ -902,7 +971,6 @@ public partial class MainWindow : Window
         cashReviewAccess = null;
         selectedCashReview = null;
         cashReviewCursor = null;
-        pendingCashReviewAttempt = null;
         RenderCashSummary();
         RenderCashReviewDetail();
         StatusText.Text = "Signed out. Stored credentials were cleared.";
@@ -968,13 +1036,24 @@ public partial class MainWindow : Window
         RecordMovementButton.IsEnabled = signedIn && cashSessionId is not null;
         LoadCashReviewsButton.IsEnabled = signedIn;
         LoadMoreCashReviewsButton.IsEnabled = signedIn && !string.IsNullOrWhiteSpace(cashReviewCursor);
+        bool hasMatchingPendingReview = pendingCashReviewAttempt is not null &&
+            selectedCashReview?.Session.CashSessionId == pendingCashReviewAttempt.CashSessionId;
+        bool pendingReviewMatchesSelection = pendingCashReviewAttempt is null || hasMatchingPendingReview;
         bool canResolveCashReview = signedIn && cashReviewAccess?.CanResolve == true &&
-            selectedCashReview is not null && selectedCashReview.Session.VarianceAmount != 0 &&
-            selectedCashReview.Session.ReviewStatus is not ("balanced" or "approved");
+            pendingReviewMatchesSelection &&
+            selectedCashReview is not null && (hasMatchingPendingReview ||
+                selectedCashReview.Session.VarianceAmount != 0 &&
+                selectedCashReview.Session.ReviewStatus is not ("balanced" or "approved"));
+        InvestigateCashReviewButton.Content = pendingCashReviewAttempt?.Decision == "investigate"
+            ? "Verify decision" : "Mark investigating";
+        ApproveCashReviewButton.Content = pendingCashReviewAttempt?.Decision == "approve"
+            ? "Verify decision" : "Approve variance";
         InvestigateCashReviewButton.IsEnabled = canResolveCashReview &&
-            selectedCashReview!.Session.ReviewStatus != "investigating";
-        ApproveCashReviewButton.IsEnabled = canResolveCashReview;
-        CashReviewReasonTextBox.IsEnabled = canResolveCashReview;
+            (pendingCashReviewAttempt?.Decision == "investigate" ||
+             pendingCashReviewAttempt is null && selectedCashReview!.Session.ReviewStatus != "investigating");
+        ApproveCashReviewButton.IsEnabled = canResolveCashReview &&
+            (pendingCashReviewAttempt is null || pendingCashReviewAttempt.Decision == "approve");
+        CashReviewReasonTextBox.IsEnabled = canResolveCashReview && pendingCashReviewAttempt is null;
         MenuList.IsEnabled = CanEditCart();
         CartList.IsEnabled = CanEditCart();
         UpdateTenderControls();
@@ -1008,7 +1087,9 @@ public partial class MainWindow : Window
             signedIn, hasActiveShift, cashSessionId is not null, pendingCheckout is not null,
             pendingOrder is not null, movementsPending);
         SessionGuidanceText.Text = guidance;
-        SignOutButton.ToolTip = guidance;
+        SignOutButton.ToolTip = pendingCashReviewAttempt is null
+            ? guidance
+            : "Verify the pending cash-review decision before signing out.";
         CloseShiftButton.ToolTip = guidance;
     }
 
@@ -1025,9 +1106,10 @@ public partial class MainWindow : Window
 
         reauthenticationRequired = true;
         UpdateOperationalState();
-        StatusText.Text = _activeShift is null && cashSessionId is null && pendingOrder is null && pendingCheckout is null
+        StatusText.Text = _activeShift is null && cashSessionId is null && pendingOrder is null &&
+            pendingCheckout is null && pendingCashReviewAttempt is null
             ? "Your session expired. Sign in again to continue."
-            : "Your session expired. Sign in again; saved shift and payment work has been retained.";
+            : "Your session expired. Sign in again; saved operational and review recovery has been retained.";
     }
 
     private void OnStatusChanged(object? sender, string status) =>
@@ -1092,15 +1174,6 @@ public partial class MainWindow : Window
     }
 
     private void UpdateCartTotal() => TotalText.Text = CashierPresentation.Money(cart.Sum(line => line.LineTotal), _configuration.Currency);
-
-    private sealed record PendingCashReviewAttempt(Guid IdempotencyKey, Guid CashSessionId, string Decision,
-        string Reason, long ExpectedSessionVersion, long ExpectedReviewVersion)
-    {
-        public bool SameRequest(PendingCashReviewAttempt other) => CashSessionId == other.CashSessionId &&
-            Decision == other.Decision && Reason == other.Reason &&
-            ExpectedSessionVersion == other.ExpectedSessionVersion &&
-            ExpectedReviewVersion == other.ExpectedReviewVersion;
-    }
 
     private sealed class CartLine(PosMenuItem item)
     {

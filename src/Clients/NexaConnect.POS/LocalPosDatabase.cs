@@ -32,7 +32,7 @@ public sealed record LocalPosScope(Guid OrganizationId, Guid BranchId, Guid Stor
 
 internal sealed class LocalPosDatabase
 {
-    internal const int CurrentSchemaVersion = 1;
+    internal const int CurrentSchemaVersion = 2;
     private readonly string directory;
     private readonly string databasePath;
     private readonly ILocalPayloadProtector protector;
@@ -110,6 +110,17 @@ internal sealed class LocalPosDatabase
             throw new InvalidOperationException($"Local POS schema {version} is newer than supported schema {CurrentSchemaVersion}.");
         if (version == CurrentSchemaVersion) return;
 
+        if (version == 1)
+        {
+            using SqliteTransaction upgrade = connection.BeginTransaction();
+            using SqliteCommand upgradeCommand = connection.CreateCommand();
+            upgradeCommand.Transaction = upgrade;
+            upgradeCommand.CommandText = "PRAGMA user_version=2;";
+            upgradeCommand.ExecuteNonQuery();
+            upgrade.Commit();
+            return;
+        }
+
         using SqliteTransaction transaction = connection.BeginTransaction();
         using SqliteCommand command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -140,7 +151,7 @@ internal sealed class LocalPosDatabase
             ) STRICT;
             CREATE INDEX ix_outbox_operations_state_created
                 ON outbox_operations(state, created_at_utc, operation_id);
-            PRAGMA user_version=1;
+            PRAGMA user_version=2;
             """;
         command.ExecuteNonQuery();
         transaction.Commit();

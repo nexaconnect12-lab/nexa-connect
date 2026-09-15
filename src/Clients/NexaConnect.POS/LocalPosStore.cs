@@ -10,6 +10,47 @@ public sealed record LocalCashSessionState(Guid CashSessionId, Guid ShiftId, Dat
 public sealed record LocalPendingSettlementState(Guid OrderId, decimal Amount, string Currency,
     Guid IdempotencyKey, string? Method = null, bool ReceiptConfirmed = false, string? BankReference = null,
     bool OutcomeUncertain = false);
+public sealed record LocalPendingCashReviewState(
+    Guid IdempotencyKey,
+    Guid CashSessionId,
+    Guid OrganizationId,
+    Guid RestaurantId,
+    Guid BranchId,
+    Guid StoreId,
+    Guid TerminalId,
+    string Decision,
+    string Reason,
+    long ExpectedSessionVersion,
+    long ExpectedReviewVersion)
+{
+    public static LocalPendingCashReviewState Create(PosClientConfiguration configuration,
+        Guid cashSessionId, string decision, string reason, long expectedSessionVersion,
+        long expectedReviewVersion) => new(Guid.NewGuid(), cashSessionId,
+            configuration.OrganizationId, configuration.RestaurantId, configuration.BranchId,
+            configuration.StoreId, configuration.TerminalId, decision, reason,
+            expectedSessionVersion, expectedReviewVersion);
+
+    public void Validate(PosClientConfiguration configuration)
+    {
+        if (IdempotencyKey == Guid.Empty || CashSessionId == Guid.Empty ||
+            OrganizationId == Guid.Empty || RestaurantId == Guid.Empty || BranchId == Guid.Empty ||
+            StoreId == Guid.Empty || TerminalId == Guid.Empty ||
+            Decision is not ("approve" or "investigate") || string.IsNullOrWhiteSpace(Reason) ||
+            Reason != Reason.Trim() || Reason.Length > 200 || ExpectedSessionVersion <= 0 ||
+            ExpectedReviewVersion < 0)
+            throw new InvalidDataException("The pending cash-review state is invalid.");
+        if (OrganizationId != configuration.OrganizationId || RestaurantId != configuration.RestaurantId ||
+            BranchId != configuration.BranchId || StoreId != configuration.StoreId ||
+            TerminalId != configuration.TerminalId)
+            throw new InvalidDataException(
+                "The pending cash review belongs to a different organization, restaurant, branch, store, or terminal.");
+    }
+
+    public bool SameRequest(LocalPendingCashReviewState other) =>
+        CashSessionId == other.CashSessionId && Decision == other.Decision && Reason == other.Reason &&
+        ExpectedSessionVersion == other.ExpectedSessionVersion &&
+        ExpectedReviewVersion == other.ExpectedReviewVersion;
+}
 
 public sealed class LocalPosStore
 {
@@ -75,6 +116,22 @@ public sealed class LocalPosStore
     }
 
     public void ClearPendingCheckout() => Delete("pending-checkout");
+
+    public LocalPendingCashReviewState? LoadPendingCashReview(PosClientConfiguration configuration)
+    {
+        LocalPendingCashReviewState? state = Read<LocalPendingCashReviewState>("pending-cash-review",
+            "Pending cash-review recovery cannot be read. Preserve the local POS database and reconcile the supervisor decision.");
+        state?.Validate(configuration);
+        return state;
+    }
+
+    public void SavePendingCashReview(LocalPendingCashReviewState state, PosClientConfiguration configuration)
+    {
+        state.Validate(configuration);
+        Write("pending-cash-review", state);
+    }
+
+    public void ClearPendingCashReview() => Delete("pending-cash-review");
 
     public void ClearCheckoutAndSettlement()
     {

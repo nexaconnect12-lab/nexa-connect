@@ -192,10 +192,10 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($inspectionOutput -joi
 $inspectionJson = @($inspectionOutput | Where-Object { $_ -match '^\s*\{' } | Select-Object -Last 1)
 try { $inspection = (($inspectionJson -join '') | ConvertFrom-Json) }
 catch { throw 'The local POS SQLite inspector returned an invalid result.' }
-if (-not $inspection.integrityOk -or [int]$inspection.schemaVersion -ne 1 -or
+if (-not $inspection.integrityOk -or [int]$inspection.schemaVersion -ne 2 -or
     [int]$inspection.operationalStateCount -ne 0 -or [int]$inspection.unresolvedOutboxCount -ne 0 -or
-    [int]$inspection.interruptedSendCount -ne 0) {
-    throw 'Local POS SQLite acceptance failed: require schema 1, integrity success, and no active operational or unresolved outbox rows.'
+    [int]$inspection.pendingCashReviewCount -ne 0 -or [int]$inspection.interruptedSendCount -ne 0) {
+    throw 'Local POS SQLite acceptance failed: require schema 2, integrity success, and no active operational, cash-review recovery, or unresolved outbox rows.'
 }
 
 $run = Join-Path $root ('.runstate/pos-cashier-live/' + [Guid]::NewGuid().ToString('N'))
@@ -215,9 +215,10 @@ $evidence = [ordered]@{
     cashSessionClosed = $true
     shiftClosed = $true
     localCredentialsAndRecoveryCleared = $true
-    localSqliteSchemaVersion = 1
+    localSqliteSchemaVersion = 2
     localSqliteIntegrityVerified = $true
     localSqliteOperationalStateCount = 0
+    localSqlitePendingCashReviewCount = 0
     localSqliteUnresolvedOutboxCount = 0
     dockerContext = $context
     secretsPrinted = $false

@@ -68,20 +68,20 @@ try {
     [xml] $integrationDocument = Get-Content -LiteralPath $integrationTrx -Raw
     $unitCounters = $unitDocument.TestRun.ResultSummary.Counters
     $integrationCounters = $integrationDocument.TestRun.ResultSummary.Counters
-    if ([int] $unitCounters.total -ne 14 -or [int] $unitCounters.passed -ne 14 -or
+    if ([int] $unitCounters.total -ne 17 -or [int] $unitCounters.passed -ne 17 -or
         [int] $integrationCounters.total -ne 3 -or [int] $integrationCounters.passed -ne 3) {
-        throw 'POS Paid evidence is incomplete; expected 14 protected SQLite/recovery and 3 backend cases.'
+        throw 'POS Paid evidence is incomplete; expected 17 protected SQLite/recovery and 3 backend cases.'
     }
 
     [ordered]@{
         runId = Split-Path $run -Leaf
         completedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
-        testsPassed = 17
+        testsPassed = 20
         localSqliteRecoveryPassed = $true
         protectedStateRecoveryPassed = $true
         postgresProjectionPassed = $true
         rabbitMqRecoveryPassed = $true
-        migrationLifecycle = '0-4-3-4'
+        migrationLifecycle = '0-5-4-3-5'
         secretsPrinted = $false
         interactiveWpfVerified = $false
         liveOidcVerified = $false

@@ -1,6 +1,6 @@
 # Portal implementation phases
 
-The Bangkok manual-tender backend, POS projection, WPF cashier Paid flow, and single-store supervisor Cash Review slice are implemented through Order migration 5, Authorization migration 7, Reporting migration 14, and POS migration 5. The backend/POS PostgreSQL and RabbitMQ manual-tender matrix passed 3/3, and the cashier joined flow has separate live evidence. Cash Review adds read/resolve permission separation, closed-session history, and immutable version-fenced variance decisions; fresh joined supervisor acceptance remains release work.
+The Bangkok manual-tender backend, POS projection, WPF cashier Paid flow, and single-store supervisor Cash Review slice are implemented through Order migration 5, Authorization migration 7, Reporting migration 14, and POS migration 5. The backend/POS PostgreSQL and RabbitMQ manual-tender matrix passed 3/3, and the cashier joined flow has separate live evidence. Cash Review adds read/resolve permission separation, closed-session history, immutable version-fenced variance decisions, and terminal-bound SQLite schema-2 recovery of an uncertain supervisor request across restart. The guarded supervisor verifier is implemented; fresh joined physical-terminal execution remains release work.
 
 This document records the agreed Product Owner Portal and Customer Portal implementation sequence. Detailed trust boundaries remain canonical in [ADR-006](Decisions/ADR-006-portal-separation-and-tenant-isolation.md).
 

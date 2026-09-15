@@ -20,7 +20,7 @@ Service authorization, tenant ownership, Order totals, cash attribution, and tra
 - Shift & cash displays authoritative opening cash, signed net movements, expected cash, counted-cash variance preview, and movement history. Close sends the reviewed concurrency version and terminal scope. If the version changed, the session remains open and the cashier must review refreshed figures before trying again. If the post-close read fails, the UI labels its calculated display as verification pending and permits refreshing the closed session; do not treat it as final until the service returns the closed summary.
 - Terminal & sync lists unresolved operation IDs, states, attempt counts, bounded HTTP status, and last-attempt time. Protected request payloads remain hidden and rejected operations have authenticated retry without an unaudited discard action.
 - Manual cash movements do not settle or refund an Order. The screen explains that cash checkout is projected automatically when the settlement consumer is enabled.
-- Cash review lists closed sessions for the configured store over at most 31 days. Read access and resolve access are separate. Investigate/approve requires a 1-200 character reason, explicit confirmation, and the displayed financial/review versions. Conflict refreshes instead of retrying automatically. After an uncertain response, retry the identical action during the same process or refresh committed history after restart. A late cash settlement supersedes the earlier decision: the session becomes `review_required` when variance remains nonzero or `balanced` when it becomes zero.
+- Cash review lists closed sessions for the configured store over at most 31 days. Read access and resolve access are separate. Investigate/approve requires a 1-200 character reason, explicit confirmation, and the displayed financial/review versions. Before the request is sent, SQLite schema 2 protects the exact decision identity, scope, reason, and versions. An uncertain response or client restart restores that locked request as **Verify decision**; a conflicting decision and sign-out stay blocked until history proves the request committed or a validation/concurrency rejection proves it did not. A later `403`/`404` retains recovery because access or scope may have changed after the original request. A late cash settlement supersedes the earlier decision: the session becomes `review_required` when variance remains nonzero or `balanced` when it becomes zero.
 
 ## Automated verification
 
@@ -33,7 +33,7 @@ dotnet test tests/Unit/NexaConnect.UnitTests/NexaConnect.UnitTests.csproj --no-r
 
 Windows protected-state tests require the normal interactive user's DPAPI key store. In a disposable test run, set `NEXACONNECT_POS_DPAPI_ACCEPTANCE=1` and include `FullyQualifiedName~PosPendingSettlementRecoveryTests|FullyQualifiedName~PosLocalSqliteStoreTests` in the filter. The tests create isolated temporary databases and legacy files. They do not drive WPF or authenticate against Keycloak.
 
-The SQLite implementation matrix passed 51/51 with current-user DPAPI enabled, covering state restart, atomic checkout/settlement cleanup, terminal-scope binding, legacy migration, corrupt/mixed-state refusal, queue transitions, acknowledgement retention, route/payload validation, and the count-only inspector. The complete unit project then passed 295/295 from isolated output. POS and inspector builds completed with no warnings or errors, and both dependency graphs reported no known vulnerable packages. The upgraded protected SQLite/PostgreSQL/RabbitMQ/migration runner subsequently passed 17/17 on 2026-09-10; sanitized evidence is retained under `.runstate/pos-paid-workflow/9ec72791806540d28dd2947a55666801`. Joined SQLite-backed checkout evidence is recorded below.
+Current isolated verification passed all 12 SQLite-store tests, including schema 1-to-2 upgrade, protected Cash Review restart recovery, scope/payload rejection, corruption refusal, and count-only inspection. The complete unit project passed 304 tests with five current-user DPAPI tests skipped in the non-interactive host; the interactive evidence runner requires all 17 protected SQLite/recovery tests to pass. POS and inspector builds completed with no warnings or errors. The earlier protected SQLite/PostgreSQL/RabbitMQ/migration runner passed its then-current 17-case matrix on 2026-09-10; sanitized evidence is retained under `.runstate/pos-paid-workflow/9ec72791806540d28dd2947a55666801`. The expanded runner now requires 20 cases. Joined SQLite-backed checkout evidence is recorded below.
 
 ## Extended live acceptance scenarios
 
@@ -57,7 +57,7 @@ Keep terminal configuration unchanged while checkout or settlement is pending. N
 
 ## Remaining boundaries
 
-Full offline order/shift/device synchronization, hardware drivers, human-readable identity context, multi-store review, review export/Reporting projection, durable offline supervisor actions, and Thai localization are subsequent work. The cashier reconciliation view covers the active or just-closed terminal cash session; Cash review covers online closed-session history for one configured store. SQLite protects current operational state and cash-movement replay across brief client/service interruption; it does not execute orders without the service graph or cache offline authorization. Incomplete server workflow steps still require reconciliation. Only a matching terminal Rejected or PaymentFailed result releases the checkout lock; other failed commands remain retained.
+Full offline order/shift/device synchronization, hardware drivers, human-readable identity context, multi-store review, review export/Reporting projection, offline supervisor authorization/execution, and Thai localization are subsequent work. The cashier reconciliation view covers the active or just-closed terminal cash session; Cash review covers online closed-session history for one configured store. SQLite protects current operational state, cash-movement replay, and the exact pending supervisor decision across brief client/service interruption; it does not execute orders or decisions without the service graph or cache offline authorization. Incomplete server workflow steps still require reconciliation. Only a matching terminal Rejected or PaymentFailed result releases the checkout lock; other failed commands remain retained.
 
 ## Sign-in recovery check
 
@@ -100,6 +100,31 @@ Complete these steps in one WPF session against the supervised local stack:
   -ConfirmSignedOut
 ```
 
-The verifier refuses remote Docker, pins this repository's Compose project, and reads only `NexaConnect_Order` and `NexaConnect_POS`. It requires one completed exact-total cash lifecycle with closed session/shift state. Its read-only local-state inspector then requires SQLite schema 1, `quick_check=ok`, zero active operational rows, zero unresolved outbox rows, no interrupted sends, no legacy state files, and no token file. Only then does it write sanitized evidence. Confirmation switches attest to human interaction; the script does not automate UI clicks.
+The verifier refuses remote Docker, pins this repository's Compose project, and reads only `NexaConnect_Order` and `NexaConnect_POS`. It requires one completed exact-total cash lifecycle with closed session/shift state. Its read-only local-state inspector then requires SQLite schema 2, `quick_check=ok`, zero active operational rows, zero unresolved outbox rows, zero pending Cash Review decisions, no interrupted sends, no legacy state files, and no token file. Only then does it write sanitized evidence. Confirmation switches attest to human interaction; the script does not automate UI clicks.
 
-The upgraded SQLite-backed local gate passed on 2026-09-10 UTC for Order `60bc4440-4274-4c79-a12a-259a83d94740`, with evidence at `.runstate/pos-cashier-live/dcdceb87b24944aa913c9019b1855bc3/evidence.json`. It verified one completed exact-total cash settlement and POS projection, closed cash session and shift, signed-out client, SQLite schema 1 integrity, zero active operational or unresolved outbox rows, and no retained credentials or legacy recovery files.
+The historical SQLite-backed local gate passed on 2026-09-10 UTC for Order `60bc4440-4274-4c79-a12a-259a83d94740`, with evidence at `.runstate/pos-cashier-live/dcdceb87b24944aa913c9019b1855bc3/evidence.json`. It verified one completed exact-total cash settlement and POS projection, closed cash session and shift, signed-out client, then-current SQLite schema 1 integrity, zero active operational or unresolved outbox rows, and no retained credentials or legacy recovery files. New runs use schema 2.
+
+## Cash Review recovery and live evidence
+
+Use disposable nonzero-variance data and separate accountant and manager identities. This gate checks the protected recovery boundary and supervisor authorization as one workflow:
+
+1. Apply POS migration 5 and Authorization migration 7. Close a cash session with nonzero variance.
+2. Sign in as an accountant, load the session and history, and confirm both decisions remain unavailable.
+3. Sign in as a store manager, submit **Investigate**, refresh, then submit **Approve** with a different reason.
+4. In a disposable run, interrupt an additional decision response after the request leaves the client and before local cleanup, then restart the client under the same Windows user. Sign in, load Cash Review, and use **Verify decision**. Confirm one history entry exists for that operation identity.
+5. Open the same detail in two clients, commit from one, and confirm the stale second submission returns conflict and refreshes without adding a duplicate.
+6. Project a late cash settlement into the closed session. Confirm the financial version advances and review returns to `review_required`, then approve the new financial version. History must span at least two financial versions.
+7. Sign out and confirm no pending Cash Review recovery remains. Run:
+
+```powershell
+./scripts/verify-pos-cash-review-live-acceptance.ps1 `
+  -CashSessionId '<closed-cash-session-uuid>' `
+  -ConfirmAccountantReadOnly `
+  -ConfirmManagerWorkflow `
+  -ConfirmRestartRecovery `
+  -ConfirmConcurrencyConflict `
+  -ConfirmLateSettlementInvalidation `
+  -ConfirmSignedOut
+```
+
+The verifier pins local Docker, reads the POS database, and uses the count-only local-state inspector. It requires the target session to have a current approved projection, at least one investigating and two approving decisions, at least three total decisions spanning two financial versions, append-only history protection, SQLite schema 2 integrity, no operational/recovery/outbox state, and no retained token or legacy state file. It writes sanitized boolean/count evidence under `.runstate/pos-cash-review-live/<run-id>/evidence.json`; it does not retain reasons, reviewer identities, authorization decision IDs, or tokens. The verifier is implemented, but this fresh human supervisor run remains a release gate.
