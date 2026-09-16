@@ -24,6 +24,8 @@ For a real provider sandbox, inject `NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_URL`, 
 
 Order's end-to-end provider recovery gate is `scripts/test-order-provider-recovery-live.ps1`. It uses the same URL/key, amount/currency, and optional authorization/capture command/status paths, but creates three new `card` authorizations and captures rather than consuming pre-authorized references. With all three confirmation switches, it interrupts the server-side acceptance process after intent creation, after the provider authorization response, and after the provider capture response. Recovery must use provider status for uncertain responses, never issue a second provider command, preserve one Payment intent, and finish captured/Paid through a real Order host and RabbitMQ reconciliation. Follow the exact procedure in the [deployment guide](../../../docs/Deployment/Deployment-Guide.md); the runner is implemented but still needs a credentialed sandbox execution.
 
+That gate fixture-hosts Payment HTTP endpoints, calls the production recovery Application services directly, and publishes reconciliation events from the harness. It does not start Payment's hosted recovery workers or transactional outbox dispatcher. A separate hosted-Payment acceptance must verify scheduler claims, persisted outbox publication, broker redelivery, and Order consumption before those runtime boundaries are signed off.
+
 Structured logs use service name `nexaconnect-payment`; correlation IDs propagate to Platform Directory, Order, Restaurant, and Authorization.
 JSON stdout is always enabled. Enable OTLP with `Observability__OtlpEnabled=true`; use the [observability guide](../../../docs/Deployment/Observability.md) for the endpoint and queries.
 
