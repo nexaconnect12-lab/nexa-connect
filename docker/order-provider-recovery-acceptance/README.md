@@ -1,5 +1,7 @@
 # Order provider-recovery acceptance infrastructure
 
+RabbitMQ uses a generated-project named volume so durable queues, bindings and messages survive its container stop/start. The launcher selects a random available loopback port once, supplies it through `NEXACONNECT_ORDER_PROVIDER_RECOVERY_ACCEPTANCE_RABBIT_PORT`, and verifies it remains stable after restart. The volume is removed only by project-scoped `down --volumes`; PostgreSQL remains tmpfs because this gate does not restart that container. A separate durable evidence queue bound to `payment.#` receives lifecycle events independently of Order's reconciliation queue and checks exact terminal-event persistent delivery.
+
 This Compose definition is owned by `scripts/test-order-provider-recovery-live.ps1`. The guarded launcher creates a uniquely named project, generates its password in process memory, publishes PostgreSQL and RabbitMQ on random loopback ports, runs the three provider process-interruption boundaries, and removes the project and volumes before reporting success.
 
 Do not start this Compose file directly or point the runner at shared infrastructure. Without provider credentials, use `scripts/test-order-provider-recovery-local.ps1 -ConfirmDisposableInfrastructure -ConfirmProcessTermination`: it owns the local loopback HTTPS simulator and supplies generated settings to this same guarded matrix. Its simulator-only smoke test passed; a healthy Docker Linux engine is required for the full matrix. See the [simulator guide](../../src/Tools/NexaConnect.PaymentProviderSimulator/README.md).

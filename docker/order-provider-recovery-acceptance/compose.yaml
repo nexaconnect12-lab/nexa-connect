@@ -17,10 +17,13 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: acceptance
       RABBITMQ_DEFAULT_PASS: ${NEXACONNECT_ORDER_PROVIDER_RECOVERY_ACCEPTANCE_PASSWORD:?Run the provider recovery acceptance launcher}
-    ports: ["127.0.0.1::5672"]
-    tmpfs: [/var/lib/rabbitmq]
+    ports: ["127.0.0.1:${NEXACONNECT_ORDER_PROVIDER_RECOVERY_ACCEPTANCE_RABBIT_PORT:?Run the provider recovery acceptance launcher}:5672"]
+    volumes: [rabbitmq-data:/var/lib/rabbitmq]
     healthcheck:
       test: [CMD, rabbitmq-diagnostics, -q, ping]
       interval: 2s
       timeout: 5s
       retries: 45
+
+volumes:
+  rabbitmq-data:

@@ -116,6 +116,7 @@ $providerBoundaryInterruptions = 0; $paymentHostInterruptions = 0
 
 $environmentNames = @(
     'NEXACONNECT_ORDER_PROVIDER_RECOVERY_ACCEPTANCE_PASSWORD',
+    'NEXACONNECT_ORDER_PROVIDER_RECOVERY_ACCEPTANCE_RABBIT_PORT',
     'NEXACONNECT_ENVIRONMENT','NEXACONNECT_ORDER_PROVIDER_RECOVERY_LIVE_ACCEPTANCE',
     'NEXACONNECT_ORDER_PROVIDER_RECOVERY_STAGE','NEXACONNECT_ORDER_PROVIDER_RECOVERY_SCENARIO',
     'NEXACONNECT_ORDER_PROVIDER_RECOVERY_MARKER','NEXACONNECT_ORDER_PROVIDER_RECOVERY_CONTROL',
@@ -147,6 +148,11 @@ try {
 
     New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
     $env:NEXACONNECT_ORDER_PROVIDER_RECOVERY_ACCEPTANCE_PASSWORD = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
+    $rabbitListener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
+    try {
+        $rabbitListener.Start()
+        $env:NEXACONNECT_ORDER_PROVIDER_RECOVERY_ACCEPTANCE_RABBIT_PORT = [string]$rabbitListener.LocalEndpoint.Port
+    } finally { $rabbitListener.Stop() }
     $existing = @(& $DockerExecutable @composeArguments ps -aq)
     if ($LASTEXITCODE -ne 0) { throw 'Docker is unavailable while checking the generated provider recovery project.' }
     if ($existing.Count -ne 0) { throw 'Generated provider recovery project is not empty; refusing reuse.' }
@@ -214,9 +220,11 @@ try {
 
         & $DockerExecutable @composeArguments up -d --wait --wait-timeout 120 rabbitmq
         if ($LASTEXITCODE -ne 0) { throw "Could not restart the generated RabbitMQ container for '$scenario'." }
+        $restartedRabbitPort = ConvertFrom-LoopbackPort (& $DockerExecutable @composeArguments port rabbitmq 5672)
+        if ($restartedRabbitPort -ne $rabbitPort) { throw 'RabbitMQ loopback port changed across restart.' }
         Write-ControlPhase $controlPath 'broker_restarted'
         if (-not $activeProcess.WaitForExit(150000) -or $activeProcess.ExitCode -ne 0) {
-            throw "Hosted Payment recovery failed for '$scenario'."
+            throw "Hosted Payment recovery failed for '$scenario'. Inspect the failed test output at '$hostedOutLog' and '$hostedErrLog'."
         }
         $activeProcess.Dispose(); $activeProcess = $null
         Remove-Item -LiteralPath $markerPath,$controlPath,$outLog,$errLog,$hostedOutLog,$hostedErrLog -Force

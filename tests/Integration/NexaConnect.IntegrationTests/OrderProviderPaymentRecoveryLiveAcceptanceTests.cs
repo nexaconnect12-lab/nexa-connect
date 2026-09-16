@@ -42,6 +42,7 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceCollection;
 [Collection("Order provider payment recovery live acceptance")]
 public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
 {
+    private const string PaymentEvidenceQueue = "nexaconnect.acceptance.provider-recovery.payment-evidence";
     [OrderProviderRecoveryLiveFact("initialize")]
     public async Task Initialize_provider_payment_process_interruption_acceptance()
     {
@@ -65,6 +66,12 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
               PRIMARY KEY(scenario,operation));
             """);
         await command.ExecuteNonQueryAsync();
+        var factory = new ConnectionFactory { Uri = new Uri(RabbitConnection()) };
+        await using IConnection connection = await factory.CreateConnectionAsync();
+        await using IChannel channel = await connection.CreateChannelAsync();
+        await channel.ExchangeDeclareAsync("nexaconnect.events", ExchangeType.Topic, durable: true);
+        await channel.QueueDeclareAsync(PaymentEvidenceQueue, durable: true, exclusive: false, autoDelete: false);
+        await channel.QueueBindAsync(PaymentEvidenceQueue, "nexaconnect.events", "payment.#");
     }
 
     [OrderProviderRecoveryLiveFact("arm")]
@@ -134,6 +141,7 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             await WaitForOrderStatusAsync(orderSource, state.OrderId, "completed", TimeSpan.FromSeconds(75));
             await WaitForOutboxPublishedAsync(paymentSource, state.PaymentIntentId, TerminalEventType(scenario),
                 TimeSpan.FromSeconds(75));
+            await VerifyPaymentEvidenceDeliveryAsync(paymentSource, state.PaymentIntentId, scenario);
             if (scenario != "intent_created")
             {
                 Guid eventId = await ReconciliationEventIdAsync(paymentSource, state.PaymentIntentId, scenario)
@@ -195,6 +203,7 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
                 armCaptureCommands,
                 hostedPaymentRecovery = scenario != "intent_created",
                 transactionalOutboxPublished = true,
+                persistentPaymentEvidenceDelivered = true,
                 orderInboxCompleted = reconciliationEventId is not null,
                 finalOrderStatus = "Paid",
                 finalPaymentStatus = "captured"
@@ -500,6 +509,32 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             await Task.Delay(100);
         }
         throw new TimeoutException($"Hosted Payment did not publish {eventType} after restart.");
+    }
+
+    private static async Task VerifyPaymentEvidenceDeliveryAsync(NpgsqlDataSource source, Guid intentId, string scenario)
+    {
+        await using var command = source.CreateCommand(
+            "SELECT id FROM outbox_messages WHERE aggregate_id=$1 AND event_type=$2 AND published_at_utc IS NOT NULL");
+        command.Parameters.AddWithValue(intentId);
+        command.Parameters.AddWithValue(TerminalEventType(scenario));
+        Guid expected = Assert.IsType<Guid>(await command.ExecuteScalarAsync());
+        var factory = new ConnectionFactory { Uri = new Uri(RabbitConnection()) };
+        await using IConnection connection = await factory.CreateConnectionAsync();
+        await using IChannel channel = await connection.CreateChannelAsync();
+        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            BasicGetResult? delivery = await channel.BasicGetAsync(PaymentEvidenceQueue, autoAck: false);
+            if (delivery is null) { await Task.Delay(100); continue; }
+            using JsonDocument document = JsonDocument.Parse(delivery.Body);
+            bool matches = document.RootElement.GetProperty("EventId").GetGuid() == expected;
+            await channel.BasicAckAsync(delivery.DeliveryTag, multiple: false);
+            if (!matches) continue;
+            Assert.Equal(TerminalEventType(scenario), delivery.RoutingKey);
+            Assert.True(delivery.BasicProperties.Persistent);
+            return;
+        }
+        throw new TimeoutException("Payment terminal event was not delivered persistently to the evidence queue.");
     }
 
     private static async Task WriteMarkerAsync(string path, string scenario)
