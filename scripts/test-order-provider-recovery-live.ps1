@@ -90,7 +90,7 @@ function Wait-ForMarkerPhase([string] $Path, [string] $Phase, [Diagnostics.Proce
 function Write-ControlPhase([string] $Path, [string] $Phase) {
     $temporary = $Path + '.tmp'
     [ordered]@{phase=$Phase} | ConvertTo-Json -Compress | Set-Content -LiteralPath $temporary -Encoding utf8
-    Move-Item -LiteralPath $temporary -Destination $Path -Force
+    [IO.File]::Move($temporary, $Path, $true)
 }
 
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path

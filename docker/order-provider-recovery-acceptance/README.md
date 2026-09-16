@@ -1,5 +1,7 @@
 # Order provider-recovery acceptance infrastructure
 
+Control phases are written to a same-directory temporary file and replaced with .NET's explicit overwrite move. This supports repeated `broker_stopped`/`broker_restarted` writes when the destination already exists on Windows, without exposing partially written JSON to the hosted test.
+
 RabbitMQ uses a generated-project named volume so durable queues, bindings and messages survive its container stop/start. The launcher selects a random available loopback port once, supplies it through `NEXACONNECT_ORDER_PROVIDER_RECOVERY_ACCEPTANCE_RABBIT_PORT`, and verifies it remains stable after restart. The volume is removed only by project-scoped `down --volumes`; PostgreSQL remains tmpfs because this gate does not restart that container. A separate durable evidence queue bound to `payment.#` receives lifecycle events independently of Order's reconciliation queue and checks exact terminal-event persistent delivery.
 
 This Compose definition is owned by `scripts/test-order-provider-recovery-live.ps1`. The guarded launcher creates a uniquely named project, generates its password in process memory, publishes PostgreSQL and RabbitMQ on random loopback ports, runs the three provider process-interruption boundaries, and removes the project and volumes before reporting success.
