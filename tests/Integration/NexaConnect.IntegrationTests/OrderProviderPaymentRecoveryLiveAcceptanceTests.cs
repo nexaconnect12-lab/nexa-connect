@@ -3,15 +3,17 @@ extern alias ORDER;
 extern alias PAYMENT;
 
 using System.Diagnostics;
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
-using System.Net.Http.Json;
 using System.Net.Sockets;
-using System.Text;
+using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using NexaConnect.Contracts.IntegrationEvents;
 using Npgsql;
 using RabbitMQ.Client;
@@ -23,8 +25,6 @@ using PaymentIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.
 using PaymentMutationContext = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentMutationContext;
 using CreatePaymentIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.CreatePaymentIntent;
 using PaymentAuthorizationService = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentAuthorizationService;
-using PaymentCaptureService = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentCaptureService;
-using PaymentCaptureRecoveryService = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentCaptureRecoveryService;
 using PostgresPaymentIntents = PAYMENT::NexaConnect.Services.Payment.Infrastructure.PostgresPaymentIntents;
 using IPaymentProvider = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.IPaymentProvider;
 using HttpPaymentProvider = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.HttpPaymentProvider;
@@ -107,58 +107,43 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         await Task.Delay(Timeout.InfiniteTimeSpan);
     }
 
-    [OrderProviderRecoveryLiveFact("recover")]
-    public async Task Recover_provider_payment_after_process_interruption()
+    [OrderProviderRecoveryLiveFact("hosted_recover")]
+    public async Task Recover_provider_payment_through_hosted_workers_and_outbox()
     {
         string scenario = Scenario();
         await using NpgsqlDataSource orderSource = NpgsqlDataSource.Create(OrderConnection());
         await using NpgsqlDataSource paymentSource = NpgsqlDataSource.Create(PaymentConnection());
         ScenarioState state = await ReadScenarioAsync(paymentSource, scenario);
-        var paymentRepository = NewPaymentRepository(paymentSource);
-        using var provider = NewProvider(paymentSource, scenario);
-        await using var fixture = await PaymentApiFixture.StartAsync(paymentRepository, provider);
-        using Process order = await StartOrderAsync(fixture.BaseAddress);
+        await using var fixture = await HostedDependencyFixture.StartAsync();
+        int paymentPort = ReserveLoopbackPort();
+        Uri paymentBaseAddress = new($"http://127.0.0.1:{paymentPort}/");
+        using Process order = await StartOrderAsync(fixture.BaseAddress, paymentBaseAddress);
+        Process? payment = null;
         try
         {
-            if (scenario == "intent_created")
-            {
-                await WaitForOrderStatusAsync(orderSource, state.OrderId, "completed", TimeSpan.FromSeconds(60));
-            }
-            else if (scenario == "authorization_response")
-            {
-                await WaitForOrderStatusAsync(orderSource, state.OrderId, "payment_pending", TimeSpan.FromSeconds(30));
-                await Task.Delay(150);
-                var claim = paymentRepository.ClaimExpiredAuthorization(state.OrganizationId, state.PaymentIntentId,
-                    new PaymentMutationContext("provider-recovery-worker", state.CorrelationId));
-                Assert.True(claim.Acquired);
-                var authorization = new PaymentAuthorizationService(paymentRepository, provider);
-                PaymentIntent reconciled = Assert.IsType<PaymentIntent>(await authorization.ReconcileAsync(
-                    state.OrganizationId, state.PaymentIntentId,
-                    new PaymentMutationContext("provider-recovery-worker", state.CorrelationId), default));
-                Assert.Equal("authorized", reconciled.Status);
-                await PublishAsync("payment.authorization-reconciled.v1", new PaymentAuthorizationReconciledV1(
-                    Guid.NewGuid(), state.CorrelationId, DateTimeOffset.UtcNow, state.OrganizationId, state.OrderId,
-                    state.PaymentIntentId, "authorized", null));
-                await WaitForOrderStatusAsync(orderSource, state.OrderId, "completed", TimeSpan.FromSeconds(60));
-            }
-            else if (scenario == "capture_response")
-            {
-                await Task.Delay(150);
-                var claim = paymentRepository.ClaimExpiredCapture(state.OrganizationId, state.PaymentIntentId,
-                    new PaymentMutationContext("payment-capture-recovery-worker", state.CorrelationId));
-                Assert.True(claim.Acquired);
-                var capture = new PaymentCaptureRecoveryService(paymentRepository, provider);
-                PaymentIntent reconciled = await capture.ReconcileAsync(state.OrganizationId, state.PaymentIntentId,
-                    new PaymentMutationContext("payment-capture-recovery-worker", state.CorrelationId), default);
-                Assert.Equal("captured", reconciled.Status);
-                await PublishAsync("payment.capture-reconciled.v1", new PaymentCaptureReconciledV1(
-                    Guid.NewGuid(), state.CorrelationId, DateTimeOffset.UtcNow, state.OrganizationId, state.OrderId,
-                    state.PaymentIntentId, "captured", null));
-                await WaitForOrderStatusAsync(orderSource, state.OrderId, "completed", TimeSpan.FromSeconds(60));
-            }
-            else throw new InvalidOperationException("Unsupported provider recovery scenario.");
+            await WritePhaseMarkerAsync("order_ready", scenario, order.Id, null);
+            await WaitForControlPhaseAsync("broker_stopped", TimeSpan.FromSeconds(45));
+            payment = await StartPaymentAsync(fixture.BaseAddress, paymentPort);
+            await WaitForHostedRecoveryOutboxAsync(paymentSource, state.PaymentIntentId, scenario,
+                TimeSpan.FromSeconds(45));
+            await WritePhaseMarkerAsync("outbox_persisted", scenario, order.Id, payment.Id);
+            await WaitForControlPhaseAsync("broker_restarted", TimeSpan.FromSeconds(45));
+            await payment.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+            payment.Dispose();
+            payment = await StartPaymentAsync(fixture.BaseAddress, paymentPort);
+            await WaitForOrderStatusAsync(orderSource, state.OrderId, "completed", TimeSpan.FromSeconds(75));
+            await WaitForOutboxPublishedAsync(paymentSource, state.PaymentIntentId, TerminalEventType(scenario),
+                TimeSpan.FromSeconds(75));
         }
-        finally { await StopProcessAsync(order); }
+        finally
+        {
+            if (payment is not null)
+            {
+                await StopProcessAsync(payment);
+                payment.Dispose();
+            }
+            await StopProcessAsync(order);
+        }
     }
 
     [OrderProviderRecoveryLiveFact("verify")]
@@ -173,23 +158,38 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             Assert.Equal(1L, await ScalarAsync(order, "SELECT count(*) FROM orders WHERE id=$1 AND status='completed' AND payment_intent_id=$2", state.OrderId, state.PaymentIntentId));
             Assert.Equal(1L, await ScalarAsync(payment, "SELECT count(*) FROM payment_intents WHERE id=$1 AND order_id=$2 AND status='captured'", state.PaymentIntentId, state.OrderId));
             Assert.Equal(1L, await ScalarAsync(order, "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type=$2", state.OrderId, nameof(PaymentCompletedV1)));
-            int authorizeCommands = await CallCountAsync(payment, scenario, "authorize_command");
-            int captureCommands = await CallCountAsync(payment, scenario, "capture_command");
-            Assert.Equal(1, authorizeCommands);
-            Assert.Equal(1, captureCommands);
-            int authorizationStatusLookups = await CallCountAsync(payment, scenario, "authorization_status");
-            int captureStatusLookups = await CallCountAsync(payment, scenario, "capture_status");
-            Assert.Equal(scenario == "authorization_response" ? 1 : 0, authorizationStatusLookups);
-            Assert.Equal(scenario == "capture_response" ? 1 : 0, captureStatusLookups);
+            long authorizationCommandStarts = await ScalarAsync(payment,
+                "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.authorization-started.v1'",
+                state.PaymentIntentId);
+            long captureCommandStarts = await ScalarAsync(payment,
+                "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.capture-started.v1'",
+                state.PaymentIntentId);
+            Assert.Equal(1L, authorizationCommandStarts);
+            Assert.Equal(1L, captureCommandStarts);
+            int armAuthorizationCommands = await CallCountAsync(payment, scenario, "authorize_command");
+            int armCaptureCommands = await CallCountAsync(payment, scenario, "capture_command");
+            Assert.Equal(scenario == "intent_created" ? 0 : 1, armAuthorizationCommands);
+            Assert.Equal(scenario == "capture_response" ? 1 : 0, armCaptureCommands);
+            Assert.Equal(1L, await ScalarAsync(payment,
+                "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type=$2 AND published_at_utc IS NOT NULL",
+                state.PaymentIntentId, TerminalEventType(scenario)));
+            Guid? reconciliationEventId = await ReconciliationEventIdAsync(payment, state.PaymentIntentId, scenario);
+            if (reconciliationEventId is not null)
+                Assert.Equal(1L, await ScalarAsync(order,
+                    "SELECT count(*) FROM inbox_messages WHERE message_id=$1 AND consumer_name='order-payment-reconciliation' AND status='completed'",
+                    reconciliationEventId.Value));
             evidence.Add(new
             {
                 scenario,
                 orderCount = 1,
                 paymentIntentCount = 1,
-                authorizeCommands,
-                captureCommands,
-                authorizationStatusLookups,
-                captureStatusLookups,
+                authorizationCommandStarts,
+                captureCommandStarts,
+                armAuthorizationCommands,
+                armCaptureCommands,
+                hostedPaymentRecovery = scenario != "intent_created",
+                transactionalOutboxPublished = true,
+                orderInboxCompleted = reconciliationEventId is not null,
                 finalOrderStatus = "Paid",
                 finalPaymentStatus = "captured"
             });
@@ -200,7 +200,7 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             completedAtUtc = DateTimeOffset.UtcNow,
             scenarios = evidence,
             stableOrderAndPaymentIdentityVerified = true,
-            duplicateProviderCommandsDetected = false,
+            duplicateDurableCommandStartsDetected = false,
             providerReferencesRetained = false,
             secretsRetained = false,
             rawServiceLogsRetained = false
@@ -223,7 +223,7 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             idempotencyKey: $"provider-recovery-{scenario}", workflowPaymentMethod: "card",
             workflowCorrelationId: correlation);
         order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted();
-        if (scenario == "capture_response") order.MarkPaymentPending(payment.Id);
+        if (scenario != "intent_created") order.MarkPaymentPending(payment.Id);
         await orderRepository.SaveAsync(order, default);
         await using var due = orderSource.CreateCommand(
             "UPDATE orders SET workflow_recovery_next_attempt_at_utc=now()-interval '1 second' WHERE id=$1");
@@ -274,7 +274,7 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         finally { Environment.SetEnvironmentVariable(variable, previous); }
     }
 
-    private static async Task<Process> StartOrderAsync(Uri fixture)
+    private static async Task<Process> StartOrderAsync(Uri fixture, Uri paymentBaseAddress)
     {
         string hostDll = Required("NEXACONNECT_ORDER_PROVIDER_RECOVERY_HOST_DLL");
         int port = ReserveLoopbackPort();
@@ -300,17 +300,19 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         start.Environment["Outbox__Enabled"] = "false";
         start.Environment["Outbox__ConnectionString"] = RabbitConnection();
         start.Environment["Authentication__Authority"] = fixture.ToString();
+        start.Environment["Authentication__Audience"] = "nexaconnect-api";
         start.Environment["Authentication__RequireHttpsMetadata"] = "false";
         start.Environment["Authentication__TokenEndpoint"] = new Uri(fixture, "token").ToString();
         start.Environment["Authentication__ClientId"] = "nexaconnect-order-service";
         start.Environment["Authentication__ClientSecret"] = "acceptance-only";
-        foreach (string name in new[] { "Authorization", "PlatformDirectory", "Restaurant", "Catalog", "Inventory", "Kitchen", "Payment" })
+        foreach (string name in new[] { "Authorization", "PlatformDirectory", "Restaurant", "Catalog", "Inventory", "Kitchen" })
             start.Environment[$"Services__{name}"] = fixture.ToString();
+        start.Environment["Services__Payment"] = paymentBaseAddress.ToString();
         Process process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the isolated Order host.");
         try
         {
             process.BeginOutputReadLine(); process.BeginErrorReadLine();
-            await WaitForPortAsync(process, port, TimeSpan.FromSeconds(20));
+            await WaitForPortAsync(process, port, "Order", TimeSpan.FromSeconds(20));
             await WaitForQueueAsync($"nexaconnect.order.provider-recovery.{Scenario()}", TimeSpan.FromSeconds(20));
             return process;
         }
@@ -322,15 +324,59 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         }
     }
 
-    private static async Task PublishAsync<T>(string routingKey, T message)
+    private static async Task<Process> StartPaymentAsync(Uri fixture, int port)
     {
-        var factory = new ConnectionFactory { Uri = new Uri(RabbitConnection()) };
-        await using IConnection connection = await factory.CreateConnectionAsync();
-        await using IChannel channel = await connection.CreateChannelAsync();
-        await channel.ExchangeDeclareAsync("nexaconnect.events", ExchangeType.Topic, durable: true);
-        var properties = new BasicProperties { Persistent = true, ContentType = "application/json" };
-        await channel.BasicPublishAsync("nexaconnect.events", routingKey, true, properties,
-            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message)));
+        string hostDll = Required("NEXACONNECT_ORDER_PROVIDER_RECOVERY_PAYMENT_HOST_DLL");
+        var start = new ProcessStartInfo("dotnet")
+        {
+            UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+            CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(hostDll)!
+        };
+        start.ArgumentList.Add(hostDll);
+        start.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
+        start.Environment["DOTNET_ENVIRONMENT"] = "Testing";
+        start.Environment["ASPNETCORE_URLS"] = $"http://127.0.0.1:{port}";
+        start.Environment["Persistence__Provider"] = "PostgreSQL";
+        start.Environment["ConnectionStrings__Payment"] = PaymentConnection();
+        start.Environment["PaymentProvider__Adapter"] = "GenericHttp";
+        start.Environment["PaymentProvider__BaseUrl"] = Required("NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_URL");
+        start.Environment["PaymentProvider__ApiKey"] = Required("NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_API_KEY");
+        start.Environment["PaymentProvider__AuthorizationPath"] = Optional(
+            "NEXACONNECT_PAYMENT_PROVIDER_AUTHORIZATION_PATH", "v1/authorizations");
+        start.Environment["PaymentProvider__AuthorizationStatusPath"] = Optional(
+            "NEXACONNECT_PAYMENT_PROVIDER_AUTHORIZATION_STATUS_PATH", "v1/authorizations");
+        start.Environment["PaymentProvider__CapturePath"] = Optional(
+            "NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_PATH", "v1/captures");
+        start.Environment["PaymentProvider__CaptureStatusPath"] = Optional(
+            "NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_STATUS_PATH", "v1/captures");
+        start.Environment["PaymentProvider__LeaseDuration"] = "00:00:00.050";
+        start.Environment["PaymentProvider__RecoveryInterval"] = "00:00:00.100";
+        start.Environment["PaymentProvider__CaptureRecoveryEnabled"] = "true";
+        start.Environment["PaymentProvider__VoidRecoveryEnabled"] = "false";
+        start.Environment["Outbox__Enabled"] = "true";
+        start.Environment["Outbox__ConnectionString"] = RabbitConnection();
+        start.Environment["Outbox__PollInterval"] = "00:00:00.100";
+        start.Environment["Authentication__Authority"] = fixture.ToString();
+        start.Environment["Authentication__Audience"] = "nexaconnect-api";
+        start.Environment["Authentication__RequireHttpsMetadata"] = "false";
+        start.Environment["Authentication__TokenEndpoint"] = new Uri(fixture, "token").ToString();
+        start.Environment["Authentication__ClientId"] = "nexaconnect-payment-service";
+        start.Environment["Authentication__ClientSecret"] = "acceptance-only";
+        foreach (string name in new[] { "Authorization", "PlatformDirectory", "Restaurant", "Order" })
+            start.Environment[$"Services__{name}"] = fixture.ToString();
+        Process process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the isolated Payment host.");
+        try
+        {
+            process.BeginOutputReadLine(); process.BeginErrorReadLine();
+            await WaitForPortAsync(process, port, "Payment", TimeSpan.FromSeconds(20));
+            return process;
+        }
+        catch
+        {
+            await StopProcessAsync(process);
+            process.Dispose();
+            throw;
+        }
     }
 
     private static async Task WaitForQueueAsync(string queue, TimeSpan timeout)
@@ -385,6 +431,66 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             "SELECT COALESCE((SELECT call_count FROM provider_recovery_calls WHERE scenario=$1 AND operation=$2),0)",
             scenario, operation));
 
+    private static async Task<Guid?> ReconciliationEventIdAsync(
+        NpgsqlDataSource source, Guid paymentIntentId, string scenario)
+    {
+        if (scenario == "intent_created") return null;
+        await using var command = source.CreateCommand(
+            "SELECT id FROM outbox_messages WHERE aggregate_id=$1 AND event_type=$2 ORDER BY occurred_at_utc DESC LIMIT 1");
+        command.Parameters.AddWithValue(paymentIntentId);
+        command.Parameters.AddWithValue(TerminalEventType(scenario));
+        object? value = await command.ExecuteScalarAsync();
+        return value is Guid eventId ? eventId : null;
+    }
+
+    private static string TerminalEventType(string scenario) => scenario switch
+    {
+        "intent_created" => "payment.captured.v1",
+        "authorization_response" => "payment.authorization-reconciled.v1",
+        "capture_response" => "payment.capture-reconciled.v1",
+        _ => throw new InvalidOperationException("Unsupported provider recovery scenario.")
+    };
+
+    private static async Task WaitForHostedRecoveryOutboxAsync(
+        NpgsqlDataSource source, Guid paymentIntentId, string scenario, TimeSpan timeout)
+    {
+        string expectedStatus = scenario == "authorization_response" ? "authorized" : "captured";
+        string eventType = TerminalEventType(scenario);
+        DateTimeOffset deadline = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            await using var command = source.CreateCommand("""
+                SELECT count(*)
+                FROM payment_intents intent
+                JOIN outbox_messages message ON message.aggregate_id=intent.id
+                WHERE intent.id=$1 AND intent.status=$2 AND message.event_type=$3
+                  AND message.published_at_utc IS NULL AND message.last_error_category IS NOT NULL
+                """);
+            command.Parameters.AddWithValue(paymentIntentId);
+            command.Parameters.AddWithValue(expectedStatus);
+            command.Parameters.AddWithValue(eventType);
+            if (Convert.ToInt64(await command.ExecuteScalarAsync()) == 1) return;
+            await Task.Delay(100);
+        }
+        throw new TimeoutException($"Hosted Payment did not persist the unpublished {eventType} outbox message.");
+    }
+
+    private static async Task WaitForOutboxPublishedAsync(
+        NpgsqlDataSource source, Guid paymentIntentId, string eventType, TimeSpan timeout)
+    {
+        DateTimeOffset deadline = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            await using var command = source.CreateCommand(
+                "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type=$2 AND published_at_utc IS NOT NULL");
+            command.Parameters.AddWithValue(paymentIntentId);
+            command.Parameters.AddWithValue(eventType);
+            if (Convert.ToInt64(await command.ExecuteScalarAsync()) == 1) return;
+            await Task.Delay(100);
+        }
+        throw new TimeoutException($"Hosted Payment did not publish {eventType} after restart.");
+    }
+
     private static async Task WriteMarkerAsync(string path, string scenario)
     {
         string temporary = path + ".tmp";
@@ -392,16 +498,51 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         File.Move(temporary, path, true);
     }
 
-    private static async Task WaitForPortAsync(Process process, int port, TimeSpan timeout)
+    private static async Task WritePhaseMarkerAsync(
+        string phase, string scenario, int orderProcessId, int? paymentProcessId)
+    {
+        string path = MarkerPath();
+        string temporary = path + ".tmp";
+        await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(new
+        {
+            phase,
+            scenario,
+            orderProcessId,
+            paymentProcessId
+        }));
+        File.Move(temporary, path, true);
+    }
+
+    private static async Task WaitForControlPhaseAsync(string expectedPhase, TimeSpan timeout)
     {
         DateTimeOffset deadline = DateTimeOffset.UtcNow + timeout;
         while (DateTimeOffset.UtcNow < deadline)
         {
-            if (process.HasExited) throw new InvalidOperationException($"Order host exited with code {process.ExitCode}.");
+            try
+            {
+                if (File.Exists(ControlPath()))
+                {
+                    using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(ControlPath()));
+                    if (document.RootElement.GetProperty("phase").GetString() == expectedPhase) return;
+                }
+            }
+            catch (IOException) { }
+            catch (JsonException) { }
+            await Task.Delay(100);
+        }
+        throw new TimeoutException($"Hosted Payment recovery did not receive control phase {expectedPhase}.");
+    }
+
+    private static async Task WaitForPortAsync(Process process, int port, string hostName, TimeSpan timeout)
+    {
+        DateTimeOffset deadline = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (process.HasExited) throw new InvalidOperationException($"{hostName} host exited with code {process.ExitCode}.");
             try { using var client = new TcpClient(); await client.ConnectAsync(IPAddress.Loopback, port).WaitAsync(TimeSpan.FromMilliseconds(250)); return; }
             catch { await Task.Delay(100); }
         }
-        throw new TimeoutException("Order host did not bind its loopback port.");
+        throw new TimeoutException($"{hostName} host did not bind its loopback port.");
     }
 
     private static int ReserveLoopbackPort()
@@ -431,6 +572,7 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
     private static string PaymentConnection() => Required("NEXACONNECT_ORDER_PROVIDER_RECOVERY_PAYMENT_DB");
     private static string RabbitConnection() => Required("NEXACONNECT_ORDER_PROVIDER_RECOVERY_RABBITMQ");
     private static string MarkerPath() => Required("NEXACONNECT_ORDER_PROVIDER_RECOVERY_MARKER");
+    private static string ControlPath() => Required("NEXACONNECT_ORDER_PROVIDER_RECOVERY_CONTROL");
     private static string EvidencePath() => Required("NEXACONNECT_ORDER_PROVIDER_RECOVERY_EVIDENCE");
 
     private sealed record ScenarioState(string Scenario, Guid OrganizationId, Guid RestaurantId, Guid BranchId,
@@ -458,59 +600,85 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         public void Dispose() => owner.Dispose();
     }
 
-    private sealed class PaymentApiFixture : IAsyncDisposable
+    private sealed class HostedDependencyFixture : IAsyncDisposable
     {
         private readonly WebApplication app;
-        private PaymentApiFixture(WebApplication app) { this.app = app; }
+        private readonly RSA signingKey;
+        private HostedDependencyFixture(WebApplication app, RSA signingKey)
+        {
+            this.app = app;
+            this.signingKey = signingKey;
+        }
         public Uri BaseAddress { get; private set; } = null!;
 
-        public static async Task<PaymentApiFixture> StartAsync(PostgresPaymentIntents repository, IPaymentProvider provider)
+        public static async Task<HostedDependencyFixture> StartAsync()
         {
+            RSA rsa = RSA.Create(2048);
+            var securityKey = new RsaSecurityKey(rsa) { KeyId = Guid.NewGuid().ToString("N") };
             WebApplicationBuilder builder = WebApplication.CreateBuilder();
             builder.WebHost.UseUrls("http://127.0.0.1:0");
             WebApplication app = builder.Build();
-            var fixture = new PaymentApiFixture(app);
-            var authorization = new PaymentAuthorizationService(repository, provider);
-            var capture = new PaymentCaptureService(repository, provider);
-            app.MapPost("/token", () => Results.Json(new { access_token = "provider-recovery-acceptance", expires_in = 300 }));
-            app.MapPost("/api/payment/v1/intents", async (HttpRequest request) =>
+            var fixture = new HostedDependencyFixture(app, rsa);
+            string? issuer = null;
+            app.MapGet("/.well-known/openid-configuration", () => Results.Json(new
             {
-                Guid organization = Guid.Parse(request.Headers["X-Nexa-Organization-Id"].ToString());
-                CreateRequest body = (await request.ReadFromJsonAsync<CreateRequest>())!;
-                PaymentIntent intent = repository.Create(organization,
-                    new CreatePaymentIntent(body.RestaurantId, body.BranchId, body.OrderId, body.IdempotencyKey,
-                        body.Amount, body.Currency, body.PaymentMethod),
-                    new PaymentMutationContext("nexaconnect-order-service", Guid.NewGuid()));
-                return Results.Json(intent, statusCode: StatusCodes.Status201Created);
+                issuer,
+                jwks_uri = issuer + "/jwks",
+                token_endpoint = issuer + "/token",
+                id_token_signing_alg_values_supported = new[] { SecurityAlgorithms.RsaSha256 }
+            }));
+            app.MapGet("/jwks", () =>
+            {
+                RSAParameters parameters = rsa.ExportParameters(false);
+                return Results.Json(new
+                {
+                    keys = new[]
+                    {
+                        new
+                        {
+                            kty = "RSA",
+                            use = "sig",
+                            kid = securityKey.KeyId,
+                            alg = SecurityAlgorithms.RsaSha256,
+                            n = Base64UrlEncoder.Encode(parameters.Modulus),
+                            e = Base64UrlEncoder.Encode(parameters.Exponent)
+                        }
+                    }
+                });
             });
-            app.MapGet("/api/payment/v1/intents/{id:guid}", (Guid id, HttpRequest request) =>
+            app.MapPost("/token", () =>
             {
-                Guid organization = Guid.Parse(request.Headers["X-Nexa-Organization-Id"].ToString());
-                PaymentIntent? intent = repository.Get(organization, id);
-                return intent is null ? Results.NotFound() : Results.Json(intent);
-            });
-            app.MapPost("/api/payment/v1/intents/{id:guid}/authorize", async (Guid id, HttpRequest request) =>
-            {
-                Guid organization = Guid.Parse(request.Headers["X-Nexa-Organization-Id"].ToString());
-                return Results.Json(await authorization.AuthorizeAsync(organization, id,
-                    new PaymentMutationContext("nexaconnect-order-service", Guid.NewGuid()), request.HttpContext.RequestAborted));
-            });
-            app.MapPost("/api/payment/v1/intents/{id:guid}/capture", async (Guid id, HttpRequest request) =>
-            {
-                Guid organization = Guid.Parse(request.Headers["X-Nexa-Organization-Id"].ToString());
-                return Results.Json(await capture.CaptureAsync(organization, id,
-                    new PaymentMutationContext("nexaconnect-order-service", Guid.NewGuid()), request.HttpContext.RequestAborted));
+                DateTime now = DateTime.UtcNow;
+                var token = new JwtSecurityToken(
+                    issuer,
+                    "nexaconnect-api",
+                    [
+                        new Claim(JwtRegisteredClaimNames.Sub, "provider-recovery-order-workload"),
+                        new Claim("azp", "nexaconnect-order-service")
+                    ],
+                    now.AddSeconds(-5),
+                    now.AddMinutes(5),
+                    new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256));
+                return Results.Json(new
+                {
+                    access_token = new JwtSecurityTokenHandler().WriteToken(token),
+                    token_type = "Bearer",
+                    expires_in = 300
+                });
             });
             app.MapPost("/api/inventory/v1/branches/{branchId:guid}/reservations/{orderId:guid}/release", () => Results.Ok());
             app.MapPost("/api/kitchen/v1/tickets/{orderId:guid}/cancel", () => Results.Ok());
             await app.StartAsync();
             fixture.BaseAddress = new Uri(app.Urls.Single().TrimEnd('/') + "/");
+            issuer = fixture.BaseAddress.ToString().TrimEnd('/');
             return fixture;
         }
 
-        public async ValueTask DisposeAsync() => await app.DisposeAsync();
-        private sealed record CreateRequest(Guid RestaurantId, Guid BranchId, Guid OrderId, string IdempotencyKey,
-            decimal Amount, string Currency, string PaymentMethod);
+        public async ValueTask DisposeAsync()
+        {
+            await app.DisposeAsync();
+            signingKey.Dispose();
+        }
     }
 }
 
@@ -527,6 +695,7 @@ public sealed class OrderProviderRecoveryLiveFactAttribute : FactAttribute
         string[] required = [
             "NEXACONNECT_ORDER_PROVIDER_RECOVERY_ORDER_DB", "NEXACONNECT_ORDER_PROVIDER_RECOVERY_PAYMENT_DB",
             "NEXACONNECT_ORDER_PROVIDER_RECOVERY_RABBITMQ", "NEXACONNECT_ORDER_PROVIDER_RECOVERY_HOST_DLL",
+            "NEXACONNECT_ORDER_PROVIDER_RECOVERY_PAYMENT_HOST_DLL", "NEXACONNECT_ORDER_PROVIDER_RECOVERY_CONTROL",
             "NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_API_KEY", "NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_AMOUNT",
             "NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_CURRENCY"];
         if (Environment.GetEnvironmentVariable("NEXACONNECT_ORDER_PROVIDER_RECOVERY_LIVE_ACCEPTANCE") != "1"
