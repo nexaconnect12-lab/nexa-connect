@@ -8,7 +8,28 @@ For manual tenders, apply Authorization 6, Order 6, Reporting 14, and POS 4 befo
 
 Enable interrupted checkout recovery with `WorkflowRecovery__Enabled=true` on Order after migration 7 and after its PostgreSQL, Catalog, Inventory, Kitchen, Payment, and workload-identity configuration are healthy. For provider methods, also enable `PaymentReconciliationConsumer__Enabled=true` and inject `PaymentReconciliationConsumer__ConnectionString` from the RabbitMQ secret after the compatible Payment publisher is running. Optional recovery overrides are `WorkflowRecovery__PollInterval`, `WorkflowRecovery__LeaseDuration`, and `WorkflowRecovery__RetryDelay`; defaults are 5, 30, and 15 seconds, and Order startup rejects zero or negative values. The worker reuses Order identity for Inventory/Kitchen calls and the stable `order:{orderId}` key for Payment intent creation. It never repeats an in-progress or uncertain authorization/capture. Manual tenders stop at KitchenAccepted; provider uncertainty stops at PaymentPending and is completed, failed, or moved to PaymentReview by durable reconciliation. Keep the worker and reconciliation consumer disabled during migration rollback. Monitor `order.workflow_recovery.*`, the Order reconciliation inbox metrics, broker queue/dead-letter depth, and Payment recovery metrics; investigate sustained age or failures before accepting new provider-payment traffic.
 
-Before releasing Order migration 7 recovery, retain the existing manual-tender gate from `pwsh -NoProfile -File scripts/test-order-workflow-recovery-live.ps1 -ConfirmDisposableInfrastructure`, run the `0→7→6→7` Order migration acceptance, and execute provider-specific process interruption against the selected provider sandbox. Interrupt Order after intent creation, authorization, and capture response boundaries. Every case must retain one Order and one Payment intent, avoid duplicate provider operations, and finish as Paid, PaymentFailed with completed compensation, or PaymentReview after bounded reconciliation. The repository's automated tests cover these state decisions without provider credentials; concrete-provider interruption remains environment-specific release evidence.
+Before releasing Order migration 7 recovery, retain the existing manual-tender gate from `pwsh -NoProfile -File scripts/test-order-workflow-recovery-live.ps1 -ConfirmDisposableInfrastructure`, run the `0→7→6→7` Order migration acceptance, and execute `scripts/test-order-provider-recovery-live.ps1` against the selected provider sandbox. The guarded runner owns generated PostgreSQL 17/RabbitMQ 4 resources on random loopback ports, builds isolated test and Order-host outputs, and terminates only the exact child test process at three boundaries: durable intent creation, a successful authorization response before local commit, and a successful capture response before local commit. It then starts the real Order recovery host, uses Payment's production PostgreSQL services and `GenericHttp` adapter, publishes reconciliation through RabbitMQ, and requires one stable Order/Payment-intent pair, one authorization command, one capture command, and a final Paid/captured state in every case. This is environment-specific release evidence. The runner passed locally on 2026-09-15 against a temporary HTTPS contract fixture, but it has not been executed against the selected external provider sandbox.
+
+From a PowerShell 7 session on Windows, inject the provider values without printing or committing them. The endpoint must implement NexaConnect's generic authorization/capture/status contract, use HTTPS, identify a non-production sandbox, accept the configured `card` payment method, and permit three disposable authorizations and captures at the chosen amount:
+
+```powershell
+$env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_URL = 'https://sandbox.example-provider.test/'
+$env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_API_KEY = '<secret-injected-api-key>'
+$env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_AMOUNT = '1.00'
+$env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_CURRENCY = 'USD'
+# Optional when the provider does not use the defaults under v1/authorizations and v1/captures:
+$env:NEXACONNECT_PAYMENT_PROVIDER_AUTHORIZATION_PATH = 'v1/authorizations'
+$env:NEXACONNECT_PAYMENT_PROVIDER_AUTHORIZATION_STATUS_PATH = 'v1/authorizations'
+$env:NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_PATH = 'v1/captures'
+$env:NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_STATUS_PATH = 'v1/captures'
+
+pwsh -NoProfile -File scripts/test-order-provider-recovery-live.ps1 `
+  -ConfirmDisposableInfrastructure `
+  -ConfirmProcessTermination `
+  -ConfirmSandboxTransactions
+```
+
+A pass retains only sanitized JSON under `.runstate/order-provider-recovery-live/<run-id>/`; it excludes credentials, provider references, tenant/Order/Payment identifiers, and raw service logs. Failed arm-process logs may contain endpoint diagnostics, so keep the failed run directory access-restricted and review it before sharing. The runner always attempts project-scoped container/volume cleanup and restores every process environment value that it changes.
 
 Deploy the POS service cash-reconciliation contract and the matching WPF client as one coordinated release. The updated close route requires `X-Nexa-Terminal-Id` and `expectedConcurrencyVersion` from the latest summary; an older client cannot close against the updated service, and an updated client cannot reconcile against an older service without the summary route. During rollout, drain or prevent new cashier sessions, deploy the service and client together, then verify summary refresh, a stale-version `409` that leaves the session open, and a successful reviewed close before reopening terminals. Roll back both components together if that verification fails; existing session rows require no schema conversion.
 

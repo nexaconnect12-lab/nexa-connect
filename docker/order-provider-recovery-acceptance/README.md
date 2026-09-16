@@ -1,0 +1,5 @@
+# Order provider-recovery acceptance infrastructure
+
+This Compose definition is owned by `scripts/test-order-provider-recovery-live.ps1`. The guarded launcher creates a uniquely named project, generates its password in process memory, publishes PostgreSQL and RabbitMQ on random loopback ports, runs the three provider process-interruption boundaries, and removes the project and volumes before reporting success.
+
+Do not start this Compose file directly or point the runner at shared infrastructure. The provider endpoint is external and must be a disposable, non-production HTTPS sandbox compatible with NexaConnect's generic authorization/capture/status contract. It must accept three new `card` authorizations and captures; choose an amount and currency whose total sandbox impact is acceptable. Successful retained evidence is sanitized and excludes credentials, provider references, tenant identifiers, Order identifiers, Payment identifiers, and raw service logs. Use the [deployment guide](../../docs/Deployment/Deployment-Guide.md) for the exact environment variables and guarded command.

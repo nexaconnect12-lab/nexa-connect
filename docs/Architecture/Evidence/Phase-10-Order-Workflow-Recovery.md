@@ -20,3 +20,15 @@ pwsh -NoProfile -File scripts/test-order-workflow-recovery-live.ps1 -ConfirmDisp
 ```
 
 This evidence covers the manual-tender pre-payment stages owned by Order migration 6. It does not prove provider-payment recovery, production dependency behavior, a remote broker, live-traffic rollback, or cashier interaction with a physical terminal.
+
+## Concrete-provider interruption gate
+
+The migration-7 provider gate is implemented in `scripts/test-order-provider-recovery-live.ps1` with its isolated Compose definition under `docker/order-provider-recovery-acceptance/` and opt-in integration matrix `OrderProviderPaymentRecoveryLiveAcceptanceTests`. It creates three independent Order/Payment pairs and exercises these boundaries:
+
+- the Payment intent exists durably before any provider command;
+- the provider returned a successful authorization before Payment committed the result; and
+- the provider returned a successful capture before Payment committed the result.
+
+The latter two cases kill the exact acceptance process after the real HTTPS response. Recovery waits for the expired Payment lease, queries the provider by the stable Payment-intent identity, commits the authoritative state, and sends the production reconciliation contract through a generated RabbitMQ broker to an isolated real Order host. Verification requires exactly one authorization and capture command per scenario, the expected status lookup only for the uncertain boundary, one stable Order and Payment intent, one Payment-completed Order event, and final captured/Paid state. Success evidence contains only counts, state labels, and booleans.
+
+Run it only with an API-compatible non-production provider after following the secret-injection and three-confirmation procedure in the [deployment guide](../../Deployment/Deployment-Guide.md). The runner passed on 2026-09-15 against a temporary local HTTPS contract fixture, including all three process terminations and project cleanup. That run validates the harness and production code paths only; no selected external provider credential is configured, so provider-specific release evidence remains pending.
