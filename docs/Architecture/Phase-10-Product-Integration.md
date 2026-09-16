@@ -6,6 +6,8 @@ Shared projects may contain immutable integration-event DTOs, tenant header name
 
 ## Current integration matrix
 
+The provider interruption harness now has a self-contained local HTTPS simulator wrapper requiring no external provider credentials. Simulator TLS/replay/credential smoke acceptance passed on 2026-09-16, while full Docker-hosted execution remains pending because the Linux engine was unavailable. Selected external-provider execution remains a separate release gate. See the [simulator guide](../../src/Tools/NexaConnect.PaymentProviderSimulator/README.md).
+
 | Product service | Current Phase 10 foundation | Remaining exit work |
 | --- | --- | --- |
 | Catalog | Product-owned menu interfaces and PostgreSQL repository; tenant/branch authorization; API and Customer BFF contract; `CatalogMenuItemChangedV1`; append-only product audit; transactional outbox; paired migration 4 scripts; opt-in live PostgreSQL atomicity/rollback/trigger/migration coverage; implemented full-database 0→4→3→4 runner acceptance; real RabbitMQ acceptance for an unreachable connection attempt, a commit without a broker connection, and later confirmed publication over a new connection with persistent messages, isolated consumption, and publication timestamps | Closed for the Phase 10 product-integration slice; retain a successful production-like full migration acceptance run as a release gate; established-dispatcher reconnection is not covered by this acceptance |

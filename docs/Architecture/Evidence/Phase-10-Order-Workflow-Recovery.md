@@ -23,6 +23,8 @@ This evidence covers the manual-tender pre-payment stages owned by Order migrati
 
 ## Concrete-provider interruption gate
 
+A self-contained alternative is `scripts/test-order-provider-recovery-local.ps1 -ConfirmDisposableInfrastructure -ConfirmProcessTermination`. Its loopback HTTPS simulator supplies generated credentials and stable authorization/capture/status without external transactions. The simulator-only smoke gate passed on 2026-09-16, including exact-certificate HTTPS validation, invalid credential rejection, conflicting authorization replay and stable capture replay/status; process and PFX cleanup completed. Full hosted execution was attempted but Docker Desktop's Linux engine was unavailable, so no hosted matrix pass is claimed. External-provider acceptance remains a distinct release gate.
+
 The migration-7 provider gate is implemented in `scripts/test-order-provider-recovery-live.ps1` with its isolated Compose definition under `docker/order-provider-recovery-acceptance/` and opt-in integration matrix `OrderProviderPaymentRecoveryLiveAcceptanceTests`. It creates three independent Order/Payment pairs and exercises these boundaries:
 
 - the Payment intent exists durably before any provider command;

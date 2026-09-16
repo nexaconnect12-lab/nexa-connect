@@ -134,6 +134,12 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             await WaitForOrderStatusAsync(orderSource, state.OrderId, "completed", TimeSpan.FromSeconds(75));
             await WaitForOutboxPublishedAsync(paymentSource, state.PaymentIntentId, TerminalEventType(scenario),
                 TimeSpan.FromSeconds(75));
+            if (scenario != "intent_created")
+            {
+                Guid eventId = await ReconciliationEventIdAsync(paymentSource, state.PaymentIntentId, scenario)
+                    ?? throw new InvalidOperationException("Persisted reconciliation event is missing.");
+                await WaitForInboxCompletedAsync(orderSource, eventId, TimeSpan.FromSeconds(15));
+            }
         }
         finally
         {
@@ -176,7 +182,7 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             Guid? reconciliationEventId = await ReconciliationEventIdAsync(payment, state.PaymentIntentId, scenario);
             if (reconciliationEventId is not null)
                 Assert.Equal(1L, await ScalarAsync(order,
-                    "SELECT count(*) FROM inbox_messages WHERE message_id=$1 AND consumer_name='order-payment-reconciliation' AND status='completed'",
+                    "SELECT count(*) FROM inbox_messages WHERE message_id=$1 AND consumer_name='order.payment-reconciled.v1' AND status='completed'",
                     reconciliationEventId.Value));
             evidence.Add(new
             {
@@ -246,7 +252,10 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
     private static CountingProvider NewProvider(NpgsqlDataSource source, string scenario)
     {
         var settings = ProviderSettings();
-        var client = new HttpClient { BaseAddress = new Uri(settings.Value.BaseUrl), Timeout = settings.Value.RequestTimeout };
+        var handler = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderAcceptanceTls.CreateHandler(
+            Environment.GetEnvironmentVariable("NEXACONNECT_PAYMENT_PROVIDER_SIMULATOR_CERT_SHA256"),
+            settings.Value.BaseUrl, Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT") == "Testing");
+        var client = new HttpClient(handler) { BaseAddress = new Uri(settings.Value.BaseUrl), Timeout = settings.Value.RequestTimeout };
         return new CountingProvider(new HttpPaymentProvider(client, settings), source, scenario, client);
     }
 
@@ -341,6 +350,8 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         start.Environment["PaymentProvider__Adapter"] = "GenericHttp";
         start.Environment["PaymentProvider__BaseUrl"] = Required("NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_URL");
         start.Environment["PaymentProvider__ApiKey"] = Required("NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_API_KEY");
+        start.Environment["PaymentProvider__SimulatorCertificateSha256"] =
+            Environment.GetEnvironmentVariable("NEXACONNECT_PAYMENT_PROVIDER_SIMULATOR_CERT_SHA256") ?? "";
         start.Environment["PaymentProvider__AuthorizationPath"] = Optional(
             "NEXACONNECT_PAYMENT_PROVIDER_AUTHORIZATION_PATH", "v1/authorizations");
         start.Environment["PaymentProvider__AuthorizationStatusPath"] = Optional(
@@ -496,6 +507,19 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         string temporary = path + ".tmp";
         await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(new { scenario, providerResponseObserved = scenario != "intent_created" }));
         File.Move(temporary, path, true);
+    }
+
+    private static async Task WaitForInboxCompletedAsync(NpgsqlDataSource source, Guid eventId, TimeSpan timeout)
+    {
+        DateTimeOffset deadline = DateTimeOffset.UtcNow + timeout;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (await ScalarAsync(source,
+                "SELECT count(*) FROM inbox_messages WHERE message_id=$1 AND consumer_name='order.payment-reconciled.v1' AND status='completed'",
+                eventId) == 1) return;
+            await Task.Delay(100);
+        }
+        throw new TimeoutException("Order did not complete the persisted reconciliation inbox message.");
     }
 
     private static async Task WritePhaseMarkerAsync(

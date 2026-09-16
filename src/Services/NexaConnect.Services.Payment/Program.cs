@@ -44,6 +44,13 @@ builder.Services.AddOptions<PaymentProviderOptions>()
     .Validate(options => options.RequestTimeout > TimeSpan.Zero && options.RequestTimeout <= TimeSpan.FromMinutes(2),
         "PaymentProvider:RequestTimeout must be greater than zero and no more than two minutes.")
     .ValidateOnStart();
+if (!string.IsNullOrWhiteSpace(builder.Configuration["PaymentProvider:SimulatorCertificateSha256"]))
+{
+    using var validationHandler = ProviderAcceptanceTls.CreateHandler(
+        builder.Configuration["PaymentProvider:SimulatorCertificateSha256"],
+        builder.Configuration["PaymentProvider:BaseUrl"] ?? "https://payment-provider.invalid/",
+        builder.Environment.IsEnvironment("Testing"));
+}
 builder.Services.AddScoped<PaymentAuthorizationService>();
 builder.Services.AddScoped<IPaymentAuthorizationService>(services => services.GetRequiredService<PaymentAuthorizationService>());
 builder.Services.AddScoped<IPaymentCaptureService, PaymentCaptureService>();
@@ -56,7 +63,11 @@ builder.Services.AddHttpClient<HttpPaymentProvider>((services, client) =>
     PaymentProviderOptions options = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentProviderOptions>>().Value;
     client.BaseAddress = new Uri(options.BaseUrl);
     client.Timeout = options.RequestTimeout;
-}).AddHttpMessageHandler<RetryingHttpMessageHandler>();
+}).ConfigurePrimaryHttpMessageHandler(services => ProviderAcceptanceTls.CreateHandler(
+    builder.Configuration["PaymentProvider:SimulatorCertificateSha256"],
+    services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentProviderOptions>>().Value.BaseUrl,
+    builder.Environment.IsEnvironment("Testing")))
+    .AddHttpMessageHandler<RetryingHttpMessageHandler>();
 builder.Services.AddSingleton<DisabledPaymentProvider>();
 builder.Services.AddScoped<IPaymentProvider>(services =>
     services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentProviderOptions>>().Value.Adapter switch

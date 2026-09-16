@@ -1,5 +1,13 @@
 # Deployment Guide
 
+When no external provider sandbox is ready, run the self-contained local HTTPS recovery gate from Windows PowerShell 7:
+
+```powershell
+./scripts/test-order-provider-recovery-local.ps1 -ConfirmDisposableInfrastructure -ConfirmProcessTermination
+```
+
+It generates local credentials and a short-lived certificate, runs replay/credential/TLS smoke checks, then uses the existing disposable PostgreSQL/RabbitMQ and real Order/Payment hosted matrix. No provider URL/key needs to be supplied. `-SmokeTestOnly` runs without Docker. No Windows trust store changes occur: the exact certificate pin is accepted only in Testing against IPv4 loopback HTTPS, with hostname validation retained. Do not configure `PaymentProvider__SimulatorCertificateSha256` outside this harness; other environments reject it. The simulator smoke gate passed on 2026-09-16; the full hosted run still needs a healthy Docker engine. This establishes local infrastructure behavior and never substitutes for selected-provider release evidence. See the [simulator guide](../../src/Tools/NexaConnect.PaymentProviderSimulator/README.md).
+
 For the WPF cashier layout, supported window size, configuration prerequisites, and the passed local interactive OIDC/checkout gate, follow [Cashier checkout acceptance](POS-Cashier-Acceptance.md). Component test success alone does not sign off the joined workflow.
 
 Before enabling cashier UI, run `powershell.exe -NoProfile -File scripts/test-pos-paid-workflow.ps1 -ConfirmDisposableInfrastructure -ConfirmDestructiveRollback` from a normal interactive Windows user profile with secret-injected disposable `NEXACONNECT_POS_INTEGRATION_DB`, `NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB`, and `NEXACONNECT_RABBITMQ_INTEGRATION_URI`. The runner uses run-specific build output so active development services do not lock its assemblies. The gate requires 17/17 protected SQLite/recovery cases and 3/3 live backend cases (20 total); skipped DPAPI cases fail it. Retain its sanitized evidence and verify receiver delivery for `PosOrderSettlementQueueBacklog`, `PosOrderSettlementDeadLetters`, and `PosOrderSettlementRetries`. The evidence does not prove interactive WPF behavior or live OIDC.
