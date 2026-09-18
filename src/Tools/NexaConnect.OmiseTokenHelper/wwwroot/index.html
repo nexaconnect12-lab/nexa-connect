@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omise test token helper</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.omise.co/omise.js" defer></script>
+  <script src="/helper.js" defer></script>
+</head>
+<body><main>
+  <h1>Generate an Omise test token</h1>
+  <p>Enter your test public key. This uses a fixed success test card and creates a token only; it does not create a charge.</p>
+  <form id="generate" autocomplete="off">
+    <label for="public-key">Test public key (pkey_test_…)</label>
+    <input id="public-key" type="text" required spellcheck="false" autocomplete="off">
+    <button id="submit" type="submit">Generate fresh token</button>
+  </form>
+  <p id="status" role="status" aria-live="polite"></p>
+  <label for="token">Generated token — copy into the masked PowerShell prompt</label>
+  <input id="token" type="password" readonly autocomplete="off">
+  <button id="copy" type="button" disabled>Copy token</button>
+  <p>Generate once for capture, copy it, then generate again for void. Tokens are single-use. The page keeps only the most recent token in memory; nothing is saved or sent to this local server.</p>
+</main></body></html>

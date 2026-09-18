@@ -168,6 +168,11 @@
               <StackPanel Grid.Row="2">
                 <TextBlock Text="Total" Foreground="#63756A" />
                 <TextBlock x:Name="TotalText" FontSize="30" FontWeight="Bold" Margin="0,4,0,16" />
+                <StackPanel x:Name="OmiseTestCardPanel" Visibility="Collapsed">
+                  <TextBlock Text="Omise test checkout" FontWeight="SemiBold" />
+                  <TextBlock Text="Paste a fresh token from the local HTTPS test helper. Leave blank to verify the original order. Do not enter card details or keys." TextWrapping="Wrap" Margin="0,8" />
+                  <PasswordBox x:Name="CardTokenBox" MaxLength="100" PasswordChanged="CardToken_Changed" AutomationProperties.Name="Fresh Omise test token" Margin="0,0,0,12" />
+                </StackPanel>
                 <Button x:Name="PlaceOrderButton" Content="Send order · Continue to payment" Click="PlaceOrder_Click" Style="{StaticResource Primary}" ToolTipService.ShowOnDisabled="True" />
                 <TextBlock Text="Menu total. Final amount is confirmed by the order service." FontSize="12" Foreground="#63756A" TextWrapping="Wrap" />
               </StackPanel>

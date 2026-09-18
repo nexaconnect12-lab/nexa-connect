@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private LocalPendingCashReviewState? pendingCashReviewAttempt;
     private PosOrderResult? pendingOrder;
     private PendingCheckout? pendingCheckout;
+    private bool cardTokenRequired;
     private Guid? settlementIdempotencyKey;
     private bool settlementUncertain;
     private bool settlementInFlight;
@@ -104,6 +105,8 @@ public partial class MainWindow : Window
 
     private async void SignIn_Click(object sender, RoutedEventArgs e)
     {
+        CardTokenBox.Clear();
+        cardTokenRequired = false;
         if (signInCancellation is not null)
         {
             signInCancellation.Cancel();
@@ -476,6 +479,7 @@ public partial class MainWindow : Window
     private async void PlaceOrder_Click(object sender, RoutedEventArgs e)
     {
         if (_authentication.CurrentToken is null || busy || !PlaceOrderButton.IsEnabled) return;
+        cardTokenRequired = false;
         if (pendingCheckout is null && _configuration.PaymentMethod == "cash_manual" && cashSessionId is null)
         {
             ShiftCashTab.IsSelected = true;
@@ -492,9 +496,18 @@ public partial class MainWindow : Window
                 _localStore.SavePendingCheckout(created); // Never send until recovery is durable.
                 pendingCheckout = created;
             }
-            var result = await _api.PlaceOrderAsync(_authentication.CurrentToken, pendingCheckout);
+            string? cardToken = CardTokenBox.Password.Length == 0 ? null : CardTokenBox.Password;
+            CardTokenBox.Clear();
+            var result = await _api.PlaceOrderAsync(_authentication.CurrentToken, pendingCheckout, cardToken);
+            cardTokenRequired = result.CardTokenRequired;
             bool clearCart = false;
-            if (result.Status == PosOrderStatus.KitchenAccepted)
+            if (_configuration.PaymentMethod == "card_omise_test" && result.Status is PosOrderStatus.KitchenAccepted or PosOrderStatus.PaymentPending)
+            {
+                StatusText.Text = result.CardTokenRequired
+                    ? "Original card order is waiting for a token. Generate a fresh unused test token and authorize this original order."
+                    : "Original card order retained. Verify with the token field blank; server reconciliation owns uncertain payments.";
+            }
+            else if (result.Status == PosOrderStatus.KitchenAccepted)
             {
                 pendingOrder = result;
                 settlementIdempotencyKey = pendingCheckout.SettlementKey;
@@ -536,7 +549,11 @@ public partial class MainWindow : Window
                     ? $"{api.Message} Original checkout retained. Use Verify order; do not create another order."
                     : "Original checkout retained. Use Verify order to check its result; do not create another order.";
         }
-        finally { UpdateOperationalState(); }
+        finally { CardTokenBox.Clear(); UpdateOperationalState(); }
+    }
+    private void CardToken_Changed(object sender, RoutedEventArgs e)
+    {
+        if (IsLoaded && !busy) UpdateOperationalState();
     }
     private async void Paid_Click(object sender, RoutedEventArgs e)
     {
@@ -964,6 +981,7 @@ public partial class MainWindow : Window
 
     private void SignOut_Click(object sender, RoutedEventArgs e)
     {
+        CardTokenBox.Clear();
         if (_activeShift is not null || cashSessionId is not null || pendingOrder is not null ||
             pendingCheckout is not null || pendingCashReviewAttempt is not null)
         {
@@ -1037,6 +1055,10 @@ public partial class MainWindow : Window
         PlaceOrderButton.IsEnabled = CashierPresentation.CanAttemptOrder(
             signedIn, hasActiveShift, pendingOrder is not null, pendingCheckout is not null, cart.Count);
         PlaceOrderButton.Content = pendingCheckout is null ? "Send order · Continue to payment" : "Verify original order";
+        OmiseTestCardPanel.Visibility = _configuration.PaymentMethod == "card_omise_test" ? Visibility.Visible : Visibility.Collapsed;
+        CardTokenBox.IsEnabled = signedIn && hasActiveShift && !busy && _configuration.PaymentMethod == "card_omise_test"
+            && (pendingCheckout is null || cardTokenRequired);
+        if (pendingCheckout is not null && CardTokenBox.Password.Length > 0) PlaceOrderButton.Content = "Authorize original test card order";
         PlaceOrderButton.ToolTip = pendingCheckout is null && _configuration.PaymentMethod == "cash_manual" && cashSessionId is null
             ? "Open a THB cash session before sending. Selecting Send order will take you to Shift & cash."
             : "Send the current order and continue to payment.";
@@ -1072,7 +1094,7 @@ public partial class MainWindow : Window
         ContextText.Text = $"Branch {_configuration.BranchId.ToString("N")[..8]} · Terminal {_configuration.TerminalId.ToString("N")[..8]} · {_configuration.Currency} · Connectivity checked per action";
         string method = SelectedTenderMethod();
         PaidButton.Content = settlementUncertain ? "Verify payment" : "Confirm payment received";
-        PaidButton.IsEnabled = signedIn && hasActiveShift && pendingOrder is not null && !settlementInFlight
+        PaidButton.IsEnabled = _configuration.PaymentMethod != "card_omise_test" && signedIn && hasActiveShift && pendingOrder is not null && !settlementInFlight
             && (method != "cash" || cashSessionId is not null)
             && (method != "promptpay_manual" || PromptPayQrImage.Source is not null);
         PendingOrderText.Text = pendingOrder is null
@@ -1184,6 +1206,8 @@ public partial class MainWindow : Window
 
     private void LockSession(string message)
     {
+        CardTokenBox.Clear();
+        cardTokenRequired = false;
         reauthenticationRequired = true;
         sessionLockMessage = message;
         if (!busy) UpdateOperationalState();

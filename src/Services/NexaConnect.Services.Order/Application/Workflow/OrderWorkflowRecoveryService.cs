@@ -106,7 +106,7 @@ public sealed class OrderWorkflowRecoveryService(
                 else
                 {
                     order.MarkPaid(paid.PaymentId.Value);
-                    integrationEvent = new PaymentCompletedV1(Guid.NewGuid(), correlationId, clock.GetUtcNow(),
+                    integrationEvent = new PaymentCompletedV1(OrderPaymentEventIdentity.Completion(order.Id, paymentMethod), correlationId, clock.GetUtcNow(),
                         order.Id, paid.PaymentId.Value, order.TotalAmount, order.Currency, paymentMethod);
                 }
 
@@ -131,6 +131,6 @@ public sealed class OrderWorkflowRecoveryService(
     private static bool IsManualTender(string? method) => method is "cash_manual" or "promptpay_manual";
 
     internal static bool IsUncertain(string outcome) => outcome is
-        "unknown" or "authorizing" or "requires_action" or "capturing" or "capture_unknown"
+        "unknown" or "awaiting_token" or "authorizing" or "requires_action" or "capturing" or "capture_unknown"
         or "voiding" or "void_unknown";
 }

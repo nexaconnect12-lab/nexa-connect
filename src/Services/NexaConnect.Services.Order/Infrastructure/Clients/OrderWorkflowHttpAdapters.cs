@@ -97,10 +97,15 @@ public sealed class HttpPaymentPort(HttpClient client) : IPaymentPort
     public async Task<PaymentResult> AuthorizeAsync(
         Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, decimal amount, string currency, string method,
         CancellationToken cancellationToken)
+        => await AuthorizeAsync(organizationId, restaurantId, branchId, orderId, amount, currency, method, null, cancellationToken);
+
+    public async Task<PaymentResult> AuthorizeAsync(
+        Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, decimal amount, string currency, string method,
+        string? cardToken, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "api/payment/v1/intents")
         {
-            Content = JsonContent.Create(new PaymentRequest(restaurantId, branchId, orderId, $"order:{orderId:D}", amount, currency, method))
+            Content = JsonContent.Create(new PaymentRequest(restaurantId, branchId, orderId, $"order:{orderId:D}", amount, currency, method == "card_omise_test" ? "card" : method))
         };
         request.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId, organizationId.ToString("D"));
         request.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode, "nexa_connect");
@@ -109,17 +114,19 @@ public sealed class HttpPaymentPort(HttpClient client) : IPaymentPort
             throw new HttpRequestException($"Payment intent creation failed with {(int)response.StatusCode}.", null,
                 response.StatusCode);
         PaymentResponse payment = await ReadRequiredAsync(response, "creation", cancellationToken);
-        return await ResumeAsync(organizationId, payment, cancellationToken);
+        return await ResumeAsync(organizationId, payment, method == "card_omise_test", cardToken, cancellationToken);
     }
 
-    private async Task<PaymentResult> ResumeAsync(Guid organizationId, PaymentResponse payment,
+    private async Task<PaymentResult> ResumeAsync(Guid organizationId, PaymentResponse payment, bool requiresToken, string? cardToken,
         CancellationToken cancellationToken)
     {
         string status = Normalize(payment.Status);
         if (status == "pending")
         {
+            if (requiresToken && cardToken is null)
+                return new PaymentResult(false, payment.Id, "fresh_card_token_required", "awaiting_token");
             PaymentResponse authorized = await PostAndReconcileAsync(
-                organizationId, payment.Id, "authorize", "authorization", cancellationToken);
+                organizationId, payment.Id, "authorize", "authorization", cancellationToken, cardToken);
             status = Normalize(authorized.Status);
             payment = authorized;
         }
@@ -148,9 +155,10 @@ public sealed class HttpPaymentPort(HttpClient client) : IPaymentPort
     }
 
     private async Task<PaymentResponse> PostAndReconcileAsync(Guid organizationId, Guid paymentId, string action,
-        string operation, CancellationToken cancellationToken)
+        string operation, CancellationToken cancellationToken, string? cardToken = null)
     {
         using var request = TenantRequest(HttpMethod.Post, $"api/payment/v1/intents/{paymentId:D}/{action}", organizationId);
+        if (cardToken is not null) request.Content = JsonContent.Create(new { cardToken });
         try
         {
             using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);

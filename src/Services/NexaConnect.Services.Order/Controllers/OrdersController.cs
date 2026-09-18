@@ -84,6 +84,7 @@ public sealed class OrdersController(IOrderApplicationService orders, IOrderTena
 public sealed class OrderWorkflowController(PlaceOrderWorkflow workflow, IOrderTenantAuthorizer tenantAuthorizer) : ControllerBase
 {
     [HttpPost("place")]
+    [RequestSizeLimit(65536)]
     public async Task<ActionResult<PlaceOrderResult>> Place(PlaceOrderRequest request, CancellationToken cancellationToken)
     {
         try
@@ -102,7 +103,7 @@ public sealed class OrderWorkflowController(PlaceOrderWorkflow workflow, IOrderT
                 return BadRequest(new { error = "IdempotencyKey is required." });
             var result = await workflow.ExecuteAsync(new PlaceOrderCommand(request.OrganizationId, request.BranchId,
                 request.Lines.Select(line => new PlaceOrderLine(line.ProductId, line.Quantity)).ToArray(), request.Currency,
-                request.PaymentMethod, request.RestaurantId, request.IdempotencyKey, request.OrderId, request.CorrelationId), cancellationToken);
+                request.PaymentMethod, request.RestaurantId, request.IdempotencyKey, request.OrderId, request.CorrelationId, request.CardToken), cancellationToken);
             return result.Status is OrderStatus.Rejected or OrderStatus.PaymentFailed ? Conflict(result) : Ok(result);
         }
         catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
@@ -112,7 +113,10 @@ public sealed class OrderWorkflowController(PlaceOrderWorkflow workflow, IOrderT
 
 public sealed record PlaceOrderRequest(Guid RestaurantId, Guid OrganizationId, Guid BranchId, string Currency,
     string PaymentMethod, string IdempotencyKey, IReadOnlyCollection<PlaceOrderRequestLine> Lines,
-    Guid? OrderId = null, Guid? CorrelationId = null);
+    Guid? OrderId = null, Guid? CorrelationId = null, string? CardToken = null)
+{
+    public override string ToString() => $"PlaceOrderRequest {{ OrderId = {OrderId} }}";
+}
 public sealed record PlaceOrderRequestLine(Guid ProductId, int Quantity);
 
 public sealed record OrderResponse(Guid OrderId, Guid OrganizationId, Guid BranchId, string Status, decimal TotalAmount,

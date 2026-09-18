@@ -67,22 +67,32 @@ public sealed class PaymentIntentsController(IPaymentIntents intents, IPaymentTe
     }
 
     [HttpPost("{id:guid}/authorize")]
-    public async Task<ActionResult<PaymentIntent>> Authorize(Guid id, CancellationToken cancellationToken)
+    [RequestSizeLimit(1024)]
+    public async Task<ActionResult<PaymentIntent>> Authorize(Guid id, CancellationToken cancellationToken,
+        [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] AuthorizePaymentRequest? command = null)
     {
         if (!TryGetOrganization(out Guid organizationId)) return NotFound();
         if (!ServiceWorkloadPrincipal.IsTrusted(User)
             || !string.Equals(User.FindFirstValue("azp"), "nexaconnect-order-service", StringComparison.Ordinal))
+        {
+            logger?.LogWarning("Payment authorization boundary denied for intent {PaymentIntentId}.", id);
             return Forbid();
+        }
         if (authorizationService is null) return Problem("Payment authorization is unavailable.", statusCode: 503);
         try
         {
             Guid correlationId = Guid.TryParse(HttpContext.TraceIdentifier, out Guid parsed) ? parsed : Guid.NewGuid();
             PaymentIntent? result = await authorizationService.AuthorizeAsync(organizationId, id,
-                new PaymentMutationContext("nexaconnect-order-service", correlationId), cancellationToken);
+                new PaymentMutationContext("nexaconnect-order-service", correlationId), command?.CardToken, cancellationToken);
             return result is null ? NotFound() : Ok(result);
         }
         catch (KeyNotFoundException) { return NotFound(); }
         catch (PaymentConcurrencyException exception) { return Conflict(new { error = exception.Message }); }
+        catch (ArgumentException)
+        {
+            logger?.LogWarning("Payment authorization input rejected for intent {PaymentIntentId}.", id);
+            return BadRequest(new { error = "A valid provider authorization input is required." });
+        }
         catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
     }
 
@@ -118,4 +128,9 @@ public sealed class PaymentIntentsController(IPaymentIntents intents, IPaymentTe
 
     private bool TryGetOrganization(out Guid organizationId) =>
         Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out organizationId);
+}
+
+public sealed class AuthorizePaymentRequest
+{
+    public string? CardToken { get; init; }
 }

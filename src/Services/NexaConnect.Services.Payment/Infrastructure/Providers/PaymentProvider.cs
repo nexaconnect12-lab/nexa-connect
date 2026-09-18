@@ -33,6 +33,12 @@ public sealed record ProviderVoidResult(ProviderVoidOutcome Outcome, string? Pro
 
 public interface IPaymentProvider
 {
+    void ValidateAuthorizationInput(string? cardToken)
+    {
+        if (cardToken is not null) throw new ArgumentException("The selected provider does not accept card tokens.");
+    }
+    Task<ProviderAuthorizationResult> AuthorizeAsync(PaymentIntent intent, string? cardToken, CancellationToken cancellationToken)
+        => AuthorizeAsync(intent, cancellationToken);
     Task<ProviderAuthorizationResult> AuthorizeAsync(PaymentIntent intent, CancellationToken cancellationToken);
     Task<ProviderAuthorizationStatus> GetAuthorizationStatusAsync(PaymentIntent intent, CancellationToken cancellationToken)
         => Task.FromResult(new ProviderAuthorizationStatus(ProviderAuthorizationOutcome.Unknown, null, "provider_status_unavailable"));
@@ -283,6 +289,7 @@ public sealed class HttpPaymentProvider(
 
 public sealed class PaymentProviderOptions
 {
+    public string? OmiseSecretKey { get; set; }
     public string Adapter { get; set; } = "Disabled";
     public string BaseUrl { get; set; } = "https://payment-provider.invalid/";
     public string AuthorizationPath { get; set; } = "v1/authorizations";

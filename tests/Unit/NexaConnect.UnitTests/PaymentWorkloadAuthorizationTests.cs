@@ -11,6 +11,14 @@ namespace NexaConnect.UnitTests;
 public sealed class PaymentWorkloadAuthorizationTests
 {
     [Fact]
+    public async Task Card_token_cannot_bypass_order_workload_authorization()
+    {
+        var controller = CreateController(new RecordingStore(), "nexaconnect-catalog-service");
+        var result = await controller.Authorize(Guid.NewGuid(), default,
+            new AuthorizePaymentRequest { CardToken = "tokn_test_abcdefghijklmnopqrstuvwxyz" });
+        Assert.IsType<ForbidResult>(result.Result);
+    }
+    [Fact]
     public async Task Non_order_workload_cannot_create_payment_intent()
     {
         var store = new RecordingStore();

@@ -73,6 +73,8 @@ public interface IPaymentIntents
 public interface IPaymentAuthorizationService
 {
     Task<PaymentIntent?> AuthorizeAsync(Guid organizationId, Guid id, PaymentMutationContext context,
+        string? cardToken, CancellationToken cancellationToken) => AuthorizeAsync(organizationId, id, context, cancellationToken);
+    Task<PaymentIntent?> AuthorizeAsync(Guid organizationId, Guid id, PaymentMutationContext context,
         CancellationToken cancellationToken);
 }
 

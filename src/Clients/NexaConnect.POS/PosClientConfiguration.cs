@@ -21,7 +21,8 @@ public sealed record PosClientConfiguration(
     string CatalogApi = "",
     int SessionIdleTimeoutMinutes = 5,
     int SessionAbsoluteTimeoutHours = 10,
-    int TokenRefreshLeadSeconds = 60)
+    int TokenRefreshLeadSeconds = 60,
+    bool EnableOmiseTestCheckout = false)
 {
     public void ValidateCheckout()
     {
@@ -32,8 +33,11 @@ public sealed record PosClientConfiguration(
                 throw new InvalidDataException($"{name} requires an HTTPS URL (HTTP is allowed only on loopback).");
         if (new[] { OrganizationId, RestaurantId, BranchId, StoreId, TerminalId }.Any(id => id == Guid.Empty))
             throw new InvalidDataException("Configure valid organization, restaurant, branch, store and terminal identifiers.");
-        if (Currency != "THB" || PaymentMethod is not ("cash_manual" or "promptpay_manual"))
-            throw new InvalidDataException("Cashier checkout requires THB and cash_manual or promptpay_manual.");
+        if (Currency != "THB" || PaymentMethod is not ("cash_manual" or "promptpay_manual" or "card_omise_test"))
+            throw new InvalidDataException("Cashier checkout requires a supported THB payment method.");
+        if (PaymentMethod == "card_omise_test" && (!EnableOmiseTestCheckout
+            || new[] { PosApi, OrderApi, CatalogApi }.Any(value => !new Uri(value).IsLoopback)))
+            throw new InvalidDataException("Omise test checkout requires explicit enablement and loopback service APIs.");
         if (SessionIdleTimeoutMinutes is < 1 or > 60)
             throw new InvalidDataException("Session:IdleTimeoutMinutes must be between 1 and 60.");
         if (SessionAbsoluteTimeoutHours is < 1 or > 24)
@@ -72,7 +76,8 @@ public sealed record PosClientConfiguration(
             services.TryGetProperty("CatalogApi", out var catalog) ? catalog.GetString() ?? "" : "",
             GetInt32(session, "IdleTimeoutMinutes", 5),
             GetInt32(session, "AbsoluteTimeoutHours", 10),
-            GetInt32(session, "TokenRefreshLeadSeconds", 60));
+            GetInt32(session, "TokenRefreshLeadSeconds", 60),
+            root.GetProperty("Pos").TryGetProperty("EnableOmiseTestCheckout", out var cardEnabled) && cardEnabled.GetBoolean());
         configuration.ValidateCheckout();
         return configuration;
     }

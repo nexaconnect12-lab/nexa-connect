@@ -4,7 +4,10 @@ param(
     [switch] $ConfirmDisposableInfrastructure,
     [switch] $ConfirmProcessTermination,
     [switch] $ConfirmSandboxTransactions,
-    [string] $DockerExecutable = 'docker'
+    [string] $DockerExecutable = 'docker',
+    [ValidateSet('GenericHttp','Omise')] [string] $Adapter = 'GenericHttp',
+    [decimal] $OmiseAmount = 50.00,
+    [switch] $IncludeCardTokenHandoff
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,27 +18,41 @@ if (-not $ConfirmDisposableInfrastructure -or -not $ConfirmProcessTermination -o
     throw 'Pass all three confirmation switches after verifying disposable Docker resources, authorizing termination of exact harness process trees, and confirming the provider endpoint accepts disposable sandbox authorization/capture transactions.'
 }
 
-$providerSettings = @(
+$omiseTokenNames = @('authorization_response','capture_response','void_response','void_paid_protection') | ForEach-Object { 'NEXACONNECT_OMISE_' + $_.ToUpperInvariant() + '_TEST_TOKEN' }
+if ($IncludeCardTokenHandoff -and $Adapter -ne 'Omise') { throw 'Card token handoff acceptance requires -Adapter Omise.' }
+if ($IncludeCardTokenHandoff) { $omiseTokenNames += 'NEXACONNECT_OMISE_INTENT_CREATED_TEST_TOKEN' }
+if ($Adapter -eq 'Omise') {
+    if ($OmiseAmount -le 0 -or $OmiseAmount -gt 10000 -or [decimal]::Truncate($OmiseAmount*100) -ne $OmiseAmount*100) { throw 'Use an exact two-decimal THB amount between 0.01 and 10000.' }
+    if ($env:NEXACONNECT_OMISE_TEST_SECRET_KEY -cnotmatch '^skey_test_[a-z0-9]{10,64}$') { throw 'Inject NEXACONNECT_OMISE_TEST_SECRET_KEY without printing it. Live keys are rejected.' }
+    $distinct = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($name in $omiseTokenNames) {
+        $token = [Environment]::GetEnvironmentVariable($name)
+        if ($token -cnotmatch '^tokn_test_[a-z0-9]{10,64}$') { throw "Inject a fresh test token in $name without printing it." }
+        if (-not $distinct.Add($token)) { throw 'Four distinct unused Omise test tokens are required; include a fifth distinct token for -IncludeCardTokenHandoff.' }
+    }
+    $token = $null; $distinct.Clear()
+}
+$providerSettings = if ($Adapter -eq 'Omise') { @() } else { @(
     'NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_URL',
     'NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_API_KEY',
     'NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_AMOUNT',
     'NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_CURRENCY'
-)
+) }
 foreach ($name in $providerSettings) {
     if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
         throw "Missing provider recovery setting: $name. Inject it without printing its value."
     }
 }
 $sandboxAmount = [decimal] 0
-if (-not [decimal]::TryParse($env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_AMOUNT,
+if ($Adapter -ne 'Omise' -and (-not [decimal]::TryParse($env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_AMOUNT,
         [Globalization.NumberStyles]::Number, [Globalization.CultureInfo]::InvariantCulture, [ref] $sandboxAmount) -or
-    $sandboxAmount -le 0) {
+    $sandboxAmount -le 0)) {
     throw 'NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_AMOUNT must be a positive invariant-culture decimal.'
 }
-if ($env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_CURRENCY -cnotmatch '^[A-Z]{3}$') {
+if ($Adapter -ne 'Omise' -and $env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_CURRENCY -cnotmatch '^[A-Z]{3}$') {
     throw 'NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_CURRENCY must be an uppercase three-letter currency code.'
 }
-$providerUri = [Uri] $env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_URL
+$providerUri = if ($Adapter -eq 'Omise') { [Uri]'https://api.omise.co/' } else { [Uri] $env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_URL }
 if ($providerUri.Scheme -ne 'https' -or -not [string]::IsNullOrEmpty($providerUri.UserInfo) -or
     -not [string]::IsNullOrEmpty($providerUri.Query) -or -not [string]::IsNullOrEmpty($providerUri.Fragment) -or
     $providerUri.Host -match '(?i)(^|[.\-_])(prod|production)([.\-_]|$)') {
@@ -99,7 +116,8 @@ $composeProject = 'nexa-order-provider-recovery-it-' + $runId
 Assert-GeneratedProject $composeProject
 $composeDirectory = Join-Path $root 'docker/order-provider-recovery-acceptance'
 $composeArguments = @('compose','--env-file',(Join-Path $composeDirectory '.env.example'),'-f',(Join-Path $composeDirectory 'compose.yaml'),'-p',$composeProject)
-$runRoot = Join-Path $root ('.runstate/order-provider-recovery-live/' + $runId)
+$evidenceDirectory = if ($Adapter -eq 'Omise') { 'order-omise-recovery-live' } else { 'order-provider-recovery-live' }
+$runRoot = Join-Path $root ('.runstate/' + $evidenceDirectory + '/' + $runId)
 $testOutput = Join-Path $runRoot 'integration-bin/'
 $orderOutput = Join-Path $runRoot 'order-host/'
 $paymentOutput = Join-Path $runRoot 'payment-host/'
@@ -123,19 +141,37 @@ $environmentNames = @(
     'NEXACONNECT_ORDER_PROVIDER_RECOVERY_EVIDENCE',
     'NEXACONNECT_ORDER_PROVIDER_RECOVERY_ORDER_DB','NEXACONNECT_ORDER_PROVIDER_RECOVERY_PAYMENT_DB',
     'NEXACONNECT_ORDER_PROVIDER_RECOVERY_RABBITMQ','NEXACONNECT_ORDER_PROVIDER_RECOVERY_HOST_DLL',
-    'NEXACONNECT_ORDER_PROVIDER_RECOVERY_PAYMENT_HOST_DLL'
+    'NEXACONNECT_ORDER_PROVIDER_RECOVERY_PAYMENT_HOST_DLL',
+    'NEXACONNECT_ORDER_PROVIDER_RECOVERY_ADAPTER',
+    'NEXACONNECT_ORDER_PROVIDER_RECOVERY_CARD_HANDOFF',
+    'NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_URL','NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_API_KEY',
+    'NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_AMOUNT','NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_CURRENCY'
 )
 $saved = @{}
 foreach ($name in $environmentNames) { $saved[$name] = [Environment]::GetEnvironmentVariable($name) }
 
 function Invoke-Stage([string] $Method, [string] $Stage) {
     $env:NEXACONNECT_ORDER_PROVIDER_RECOVERY_STAGE = $Stage
+    $resultPath = Join-Path $runRoot "$Stage.trx"
     & dotnet test $integrationProject --configuration Release --no-build --no-restore --verbosity minimal `
-        "-p:OutputPath=$testOutput" --filter "FullyQualifiedName~$Method"
+        "-p:OutputPath=$testOutput" --filter "FullyQualifiedName~$Method" --logger "trx;LogFileName=$Stage.trx" --results-directory $runRoot
     if ($LASTEXITCODE -ne 0) { throw "Provider recovery stage '$Stage' failed for '$env:NEXACONNECT_ORDER_PROVIDER_RECOVERY_SCENARIO'." }
+    [xml] $result = Get-Content -LiteralPath $resultPath -Raw
+    if ([int]$result.TestRun.ResultSummary.Counters.executed -ne 1 -or [int]$result.TestRun.ResultSummary.Counters.passed -ne 1) {
+        throw "Expected exactly one unskipped passing test for stage '$Stage'."
+    }
+    Remove-Item -LiteralPath $resultPath -Force
 }
 
 try {
+    $env:NEXACONNECT_ORDER_PROVIDER_RECOVERY_ADAPTER = $Adapter
+    $env:NEXACONNECT_ORDER_PROVIDER_RECOVERY_CARD_HANDOFF = if ($IncludeCardTokenHandoff) { '1' } else { '0' }
+    if ($Adapter -eq 'Omise') {
+        $env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_URL = 'https://api.omise.co/'
+        $env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_API_KEY = 'not-used-by-omise'
+        $env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_AMOUNT = $OmiseAmount.ToString([Globalization.CultureInfo]::InvariantCulture)
+        $env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_CURRENCY = 'THB'
+    }
     $endpoint = $env:DOCKER_HOST
     if ([string]::IsNullOrWhiteSpace($endpoint)) {
         $endpoint = & $DockerExecutable context inspect --format '{{.Endpoints.docker.Host}}'
@@ -185,14 +221,16 @@ try {
     $env:NEXACONNECT_ORDER_PROVIDER_RECOVERY_SCENARIO = 'matrix'
     Invoke-Stage 'Initialize_provider_payment_process_interruption_acceptance' 'initialize'
 
-    foreach ($scenario in @('intent_created','authorization_response','capture_response')) {
+    $scenarios = if ($Adapter -eq 'Omise' -and -not $IncludeCardTokenHandoff) { @('authorization_response','capture_response','void_response','void_paid_protection') } else { @('intent_created','authorization_response','capture_response','void_response','void_paid_protection') }
+    foreach ($scenario in $scenarios) {
         $env:NEXACONNECT_ORDER_PROVIDER_RECOVERY_SCENARIO = $scenario
         $env:NEXACONNECT_ORDER_PROVIDER_RECOVERY_STAGE = 'arm'
         if (Test-Path -LiteralPath $markerPath) { Remove-Item -LiteralPath $markerPath -Force }
         $outLog = Join-Path $runRoot "$scenario-arm.out.log"; $errLog = Join-Path $runRoot "$scenario-arm.err.log"
         $arguments = @('test',$integrationProject,'--configuration','Release','--no-build','--no-restore','--verbosity','minimal',"-p:OutputPath=$testOutput",'--filter','FullyQualifiedName~Arm_provider_payment_process_interruption')
         $activeProcess = Start-Process -FilePath 'dotnet' -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog
-        Wait-ForMarker $markerPath $activeProcess 90
+        $armTimeout = if ($Adapter -eq 'Omise') { 180 } else { 90 }
+        Wait-ForMarker $markerPath $activeProcess $armTimeout
         & taskkill.exe /PID $activeProcess.Id /T /F | Out-Null
         if ($LASTEXITCODE -ne 0 -or -not $activeProcess.WaitForExit(10000)) { throw "Could not terminate and verify the exact '$scenario' harness process tree." }
         $providerBoundaryInterruptions++
@@ -211,7 +249,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Could not stop the generated RabbitMQ container for '$scenario'." }
         Write-ControlPhase $controlPath 'broker_stopped'
 
-        $persisted = Wait-ForMarkerPhase $markerPath 'outbox_persisted' $activeProcess 60
+        $persistedTimeout = if ($Adapter -eq 'Omise') { 180 } else { 60 }
+        $persisted = Wait-ForMarkerPhase $markerPath 'outbox_persisted' $activeProcess $persistedTimeout
         $paymentProcessId = [int] $persisted.paymentProcessId
         if ($paymentProcessId -le 0) { throw "Hosted recovery did not report a valid Payment process for '$scenario'." }
         & taskkill.exe /PID $paymentProcessId /T /F | Out-Null
@@ -235,6 +274,10 @@ try {
     if (-not (Test-Path -LiteralPath $evidencePath)) { throw 'Provider recovery verification did not produce sanitized evidence.' }
     $matrixPassed = $true
 }
+catch {
+    if ($Adapter -eq 'Omise') { Write-Warning 'Omise hosted acceptance failed. Do not retry uncertain operations. Inspect test-account charges, resolve abandoned authorizations separately, and use new tokens for every scenario in an independent run.' }
+    throw
+}
 finally {
     try {
         if ($null -ne $activeProcess -and -not $activeProcess.HasExited) { & taskkill.exe /PID $activeProcess.Id /T /F 2>$null | Out-Null }
@@ -253,11 +296,16 @@ finally {
             $rawLogsRetained = @(Get-ChildItem -LiteralPath $runRoot -File -Filter '*.log' -ErrorAction SilentlyContinue).Count -gt 0
             [ordered]@{
                 runId=$runId; completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')
+                provider=$Adapter; testMode=$true
+                scenarioCount=if($Adapter -eq 'Omise' -and -not $IncludeCardTokenHandoff){4}else{5}
+                intentCreatedBeforeAuthorizationVerified=($matrixPassed -and ($Adapter -ne 'Omise' -or $IncludeCardTokenHandoff))
+                cardTokenHandoffVerified=($matrixPassed -and $IncludeCardTokenHandoff)
                 matrixPassed=$matrixPassed; cleanupPassed=$cleanupPassed
                 providerBoundaryInterruptions=$providerBoundaryInterruptions
                 paymentHostInterruptions=$paymentHostInterruptions
                 hostedPaymentRecoveryVerified=$matrixPassed; transactionalOutboxRestartVerified=$matrixPassed
                 providerAuthorizationBoundaryVerified=$matrixPassed; providerCaptureBoundaryVerified=$matrixPassed
+                providerVoidBoundaryVerified=$matrixPassed; duplicateVoidDeliveryVerified=$matrixPassed; paidOrderProtectionVerified=$matrixPassed
                 duplicateDurableCommandStartsDetected=if($matrixPassed){$false}else{$null}
                 retainedSecrets=$false; rawServiceLogsRetained=$rawLogsRetained
                 detailEvidence='provider-recovery-evidence.json'
@@ -267,4 +315,5 @@ finally {
 }
 
 if (-not $matrixPassed -or -not $cleanupPassed) { throw 'Provider recovery acceptance did not complete both verification and cleanup.' }
-Write-Output "Order provider-payment recovery live acceptance passed. Sanitized evidence retained at '$runRoot'."
+$providerLabel = if ($Adapter -eq 'Omise') { 'Omise' } else { 'provider-payment' }
+Write-Output "Order $providerLabel recovery live acceptance passed. Sanitized evidence retained at '$runRoot'."

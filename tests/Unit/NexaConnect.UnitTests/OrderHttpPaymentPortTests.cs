@@ -7,6 +7,51 @@ namespace NexaConnect.UnitTests;
 public sealed class OrderHttpPaymentPortTests
 {
     [Fact]
+    public async Task Omise_pending_without_token_waits_for_operator_and_never_posts_authorization()
+    {
+        Guid id = Guid.NewGuid();
+        var handler = new PaymentHandler((_, _) => Json(HttpStatusCode.Created, id, "pending"));
+        var result = await Create(handler).AuthorizeAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            50m, "THB", "card_omise_test", default);
+        Assert.Equal("awaiting_token", result.Outcome);
+        Assert.Equal(id, result.PaymentId);
+        Assert.Single(handler.Requests);
+    }
+
+    [Fact]
+    public async Task Omise_token_only_travels_on_initial_authorize_body()
+    {
+        Guid id = Guid.NewGuid();
+        const string token = "tokn_test_aaaaaaaaaaaa";
+        var handler = new PaymentHandler((request, count) =>
+        {
+            string body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? "";
+            if (count == 1) { Assert.DoesNotContain(token, body); Assert.Contains("\"paymentMethod\":\"card\"", body); }
+            if (count == 2) Assert.Contains(token, body);
+            if (count == 3) Assert.DoesNotContain(token, body);
+            return Json(count == 1 ? HttpStatusCode.Created : HttpStatusCode.OK, id,
+                count == 1 ? "pending" : count == 2 ? "authorized" : "captured");
+        });
+        var result = await Create(handler).AuthorizeAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            50m, "THB", "card_omise_test", token, default);
+        Assert.True(result.Completed);
+        Assert.Equal(3, handler.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData("authorizing")]
+    [InlineData("unknown")]
+    [InlineData("capturing")]
+    [InlineData("captured")]
+    public async Task Omise_fresh_token_cannot_replay_an_already_started_operation(string status)
+    {
+        Guid id = Guid.NewGuid();
+        var handler = new PaymentHandler((_, _) => Json(HttpStatusCode.Created, id, status));
+        await Create(handler).AuthorizeAsync(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            50m, "THB", "card_omise_test", "tokn_test_aaaaaaaaaaaa", default);
+        Assert.Single(handler.Requests);
+    }
+    [Fact]
     public async Task Existing_captured_intent_completes_without_replaying_provider_operations()
     {
         Guid paymentId = Guid.NewGuid();

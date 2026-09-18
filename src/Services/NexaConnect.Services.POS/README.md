@@ -1,5 +1,7 @@
 # NexaConnect POS Service
 
+The WPF client's opt-in Development-only `card_omise_test` handoff calls Order and Payment through their existing boundaries; POS service does not receive or persist the card token. Card capture does not use manual Paid confirmation or create a drawer cash sale. POS-owned shift/cash authorization and manual-tender behavior remain unchanged. See [client configuration and pending acceptance](../../../docs/Deployment/Omise-POS-Card-Token-Handoff.md).
+
 POS migration 4 and the optional `OrderSettlementConsumer` project Order-owned manual tenders. Attribution uses the shift and THB cash-session time window containing the event, never whichever drawer is currently open. Cash creates one Order-linked `sale`; delayed delivery to a closed matching session recomputes variance atomically. PromptPay creates no drawer movement. Identity conflicts dead-letter; infrastructure failures retry. Safe logs/traces carry correlation, event, Order, and terminal identifiers; query `{service_name="nexaconnect-pos"} |= "POS Order settlement"`.
 
 The POS service owns terminals, stores, shifts, and server-side POS operations. It is a bearer-token API; it does not initiate an interactive Keycloak login. Native POS login belongs to the `nexaconnect-pos` client and uses Authorization Code with PKCE.

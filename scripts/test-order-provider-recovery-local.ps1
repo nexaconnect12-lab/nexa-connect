@@ -17,7 +17,8 @@ New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
 $names = @('NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_URL','NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_API_KEY',
     'NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_AMOUNT','NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_CURRENCY',
     'NEXACONNECT_PAYMENT_PROVIDER_AUTHORIZATION_PATH','NEXACONNECT_PAYMENT_PROVIDER_AUTHORIZATION_STATUS_PATH',
-    'NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_PATH','NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_STATUS_PATH')
+    'NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_PATH','NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_STATUS_PATH',
+    'NEXACONNECT_PAYMENT_PROVIDER_VOID_PATH','NEXACONNECT_PAYMENT_PROVIDER_VOID_STATUS_PATH')
 $saved = @{}
 $names += 'NEXACONNECT_PAYMENT_PROVIDER_SIMULATOR_CERT_SHA256'
 foreach ($name in $names) { $saved[$name] = [Environment]::GetEnvironmentVariable($name) }
@@ -121,6 +122,25 @@ try {
     $replay=Invoke-Simulator ($baseUrl+'v1/captures') -Method Post -Headers $headers -ContentType 'application/json' -Body $captureBody
     $status=Invoke-Simulator ($baseUrl+'v1/captures/'+$id) -Headers $headers
     if($capture.providerTransactionId -ne $replay.providerTransactionId -or $status.status -ne 'captured'){throw 'Capture replay/status failed.'}
+    $headers['Idempotency-Key']="void:$id"
+    $voidBody=@{paymentIntentId=$id;providerAuthorizationId=$auth.providerTransactionId}|ConvertTo-Json
+    $capturedVoid=Invoke-Simulator ($baseUrl+'v1/voids') -Method Post -Headers $headers -Body $voidBody -SkipHttpErrorCheck
+    if($capturedVoid.StatusCode -ne 409){throw 'Simulator allowed voiding a captured payment.'}
+    $voidId=[Guid]::NewGuid().ToString('D')
+    $body.paymentIntentId=$voidId; $body.orderId=[Guid]::NewGuid().ToString('D'); $body.amount=1.00
+    $voidAuth=Invoke-Simulator ($baseUrl+'v1/authorizations') -Method Post -Headers $headers -Body ($body|ConvertTo-Json)
+    $voidBody=@{paymentIntentId=$voidId;providerAuthorizationId=$voidAuth.providerTransactionId}|ConvertTo-Json
+    $badVoid=Invoke-Simulator ($baseUrl+'v1/voids') -Method Post -Headers $badHeaders -Body $voidBody -SkipHttpErrorCheck
+    if($badVoid.StatusCode -ne 400){throw 'Void accepted an invalid idempotency key.'}
+    $headers['Idempotency-Key']="void:$voidId"
+    $void=Invoke-Simulator ($baseUrl+'v1/voids') -Method Post -Headers $headers -Body $voidBody
+    $voidReplay=Invoke-Simulator ($baseUrl+'v1/voids') -Method Post -Headers $headers -Body $voidBody
+    $voidStatus=Invoke-Simulator ($baseUrl+'v1/voids/'+$voidId) -Headers $headers
+    if($void.providerTransactionId -ne $voidReplay.providerTransactionId -or $voidStatus.status -ne 'voided'){throw 'Void replay/status failed.'}
+    $headers['Idempotency-Key']=$voidId
+    $captureAfterVoid=@{paymentIntentId=$voidId;providerAuthorizationId=$voidAuth.providerTransactionId;amount=1.00;currency='THB'}|ConvertTo-Json
+    $voidedCapture=Invoke-Simulator ($baseUrl+'v1/captures') -Method Post -Headers $headers -Body $captureAfterVoid -SkipHttpErrorCheck
+    if($voidedCapture.StatusCode -ne 409){throw 'Simulator allowed capture after void.'}
     $env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_URL=$baseUrl
     $env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_API_KEY=$apiKey
     $env:NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_AMOUNT='1.00'
@@ -130,6 +150,8 @@ try {
     $env:NEXACONNECT_PAYMENT_PROVIDER_AUTHORIZATION_STATUS_PATH='v1/authorizations'
     $env:NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_PATH='v1/captures'
     $env:NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_STATUS_PATH='v1/captures'
+    $env:NEXACONNECT_PAYMENT_PROVIDER_VOID_PATH='v1/voids'
+    $env:NEXACONNECT_PAYMENT_PROVIDER_VOID_STATUS_PATH='v1/voids'
     if(-not $SmokeTestOnly){
         & (Join-Path $PSScriptRoot 'test-order-provider-recovery-live.ps1') -ConfirmDisposableInfrastructure -ConfirmProcessTermination -ConfirmSandboxTransactions -DockerExecutable $DockerExecutable
     }

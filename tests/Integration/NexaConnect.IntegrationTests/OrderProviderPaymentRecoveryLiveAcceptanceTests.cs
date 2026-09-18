@@ -28,6 +28,7 @@ using PaymentAuthorizationService = PAYMENT::NexaConnect.Services.Payment.Applic
 using PostgresPaymentIntents = PAYMENT::NexaConnect.Services.Payment.Infrastructure.PostgresPaymentIntents;
 using IPaymentProvider = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.IPaymentProvider;
 using HttpPaymentProvider = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.HttpPaymentProvider;
+using OmisePaymentProvider = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.OmisePaymentProvider;
 using PaymentProviderOptions = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.PaymentProviderOptions;
 using ProviderAuthorizationResult = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderAuthorizationResult;
 using ProviderAuthorizationStatus = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderAuthorizationStatus;
@@ -43,6 +44,20 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceCollection;
 public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
 {
     private const string PaymentEvidenceQueue = "nexaconnect.acceptance.provider-recovery.payment-evidence";
+    private static bool IsOmise() => Environment.GetEnvironmentVariable("NEXACONNECT_ORDER_PROVIDER_RECOVERY_ADAPTER") == "Omise";
+    private static string[] Scenarios() => IsOmise()
+        && Environment.GetEnvironmentVariable("NEXACONNECT_ORDER_PROVIDER_RECOVERY_CARD_HANDOFF") != "1"
+        ? ["authorization_response", "capture_response", "void_response", "void_paid_protection"]
+        : ["intent_created", "authorization_response", "capture_response", "void_response", "void_paid_protection"];
+    private static string? CardToken(string scenario) => IsOmise()
+        ? Required("NEXACONNECT_OMISE_" + scenario.ToUpperInvariant() + "_TEST_TOKEN") : null;
+    private static void RemoveCardCredentials(ProcessStartInfo start)
+    {
+        foreach (string name in start.Environment.Keys.Where(name => name.StartsWith("NEXACONNECT_OMISE_", StringComparison.OrdinalIgnoreCase)).ToArray())
+            start.Environment.Remove(name);
+        start.Environment.Remove("PaymentProvider__OmiseSecretKey");
+        // Payment receives its secret through its explicit service configuration, below.
+    }
     [OrderProviderRecoveryLiveFact("initialize")]
     public async Task Initialize_provider_payment_process_interruption_acceptance()
     {
@@ -78,7 +93,7 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
     public async Task Arm_provider_payment_process_interruption()
     {
         string scenario = Scenario();
-        Assert.Contains(scenario, new[] { "intent_created", "authorization_response", "capture_response" });
+        Assert.Contains(scenario, Scenarios());
         await using NpgsqlDataSource orderSource = NpgsqlDataSource.Create(OrderConnection());
         await using NpgsqlDataSource paymentSource = NpgsqlDataSource.Create(PaymentConnection());
         var orderRepository = new PostgresOrderRepository(orderSource);
@@ -91,23 +106,34 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             var lease = paymentRepository.BeginAuthorization(state.OrganizationId, state.PaymentIntentId,
                 new PaymentMutationContext("provider-recovery-arm", state.CorrelationId));
             Assert.True(lease.Acquired);
-            ProviderAuthorizationResult result = await provider.AuthorizeAsync(lease.Intent, default);
-            Assert.True(result.Succeeded);
+            ProviderAuthorizationResult result = await provider.AuthorizeAsync(lease.Intent, CardToken(scenario), default);
+            Assert.True(result.Succeeded, "Authorization was not confirmed; inspect test-account charges before a new run.");
         }
-        else if (scenario == "capture_response")
+        else if (scenario == "capture_response" || scenario.StartsWith("void_", StringComparison.Ordinal))
         {
             using var provider = NewProvider(paymentSource, scenario);
             var authorization = new PaymentAuthorizationService(paymentRepository, provider);
             PaymentIntent authorized = Assert.IsType<PaymentIntent>(await authorization.AuthorizeAsync(
                 state.OrganizationId, state.PaymentIntentId,
-                new PaymentMutationContext("provider-recovery-arm", state.CorrelationId), default));
+                new PaymentMutationContext("provider-recovery-arm", state.CorrelationId), CardToken(scenario), default));
             Assert.Equal("authorized", authorized.Status);
-            var lease = paymentRepository.BeginCapture(state.OrganizationId, state.PaymentIntentId,
-                new PaymentMutationContext("provider-recovery-arm", state.CorrelationId));
-            Assert.True(lease.Acquired);
-            ProviderCaptureResult result = await provider.CaptureAsync(lease.Intent, default);
-            Assert.Equal(PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderCaptureOutcome.Captured,
-                result.Outcome);
+            if (scenario.StartsWith("void_", StringComparison.Ordinal))
+            {
+                var voidLease = paymentRepository.BeginVoid(state.OrganizationId, state.PaymentIntentId,
+                    new PaymentMutationContext("provider-recovery-arm", state.CorrelationId));
+                Assert.True(voidLease.Acquired);
+                ProviderVoidResult voidResult = await provider.VoidAsync(voidLease.Intent, default);
+                Assert.Equal(PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderVoidOutcome.Voided, voidResult.Outcome);
+            }
+            else
+            {
+                var lease = paymentRepository.BeginCapture(state.OrganizationId, state.PaymentIntentId,
+                    new PaymentMutationContext("provider-recovery-arm", state.CorrelationId));
+                Assert.True(lease.Acquired);
+                ProviderCaptureResult result = await provider.CaptureAsync(lease.Intent, default);
+                Assert.Equal(PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderCaptureOutcome.Captured,
+                    result.Outcome);
+            }
         }
 
         await WriteMarkerAsync(MarkerPath(), scenario);
@@ -131,14 +157,16 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             await WritePhaseMarkerAsync("order_ready", scenario, order.Id, null);
             await WaitForControlPhaseAsync("broker_stopped", TimeSpan.FromSeconds(45));
             payment = await StartPaymentAsync(fixture.BaseAddress, paymentPort);
+            if (IsOmise() && scenario == "intent_created")
+                await SubmitRecoveredCardTokenAsync(fixture.BaseAddress, orderSource, paymentSource, state, order);
             await WaitForHostedRecoveryOutboxAsync(paymentSource, state.PaymentIntentId, scenario,
-                TimeSpan.FromSeconds(45));
+                TimeSpan.FromSeconds(IsOmise() ? 150 : 45));
             await WritePhaseMarkerAsync("outbox_persisted", scenario, order.Id, payment.Id);
             await WaitForControlPhaseAsync("broker_restarted", TimeSpan.FromSeconds(45));
             await payment.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
             payment.Dispose();
             payment = await StartPaymentAsync(fixture.BaseAddress, paymentPort);
-            await WaitForOrderStatusAsync(orderSource, state.OrderId, "completed", TimeSpan.FromSeconds(75));
+            await WaitForOrderStatusAsync(orderSource, state.OrderId, scenario == "void_response" ? "cancelled" : "completed", TimeSpan.FromSeconds(75));
             await WaitForOutboxPublishedAsync(paymentSource, state.PaymentIntentId, TerminalEventType(scenario),
                 TimeSpan.FromSeconds(75));
             await VerifyPaymentEvidenceDeliveryAsync(paymentSource, state.PaymentIntentId, scenario);
@@ -147,6 +175,12 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
                 Guid eventId = await ReconciliationEventIdAsync(paymentSource, state.PaymentIntentId, scenario)
                     ?? throw new InvalidOperationException("Persisted reconciliation event is missing.");
                 await WaitForInboxCompletedAsync(orderSource, eventId, TimeSpan.FromSeconds(15));
+                if (scenario.StartsWith("void_", StringComparison.Ordinal))
+                {
+                    await ReplayWithInboxBarrierAsync(orderSource, paymentSource, eventId, state.PaymentIntentId, scenario);
+                    Assert.Equal(scenario == "void_response" ? 1 : 0, fixture.ReleaseAttempts);
+                    Assert.Equal(scenario == "void_response" ? 1 : 0, fixture.CancelAttempts);
+                }
             }
         }
         finally
@@ -166,9 +200,24 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         await using NpgsqlDataSource order = NpgsqlDataSource.Create(OrderConnection());
         await using NpgsqlDataSource payment = NpgsqlDataSource.Create(PaymentConnection());
         var evidence = new List<object>();
-        foreach (string scenario in new[] { "intent_created", "authorization_response", "capture_response" })
+        foreach (string scenario in Scenarios())
         {
             ScenarioState state = await ReadScenarioAsync(payment, scenario);
+            if (scenario.StartsWith("void_", StringComparison.Ordinal))
+            {
+                Assert.Equal(1L, await ScalarAsync(order, "SELECT count(*) FROM orders WHERE id=$1 AND status=$2 AND payment_intent_id=$3", state.OrderId, scenario == "void_response" ? "cancelled" : "completed", state.PaymentIntentId));
+                Assert.Equal(1L, await ScalarAsync(payment, "SELECT count(*) FROM payment_intents WHERE id=$1 AND status='voided'", state.PaymentIntentId));
+                Assert.Equal(1L, await ScalarAsync(payment, "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.void-started.v1'", state.PaymentIntentId));
+                Assert.Equal(0L, await ScalarAsync(payment, "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.capture-started.v1'", state.PaymentIntentId));
+                Assert.Equal(1, await CallCountAsync(payment, scenario, "void_command"));
+                Assert.Equal(1L, await ScalarAsync(payment, "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.authorization-started.v1'", state.PaymentIntentId));
+                Assert.Equal(1L, await ScalarAsync(payment, "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type=$2 AND published_at_utc IS NOT NULL", state.PaymentIntentId, TerminalEventType(scenario)));
+                Assert.Equal(scenario == "void_response" ? 1L : 0L, await ScalarAsync(order, "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type=$2", state.OrderId, nameof(PaymentFailedV1)));
+                Guid id = (await ReconciliationEventIdAsync(payment, state.PaymentIntentId, scenario))!.Value;
+                await WaitForInboxCompletedAsync(order, id, TimeSpan.FromSeconds(15));
+                evidence.Add(new { scenario, finalOrderStatus = scenario == "void_response" ? "PaymentFailed" : "Paid", finalPaymentStatus = "voided", paidProtectionFixture = scenario == "void_paid_protection", transactionalOutboxPublished = true, persistentPaymentEvidenceDelivered = true, orderInboxCompleted = true, duplicateDeliveryVerified = true });
+                continue;
+            }
             Assert.Equal(1L, await ScalarAsync(order, "SELECT count(*) FROM orders WHERE id=$1 AND status='completed' AND payment_intent_id=$2", state.OrderId, state.PaymentIntentId));
             Assert.Equal(1L, await ScalarAsync(payment, "SELECT count(*) FROM payment_intents WHERE id=$1 AND order_id=$2 AND status='captured'", state.PaymentIntentId, state.OrderId));
             Assert.Equal(1L, await ScalarAsync(order, "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type=$2", state.OrderId, nameof(PaymentCompletedV1)));
@@ -213,6 +262,9 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         await File.WriteAllTextAsync(EvidencePath(), JsonSerializer.Serialize(new
         {
             completedAtUtc = DateTimeOffset.UtcNow,
+            provider = IsOmise() ? "Omise" : "GenericHttp",
+            testMode = true,
+            intentCreatedBeforeAuthorizationVerified = Scenarios().Contains("intent_created"),
             scenarios = evidence,
             stableOrderAndPaymentIdentityVerified = true,
             duplicateDurableCommandStartsDetected = false,
@@ -235,10 +287,12 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             new PaymentMutationContext("provider-recovery-arm", correlation));
         var order = OrderAggregate.Create(orderId, organization, branch,
             [new OrderLine(Guid.NewGuid(), "Provider recovery acceptance", amount, 1, "kitchen")], currency, restaurant,
-            idempotencyKey: $"provider-recovery-{scenario}", workflowPaymentMethod: "card",
+            idempotencyKey: $"provider-recovery-{scenario}", workflowPaymentMethod: IsOmise() && scenario == "intent_created" ? "card_omise_test" : "card",
             workflowCorrelationId: correlation);
         order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted();
         if (scenario != "intent_created") order.MarkPaymentPending(payment.Id);
+        // Defensive fixture: a paid Order must ignore a delayed pre-capture void event.
+        if (scenario == "void_paid_protection") order.MarkPaid();
         await orderRepository.SaveAsync(order, default);
         await using var due = orderSource.CreateCommand(
             "UPDATE orders SET workflow_recovery_next_attempt_at_utc=now()-interval '1 second' WHERE id=$1");
@@ -254,12 +308,20 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
     private static PostgresPaymentIntents NewPaymentRepository(NpgsqlDataSource source) =>
         new(source, Options.Create(new PaymentProviderOptions
         {
-            LeaseDuration = TimeSpan.FromMilliseconds(50), MaximumAuthorizationAttempts = 3,
+            LeaseDuration = IsOmise() ? TimeSpan.FromSeconds(70) : TimeSpan.FromMilliseconds(50), MaximumAuthorizationAttempts = 3,
             MaximumCaptureRecoveryAttempts = 3, RecoveryInterval = TimeSpan.FromMilliseconds(50)
         }));
 
     private static CountingProvider NewProvider(NpgsqlDataSource source, string scenario)
     {
+        if (IsOmise())
+        {
+            var omiseClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+            { BaseAddress = new Uri("https://api.omise.co/"), Timeout = TimeSpan.FromSeconds(15) };
+            return new CountingProvider(new OmisePaymentProvider(omiseClient, Options.Create(new PaymentProviderOptions
+            { OmiseSecretKey = Required("NEXACONNECT_OMISE_TEST_SECRET_KEY") }),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<OmisePaymentProvider>.Instance), source, scenario, omiseClient);
+        }
         var settings = ProviderSettings();
         var handler = PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.ProviderAcceptanceTls.CreateHandler(
             Environment.GetEnvironmentVariable("NEXACONNECT_PAYMENT_PROVIDER_SIMULATOR_CERT_SHA256"),
@@ -276,6 +338,8 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         AuthorizationStatusPath = Optional("NEXACONNECT_PAYMENT_PROVIDER_AUTHORIZATION_STATUS_PATH", "v1/authorizations"),
         CapturePath = Optional("NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_PATH", "v1/captures"),
         CaptureStatusPath = Optional("NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_STATUS_PATH", "v1/captures"),
+        VoidPath = Optional("NEXACONNECT_PAYMENT_PROVIDER_VOID_PATH", "v1/voids"),
+        VoidStatusPath = Optional("NEXACONNECT_PAYMENT_PROVIDER_VOID_STATUS_PATH", "v1/voids"),
         RequestTimeout = TimeSpan.FromSeconds(30), LeaseDuration = TimeSpan.FromMilliseconds(50)
     });
 
@@ -302,12 +366,14 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(hostDll)!
         };
         start.ArgumentList.Add(hostDll);
+        RemoveCardCredentials(start);
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
         start.Environment["DOTNET_ENVIRONMENT"] = "Testing";
         start.Environment["ASPNETCORE_URLS"] = $"http://127.0.0.1:{port}";
         start.Environment["Persistence__Provider"] = "PostgreSQL";
         start.Environment["ConnectionStrings__Order"] = OrderConnection();
         start.Environment["Workflow__UseHttpAdapters"] = "true";
+        start.Environment["CardCheckout__EnableOmiseTestCheckout"] = IsOmise() ? "true" : "false";
         start.Environment["WorkflowRecovery__Enabled"] = "true";
         start.Environment["WorkflowRecovery__PollInterval"] = "00:00:00.100";
         start.Environment["WorkflowRecovery__LeaseDuration"] = "00:00:02";
@@ -369,10 +435,22 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             "NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_PATH", "v1/captures");
         start.Environment["PaymentProvider__CaptureStatusPath"] = Optional(
             "NEXACONNECT_PAYMENT_PROVIDER_CAPTURE_STATUS_PATH", "v1/captures");
+        start.Environment["PaymentProvider__VoidPath"] = Optional(
+            "NEXACONNECT_PAYMENT_PROVIDER_VOID_PATH", "v1/voids");
+        start.Environment["PaymentProvider__VoidStatusPath"] = Optional(
+            "NEXACONNECT_PAYMENT_PROVIDER_VOID_STATUS_PATH", "v1/voids");
         start.Environment["PaymentProvider__LeaseDuration"] = "00:00:00.050";
+        if (IsOmise())
+        {
+            start.Environment["PaymentProvider__Adapter"] = "Omise";
+            start.Environment["PaymentProvider__OmiseSecretKey"] = Required("NEXACONNECT_OMISE_TEST_SECRET_KEY");
+            start.Environment["PaymentProvider__SimulatorCertificateSha256"] = "";
+            start.Environment["PaymentProvider__RequestTimeout"] = "00:00:15";
+            start.Environment["PaymentProvider__LeaseDuration"] = "00:01:10";
+        }
         start.Environment["PaymentProvider__RecoveryInterval"] = "00:00:00.100";
         start.Environment["PaymentProvider__CaptureRecoveryEnabled"] = "true";
-        start.Environment["PaymentProvider__VoidRecoveryEnabled"] = "false";
+        start.Environment["PaymentProvider__VoidRecoveryEnabled"] = "true";
         start.Environment["Outbox__Enabled"] = "true";
         start.Environment["Outbox__ConnectionString"] = RabbitConnection();
         start.Environment["Outbox__PollInterval"] = "00:00:00.100";
@@ -384,6 +462,9 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         start.Environment["Authentication__ClientSecret"] = "acceptance-only";
         foreach (string name in new[] { "Authorization", "PlatformDirectory", "Restaurant", "Order" })
             start.Environment[$"Services__{name}"] = fixture.ToString();
+        string? omiseSecret = IsOmise() ? start.Environment["PaymentProvider__OmiseSecretKey"] : null;
+        RemoveCardCredentials(start);
+        if (omiseSecret is not null) start.Environment["PaymentProvider__OmiseSecretKey"] = omiseSecret;
         Process process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the isolated Payment host.");
         try
         {
@@ -468,13 +549,14 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         "intent_created" => "payment.captured.v1",
         "authorization_response" => "payment.authorization-reconciled.v1",
         "capture_response" => "payment.capture-reconciled.v1",
+        "void_response" or "void_paid_protection" => "payment.void-reconciled.v1",
         _ => throw new InvalidOperationException("Unsupported provider recovery scenario.")
     };
 
     private static async Task WaitForHostedRecoveryOutboxAsync(
         NpgsqlDataSource source, Guid paymentIntentId, string scenario, TimeSpan timeout)
     {
-        string expectedStatus = scenario == "authorization_response" ? "authorized" : "captured";
+        string expectedStatus = scenario.StartsWith("void_", StringComparison.Ordinal) ? "voided" : scenario == "authorization_response" ? "authorized" : "captured";
         string eventType = TerminalEventType(scenario);
         DateTimeOffset deadline = DateTimeOffset.UtcNow + timeout;
         while (DateTimeOffset.UtcNow < deadline)
@@ -535,6 +617,69 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             return;
         }
         throw new TimeoutException("Payment terminal event was not delivered persistently to the evidence queue.");
+    }
+
+    private static async Task ReplayWithInboxBarrierAsync(NpgsqlDataSource order, NpgsqlDataSource payment,
+        Guid eventId, Guid intentId, string scenario)
+    {
+        await using NpgsqlConnection connection = await order.OpenConnectionAsync();
+        await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync();
+        // A completed row makes INSERT ON CONFLICT and the conditional UPDATE no-ops;
+        // a row lock therefore cannot prove duplicate delivery. Block the INSERT's
+        // table lock instead, only in this disposable acceptance database.
+        await using var hold = new NpgsqlCommand("LOCK TABLE inbox_messages IN SHARE MODE", connection, transaction);
+        await hold.ExecuteNonQueryAsync();
+        await using var replay = payment.CreateCommand("UPDATE outbox_messages SET published_at_utc=NULL, next_attempt_at_utc=now() WHERE id=$1");
+        replay.Parameters.AddWithValue(eventId);
+        Assert.Equal(1, await replay.ExecuteNonQueryAsync());
+        await WaitForOutboxPublishedAsync(payment, intentId, TerminalEventType(scenario), TimeSpan.FromSeconds(15));
+        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        bool observed = false;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (await ScalarAsync(order, "SELECT count(*) FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid))", connection.ProcessID) > 0)
+            { observed = true; break; }
+            await Task.Delay(50);
+        }
+        Assert.True(observed, "Duplicate must reach the hosted Order inbox before assertions.");
+        await transaction.CommitAsync();
+        deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        while (await ScalarAsync(order, "SELECT count(*) FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid))", connection.ProcessID) > 0)
+        {
+            if (DateTimeOffset.UtcNow >= deadline) throw new TimeoutException("Duplicate inbox claim did not finish.");
+            await Task.Delay(50);
+        }
+        await WaitForInboxCompletedAsync(order, eventId, TimeSpan.FromSeconds(15));
+    }
+
+    private static async Task SubmitRecoveredCardTokenAsync(Uri fixture, NpgsqlDataSource orders,
+        NpgsqlDataSource payments, ScenarioState state, Process orderHost)
+    {
+        await WaitForOrderStatusAsync(orders, state.OrderId, "payment_pending", TimeSpan.FromSeconds(30));
+        Assert.Equal(1L, await ScalarAsync(payments, "SELECT count(*) FROM payment_intents WHERE id=$1 AND status='pending'", state.PaymentIntentId));
+        Assert.Equal(0L, await ScalarAsync(payments, "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.authorization-started.v1'", state.PaymentIntentId));
+        OrderAggregate original = await new PostgresOrderRepository(orders).GetAsync(state.OrderId, default)
+            ?? throw new InvalidOperationException("Recovered card Order is missing.");
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
+        using var tokenResponse = await client.PostAsync(new Uri(fixture, "token"), null);
+        Assert.True(tokenResponse.IsSuccessStatusCode);
+        using JsonDocument credentials = JsonDocument.Parse(await tokenResponse.Content.ReadAsStringAsync());
+        var orderBase = new Uri(orderHost.StartInfo.Environment["ASPNETCORE_URLS"]!);
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(orderBase, "/api/order/v1/workflows/place"));
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", credentials.RootElement.GetProperty("access_token").GetString());
+        request.Headers.Add("X-Nexa-Organization-Id", state.OrganizationId.ToString("D"));
+        request.Headers.Add("X-Nexa-Application-Code", "nexa_connect");
+        request.Headers.Add("X-Correlation-ID", state.CorrelationId.ToString("D"));
+        request.Content = System.Net.Http.Json.JsonContent.Create(new
+        {
+            restaurantId = state.RestaurantId, organizationId = state.OrganizationId, branchId = state.BranchId,
+            currency = original.Currency, paymentMethod = "card_omise_test", idempotencyKey = original.IdempotencyKey,
+            orderId = state.OrderId, correlationId = state.CorrelationId, cardToken = CardToken("intent_created"),
+            lines = original.Lines.Select(line => new { productId = line.ProductId, quantity = line.Quantity }).ToArray()
+        });
+        using var response = await client.SendAsync(request);
+        Assert.True(response.IsSuccessStatusCode, "Fresh-token handoff was not confirmed. Inspect provider state before any new run.");
+        await WaitForOrderStatusAsync(orders, state.OrderId, "completed", TimeSpan.FromSeconds(30));
     }
 
     private static async Task WriteMarkerAsync(string path, string scenario)
@@ -640,6 +785,9 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
     private sealed class CountingProvider(IPaymentProvider inner, NpgsqlDataSource source, string scenario, IDisposable owner)
         : IPaymentProvider, IDisposable
     {
+        public void ValidateAuthorizationInput(string? token) => inner.ValidateAuthorizationInput(token);
+        public async Task<ProviderAuthorizationResult> AuthorizeAsync(PaymentIntent intent, string? token, CancellationToken cancellationToken)
+        { await IncrementAsync("authorize_command", cancellationToken); return await inner.AuthorizeAsync(intent, token, cancellationToken); }
         public async Task<ProviderAuthorizationResult> AuthorizeAsync(PaymentIntent intent, CancellationToken cancellationToken)
         { await IncrementAsync("authorize_command", cancellationToken); return await inner.AuthorizeAsync(intent, cancellationToken); }
         public async Task<ProviderAuthorizationStatus> GetAuthorizationStatusAsync(PaymentIntent intent, CancellationToken cancellationToken)
@@ -648,7 +796,8 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         { await IncrementAsync("capture_command", cancellationToken); return await inner.CaptureAsync(intent, cancellationToken); }
         public async Task<ProviderCaptureResult> GetCaptureStatusAsync(PaymentIntent intent, CancellationToken cancellationToken)
         { await IncrementAsync("capture_status", cancellationToken); return await inner.GetCaptureStatusAsync(intent, cancellationToken); }
-        public Task<ProviderVoidResult> VoidAsync(PaymentIntent intent, CancellationToken cancellationToken) => inner.VoidAsync(intent, cancellationToken);
+        public async Task<ProviderVoidResult> VoidAsync(PaymentIntent intent, CancellationToken cancellationToken)
+        { await IncrementAsync("void_command", cancellationToken); return await inner.VoidAsync(intent, cancellationToken); }
         public Task<ProviderVoidResult> GetVoidStatusAsync(PaymentIntent intent, CancellationToken cancellationToken) => inner.GetVoidStatusAsync(intent, cancellationToken);
         private async Task IncrementAsync(string operation, CancellationToken cancellationToken)
         {
@@ -669,6 +818,8 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             this.signingKey = signingKey;
         }
         public Uri BaseAddress { get; private set; } = null!;
+        public int ReleaseAttempts;
+        public int CancelAttempts;
 
         public static async Task<HostedDependencyFixture> StartAsync()
         {
@@ -725,8 +876,8 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
                     expires_in = 300
                 });
             });
-            app.MapPost("/api/inventory/v1/branches/{branchId:guid}/reservations/{orderId:guid}/release", () => Results.Ok());
-            app.MapPost("/api/kitchen/v1/tickets/{orderId:guid}/cancel", () => Results.Ok());
+            app.MapPost("/api/inventory/v1/branches/{branchId:guid}/reservations/{orderId:guid}/release", () => { Interlocked.Increment(ref fixture.ReleaseAttempts); return Results.Ok(); });
+            app.MapPost("/api/kitchen/v1/tickets/{orderId:guid}/cancel", () => { Interlocked.Increment(ref fixture.CancelAttempts); return Results.Ok(); });
             await app.StartAsync();
             fixture.BaseAddress = new Uri(app.Urls.Single().TrimEnd('/') + "/");
             issuer = fixture.BaseAddress.ToString().TrimEnd('/');
@@ -751,6 +902,16 @@ public sealed class OrderProviderRecoveryLiveFactAttribute : FactAttribute
         bool safeUrl = Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) && uri.Scheme == Uri.UriSchemeHttps
             && string.IsNullOrEmpty(uri.UserInfo) && string.IsNullOrEmpty(uri.Query) && string.IsNullOrEmpty(uri.Fragment)
             && !uri.Host.Contains("prod", StringComparison.OrdinalIgnoreCase);
+        string adapter = Environment.GetEnvironmentVariable("NEXACONNECT_ORDER_PROVIDER_RECOVERY_ADAPTER") ?? "GenericHttp";
+        bool safeAdapter = adapter == "GenericHttp" || adapter == "Omise"
+            && url == "https://api.omise.co/"
+            && OmisePaymentProvider.IsTestSecret(Environment.GetEnvironmentVariable("NEXACONNECT_OMISE_TEST_SECRET_KEY"))
+            && Environment.GetEnvironmentVariable("NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_CURRENCY") == "THB"
+            && (requiredStage != "arm" || (Environment.GetEnvironmentVariable("NEXACONNECT_ORDER_PROVIDER_RECOVERY_SCENARIO") != "intent_created"
+                || Environment.GetEnvironmentVariable("NEXACONNECT_ORDER_PROVIDER_RECOVERY_CARD_HANDOFF") == "1")
+                && System.Text.RegularExpressions.Regex.IsMatch(Environment.GetEnvironmentVariable("NEXACONNECT_OMISE_" +
+                    Environment.GetEnvironmentVariable("NEXACONNECT_ORDER_PROVIDER_RECOVERY_SCENARIO")?.ToUpperInvariant() + "_TEST_TOKEN") ?? "",
+                    "^tokn_test_[a-z0-9]{10,64}$"));
         string[] required = [
             "NEXACONNECT_ORDER_PROVIDER_RECOVERY_ORDER_DB", "NEXACONNECT_ORDER_PROVIDER_RECOVERY_PAYMENT_DB",
             "NEXACONNECT_ORDER_PROVIDER_RECOVERY_RABBITMQ", "NEXACONNECT_ORDER_PROVIDER_RECOVERY_HOST_DLL",
@@ -758,7 +919,7 @@ public sealed class OrderProviderRecoveryLiveFactAttribute : FactAttribute
             "NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_API_KEY", "NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_AMOUNT",
             "NEXACONNECT_PAYMENT_PROVIDER_SANDBOX_CURRENCY"];
         if (Environment.GetEnvironmentVariable("NEXACONNECT_ORDER_PROVIDER_RECOVERY_LIVE_ACCEPTANCE") != "1"
-            || environment != "Testing" || stage != requiredStage || !safeUrl
+            || environment != "Testing" || stage != requiredStage || !safeUrl || !safeAdapter
             || required.Any(name => string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(name))))
             Skip = "Provider-payment recovery live acceptance requires its guarded launcher, disposable databases/broker, exact stage, and a non-production HTTPS provider sandbox.";
     }

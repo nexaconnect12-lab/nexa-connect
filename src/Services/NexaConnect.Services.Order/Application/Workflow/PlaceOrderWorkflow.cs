@@ -14,7 +14,16 @@ public sealed record PlaceOrderCommand(
     Guid? RestaurantId = null,
     string? IdempotencyKey = null,
     Guid? OrderId = null,
-    Guid? CorrelationId = null);
+    Guid? CorrelationId = null,
+    [property: System.Text.Json.Serialization.JsonIgnore] string? CardToken = null)
+{
+    public override string ToString() => $"PlaceOrderCommand {{ OrderId = {OrderId} }}";
+}
+
+public sealed class CardCheckoutOptions
+{
+    public bool EnableOmiseTestCheckout { get; set; }
+}
 
 public sealed record CatalogMenuItem(
     Guid ProductId,
@@ -27,7 +36,7 @@ public sealed record CatalogMenuItem(
 public sealed record InventoryReservationResult(bool Reserved, Guid? ReservationId, string? Reason);
 public sealed record KitchenTicketResult(Guid TicketId);
 public sealed record PaymentResult(bool Completed, Guid? PaymentId, string? Reason, string Outcome = "authorized");
-public sealed record PlaceOrderResult(Guid OrderId, OrderStatus Status, decimal TotalAmount, string Currency);
+public sealed record PlaceOrderResult(Guid OrderId, OrderStatus Status, decimal TotalAmount, string Currency, bool CardTokenRequired = false);
 
 public interface IMenuCatalogPort
 {
@@ -51,6 +60,11 @@ public interface IKitchenPort
 
 public interface IPaymentPort
 {
+    Task<PaymentResult> AuthorizeAsync(
+        Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, decimal amount, string currency, string method,
+        string? cardToken, CancellationToken cancellationToken)
+        => cardToken is null ? AuthorizeAsync(organizationId, restaurantId, branchId, orderId, amount, currency, method, cancellationToken)
+            : throw new NotSupportedException("This payment port does not accept card tokens.");
     Task<PaymentResult> AuthorizeAsync(
         Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, decimal amount, string currency, string method,
         CancellationToken cancellationToken);
@@ -83,7 +97,8 @@ public sealed class PlaceOrderWorkflow(
     IPaymentPort payment,
     IOrderRepository orders,
     IIntegrationEventPublisher events,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null,
+    Microsoft.Extensions.Options.IOptions<CardCheckoutOptions>? cardCheckout = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
@@ -92,13 +107,25 @@ public sealed class PlaceOrderWorkflow(
         CancellationToken cancellationToken)
     {
         Validate(command);
+        if (command.PaymentMethod == "card_omise_test" && cardCheckout?.Value.EnableOmiseTestCheckout != true)
+            throw new ArgumentException("Omise test checkout is disabled.");
         if (orders is IIdempotentOrderRepository && string.IsNullOrWhiteSpace(command.IdempotencyKey))
             throw new ArgumentException("Idempotency key is required for durable order persistence.");
         if (orders is IIdempotentOrderRepository idempotent && command.RestaurantId is { } restaurantId && !string.IsNullOrWhiteSpace(command.IdempotencyKey))
         {
             var existing = await idempotent.FindByIdempotencyKeyAsync(restaurantId, command.IdempotencyKey, cancellationToken);
             if (existing is not null)
+            {
+                if (command.PaymentMethod == "card_omise_test" && (existing.OrganizationId != command.OrganizationId || existing.BranchId != command.BranchId
+                    || existing.Id != command.OrderId || existing.Currency != command.Currency
+                    || existing.WorkflowPaymentMethod != command.PaymentMethod
+                    || !existing.Lines.OrderBy(line => line.ProductId).Select(line => (line.ProductId, line.Quantity))
+                        .SequenceEqual(command.Lines.OrderBy(line => line.ProductId).Select(line => (line.ProductId, line.Quantity)))))
+                    throw new ArgumentException("The original order differs from this checkout. Restore its original scope and contents.");
+                if (command.PaymentMethod == "card_omise_test" && existing.Status is OrderStatus.KitchenAccepted or OrderStatus.PaymentPending)
+                    return await CompletePaymentAsync(existing, command, existing.WorkflowCorrelationId ?? existing.Id, cancellationToken);
                 return new PlaceOrderResult(existing.Id, existing.Status, existing.TotalAmount, existing.Currency);
+            }
         }
         Guid orderId = command.OrderId ?? Guid.NewGuid();
         Guid correlationId = command.CorrelationId ?? orderId;
@@ -148,18 +175,29 @@ public sealed class PlaceOrderWorkflow(
             return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
         }
 
+        return await CompletePaymentAsync(order, command, correlationId, cancellationToken);
+    }
+
+    private async Task<PlaceOrderResult> CompletePaymentAsync(OrderAggregate order, PlaceOrderCommand command,
+        Guid correlationId, CancellationToken cancellationToken)
+    {
         PaymentResult paid = await payment.AuthorizeAsync(
             order.OrganizationId, order.RestaurantId,
-            order.BranchId, order.Id, order.TotalAmount, order.Currency, command.PaymentMethod, cancellationToken);
+            order.BranchId, order.Id, order.TotalAmount, order.Currency, command.PaymentMethod, command.CardToken, cancellationToken);
         if (!paid.Completed && OrderWorkflowRecoveryService.IsUncertain(paid.Outcome))
         {
             if (paid.PaymentId is null)
                 throw new InvalidOperationException("An uncertain payment authorization must identify its payment intent.");
+            if (order.Status == OrderStatus.PaymentPending)
+            {
+                order.RestorePaymentIntent(paid.PaymentId.Value);
+                return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency, paid.Outcome == "awaiting_token");
+            }
             order.MarkPaymentPending(paid.PaymentId.Value);
             await PersistAsync(order, new PaymentAuthorizationUncertainV1(
                 Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, paid.PaymentId,
                 paid.Reason ?? "Payment authorization requires reconciliation."), cancellationToken);
-            return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
+            return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency, paid.Outcome == "awaiting_token");
         }
         if (!paid.Completed || paid.PaymentId is null)
         {
@@ -173,10 +211,11 @@ public sealed class PlaceOrderWorkflow(
         }
         order.MarkPaid(paid.PaymentId.Value);
         await PersistAsync(order, new PaymentCompletedV1(
-            Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, paid.PaymentId.Value,
+            OrderPaymentEventIdentity.Completion(order.Id, command.PaymentMethod), correlationId, clock.GetUtcNow(), order.Id, paid.PaymentId.Value,
             order.TotalAmount, order.Currency, command.PaymentMethod), cancellationToken);
         return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
     }
+
 
     private async Task PersistAsync(OrderAggregate order, IIntegrationEvent integrationEvent, CancellationToken cancellationToken)
     {
@@ -202,6 +241,14 @@ public sealed class PlaceOrderWorkflow(
             throw new ArgumentException("Order lines must have a product and positive quantity.");
         if (string.IsNullOrWhiteSpace(command.PaymentMethod))
             throw new ArgumentException("Payment method is required.");
+        if (command.CardToken is not null && (command.PaymentMethod != "card_omise_test"
+            || !System.Text.RegularExpressions.Regex.IsMatch(command.CardToken, @"\Atokn_test_[a-z0-9]{10,64}\z")))
+            throw new ArgumentException("Use a fresh Omise test card token only for Omise test checkout.");
+        if (command.PaymentMethod == "card_omise_test" && command.Currency != "THB")
+            throw new ArgumentException("Omise test checkout requires THB.");
+        if (command.PaymentMethod == "card_omise_test" && (command.OrderId is null || command.OrderId == Guid.Empty
+            || command.RestaurantId is null || command.RestaurantId == Guid.Empty || string.IsNullOrWhiteSpace(command.IdempotencyKey)))
+            throw new ArgumentException("Omise test checkout requires the original Order, restaurant and idempotency identity.");
         if (command.PaymentMethod is "cash_manual" or "promptpay_manual"
             && !string.Equals(command.Currency, "THB", StringComparison.Ordinal))
             throw new ArgumentException("Manual tender checkout requires THB.");

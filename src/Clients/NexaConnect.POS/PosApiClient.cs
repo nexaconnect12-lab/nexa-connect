@@ -12,7 +12,7 @@ namespace NexaConnect.POS;
 public sealed record PosShift(Guid ShiftId, Guid AuthorizationDecisionId);
 public sealed record PosMenuItem(Guid ProductId, string Name, decimal UnitPrice, string Currency, string PreparationStation, bool Available);
 public enum PosOrderStatus { Draft, Submitted, InventoryReserved, KitchenAccepted, Paid, PaymentFailed, Rejected, PaymentPending, PaymentReview }
-public sealed record PosOrderResult(Guid OrderId, PosOrderStatus Status, decimal TotalAmount, string Currency);
+public sealed record PosOrderResult(Guid OrderId, PosOrderStatus Status, decimal TotalAmount, string Currency, bool CardTokenRequired = false);
 public sealed record ManualTenderResult(Guid SettlementId, Guid OrderId, string Status, string Method,
     decimal Amount, string Currency, DateTimeOffset OccurredAtUtc, bool Replayed);
 public sealed record CashSessionResult(Guid CashSessionId, string OpenedBy);
@@ -100,8 +100,14 @@ public sealed class PosApiClient : IDisposable
     }
 
     public async Task<PosOrderResult> PlaceOrderAsync(PosTokenSet token, PendingCheckout checkout, CancellationToken cancellationToken = default)
+        => await PlaceOrderAsync(token, checkout, null, cancellationToken);
+
+    public async Task<PosOrderResult> PlaceOrderAsync(PosTokenSet token, PendingCheckout checkout, string? cardToken, CancellationToken cancellationToken = default)
     {
         checkout.Validate(_configuration);
+        if (cardToken is not null && (checkout.PaymentMethod != "card_omise_test"
+            || !System.Text.RegularExpressions.Regex.IsMatch(cardToken, @"\Atokn_test_[a-z0-9]{10,64}\z")))
+            throw new InvalidDataException("Use a fresh Omise test card token for test checkout.");
         using var request = CreateRequest(HttpMethod.Post, "api/order/v1/workflows/place", token);
         AddTenantContext(request, checkout.OrganizationId);
         request.Content = JsonContent.Create(new
@@ -109,6 +115,7 @@ public sealed class PosApiClient : IDisposable
             restaurantId = checkout.RestaurantId, organizationId = checkout.OrganizationId, branchId = checkout.BranchId,
             currency = checkout.Currency, paymentMethod = checkout.PaymentMethod, idempotencyKey = checkout.OrderId.ToString("N"),
             orderId = checkout.OrderId, correlationId = checkout.OrderId,
+            cardToken,
             lines = checkout.Lines.Select(line => new { productId = line.ProductId, quantity = line.Quantity }).ToArray()
         });
         using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.place", checkout.OrderId, cancellationToken);
@@ -139,6 +146,9 @@ public sealed class PosApiClient : IDisposable
     {
         if (result.OrderId != checkout.OrderId || result.Currency != checkout.Currency || result.TotalAmount <= 0)
             throw new InvalidDataException("Order response does not match the pending checkout.");
+        if (result.CardTokenRequired && (checkout.PaymentMethod != "card_omise_test"
+            || result.Status is not (PosOrderStatus.KitchenAccepted or PosOrderStatus.PaymentPending)))
+            throw new InvalidDataException("Card-token action does not match the original checkout state.");
     }
 
     public async Task<ManualTenderResult> ConfirmManualSettlementAsync(

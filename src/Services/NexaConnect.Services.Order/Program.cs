@@ -30,6 +30,9 @@ builder.Services.AddHttpClient<ProductAuthorizationClient>(client => client.Base
 builder.Services.AddScoped<IOrderTenantAuthorizer, HttpOrderTenantAuthorizer>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddOptions<CardCheckoutOptions>().Bind(builder.Configuration.GetSection("CardCheckout"))
+    .Validate(options => !options.EnableOmiseTestCheckout || builder.Environment.IsDevelopment()
+        || builder.Environment.IsEnvironment("Testing"), "Omise test checkout requires Development or Testing.").ValidateOnStart();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "order");
 var usePostgres = builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true;
@@ -87,7 +90,7 @@ if (builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
         .AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>().AddHttpMessageHandler<RetryingHttpMessageHandler>();
     builder.Services.AddHttpClient<IPaymentPort, HttpPaymentPort>(client =>
         client.BaseAddress = new Uri(builder.Configuration["Services:Payment"] ?? throw new InvalidOperationException("Services:Payment is required.")))
-        .AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>().AddHttpMessageHandler<RetryingHttpMessageHandler>();
+        .AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
 }
 if (builder.Configuration.GetValue<bool>("WorkflowRecovery:Enabled"))
 {

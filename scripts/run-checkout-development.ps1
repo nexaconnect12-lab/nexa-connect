@@ -1,10 +1,11 @@
 [CmdletBinding()]
-param([switch]$ValidateOnly, [switch]$StartInfrastructure)
+param([switch]$ValidateOnly, [switch]$StartInfrastructure, [switch]$EnableOmiseTestCheckout)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $settings = Get-Content -LiteralPath (Join-Path $root 'src/Clients/NexaConnect.POS/appsettings.json') -Raw | ConvertFrom-Json
 $ports = [ordered]@{ PlatformDirectory=53357; Authorization=51223; Restaurant=51225; Catalog=5268; Inventory=5270; Kitchen=5274; Order=5230; POS=5225; Reporting=51227 }
 $workloads = @('Catalog','Inventory','Kitchen','Order','POS')
+if ($EnableOmiseTestCheckout) { $ports['Payment'] = 5272; $workloads += 'Payment' }
 # Configuration and secrets remain in process environment; never interpolate secrets into command lines.
 $savedEnvironment = @{}
 function Set-RunEnvironment([string]$name, [string]$value) {
@@ -23,7 +24,13 @@ try {
             if (![Environment]::GetEnvironmentVariable($name)) { Set-RunEnvironment $name $line.Substring($equals+1).Trim().Trim('"', "'") }
         }
     }
-    if ($settings.Pos.Currency -cne 'THB' -or $settings.Pos.PaymentMethod -notin @('cash_manual','promptpay_manual')) { throw 'Checkout requires THB manual tender configuration.' }
+    $cardCheckout = $settings.Pos.PaymentMethod -eq 'card_omise_test'
+    if ($settings.Pos.Currency -cne 'THB' -or $settings.Pos.PaymentMethod -notin @('cash_manual','promptpay_manual','card_omise_test')) { throw 'Checkout requires a supported THB payment method.' }
+    if ($cardCheckout -ne [bool]$EnableOmiseTestCheckout -or ($cardCheckout -and $settings.Pos.EnableOmiseTestCheckout -ne $true)) { throw 'Omise test checkout requires matching client enablement and -EnableOmiseTestCheckout; use the default launcher for manual tender.' }
+    if ($cardCheckout) {
+        $omiseTestSecret = $env:NEXACONNECT_OMISE_TEST_SECRET_KEY
+        if ($omiseTestSecret -cnotmatch '^skey_test_[a-z0-9]{10,64}$') { throw 'Inject NEXACONNECT_OMISE_TEST_SECRET_KEY without printing it. Live keys are rejected.' }
+    }
     foreach ($name in @('OrganizationId','RestaurantId','BranchId','StoreId','TerminalId')) {
         $id = [guid]::Empty
         if (![guid]::TryParse([string]$settings.Pos.$name,[ref]$id) -or $id -eq [guid]::Empty) { throw "Invalid Pos:$name." }
@@ -50,6 +57,9 @@ try {
     if ($missing.Count) { throw "Missing settings (values not shown): $($missing -join ', ')" }
     Write-Host 'Checkout configuration and required setting names validated. Database migrations, permissions, and seed data must already be provisioned.'
     if ($ValidateOnly) { return }
+    if ($cardCheckout) {
+        foreach ($name in @([Environment]::GetEnvironmentVariables('Process').Keys | Where-Object { $_ -like 'NEXACONNECT_OMISE_*' })) { Set-RunEnvironment $name $null }
+    }
     if ($StartInfrastructure) {
         Push-Location $root
         try { docker compose up -d postgres redis rabbitmq keycloak; if ($LASTEXITCODE) { throw 'Infrastructure startup failed.' } }
@@ -84,6 +94,9 @@ try {
     foreach ($service in $ports.Keys) { Set-RunEnvironment "Services__$service" "http://localhost:$($ports[$service])/" }
     foreach ($service in $ports.Keys) {
         $out = Join-Path $runDirectory $service
+        Set-RunEnvironment 'CardCheckout__EnableOmiseTestCheckout' $(if($cardCheckout -and $service -eq 'Order') {'true'} else {'false'})
+        Set-RunEnvironment 'PaymentProvider__Adapter' $(if($cardCheckout -and $service -eq 'Payment') {'Omise'} else {'Disabled'})
+        Set-RunEnvironment 'PaymentProvider__OmiseSecretKey' $(if($cardCheckout -and $service -eq 'Payment') {$omiseTestSecret} else {$null})
         $project = Join-Path $root "src/Services/NexaConnect.Services.$service/NexaConnect.Services.$service.csproj"
         dotnet build $project --no-restore --verbosity quiet "-p:OutputPath=$out/"
         if ($LASTEXITCODE) { throw "Build failed for $service. Run dotnet restore NexaConnect.sln first if assets are missing." }
@@ -134,6 +147,7 @@ try {
     }
 }
 finally {
+    $omiseTestSecret = $null
     foreach ($child in $children) { if (!$child.HasExited) { $child.Kill(); $child.WaitForExit(5000) | Out-Null }; $child.Dispose() }
     foreach ($name in $savedEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name,$savedEnvironment[$name],'Process') }
 }

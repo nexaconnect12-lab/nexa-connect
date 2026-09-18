@@ -35,14 +35,19 @@ builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "payment");
 builder.Services.AddOptions<PaymentProviderOptions>()
     .Bind(builder.Configuration.GetSection("PaymentProvider"))
-    .Validate(options => options.Adapter is "Disabled" or "GenericHttp",
-        "PaymentProvider:Adapter must be Disabled or GenericHttp.")
-    .Validate(options => options.Adapter == "Disabled"
+    .Validate(options => options.Adapter is "Disabled" or "GenericHttp" or "Omise",
+        "PaymentProvider:Adapter must be Disabled, GenericHttp or Omise.")
+    .Validate(options => options.Adapter != "Omise" || OmisePaymentProvider.IsTestSecret(options.OmiseSecretKey)
+        && (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing")),
+        "Omise requires a test secret key and Development or Testing environment.")
+    .Validate(options => options.Adapter != "GenericHttp"
         || Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out Uri? uri)
         && uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase),
         "PaymentProvider:BaseUrl must be an absolute HTTPS URI when GenericHttp is selected.")
     .Validate(options => options.RequestTimeout > TimeSpan.Zero && options.RequestTimeout <= TimeSpan.FromMinutes(2),
         "PaymentProvider:RequestTimeout must be greater than zero and no more than two minutes.")
+    .Validate(options => options.Adapter != "Omise" || options.LeaseDuration >= options.RequestTimeout * 4 + TimeSpan.FromSeconds(10),
+        "Omise leases must cover two bounded header/body exchanges plus ten seconds.")
     .ValidateOnStart();
 if (!string.IsNullOrWhiteSpace(builder.Configuration["PaymentProvider:SimulatorCertificateSha256"]))
 {
@@ -69,10 +74,18 @@ builder.Services.AddHttpClient<HttpPaymentProvider>((services, client) =>
     builder.Environment.IsEnvironment("Testing")))
     .AddHttpMessageHandler<RetryingHttpMessageHandler>();
 builder.Services.AddSingleton<DisabledPaymentProvider>();
+builder.Services.AddHttpClient<OmisePaymentProvider>((services, client) =>
+{
+    client.BaseAddress = new Uri("https://api.omise.co/");
+    client.Timeout = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentProviderOptions>>().Value.RequestTimeout;
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+    .RemoveAllLoggers()
+    .AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<IPaymentProvider>(services =>
     services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentProviderOptions>>().Value.Adapter switch
     {
         "GenericHttp" => services.GetRequiredService<HttpPaymentProvider>(),
+        "Omise" => services.GetRequiredService<OmisePaymentProvider>(),
         _ => services.GetRequiredService<DisabledPaymentProvider>()
     });
 if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
@@ -83,7 +96,7 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     healthChecks.AddCheck<PaymentDatabaseReadinessHealthCheck>("payment_database", tags: ["ready"]);
     builder.Services.Configure<PaymentOperationalMetricsOptions>(builder.Configuration.GetSection("OperationalMetrics"));
     builder.Services.AddHostedService<PaymentOperationalMetricsWorker>();
-    if (builder.Configuration["PaymentProvider:Adapter"]?.Equals("GenericHttp", StringComparison.Ordinal) == true)
+    if (builder.Configuration["PaymentProvider:Adapter"] is "GenericHttp" or "Omise")
     {
         builder.Services.AddHostedService<PaymentAuthorizationRecoveryWorker>();
         builder.Services.AddPaymentCaptureRecoveryWorker(builder.Configuration);

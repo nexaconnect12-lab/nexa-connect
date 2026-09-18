@@ -9,6 +9,42 @@ namespace NexaConnect.UnitTests;
 public sealed class PosCheckoutIntegrationTests
 {
     [Fact]
+    public async Task Omise_token_is_transient_and_not_part_of_saved_checkout()
+    {
+        var config = Configuration() with { PaymentMethod = "card_omise_test", EnableOmiseTestCheckout = true };
+        var checkout = PendingCheckout.Create(config, [new CheckoutLine(Guid.NewGuid(), 1)]);
+        const string cardToken = "tokn_test_aaaaaaaaaaaa";
+        Assert.DoesNotContain(cardToken, JsonSerializer.Serialize(checkout));
+        using var api = new PosApiClient(config, orderHandler: new Handler(async request =>
+        {
+            using var json = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(cardToken, json.RootElement.GetProperty("cardToken").GetString());
+            Assert.Equal(checkout.OrderId, json.RootElement.GetProperty("orderId").GetGuid());
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = JsonContent.Create(new PosOrderResult(checkout.OrderId, PosOrderStatus.Paid, 50m, "THB")) };
+        }));
+        await api.PlaceOrderAsync(Token(), checkout, cardToken);
+    }
+
+    [Fact]
+    public void Omise_checkout_requires_explicit_local_enablement()
+    {
+        var config = Configuration() with { PaymentMethod = "card_omise_test" };
+        Assert.Throws<InvalidDataException>(() => config.ValidateCheckout());
+        Assert.Throws<InvalidDataException>(() => (config with { EnableOmiseTestCheckout = true, OrderApi = "https://example.invalid/" }).ValidateCheckout());
+    }
+
+    [Fact]
+    public async Task Manual_checkout_rejects_a_forged_card_token_required_flag()
+    {
+        var config = Configuration();
+        var checkout = PendingCheckout.Create(config, [new CheckoutLine(Guid.NewGuid(), 1)]);
+        using var api = new PosApiClient(config, orderHandler: new Handler(_ => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = JsonContent.Create(new PosOrderResult(checkout.OrderId, PosOrderStatus.KitchenAccepted, 50m, "THB", true)) })));
+        await Assert.ThrowsAsync<InvalidDataException>(() => api.PlaceOrderAsync(Token(), checkout));
+    }
+    [Fact]
     public async Task Cash_session_conflict_surfaces_safe_problem_guidance()
     {
         const string guidance = "This shift already has a closed cash session. Close the shift and open a new shift before opening another cash session.";
