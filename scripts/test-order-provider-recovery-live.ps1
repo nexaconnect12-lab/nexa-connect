@@ -7,14 +7,15 @@ param(
     [string] $DockerExecutable = 'docker',
     [ValidateSet('GenericHttp','Omise')] [string] $Adapter = 'GenericHttp',
     [decimal] $OmiseAmount = 50.00,
-    [switch] $IncludeCardTokenHandoff
+    [switch] $IncludeCardTokenHandoff,
+    [switch] $ValidateOnly
 )
 
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) {
     throw 'Provider recovery acceptance currently requires Windows for exact process-tree termination.'
 }
-if (-not $ConfirmDisposableInfrastructure -or -not $ConfirmProcessTermination -or -not $ConfirmSandboxTransactions) {
+if (-not $ValidateOnly -and (-not $ConfirmDisposableInfrastructure -or -not $ConfirmProcessTermination -or -not $ConfirmSandboxTransactions)) {
     throw 'Pass all three confirmation switches after verifying disposable Docker resources, authorizing termination of exact harness process trees, and confirming the provider endpoint accepts disposable sandbox authorization/capture transactions.'
 }
 
@@ -23,11 +24,11 @@ if ($IncludeCardTokenHandoff -and $Adapter -ne 'Omise') { throw 'Card token hand
 if ($IncludeCardTokenHandoff) { $omiseTokenNames += 'NEXACONNECT_OMISE_INTENT_CREATED_TEST_TOKEN' }
 if ($Adapter -eq 'Omise') {
     if ($OmiseAmount -le 0 -or $OmiseAmount -gt 10000 -or [decimal]::Truncate($OmiseAmount*100) -ne $OmiseAmount*100) { throw 'Use an exact two-decimal THB amount between 0.01 and 10000.' }
-    if ($env:NEXACONNECT_OMISE_TEST_SECRET_KEY -cnotmatch '^skey_test_[a-z0-9]{10,64}$') { throw 'Inject NEXACONNECT_OMISE_TEST_SECRET_KEY without printing it. Live keys are rejected.' }
+    if ($env:NEXACONNECT_OMISE_TEST_SECRET_KEY -cnotmatch '\Askey_test_[a-z0-9]{10,64}\z') { throw 'Inject NEXACONNECT_OMISE_TEST_SECRET_KEY without printing it. Live keys are rejected.' }
     $distinct = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($name in $omiseTokenNames) {
         $token = [Environment]::GetEnvironmentVariable($name)
-        if ($token -cnotmatch '^tokn_test_[a-z0-9]{10,64}$') { throw "Inject a fresh test token in $name without printing it." }
+        if ($token -cnotmatch '\Atokn_test_[a-z0-9]{10,64}\z') { throw "Inject a fresh test token in $name without printing it." }
         if (-not $distinct.Add($token)) { throw 'Four distinct unused Omise test tokens are required; include a fifth distinct token for -IncludeCardTokenHandoff.' }
     }
     $token = $null; $distinct.Clear()
@@ -57,6 +58,24 @@ if ($providerUri.Scheme -ne 'https' -or -not [string]::IsNullOrEmpty($providerUr
     -not [string]::IsNullOrEmpty($providerUri.Query) -or -not [string]::IsNullOrEmpty($providerUri.Fragment) -or
     $providerUri.Host -match '(?i)(^|[.\-_])(prod|production)([.\-_]|$)') {
     throw 'Provider recovery requires a non-production HTTPS sandbox URL without user information, query, or fragment.'
+}
+
+if ($ValidateOnly) {
+    [ordered]@{
+        adapter = $Adapter
+        configurationValidated = $true
+        scenarioCount = $(if ($Adapter -eq 'Omise' -and -not $IncludeCardTokenHandoff) { 4 } else { 5 })
+        cardTokenHandoffIncluded = [bool]$IncludeCardTokenHandoff
+        tokenFreshnessVerified = $false
+        accountOwnershipVerified = $false
+        infrastructureChecked = $false
+        infrastructureStarted = $false
+        processesTerminated = 0
+        providerRequestsSent = 0
+        financialCommandsSent = 0
+        acceptancePassed = $false
+    } | ConvertTo-Json
+    return
 }
 
 function Assert-GeneratedProject([string] $Name) {

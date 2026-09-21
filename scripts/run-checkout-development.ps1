@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$ValidateOnly, [switch]$StartInfrastructure, [switch]$EnableOmiseTestCheckout)
+param([switch]$ValidateOnly, [switch]$StartInfrastructure, [switch]$EnableOmiseTestCheckout, [switch]$EnableOmiseTestWebhooks)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $settings = Get-Content -LiteralPath (Join-Path $root 'src/Clients/NexaConnect.POS/appsettings.json') -Raw | ConvertFrom-Json
@@ -25,11 +25,20 @@ try {
         }
     }
     $cardCheckout = $settings.Pos.PaymentMethod -eq 'card_omise_test'
+    if ($EnableOmiseTestWebhooks -and -not $EnableOmiseTestCheckout) { throw 'Omise test webhooks require -EnableOmiseTestCheckout.' }
     if ($settings.Pos.Currency -cne 'THB' -or $settings.Pos.PaymentMethod -notin @('cash_manual','promptpay_manual','card_omise_test')) { throw 'Checkout requires a supported THB payment method.' }
     if ($cardCheckout -ne [bool]$EnableOmiseTestCheckout -or ($cardCheckout -and $settings.Pos.EnableOmiseTestCheckout -ne $true)) { throw 'Omise test checkout requires matching client enablement and -EnableOmiseTestCheckout; use the default launcher for manual tender.' }
     if ($cardCheckout) {
         $omiseTestSecret = $env:NEXACONNECT_OMISE_TEST_SECRET_KEY
         if ($omiseTestSecret -cnotmatch '^skey_test_[a-z0-9]{10,64}$') { throw 'Inject NEXACONNECT_OMISE_TEST_SECRET_KEY without printing it. Live keys are rejected.' }
+    }
+    if ($EnableOmiseTestWebhooks) {
+        $omiseWebhookSecret = $env:NEXACONNECT_OMISE_WEBHOOK_TEST_SECRET
+        if ([string]::IsNullOrWhiteSpace($omiseWebhookSecret)) { throw 'Inject a base64 test webhook secret in NEXACONNECT_OMISE_WEBHOOK_TEST_SECRET without printing it.' }
+        try { $webhookKeyBytes = [Convert]::FromBase64String($omiseWebhookSecret) }
+        catch { throw 'Inject a base64 test webhook secret in NEXACONNECT_OMISE_WEBHOOK_TEST_SECRET without printing it.' }
+        if ($webhookKeyBytes.Length -lt 16 -or $webhookKeyBytes.Length -gt 128) { throw 'Test webhook secret must decode to 16-128 bytes.' }
+        [Array]::Clear($webhookKeyBytes,0,$webhookKeyBytes.Length)
     }
     foreach ($name in @('OrganizationId','RestaurantId','BranchId','StoreId','TerminalId')) {
         $id = [guid]::Empty
@@ -97,6 +106,8 @@ try {
         Set-RunEnvironment 'CardCheckout__EnableOmiseTestCheckout' $(if($cardCheckout -and $service -eq 'Order') {'true'} else {'false'})
         Set-RunEnvironment 'PaymentProvider__Adapter' $(if($cardCheckout -and $service -eq 'Payment') {'Omise'} else {'Disabled'})
         Set-RunEnvironment 'PaymentProvider__OmiseSecretKey' $(if($cardCheckout -and $service -eq 'Payment') {$omiseTestSecret} else {$null})
+        Set-RunEnvironment 'OmiseWebhooks__Enabled' $(if($EnableOmiseTestWebhooks -and $service -eq 'Payment') {'true'} else {'false'})
+        Set-RunEnvironment 'OmiseWebhooks__Secret' $(if($EnableOmiseTestWebhooks -and $service -eq 'Payment') {$omiseWebhookSecret} else {$null})
         $project = Join-Path $root "src/Services/NexaConnect.Services.$service/NexaConnect.Services.$service.csproj"
         dotnet build $project --no-restore --verbosity quiet "-p:OutputPath=$out/"
         if ($LASTEXITCODE) { throw "Build failed for $service. Run dotnet restore NexaConnect.sln first if assets are missing." }
@@ -148,6 +159,7 @@ try {
 }
 finally {
     $omiseTestSecret = $null
+    $omiseWebhookSecret = $null
     foreach ($child in $children) { if (!$child.HasExited) { $child.Kill(); $child.WaitForExit(5000) | Out-Null }; $child.Dispose() }
     foreach ($name in $savedEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name,$savedEnvironment[$name],'Process') }
 }

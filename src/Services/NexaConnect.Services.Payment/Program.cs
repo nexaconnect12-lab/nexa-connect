@@ -9,6 +9,9 @@ using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Observability;
 using NexaConnect.Infrastructure.Messaging;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.RateLimiting;
+using NexaConnect.Services.Payment.Application.Webhooks;
+using NexaConnect.Services.Payment.Infrastructure.Webhooks;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-payment");
@@ -17,6 +20,26 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("omise-webhook", limiter =>
+    { limiter.PermitLimit = 60; limiter.Window = TimeSpan.FromMinutes(1); limiter.QueueLimit = 0; });
+});
+builder.Services.AddOptions<OmiseWebhookOptions>().Bind(builder.Configuration.GetSection("OmiseWebhooks"))
+    .Validate(options => !options.Enabled || (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
+        && builder.Configuration["PaymentProvider:Adapter"] == "Omise"
+        && builder.Configuration["Persistence:Provider"]?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true
+        && builder.Configuration.GetValue<bool>("Outbox:Enabled") && OmiseWebhookSignature.ValidSecret(options.Secret),
+        "Omise webhooks require Development/Testing, Omise, PostgreSQL, enabled outbox and a base64 webhook secret.")
+    .Validate(options => options.PollInterval >= TimeSpan.FromSeconds(1) && options.PollInterval <= TimeSpan.FromMinutes(1)
+        && options.RetryDelay >= TimeSpan.FromSeconds(5) && options.RetryDelay <= TimeSpan.FromMinutes(5)
+        && options.MaximumAttempts is >= 1 and <= 100 && options.LeaseDuration >= TimeSpan.FromMinutes(1)
+        && options.LeaseDuration <= TimeSpan.FromMinutes(30), "Invalid Omise webhook worker bounds.")
+    .Validate(options => !options.Enabled || options.LeaseDuration >=
+        builder.Configuration.GetValue("PaymentProvider:RequestTimeout", TimeSpan.FromSeconds(15)) * 5 + TimeSpan.FromSeconds(30),
+        "Webhook lease must cover bounded event and charge verification.")
+    .ValidateOnStart();
 IHealthChecksBuilder healthChecks = builder.Services.AddHealthChecks();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<IServiceWorkloadTokenProvider, ServiceWorkloadTokenProvider>();
@@ -111,6 +134,22 @@ else
     builder.Services.AddSingleton<IPaymentIntents, InMemoryPaymentIntents>();
 }
 
+if (builder.Configuration.GetValue<bool>("OmiseWebhooks:Enabled"))
+{
+    healthChecks.AddCheck<OmiseWebhookReadiness>("omise_webhook_inbox", tags: ["ready"]);
+    builder.Services.AddSingleton<IOmiseWebhookInbox, PostgresOmiseWebhookInbox>();
+    builder.Services.AddScoped<IWebhookPaymentRecovery, WebhookPaymentRecovery>();
+    builder.Services.AddScoped<OmiseWebhookProcessor>();
+    builder.Services.AddScoped<OmiseWebhookIngress>();
+    builder.Services.AddHttpClient<IOmiseEventVerifier, OmiseEventVerifier>((services, client) =>
+    {
+        client.BaseAddress = new Uri("https://api.omise.co/");
+        client.Timeout = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PaymentProviderOptions>>().Value.RequestTimeout;
+    }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+        .RemoveAllLoggers().AddNexaConnectCorrelationPropagation();
+    builder.Services.AddHostedService<OmiseWebhookWorker>();
+}
+
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
 
@@ -124,6 +163,7 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();

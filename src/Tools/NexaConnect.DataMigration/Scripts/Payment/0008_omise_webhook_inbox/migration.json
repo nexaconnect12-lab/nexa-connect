@@ -1,0 +1,1 @@
+{"version":8,"name":"omise_webhook_inbox","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.12.0"}

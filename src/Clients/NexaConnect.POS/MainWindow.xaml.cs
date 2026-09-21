@@ -198,10 +198,11 @@ public partial class MainWindow : Window
             SetBusy("Closing shift…");
             await _api.CloseShiftAsync(_authentication.CurrentToken!, _activeShift.ShiftId);
             string shiftNumber = _activeShift.ShiftNumber;
+            Guid closedShiftId = _activeShift.ShiftId;
             _activeShift = null;
             _localStore.ClearActiveShift();
             ShiftNumberTextBox.Text = CashierPresentation.NewShiftNumber(DateTimeOffset.Now, Guid.NewGuid());
-            StatusText.Text = $"Shift {shiftNumber} is closed.";
+            StatusText.Text = $"Shift {shiftNumber} is closed. Shift ID: {closedShiftId:D}.";
         }
         catch (Exception exception)
         {
@@ -522,7 +523,7 @@ public partial class MainWindow : Window
             {
                 _localStore.ClearPendingCheckout();
                 pendingCheckout = null;
-                StatusText.Text = "The original order is already Paid. Do not collect payment again.";
+                StatusText.Text = $"The original order is already Paid. Order ID: {result.OrderId:D}. Do not collect payment again. Checkout recovery is cleared.";
                 clearCart = true;
             }
             else if (result.Status is PosOrderStatus.Rejected or PosOrderStatus.PaymentFailed)

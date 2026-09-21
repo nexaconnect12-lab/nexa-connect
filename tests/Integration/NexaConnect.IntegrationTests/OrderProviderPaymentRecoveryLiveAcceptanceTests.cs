@@ -21,6 +21,8 @@ using MigrationApplication = MIGRATIONS::MigrationApplication;
 using OrderAggregate = ORDER::NexaConnect.Services.Order.Domain.OrderAggregate;
 using OrderLine = ORDER::NexaConnect.Services.Order.Domain.OrderLine;
 using PostgresOrderRepository = ORDER::NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderRepository;
+using PlaceOrderRequest = ORDER::NexaConnect.Services.Order.Controllers.PlaceOrderRequest;
+using PlaceOrderRequestLine = ORDER::NexaConnect.Services.Order.Controllers.PlaceOrderRequestLine;
 using PaymentIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentIntent;
 using PaymentMutationContext = PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentMutationContext;
 using CreatePaymentIntent = PAYMENT::NexaConnect.Services.Payment.Application.Intents.CreatePaymentIntent;
@@ -44,6 +46,7 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceCollection;
 public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
 {
     private const string PaymentEvidenceQueue = "nexaconnect.acceptance.provider-recovery.payment-evidence";
+    private static string FixtureOrderKey(string scenario) => $"provider-recovery-{scenario}";
     private static bool IsOmise() => Environment.GetEnvironmentVariable("NEXACONNECT_ORDER_PROVIDER_RECOVERY_ADAPTER") == "Omise";
     private static string[] Scenarios() => IsOmise()
         && Environment.GetEnvironmentVariable("NEXACONNECT_ORDER_PROVIDER_RECOVERY_CARD_HANDOFF") != "1"
@@ -56,6 +59,9 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         foreach (string name in start.Environment.Keys.Where(name => name.StartsWith("NEXACONNECT_OMISE_", StringComparison.OrdinalIgnoreCase)).ToArray())
             start.Environment.Remove(name);
         start.Environment.Remove("PaymentProvider__OmiseSecretKey");
+        foreach (string name in start.Environment.Keys.Where(name => name.StartsWith("OmiseWebhooks", StringComparison.OrdinalIgnoreCase)).ToArray())
+            start.Environment.Remove(name);
+        start.Environment["OmiseWebhooks__Enabled"] = "false";
         // Payment receives its secret through its explicit service configuration, below.
     }
     [OrderProviderRecoveryLiveFact("initialize")]
@@ -287,7 +293,7 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
             new PaymentMutationContext("provider-recovery-arm", correlation));
         var order = OrderAggregate.Create(orderId, organization, branch,
             [new OrderLine(Guid.NewGuid(), "Provider recovery acceptance", amount, 1, "kitchen")], currency, restaurant,
-            idempotencyKey: $"provider-recovery-{scenario}", workflowPaymentMethod: IsOmise() && scenario == "intent_created" ? "card_omise_test" : "card",
+            idempotencyKey: FixtureOrderKey(scenario), workflowPaymentMethod: IsOmise() && scenario == "intent_created" ? "card_omise_test" : "card",
             workflowCorrelationId: correlation);
         order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted();
         if (scenario != "intent_created") order.MarkPaymentPending(payment.Id);
@@ -660,6 +666,11 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         Assert.Equal(0L, await ScalarAsync(payments, "SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.authorization-started.v1'", state.PaymentIntentId));
         OrderAggregate original = await new PostgresOrderRepository(orders).GetAsync(state.OrderId, default)
             ?? throw new InvalidOperationException("Recovered card Order is missing.");
+        // GetAsync restores the aggregate, not the transport idempotency record.
+        // Verify the fixture's original key still resolves to this exact durable Order.
+        var keyedOrder = await new PostgresOrderRepository(orders).FindByIdempotencyKeyAsync(
+            state.RestaurantId, FixtureOrderKey(state.Scenario), default);
+        Assert.True(keyedOrder?.Id == state.OrderId, "Original checkout identity could not be verified; no token was submitted.");
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
         using var tokenResponse = await client.PostAsync(new Uri(fixture, "token"), null);
         Assert.True(tokenResponse.IsSuccessStatusCode);
@@ -670,16 +681,31 @@ public sealed class OrderProviderPaymentRecoveryLiveAcceptanceTests
         request.Headers.Add("X-Nexa-Organization-Id", state.OrganizationId.ToString("D"));
         request.Headers.Add("X-Nexa-Application-Code", "nexa_connect");
         request.Headers.Add("X-Correlation-ID", state.CorrelationId.ToString("D"));
-        request.Content = System.Net.Http.Json.JsonContent.Create(new
-        {
-            restaurantId = state.RestaurantId, organizationId = state.OrganizationId, branchId = state.BranchId,
-            currency = original.Currency, paymentMethod = "card_omise_test", idempotencyKey = original.IdempotencyKey,
-            orderId = state.OrderId, correlationId = state.CorrelationId, cardToken = CardToken("intent_created"),
-            lines = original.Lines.Select(line => new { productId = line.ProductId, quantity = line.Quantity }).ToArray()
-        });
+        request.Content = System.Net.Http.Json.JsonContent.Create(BuildRecoveredCardRequest(original, state, CardToken("intent_created")));
         using var response = await client.SendAsync(request);
-        Assert.True(response.IsSuccessStatusCode, "Fresh-token handoff was not confirmed. Inspect provider state before any new run.");
+        Assert.True(response.IsSuccessStatusCode, $"Fresh-token handoff was not confirmed (HTTP {(int)response.StatusCode}). Inspect provider state before any new run.");
         await WaitForOrderStatusAsync(orders, state.OrderId, "completed", TimeSpan.FromSeconds(30));
+    }
+
+    private static PlaceOrderRequest BuildRecoveredCardRequest(OrderAggregate original, ScenarioState state, string? token) =>
+        new(state.RestaurantId, state.OrganizationId, state.BranchId, original.Currency, "card_omise_test",
+            FixtureOrderKey(state.Scenario), original.Lines.Select(line => new PlaceOrderRequestLine(line.ProductId, line.Quantity)).ToArray(),
+            state.OrderId, state.CorrelationId, token);
+
+    [Fact]
+    public async Task Rehydrated_card_fixture_keeps_original_checkout_key_in_http_request()
+    {
+        var state = new ScenarioState("intent_created", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var original = OrderAggregate.Create(state.OrderId, state.OrganizationId, state.BranchId,
+            [new OrderLine(Guid.NewGuid(), "Restored fixture", 50m, 1, "kitchen")], "THB", state.RestaurantId,
+            workflowPaymentMethod: "card_omise_test");
+        Assert.Null(original.IdempotencyKey); // Matches PostgreSQL aggregate rehydration.
+        using var content = System.Net.Http.Json.JsonContent.Create(BuildRecoveredCardRequest(original, state, null));
+        using JsonDocument body = JsonDocument.Parse(await content.ReadAsStringAsync());
+        Assert.Equal("provider-recovery-intent_created", body.RootElement.GetProperty("idempotencyKey").GetString());
+        Assert.Equal(state.OrderId, body.RootElement.GetProperty("orderId").GetGuid());
+        Assert.Equal(original.Lines[0].ProductId, body.RootElement.GetProperty("lines")[0].GetProperty("productId").GetGuid());
+        Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("cardToken").ValueKind);
     }
 
     private static async Task WriteMarkerAsync(string path, string scenario)

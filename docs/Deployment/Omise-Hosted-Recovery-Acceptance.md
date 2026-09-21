@@ -65,6 +65,31 @@ On 2026-09-17, the integration project built with zero warnings/errors; ten disc
 
 ## Opt-in fifth token-handoff scenario
 
+If `intent_created` exits before `outbox_persisted`, inspect its restricted `intent_created-hosted.out.log` first. The initial five-scenario run on 2026-09-18 failed the fresh-token HTTP assertion. Code inspection identified a fixture defect: it copied `IdempotencyKey` from a reloaded aggregate, which does not hydrate transport idempotency records, producing a missing required request key. The earlier failure log did not record the HTTP status; no historical status or provider outcome is inferred from it. The corrected fixture reuses the original seeded key, verifies it resolves to the same durable Order before submitting a token, and reports only the numeric HTTP status on a rejected handoff. It never prints response bodies or tokens. One HTTP-request serialization regression and twelve acceptance guards passed locally; no credentialed retry was performed. Inspect test-account charges before an independent fresh-token run; cleanup does not resolve remote financial state. The subsequent five-scenario acceptance passed on 2026-09-18; this failure remains historical evidence.
+
+Before starting a financial run, inject the test secret and all five distinct fresh tokens using the existing masked-input procedure. Validate the configuration without confirmation switches:
+
+```powershell
+pwsh -NoProfile -File scripts/test-order-provider-recovery-live.ps1 `
+    -Adapter Omise -IncludeCardTokenHandoff -OmiseAmount 50.00 -ValidateOnly
+```
+
+This returns a safe JSON configuration report and exits before Docker discovery, builds, run-directory creation, environment mutation, provider calls or process termination. It validates amount, strict test-key/token syntax and distinct values. It cannot establish that tokens are unused or belong to one account, that Docker is healthy, or that dependencies are restored. No acceptance pass is recorded. The execution path revalidates settings and still requires all three confirmation switches; `-ValidateOnly` cannot authorize a financial run.
+
+After successful validation and reviewing the transaction scope, execute once:
+
+```powershell
+pwsh -NoProfile -File scripts/test-order-provider-recovery-live.ps1 `
+    -Adapter Omise -IncludeCardTokenHandoff -OmiseAmount 50.00 `
+    -ConfirmDisposableInfrastructure -ConfirmProcessTermination -ConfirmSandboxTransactions
+```
+
+This five-scenario run creates five authorizations, captures three and reverses two. Failure during uncertain financial operations requires read-only inspection and fresh tokens for a new independent run; never reuse a consumed token to retry an uncertain command. Configuration-only validation consumes no tokens. Strict validation rejects trailing newline characters in secrets/tokens; inject only the copied value.
+
+Local script verification passed ten execution rejection cases and nine validation-only cases, including four/five-token success and missing, duplicate and newline rejection, with no infrastructure/provider access. The [POS card checkout pass](../Architecture/Evidence/Omise-POS-Card-Acceptance.md) is recorded separately and does not satisfy this interruption gate.
+
 The existing four-scenario Omise mode remains the default and its retained pass remains unchanged. To include `intent_created`, inject a fifth distinct unused token using the masked prompt into `NEXACONNECT_OMISE_INTENT_CREATED_TEST_TOKEN`, then add `-IncludeCardTokenHandoff` to the same guarded `-Adapter Omise` command. All five tokens and the test secret must belong to the same account; this switch is rejected for GenericHttp. See [handoff setup](Omise-POS-Card-Token-Handoff.md).
 
-The fifth scenario terminates before authorization, allows the real Order worker to bind the original pending Payment intent with zero authorization starts and no token, then submits a fresh token through real tenant-authorized Order and workload-authorized Payment HTTP using the same Order scope, lines and retry identity. It verifies Paid/captured and durable starts/outbox. This scenario does not claim an Order inbox reconciliation event: no uncertain provider operation had started. Background recovery never receives a persisted token. A passing opt-in run requires five scenarios and `cardTokenHandoffVerified=true`/`intentCreatedBeforeAuthorizationVerified=true`; no credentialed five-scenario pass or live UI/OIDC acceptance has yet been recorded. The historical four-scenario evidence remains an exclusion, not a fifth-scenario pass.
+The fifth scenario terminates before authorization, allows the real Order worker to bind the original pending Payment intent with zero authorization starts and no token, then submits a fresh token through real tenant-authorized Order and workload-authorized Payment HTTP using the same Order scope, lines and retry identity. It verifies Paid/captured and durable starts/outbox. This scenario does not claim an Order inbox reconciliation event: no uncertain provider operation had started. Background recovery never receives a persisted token. A passing opt-in run requires five scenarios and `cardTokenHandoffVerified=true`/`intentCreatedBeforeAuthorizationVerified=true`; the credentialed five-scenario pass was recorded on 2026-09-18. The separate local POS verifier passed on 2026-09-18 with operator-attested UI/OIDC steps; it does not certify this interruption boundary. The historical four-scenario evidence remains an exclusion, not a fifth-scenario pass.
+
+The [five-scenario Omise gate passed on 2026-09-18](../Architecture/Evidence/Omise-Five-Scenario-Recovery-Acceptance.md), including fresh-token pre-authorization handoff. Historical four-scenario records retain their excluded boundary. This fixture disables webhook configuration and secret inheritance; its hosted recovery pass does not certify migration-8 externally delivered signed notifications.

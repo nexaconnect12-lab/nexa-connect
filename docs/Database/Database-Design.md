@@ -1,5 +1,7 @@
 # NexaConnect Database Design
 
+Payment migration 8 owns `omise_webhook_inbox`: unique strict test event ID, nonempty financial correlation UUID plus a validated trace correlation string (up to 128 characters), pending/processing/completed/rejected/exhausted status, bounded-retry scheduling/attempt counts and fenced claim/expiry timestamps. The due-work partial index supports polling and expired claim recovery. No delivered body, signature, charge reference, metadata, token or secret is stored. Financial state/audit/outbox commit through existing Payment transactions; inbox acknowledgement is separate and replays safely against terminal state. Event identities have no inferred tenant ownership: canonical API event data must bind the exact local intent before recovery. Destructive `8→7` refuses pending, processing or exhausted evidence. Apply with migration application version at least `0.12.0`; no cross-service schema changes are introduced. See [operations](../Deployment/Omise-Webhooks.md).
+
 The WPF terminal owns a separate local schema-versioned SQLite database at `%LOCALAPPDATA%\NexaConnect\POS\pos-state.db`; it is not a service database and is never queried by backend services. Its two tables hold DPAPI-protected operational state and a terminal-bound durable outbox. See [POS local SQLite](POS-Local-SQLite.md).
 
 POS migration 4 adds append-only `pos_order_settlements`, unique event/settlement/Order identities, and an Order-unique manual cash-sale index. Projection and cash movement commit in one POS transaction. PromptPay creates no cash movement. Downgrade refuses after any projection exists.
@@ -344,6 +346,7 @@ Sensitive personal data must be minimized, access-controlled, and excluded from 
 ### 6.7 Payment
 
 - `payment_intents` — requested amount, currency, order reference, idempotency key, concurrency-controlled authorization/capture/void state, sanitized authorization/capture/void references, bounded failure category, and separate bounded recovery leases, attempts, and reconciliation timestamps.
+- `omise_webhook_inbox` — migration-8 bounded test event identity, validated trace/financial correlation, deduplicated delivery status and fenced retry lease; no provider payload or charge reference.
 - `provider_transactions` — provider identifiers and sanitized transaction results.
 - `refunds` — requested and completed refunds.
 - `reconciliation_records` — settlement and reconciliation references.

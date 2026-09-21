@@ -21,7 +21,7 @@ public sealed class PaymentReconciliationConsumer(
     IConnection connection,
     IOptions<PaymentReconciliationConsumerOptions> options,
     IDurableInboxStore inbox,
-    PaymentReconciliationApplicationService handler,
+    IServiceScopeFactory scopeFactory,
     ILogger<PaymentReconciliationConsumer> logger) : BackgroundService
 {
     private const string Consumer = "order.payment-reconciled.v1";
@@ -82,6 +82,8 @@ public sealed class PaymentReconciliationConsumer(
             }
             try
             {
+                await using var scope = scopeFactory.CreateAsyncScope();
+                var handler = scope.ServiceProvider.GetRequiredService<PaymentReconciliationApplicationService>();
                 bool applied = message switch
                 {
                     PaymentAuthorizationReconciledV1 authorization => await handler.ApplyAsync(authorization, cancellationToken),

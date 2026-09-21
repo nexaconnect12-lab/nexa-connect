@@ -1,5 +1,7 @@
 # NexaConnect Data Migration
 
+Payment migration `0008_omise_webhook_inbox` adds the optional test-account webhook identifier inbox, fenced claims/retry scheduling and due-work index. Its transactional metadata requires application version `0.12.0`; apply before enabling webhooks. Destructive `8→7` refuses pending, processing or exhausted evidence and may remove only resolved notifications after disabling ingress/worker. Controlled PostgreSQL tests use generated isolated schemas and cover deduplication, stale fences, expiration, exhaustion/downgrade refusal and financial/outbox commit before inbox acknowledgement. They do not certify external Omise delivery. See [webhook setup and failure modes](../../../docs/Deployment/Omise-Webhooks.md).
+
 This .NET console project contains the schema-first migration runner and the service-owned PostgreSQL migration catalog. Versioned SQL scripts are the source of truth for database structure; application persistence models are mapped or generated only after the target schema is validated.
 
 The agreed migration contract is defined by [ADR-001](../../../docs/Architecture/Decisions/ADR-001-schema-first-versioned-migrations.md).
