@@ -38,11 +38,11 @@ try{
     [xml]$integrationResults=Get-Content (Join-Path $run 'integration.trx') -Raw
     $unitCounters=$unitResults.TestRun.ResultSummary.Counters
     $integrationCounters=$integrationResults.TestRun.ResultSummary.Counters
-    if([int]$unitCounters.executed -ne 133 -or [int]$unitCounters.passed -ne 133 -or [int]$integrationCounters.executed -ne 13 -or [int]$integrationCounters.passed -ne 13){throw 'Expected all 133 unit and 13 HTTP/PostgreSQL cases to execute without skips.'}
+    if([int]$unitCounters.executed -ne 134 -or [int]$unitCounters.passed -ne 134 -or [int]$integrationCounters.executed -ne 13 -or [int]$integrationCounters.passed -ne 13){throw 'Expected all 134 unit and 13 HTTP/PostgreSQL cases to execute without skips.'}
     [ordered]@{
         completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')
         localVerificationPassed=$true
-        unitCases=133
+        unitCases=134
         httpCases=9
         postgresCases=4
         realProviderRequestsSent=0

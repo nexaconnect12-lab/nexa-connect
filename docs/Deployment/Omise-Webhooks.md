@@ -40,7 +40,32 @@ Service name remains `nexaconnect-payment`. The validated incoming correlation s
 
 Local verification covers raw-body signatures, replay windows, rotation, forged/live/malformed input, canonical GET validation, tenant/amount/reference binding, terminal-state protection, ingress persistence failures and rate limiting. Real PostgreSQL tests use generated isolated schemas: deduplication under concurrent insertion/claims, expired claim recovery/stale fence rejection, exhaustion/downgrade protection and a crash after financial/outbox commit before inbox acknowledgement. This is controlled local evidence, not an externally delivered Omise webhook pass.
 
-For live acceptance, use a separately authorized test checkout with a fresh token, observe signed charge notifications through a trusted HTTPS endpoint, require one inbox identity per provider event, verified local ownership/current status, normal Order outcome and duplicate delivery without extra financial starts. Include a Payment restart and retain sanitized evidence. Do not retry uncertain financial operations. External webhook delivery acceptance remains pending; the prior [five-scenario hosted recovery pass](../Architecture/Evidence/Omise-Five-Scenario-Recovery-Acceptance.md) remains separate.
+The guarded live runner is `scripts/test-payment-omise-webhook-live.ps1`. It owns generated disposable PostgreSQL/RabbitMQ resources and an isolated Testing Payment host. Normal `PaymentProvider__AuthorizationRecoveryEnabled` behavior defaults to `true`; this acceptance host alone disables that polling worker so the observed authorization transition is attributable to webhook recovery. A Testing-only boundary pauses only after status-only authorization reconciliation commits and before the inbox acknowledgement. The runner terminates that exact Payment process, restarts it, waits for the one-minute inbox lease to expire, and submits one locally signed replay of the already received event identity. The replay proves durable deduplication; it is not another provider financial command or independent provider redelivery.
+
+Before running it, expose local port 5272 through a temporary publicly trusted HTTPS tunnel restricted to `/api/payment/v1/webhooks/omise`, then register that exact URL in the Omise **test** dashboard. Create one fresh test token and inject all three values without printing them:
+
+```powershell
+$key = Read-Host 'Omise TEST secret key' -AsSecureString
+$token = Read-Host 'Fresh Omise TEST token' -AsSecureString
+$hook = Read-Host 'Omise TEST webhook secret (base64)' -AsSecureString
+$env:NEXACONNECT_OMISE_TEST_SECRET_KEY = [Net.NetworkCredential]::new('', $key).Password
+$env:NEXACONNECT_OMISE_WEBHOOK_LIVE_TEST_TOKEN = [Net.NetworkCredential]::new('', $token).Password
+$env:NEXACONNECT_OMISE_WEBHOOK_TEST_SECRET = [Net.NetworkCredential]::new('', $hook).Password
+$key.Dispose(); $token.Dispose(); $hook.Dispose()
+
+pwsh -NoProfile -File scripts/test-payment-omise-webhook-live.ps1 `
+  -PublicWebhookUrl 'https://<temporary-test-host>/api/payment/v1/webhooks/omise' `
+  -ValidateOnly
+
+pwsh -NoProfile -File scripts/test-payment-omise-webhook-live.ps1 `
+  -PublicWebhookUrl 'https://<temporary-test-host>/api/payment/v1/webhooks/omise' `
+  -ConfirmDisposableInfrastructure -ConfirmProcessTermination `
+  -ConfirmSandboxTransaction -ConfirmDashboardWebhookConfigured
+```
+
+Validation performs no infrastructure, provider or financial operation. The full run probes the exact public route before consuming the token, creates one THB 50 test authorization, and never retries a failed or uncertain authorization. If authorization may have reached Omise, inspect the test-account charge before any new run and supply a different fresh token. The test authorization remains in the test account; the runner does not capture, reverse or refund it. It removes its processes, disposable containers, binaries and raw logs, retaining only identifier-free evidence and a summary under `.runstate/payment-omise-webhook-live/<run>/`.
+
+A pass establishes real signed external delivery, authenticated canonical event/current-charge reads, exact local tenant/intent/Order metadata binding, a financial/outbox commit before inbox acknowledgement, exact Payment process termination, expired-lease restart recovery, and duplicate ingress without another financial transition. It does not certify a provider-originated redelivery, a full Order/POS checkout, capture, production networking or production activation. The prior [five-scenario hosted recovery pass](../Architecture/Evidence/Omise-Five-Scenario-Recovery-Acceptance.md) remains the Order/Payment workflow evidence. External webhook delivery acceptance remains pending until this runner completes successfully in the configured test account.
 
 ## Local regression verification
 
@@ -50,4 +75,4 @@ Start the existing local Compose PostgreSQL service and restore solution depende
 pwsh -NoProfile -File scripts/test-payment-omise-webhook-local.ps1
 ```
 
-The runner requires local Docker Desktop, reads the local database credential into a hidden child environment rather than command arguments, strips inherited Omise credentials, restores parent values, and uses generated isolated PostgreSQL schemas that tests clean up. It requires all 133 unit, 9 HTTP and 4 real PostgreSQL cases to execute without skips. It sends no real provider requests or financial commands and does not change product records. Inspect its safe `.runstate/payment-omise-webhook-local/<run>/summary.json`. The verified run `6a02840b0a1449098f39ef2282825e62`, completed at `2026-09-18T05:00:07.6324040+00:00`, passed these checks. Lease-expiry recovery is simulated; process termination and external signed webhook delivery remain unverified. This regression does not replace external test-dashboard delivery acceptance.
+The runner requires local Docker Desktop, reads the local database credential into a hidden child environment rather than command arguments, strips inherited Omise credentials, restores parent values, and uses generated isolated PostgreSQL schemas that tests clean up. It requires all 134 unit, 9 HTTP and 4 real PostgreSQL cases to execute without skips. It sends no real provider requests or financial commands and does not change product records. Inspect its safe `.runstate/payment-omise-webhook-local/<run>/summary.json`. Run `f5ba45fe4bb74dbf88ec7178a127f199`, completed at `2026-09-21T23:55:12.1784211+00:00`, passed the current 134/9/4 matrix. Lease-expiry recovery is simulated; process termination and external signed webhook delivery remain unverified by that local run. This regression does not replace external test-dashboard delivery acceptance.

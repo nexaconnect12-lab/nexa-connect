@@ -33,6 +33,7 @@ public sealed record WebhookClaim(string EventId, Guid Fence, Guid CorrelationId
 public sealed record VerifiedOmiseEvent(Guid OrganizationId, Guid IntentId, Guid OrderId,
     string ChargeId, long AmountSatang, string Currency);
 public sealed record OmiseEventLookup(VerifiedOmiseEvent? Event, bool Retry);
+public sealed record OmiseWebhookProcessResult(string Outcome, bool FinancialTransitionCommitted);
 public interface IOmiseEventVerifier
 {
     Task<OmiseEventLookup> VerifyAsync(string eventId, CancellationToken token);
@@ -60,21 +61,21 @@ public sealed class OmiseWebhookIngress(IOmiseWebhookInbox inbox)
 
 public sealed class OmiseWebhookProcessor(IOmiseEventVerifier verifier, IPaymentIntents intents, IWebhookPaymentRecovery recovery)
 {
-    public async Task<string> ProcessAsync(WebhookClaim claim, CancellationToken token)
+    public async Task<OmiseWebhookProcessResult> ProcessAsync(WebhookClaim claim, CancellationToken token)
     {
         OmiseEventLookup lookup = await verifier.VerifyAsync(claim.EventId, token);
-        if (lookup.Event is not { } message) return lookup.Retry ? "retry" : "rejected";
+        if (lookup.Event is not { } message) return new(lookup.Retry ? "retry" : "rejected", false);
         PaymentIntent? intent = intents.Get(message.OrganizationId, message.IntentId);
         if (intent is null || intent.OrganizationId != message.OrganizationId || intent.OrderId != message.OrderId
             || intent.PaymentMethod != "card" || intent.Currency != "THB" || message.Currency != "THB"
             || intent.Amount <= 0 || decimal.Truncate(intent.Amount * 100) != intent.Amount * 100
             || intent.Amount * 100 != message.AmountSatang
             || intent.ProviderAuthorizationId is { } reference && reference != message.ChargeId)
-            return "rejected";
+            return new("rejected", false);
         // Delayed notifications never regress terminal state or start a new financial command.
         if (intent.Status is not ("authorizing" or "unknown" or "capturing" or "capture_unknown" or "voiding" or "void_unknown"))
-            return "completed";
-        return await recovery.ReconcileAsync(intent, new("omise-webhook-recovery", claim.CorrelationId), token)
-            ? "completed" : "retry";
+            return new("completed", false);
+        bool reconciled = await recovery.ReconcileAsync(intent, new("omise-webhook-recovery", claim.CorrelationId), token);
+        return new(reconciled ? "completed" : "retry", reconciled);
     }
 }

@@ -130,11 +130,13 @@ public sealed class OmiseWebhookPersistenceTests : IAsyncLifetime
         var processor=new App.OmiseWebhookProcessor(new Verifier(new(org,intent.Id,intent.OrderId,charge,5000,"THB")),intents,recovery);
         string id=EventId(); await Inbox.EnqueueAsync(id,context.CorrelationId,default);
         var first=(await Inbox.ClaimAsync(TimeSpan.FromMinutes(5),default))!;
-        Assert.Equal("completed",await processor.ProcessAsync(first,default));
+        var firstResult=await processor.ProcessAsync(first,default);
+        Assert.Equal("completed",firstResult.Outcome); Assert.True(firstResult.FinancialTransitionCommitted);
         long version=intents.Get(org,intent.Id)!.ConcurrencyVersion;
         // Simulate loss of the worker after Payment/outbox commit, before inbox acknowledgement.
         await Expire(id); var resumed=(await new Hooks.PostgresOmiseWebhookInbox(source!).ClaimAsync(TimeSpan.FromMinutes(5),default))!;
-        Assert.Equal("completed",await processor.ProcessAsync(resumed,default));
+        var resumedResult=await processor.ProcessAsync(resumed,default);
+        Assert.Equal("completed",resumedResult.Outcome); Assert.False(resumedResult.FinancialTransitionCommitted);
         await Inbox.FinishAsync(resumed,"completed",TimeSpan.FromSeconds(30),20,default);
         Assert.Equal(1,provider.Reads); Assert.Equal(version,intents.Get(org,intent.Id)!.ConcurrencyVersion);
         await using var count=source!.CreateCommand("SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1 AND event_type='payment.capture-reconciled.v1'");

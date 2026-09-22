@@ -40,6 +40,15 @@ builder.Services.AddOptions<OmiseWebhookOptions>().Bind(builder.Configuration.Ge
         builder.Configuration.GetValue("PaymentProvider:RequestTimeout", TimeSpan.FromSeconds(15)) * 5 + TimeSpan.FromSeconds(30),
         "Webhook lease must cover bounded event and charge verification.")
     .ValidateOnStart();
+builder.Services.AddOptions<OmiseWebhookAcceptanceOptions>().Bind(builder.Configuration.GetSection("OmiseWebhookAcceptance"))
+    .Validate(options => !options.Enabled || builder.Environment.IsEnvironment("Testing"),
+        "The Omise webhook interruption boundary is available only in Testing.")
+    .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.MarkerPath)
+        && !string.IsNullOrWhiteSpace(options.ControlPath)
+        && Path.IsPathRooted(options.MarkerPath) && Path.IsPathRooted(options.ControlPath)
+        && !Path.GetFullPath(options.MarkerPath).Equals(Path.GetFullPath(options.ControlPath), StringComparison.OrdinalIgnoreCase),
+        "Testing webhook interruption paths must be distinct absolute paths.")
+    .ValidateOnStart();
 IHealthChecksBuilder healthChecks = builder.Services.AddHealthChecks();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<IServiceWorkloadTokenProvider, ServiceWorkloadTokenProvider>();
@@ -121,7 +130,8 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     builder.Services.AddHostedService<PaymentOperationalMetricsWorker>();
     if (builder.Configuration["PaymentProvider:Adapter"] is "GenericHttp" or "Omise")
     {
-        builder.Services.AddHostedService<PaymentAuthorizationRecoveryWorker>();
+        if (builder.Configuration.GetValue("PaymentProvider:AuthorizationRecoveryEnabled", true))
+            builder.Services.AddHostedService<PaymentAuthorizationRecoveryWorker>();
         builder.Services.AddPaymentCaptureRecoveryWorker(builder.Configuration);
         if (builder.Configuration.GetValue("PaymentProvider:VoidRecoveryEnabled", true))
             builder.Services.AddHostedService<PaymentVoidRecoveryWorker>();
@@ -141,6 +151,10 @@ if (builder.Configuration.GetValue<bool>("OmiseWebhooks:Enabled"))
     builder.Services.AddScoped<IWebhookPaymentRecovery, WebhookPaymentRecovery>();
     builder.Services.AddScoped<OmiseWebhookProcessor>();
     builder.Services.AddScoped<OmiseWebhookIngress>();
+    if (builder.Configuration.GetValue<bool>("OmiseWebhookAcceptance:Enabled"))
+        builder.Services.AddSingleton<IOmiseWebhookProcessingBoundary, FileOmiseWebhookProcessingBoundary>();
+    else
+        builder.Services.AddSingleton<IOmiseWebhookProcessingBoundary, NoOpOmiseWebhookProcessingBoundary>();
     builder.Services.AddHttpClient<IOmiseEventVerifier, OmiseEventVerifier>((services, client) =>
     {
         client.BaseAddress = new Uri("https://api.omise.co/");

@@ -20,6 +20,32 @@ public sealed class OmiseWebhookTests
     private static string Sign(byte[] body, string timestamp) => Convert.ToHexStringLower(
         HMACSHA256.HashData(Key, Encoding.UTF8.GetBytes(timestamp + ".").Concat(body).ToArray()));
 
+    [Fact]
+    public async Task Testing_boundary_pauses_after_safe_marker_until_explicit_control()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "nexa-omise-boundary-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string marker = Path.Combine(directory, "marker.json"), control = Path.Combine(directory, "control.json");
+        try
+        {
+            var boundary = new FileOmiseWebhookProcessingBoundary(Options.Create(new OmiseWebhookAcceptanceOptions
+            { Enabled = true, MarkerPath = marker, ControlPath = control }));
+            await boundary.AfterProcessingAsync("retry", false, default);
+            Assert.False(File.Exists(marker));
+            await boundary.AfterProcessingAsync("completed", false, default);
+            Assert.False(File.Exists(marker));
+            Task paused = boundary.AfterProcessingAsync("completed", true, default);
+            for (int attempt = 0; attempt < 50 && !File.Exists(marker); attempt++) await Task.Delay(20);
+            Assert.True(File.Exists(marker)); Assert.False(paused.IsCompleted);
+            string text = await File.ReadAllTextAsync(marker);
+            Assert.Contains("financial_committed_before_inbox_ack", text);
+            Assert.DoesNotContain("evnt_", text); Assert.DoesNotContain("chrg_", text);
+            await File.WriteAllTextAsync(control, "{\"phase\":\"continue\"}");
+            await paused.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
     [Theory]
     [InlineData("valid", true)] [InlineData("modified", false)] [InlineData("old", false)]
     [InlineData("future", false)] [InlineData("malformed", false)] [InlineData("rotation", true)]
@@ -112,7 +138,8 @@ public sealed class OmiseWebhookTests
         var lookup=new Lookup(kind=="unverified"?new(null,false):kind=="transport"?new(null,true):new(message,false));
         var recovery=new Recovery(kind!="busy");
         var processor=new OmiseWebhookProcessor(lookup,intents,recovery);
-        Assert.Equal(expected,await processor.ProcessAsync(new(EventId,Guid.NewGuid(),context.CorrelationId,1),default));
+        var result=await processor.ProcessAsync(new(EventId,Guid.NewGuid(),context.CorrelationId,1),default);
+        Assert.Equal(expected,result.Outcome); Assert.Equal(expected=="completed"&&calls==1,result.FinancialTransitionCommitted);
         Assert.Equal(calls,recovery.Calls);
     }
     [Fact]
@@ -126,7 +153,11 @@ public sealed class OmiseWebhookTests
         intent=intents.CompleteCapture(org,intent.Id,capture.Intent.ConcurrencyVersion,ProviderCaptureOutcome.Captured,ChargeId,null,context);
         var recovery=new Recovery(true);
         var processor=new OmiseWebhookProcessor(new Lookup(new(new(org,intent.Id,intent.OrderId,ChargeId,5000,"THB"),false)),intents,recovery);
-        for(int i=0;i<3;i++) Assert.Equal("completed",await processor.ProcessAsync(new(EventId,Guid.NewGuid(),context.CorrelationId,1),default));
+        for(int i=0;i<3;i++)
+        {
+            var result=await processor.ProcessAsync(new(EventId,Guid.NewGuid(),context.CorrelationId,1),default);
+            Assert.Equal("completed",result.Outcome); Assert.False(result.FinancialTransitionCommitted);
+        }
         Assert.Equal(0,recovery.Calls); Assert.Equal(intent.ConcurrencyVersion,intents.Get(org,intent.Id)!.ConcurrencyVersion);
     }
 }
