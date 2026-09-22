@@ -1,0 +1,7 @@
+# Omise webhook recovery acceptance
+
+The guarded Omise test-account webhook process-interruption acceptance passed on 2026-09-22. The inspected sanitized evidence is `.runstate/payment-omise-webhook-live/ea25023052b5406a8c878663aceabbae/`, completed at `2026-09-22T01:09:32.8263964+00:00`.
+
+The evidence confirms one real externally signed test-dashboard delivery, authenticated canonical event and current-charge reads, exact local Payment/Order ownership binding, a financial/outbox commit before inbox acknowledgement, exact Payment process termination, expired inbox-lease recovery after restart, and signed duplicate replay without another financial transition. It records one authorization command start, one authorization reconciliation, one inbox event and no duplicate financial transition. Disposable infrastructure cleanup passed; provider references, event identifiers, signatures, bodies, secrets and raw service logs were not retained.
+
+This pass closes the test-account external webhook delivery and post-commit/pre-acknowledgement interruption gate. It does not certify provider-originated redelivery, a full Order/POS checkout, capture, production networking, production secret rotation, production activation, 3DS, PromptPay, refunds or settlement. Existing status polling remains required because Omise does not guarantee webhook retries. See the [procedure and operational boundaries](../../Deployment/Omise-Webhooks.md) and [ADR-010](../Decisions/ADR-010-verified-omise-webhook-recovery.md).

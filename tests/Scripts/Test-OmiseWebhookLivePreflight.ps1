@@ -1,6 +1,12 @@
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 $root=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
 $runner=Join-Path $root 'scripts/test-payment-omise-webhook-live.ps1'
+$runnerSource=Get-Content -LiteralPath $runner -Raw
+if($runnerSource-match'(?i)(?<!\.)\$host\b'){throw 'The runner must not use the read-only PowerShell Host automatic variable as a process handle.'}
+if($runnerSource-match'(?i)\breturn(?=\[)'){throw 'The runner must separate the return keyword from a following type conversion.'}
+$localProbe='Test-WebhookRoute ([Uri]"http://127.0.0.1:$ListenerPort/api/payment/v1/webhooks/omise") ''Local Payment'''
+$publicProbe='Test-WebhookRoute $PublicWebhookUrl ''Public HTTPS'''
+if(-not$runnerSource.Contains($localProbe)-or-not$runnerSource.Contains($publicProbe)-or$runnerSource-notmatch"(?s)function Test-WebhookRoute.*-Method Post.*expected 400 from the signed non-event probe"){throw 'The runner must distinguish local Payment routing from public HTTPS tunnel failures with a signed non-event probe before authorization.'}
 $names=@('NEXACONNECT_OMISE_TEST_SECRET_KEY','NEXACONNECT_OMISE_WEBHOOK_LIVE_TEST_TOKEN','NEXACONNECT_OMISE_WEBHOOK_TEST_SECRET');$saved=@{}
 foreach($name in $names){$saved[$name]=[Environment]::GetEnvironmentVariable($name)}
 try{
@@ -18,5 +24,5 @@ try{
  $env:NEXACONNECT_OMISE_WEBHOOK_LIVE_TEST_TOKEN=$null;$message=$null
  try{&$runner -PublicWebhookUrl 'https://acceptance.example.test/api/payment/v1/webhooks/omise' -ValidateOnly|Out-Null}catch{$message=$_.Exception.Message}
  if($message-notlike'Inject one fresh token*'){throw 'Missing-token preflight did not fail closed.'}
- 'Omise webhook live preflight tests passed (5 cases).'
+ 'Omise webhook live preflight tests passed (8 cases).'
 }finally{foreach($name in $names){[Environment]::SetEnvironmentVariable($name,$saved[$name])}}
