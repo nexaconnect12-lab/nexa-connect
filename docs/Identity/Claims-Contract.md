@@ -46,3 +46,5 @@ POS Cash Review uses the existing public `nexaconnect-pos` Authorization Code + 
 - Do not log raw access, identity, or refresh tokens.
 - Use `sub` rather than username or email as the durable identity reference.
 - Treat missing authorization context as denial.
+
+The online Kitchen queue reuses `kitchen.ticket.read` and `kitchen.ticket.transition` with current product membership and Restaurant-owned branch scope. Customer BFF cookie/tenant binding and membership revalidation do not replace Kitchen authorization. The Order workload has no operator-route bypass. Kitchen transitions require the existing BFF antiforgery cookie plus `X-Nexa-CSRF`; see [the operator contract](../API/Kitchen-Queue.md). No new role, claim or permission migration is introduced.

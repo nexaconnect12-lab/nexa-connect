@@ -220,7 +220,7 @@ Open shift
 → Produce a daily sales and kitchen-time report
 ```
 
-The Catalog/Menu → Order → Inventory → Kitchen → Payment portion is implemented by the Order application workflow. Kitchen owns queued/in-progress/ready/completed/cancelled ticket transitions, exact Order creation/compensation, tenant operator authorization, append-only history/audit, and transactional lifecycle publication. Canonical station identity, item-level KDS queues, and LAN/offline execution remain planned.
+The Catalog/Menu → Order → Inventory → Kitchen → Payment portion is implemented by the Order application workflow. Kitchen owns queued/in-progress/ready/completed/cancelled ticket transitions, exact Order creation/compensation, tenant operator authorization, append-only history/audit, and transactional lifecycle publication. The online ticket-level [Kitchen queue](../API/Kitchen-Queue.md) exposes active branch/station work and version-fenced Start/Ready/Complete controls through the Customer BFF. Preparation remains independent of payment; completed tickets block whole-order cancellation and require operational investigation. [ADR-011](Decisions/ADR-011-online-kitchen-queue.md) records this limited browser surface. Canonical station identity, item-level preparation, dedicated KDS hardware, and LAN/offline execution remain planned.
 
 ## 9. Kitchen execution rules
 

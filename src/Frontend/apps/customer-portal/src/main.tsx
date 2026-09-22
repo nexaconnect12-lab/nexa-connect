@@ -1,3 +1,4 @@
+import { KitchenQueuePanel } from "./KitchenQueuePanel";
 import React, { useEffect, useState } from "react";
 import { PaymentReviewPanel } from "./PaymentReviewPanel";
 import { createRoot } from "react-dom/client";
@@ -249,7 +250,7 @@ function FeaturePanel({
 }: {
   section: Exclude<
     PortalSection,
-    "profile" | "products" | "users" | "configuration" | "branches" | "dashboards" | "reports" | "media" | "activity" | "payment-reviews"
+    "profile" | "products" | "users" | "configuration" | "branches" | "dashboards" | "reports" | "media" | "activity" | "payment-reviews" | "kitchen"
   >;
 }) {
   const state = useRequest<FeatureResponse>(scopedFeaturePath(section));
@@ -303,8 +304,9 @@ function App() {
     media: "Media management",
     activity: "Activity & audit history",
     "payment-reviews": "Payment Reviews",
+    kitchen: "Kitchen queue",
   };
-  const nav = sections.filter(key=>key!=="payment-reviews"||tenant?.applicationCode==="nexa_connect").map((key) => ({
+  const nav = sections.filter(key=>(key!=="payment-reviews"&&key!=="kitchen")||tenant?.applicationCode==="nexa_connect").map((key) => ({
     key,
     label: labels[key],
     onSelect: () => {
@@ -359,6 +361,9 @@ function App() {
   else if (section === "reports") panel = <ReportsPanel />;
   else if (section === "media") panel = <MediaPanel />;
   else if (section === "activity") panel = <ActivityPanel />;
+  else if (section === "kitchen") panel = tenant.applicationCode==="nexa_connect"
+    ? <KitchenQueuePanel key={`${tenant.organizationId}|${tenant.applicationCode}`} />
+    : <Alert type="warning" message="Kitchen queue requires the NexaConnect product workspace."/>;
   else if (section === "payment-reviews") panel = tenant.applicationCode==="nexa_connect"
     ? <PaymentReviewPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} />
     : <Alert type="warning" message="Payment Reviews require the NexaConnect product workspace."/>;

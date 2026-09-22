@@ -32,3 +32,5 @@ The authorization UI helpers receive an evaluator from the consuming portal. The
 The API client uses same-origin BFF cookies. It does not accept or store OAuth tokens. State-changing requests still require the anti-forgery contract selected by the owning BFF; callers can pass the resulting safe request header through `RequestOptions`.
 
 Telemetry attributes are allow-by-construction primitives and keys that suggest tokens, cookies, secrets, passwords, authorization data, bodies, personal contacts, or card data are dropped. Portals should record stable route templates rather than raw URLs and must configure a distinct service name, such as `nexaconnect-customer-portal` or `nexaconnect-admin-portal`.
+
+Kitchen queue browser contracts run with `npm run test:e2e:kitchen`; see [fixtures and evidence boundaries](e2e/kitchen/README.md). The tenant-scoped screen uses the Customer BFF and existing Kitchen permissions; it is an online ticket-level surface.

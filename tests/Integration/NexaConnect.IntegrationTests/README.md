@@ -195,3 +195,5 @@ dotnet test tests/Integration/NexaConnect.IntegrationTests/NexaConnect.Integrati
 ```
 
 It verifies that a failed event is eligible for a later claim and is removed from the replay queue only after publication is marked successful.
+
+Kitchen queue coverage includes authenticated HTTP scope/version checks, real BFF cookie/CSRF boundaries with test ports, fixed-route adapter encoding, and opt-in PostgreSQL keyset isolation/concurrent transition/rollback tests. Run the Kitchen filter plus `RestaurantWorkflowCrossService`. Database/broker/migration tests require their existing disposable-infrastructure opt-ins; skipped cases are not evidence. See [Kitchen queue verification](../../../docs/API/Kitchen-Queue.md).

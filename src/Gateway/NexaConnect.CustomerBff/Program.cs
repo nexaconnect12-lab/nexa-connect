@@ -19,6 +19,8 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 // MVC view services register the built-in anti-forgery authorization filter used by the JSON controller.
 builder.Services.AddControllersWithViews();
 builder.Services.AddAntiforgery(options=>{options.HeaderName="X-Nexa-CSRF";options.Cookie.Name="__Host-nexa-payment-review-csrf";options.Cookie.SecurePolicy=CookieSecurePolicy.Always;options.Cookie.HttpOnly=true;options.Cookie.SameSite=SameSiteMode.Strict;options.Cookie.Path="/";});
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Kitchen.CustomerKitchenService>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Kitchen.ICustomerKitchenPort,NexaConnect.CustomerBff.Infrastructure.Kitchen.HttpCustomerKitchenPort>(client=>{client.BaseAddress=new Uri(builder.Configuration["Services:Kitchen"]??throw new InvalidOperationException("Services:Kitchen is required."));client.Timeout=TimeSpan.FromSeconds(15);}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.PaymentReviews.CustomerPaymentReviewService>();
 builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.PaymentReviews.ICustomerPaymentReviewPort,HttpCustomerPaymentReviewPort>(client=>client.BaseAddress=new Uri(builder.Configuration["Services:Order"]??throw new InvalidOperationException("Services:Order is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddOpenApi();

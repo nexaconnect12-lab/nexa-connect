@@ -332,7 +332,7 @@ Order lines store the commercial product and price snapshot used at checkout. Th
 - `kitchen_status_history` — append-only ticket and item transitions.
 - `kitchen_adjustments` — additions, quantity changes, cancellations, and void instructions received after submission.
 
-Kitchen records are created idempotently from accepted Ordering events. An order may produce multiple station tickets, but Kitchen does not recalculate commercial totals or payment state.
+The current Order workflow creates Kitchen records idempotently through the authenticated Kitchen HTTP API using accepted order-line snapshots. An order may produce multiple station tickets, but Kitchen does not recalculate commercial totals or payment state.
 
 ### 6.6 Customer
 
@@ -529,3 +529,7 @@ Create Architecture Decision Records for:
 - Criteria for introducing MongoDB for complex document-oriented results.
 - Branch-edge database technology, backup, upgrade, and recovery model.
 - Reporting projection storage, retention, replay, and freshness requirements.
+
+### Online Kitchen queue persistence
+
+The queue uses existing Kitchen migration 3 tables and `ix_kitchen_tickets_organization_branch_status`. A parameterized, single-statement query filters organization, branch, active status and optional station code, selects at most limit + 1 ticket headers by `(queued_at_utc,id)`, then joins their immutable item snapshots. Cursors do not carry authority. No migration, event-schema or cross-service database change is introduced. Existing transition row locks and atomic ticket/items/history/audit/outbox writes remain authoritative. See [Kitchen queue](../API/Kitchen-Queue.md).

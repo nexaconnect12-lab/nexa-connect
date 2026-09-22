@@ -3,6 +3,48 @@ using KitchenContext=KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenMu
 namespace NexaConnect.IntegrationTests;
 public sealed class KitchenPostgresIntegrationTests:IAsyncLifetime
 {
+ [KitchenDatabaseFact]
+ public async Task Queue_keyset_is_tenant_branch_station_scoped_and_survives_removal()
+ {
+  Guid organization=Guid.NewGuid(),branch=Guid.NewGuid();
+  var repo=new KitchenRepository(dataSource!);
+  var queue=new KITCHEN::NexaConnect.Services.Kitchen.Infrastructure.PostgresKitchenQueueStore(dataSource!);
+  var context=new KitchenContext("queue-test",Guid.NewGuid());
+  async Task<KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenTicket> Create(Guid org,Guid location,string station)=>
+   await repo.CreateAsync(org,new(Guid.NewGuid(),Guid.NewGuid(),location,[new(Guid.NewGuid(),"Meal",1,station)]),context,default);
+  var first=await Create(organization,branch,"grill");var second=await Create(organization,branch,"grill");
+  await Create(Guid.NewGuid(),branch,"grill");await Create(organization,Guid.NewGuid(),"grill");await Create(organization,branch,"bar");
+  // Tie timestamps to exercise the stable UUID tiebreaker, including after a deleted queue member.
+  await using(var c=await dataSource!.OpenConnectionAsync())
+  await using(var q=new NpgsqlCommand("UPDATE kitchen_tickets SET queued_at_utc='2026-09-22T00:00:00Z'",c))await q.ExecuteNonQueryAsync();
+  var query=new KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenQueueQuery(organization,branch,"grill",1,null);
+  var page=await queue.ListActiveAsync(query,default);Assert.Equal(2,page.Count);
+  Assert.All(page,x=>{Assert.Equal(organization,x.OrganizationId);Assert.Equal(branch,x.BranchId);Assert.Equal("grill",Assert.Single(x.Lines).PreparationStation);});
+  Assert.True(page[0].TicketId.CompareTo(page[1].TicketId)<0);
+  var cursor=new KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenQueuePosition(page[0].QueuedAtUtc,page[0].TicketId);
+  await repo.CancelAsync(organization,branch,page[0].OrderId,context,default);
+  var tail=await queue.ListActiveAsync(query with{After=cursor},default);Assert.Equal(page[1].TicketId,Assert.Single(tail).TicketId);
+  Assert.Empty(await queue.ListActiveAsync(query with{OrganizationId=Guid.NewGuid()},default));
+ }
+ [KitchenDatabaseFact]
+ public async Task Operator_race_and_failed_publication_preserve_one_atomic_transition()
+ {
+  var repo=new KitchenRepository(dataSource!);Guid org=Guid.NewGuid(),branch=Guid.NewGuid();var context=new KitchenContext("queue-test",Guid.NewGuid());
+  var ticket=await repo.CreateAsync(org,new(Guid.NewGuid(),Guid.NewGuid(),branch,[new(Guid.NewGuid(),"Meal",1,"grill")]),context,default);
+  var results=await Task.WhenAll(Enumerable.Range(0,2).Select(async _=>
+  {try{await repo.TransitionAsync(org,ticket.TicketId,new(KitchenStatus.InProgress,1),context,default);return true;}
+   catch(KITCHEN::NexaConnect.Services.Kitchen.Domain.KitchenConflictException){return false;}}));
+  Assert.Single(results,x=>x);
+  await using(var c=await dataSource!.OpenConnectionAsync())await new NpgsqlCommand("ALTER TABLE outbox_messages RENAME TO unavailable_outbox_messages",c).ExecuteNonQueryAsync();
+  try{await Assert.ThrowsAsync<PostgresException>(()=>repo.TransitionAsync(org,ticket.TicketId,new(KitchenStatus.Ready,2),context,default));}
+  finally{await using var c=await dataSource!.OpenConnectionAsync();await new NpgsqlCommand("ALTER TABLE unavailable_outbox_messages RENAME TO outbox_messages",c).ExecuteNonQueryAsync();}
+  Assert.Equal(KitchenStatus.InProgress,(await repo.GetAsync(org,ticket.TicketId,default))!.Status);
+  await using var verify=await dataSource!.OpenConnectionAsync();
+  Assert.Equal(2L,await Scalar(verify,"SELECT count(*) FROM kitchen_status_history WHERE kitchen_ticket_id=$1",ticket.TicketId));
+  Assert.Equal(4L,await Scalar(verify,"SELECT count(*) FROM outbox_messages WHERE aggregate_id=$1",ticket.TicketId));
+  await repo.CancelAsync(org,branch,ticket.OrderId,context,default);
+  await Assert.ThrowsAsync<KITCHEN::NexaConnect.Services.Kitchen.Domain.KitchenConflictException>(()=>repo.TransitionAsync(org,ticket.TicketId,new(KitchenStatus.Ready,2),context,default));
+ }
  private readonly string? value=Environment.GetEnvironmentVariable("NEXACONNECT_KITCHEN_INTEGRATION_DB");private NpgsqlDataSource? dataSource;private string? schema;
  [KitchenDatabaseFact]public async Task Multi_station_idempotency_and_lifecycle_are_atomic(){Guid organization=Guid.NewGuid(),restaurant=Guid.NewGuid(),branch=Guid.NewGuid(),order=Guid.NewGuid(),correlation=Guid.NewGuid();var repo=new KitchenRepository(dataSource!);var context=new KitchenContext("kitchen-test",correlation);var grill=new KitchenCreate(restaurant,order,branch,[new KitchenLine(Guid.NewGuid(),"Burger",1,"grill")]);var bar=new KitchenCreate(restaurant,order,branch,[new KitchenLine(Guid.NewGuid(),"Cola",1,"bar")]);var first=await repo.CreateAsync(organization,grill,context,default);var replay=await repo.CreateAsync(organization,grill,context,default);var second=await repo.CreateAsync(organization,bar,context,default);Assert.Equal(first.TicketId,replay.TicketId);Assert.NotEqual(first.TicketId,second.TicketId);var started=await repo.TransitionAsync(organization,first.TicketId,new KitchenTransition(KitchenStatus.InProgress,1),context,default);var ready=await repo.TransitionAsync(organization,first.TicketId,new KitchenTransition(KitchenStatus.Ready,2),context,default);Assert.Equal(3,ready.ConcurrencyVersion);Assert.Single(ready.Lines);Assert.Null(await repo.GetAsync(Guid.NewGuid(),first.TicketId,default));await using var connection=await dataSource!.OpenConnectionAsync();Assert.Equal(4L,await Scalar(connection,"SELECT count(*) FROM kitchen_status_history"));Assert.Equal(4L,await Scalar(connection,"SELECT count(*) FROM kitchen_audit_records"));Assert.Equal(8L,await Scalar(connection,"SELECT count(*) FROM outbox_messages"));await using var mutate=new NpgsqlCommand("DELETE FROM kitchen_status_history",connection);await Assert.ThrowsAsync<PostgresException>(()=>mutate.ExecuteNonQueryAsync());}
  [KitchenDatabaseFact]public async Task Outbox_failure_rolls_back_ticket_history_and_audit(){Guid organization=Guid.NewGuid(),order=Guid.NewGuid();await using(var c=await dataSource!.OpenConnectionAsync())await new NpgsqlCommand("ALTER TABLE outbox_messages RENAME TO unavailable_outbox_messages",c).ExecuteNonQueryAsync();try{var repo=new KitchenRepository(dataSource!);await Assert.ThrowsAsync<PostgresException>(()=>repo.CreateAsync(organization,new(Guid.NewGuid(),order,Guid.NewGuid(),[new(Guid.NewGuid(),"Burger",1,"grill")]),new("kitchen-test",Guid.NewGuid()),default));}finally{await using var c=await dataSource!.OpenConnectionAsync();await new NpgsqlCommand("ALTER TABLE unavailable_outbox_messages RENAME TO outbox_messages",c).ExecuteNonQueryAsync();}await using var verify=await dataSource!.OpenConnectionAsync();Assert.Equal(0L,await Scalar(verify,"SELECT count(*) FROM kitchen_tickets WHERE organization_id=$1 AND order_id=$2",organization,order));Assert.Equal(0L,await Scalar(verify,"SELECT count(*) FROM kitchen_audit_records WHERE organization_id=$1",organization));}

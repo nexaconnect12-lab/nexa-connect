@@ -1,15 +1,29 @@
 using System.Security.Cryptography;using System.Text;using NexaConnect.Services.Kitchen.Application;using NexaConnect.Services.Kitchen.Domain;
 namespace NexaConnect.Services.Kitchen.Infrastructure;
-public sealed class InMemoryKitchenTicketStore:IKitchenTicketStore
+public sealed class InMemoryKitchenTicketStore:IKitchenTicketStore,IKitchenQueueStore
 {
  private readonly Dictionary<Guid,(KitchenTicket Ticket,string Fingerprint)> tickets=[];private readonly object gate=new();
+ public Task<IReadOnlyList<KitchenTicket>> ListActiveAsync(KitchenQueueQuery query,CancellationToken ct)
+ {
+  lock(gate)
+  {
+   IReadOnlyList<KitchenTicket> result=tickets.Values.Select(x=>x.Ticket)
+    .Where(x=>x.OrganizationId==query.OrganizationId&&x.BranchId==query.BranchId
+      &&x.Status is KitchenTicketStatus.Queued or KitchenTicketStatus.InProgress or KitchenTicketStatus.Ready)
+    .Where(x=>query.Station is null||x.Lines.First().PreparationStation==query.Station)
+    .Where(x=>query.After is null||x.QueuedAtUtc>query.After.QueuedAtUtc
+      ||(x.QueuedAtUtc==query.After.QueuedAtUtc&&x.TicketId.CompareTo(query.After.TicketId)>0))
+    .OrderBy(x=>x.QueuedAtUtc).ThenBy(x=>x.TicketId).Take(query.Limit+1).ToArray();
+   return Task.FromResult(result);
+  }
+ }
  public Task<KitchenTicket> CreateAsync(Guid organizationId,CreateKitchenTicket command,KitchenMutationContext context,CancellationToken cancellationToken)
  {Validate(organizationId,command,context);Guid station=StationId(command.Lines.First().PreparationStation);string fingerprint=Fingerprint(command);lock(gate){var existing=tickets.Values.FirstOrDefault(x=>x.Ticket.OrganizationId==organizationId&&x.Ticket.OrderId==command.OrderId&&x.Ticket.PreparationStationId==station);if(existing.Ticket is not null){if(existing.Fingerprint!=fingerprint)throw new KitchenConflictException("The Kitchen ticket identity is already associated with a different snapshot.");return Task.FromResult(existing.Ticket);}var ticket=new KitchenTicket(Guid.NewGuid(),organizationId,command.RestaurantId,command.OrderId,command.BranchId,station,KitchenTicketStatus.Queued,1,DateTimeOffset.UtcNow,Normalize(command.Lines));tickets[ticket.TicketId]=(ticket,fingerprint);return Task.FromResult(ticket);}}
  public Task<KitchenTicket?> GetAsync(Guid organizationId,Guid ticketId,CancellationToken cancellationToken){lock(gate)return Task.FromResult(tickets.TryGetValue(ticketId,out var value)&&value.Ticket.OrganizationId==organizationId?value.Ticket:null);}
  public Task<KitchenTicket> TransitionAsync(Guid organizationId,Guid ticketId,TransitionKitchenTicket command,KitchenMutationContext context,CancellationToken cancellationToken)
   {ValidateContext(context);lock(gate){if(!tickets.TryGetValue(ticketId,out var value)||value.Ticket.OrganizationId!=organizationId)throw new KeyNotFoundException();if(value.Ticket.ConcurrencyVersion!=command.ExpectedConcurrencyVersion)throw new KitchenConflictException("Kitchen ticket concurrency version is stale.");KitchenTicketLifecycle.RequireTransition(value.Ticket.Status,command.TargetStatus);if(value.Ticket.Status==command.TargetStatus)return Task.FromResult(value.Ticket);var updated=value.Ticket with{Status=command.TargetStatus,ConcurrencyVersion=value.Ticket.ConcurrencyVersion+1};tickets[ticketId]=(updated,value.Fingerprint);return Task.FromResult(updated);}}
  public Task<bool> CancelAsync(Guid organizationId,Guid branchId,Guid orderId,KitchenMutationContext context,CancellationToken cancellationToken)
- {ValidateContext(context);lock(gate){var matches=tickets.Where(x=>x.Value.Ticket.OrganizationId==organizationId&&x.Value.Ticket.BranchId==branchId&&x.Value.Ticket.OrderId==orderId).ToArray();foreach(var entry in matches){KitchenTicketLifecycle.RequireTransition(entry.Value.Ticket.Status,KitchenTicketStatus.Cancelled);if(entry.Value.Ticket.Status!=KitchenTicketStatus.Cancelled)tickets[entry.Key]=(entry.Value.Ticket with{Status=KitchenTicketStatus.Cancelled,ConcurrencyVersion=entry.Value.Ticket.ConcurrencyVersion+1},entry.Value.Fingerprint);}return Task.FromResult(matches.Length>0);}}
+ {ValidateContext(context);lock(gate){var matches=tickets.Where(x=>x.Value.Ticket.OrganizationId==organizationId&&x.Value.Ticket.BranchId==branchId&&x.Value.Ticket.OrderId==orderId).ToArray();foreach(var entry in matches)KitchenTicketLifecycle.RequireTransition(entry.Value.Ticket.Status,KitchenTicketStatus.Cancelled);foreach(var entry in matches){if(entry.Value.Ticket.Status!=KitchenTicketStatus.Cancelled)tickets[entry.Key]=(entry.Value.Ticket with{Status=KitchenTicketStatus.Cancelled,ConcurrencyVersion=entry.Value.Ticket.ConcurrencyVersion+1},entry.Value.Fingerprint);}return Task.FromResult(matches.Length>0);}}
  internal static void Validate(Guid organizationId,CreateKitchenTicket command,KitchenMutationContext context){ValidateContext(context);if(organizationId==Guid.Empty||command.RestaurantId==Guid.Empty||command.OrderId==Guid.Empty||command.BranchId==Guid.Empty||command.Lines is null||command.Lines.Count==0)throw new ArgumentException("Organization, restaurant, order, branch, and at least one Kitchen line are required.");if(command.Lines.Any(x=>x.ProductId==Guid.Empty||x.Quantity<=0||string.IsNullOrWhiteSpace(x.Name)||string.IsNullOrWhiteSpace(x.PreparationStation)))throw new ArgumentException("Kitchen lines require product, name, positive quantity, and station.");if(command.Lines.Select(x=>x.PreparationStation.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=1)throw new ArgumentException("A Kitchen ticket must contain one preparation station.");}
   internal static void ValidateContext(KitchenMutationContext context){if(context is null||string.IsNullOrWhiteSpace(context.ActorSubjectId)||context.ActorSubjectId.Length>200||context.ActorSubjectId.Any(char.IsControl)||context.CorrelationId==Guid.Empty||context.RequestCorrelationId is { Length: > 128 }||context.RequestCorrelationId?.Any(char.IsControl)==true)throw new ArgumentException("A bounded actor and correlation identifier are required.");}
  internal static Guid StationId(string station)=>new(MD5.HashData(Encoding.UTF8.GetBytes(station.Trim().ToLowerInvariant())));
