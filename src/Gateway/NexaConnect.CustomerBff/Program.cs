@@ -120,6 +120,8 @@ builder.Services.AddAuthorization(options => options.AddPolicy("CustomerSession"
     policy.RequireAuthenticatedUser();
 }));
 
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Reporting.CustomerCashCloseReports>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Reporting.ICustomerCashClosePort, NexaConnect.CustomerBff.Infrastructure.Reporting.HttpCustomerCashClosePort>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:Reporting"] ?? throw new InvalidOperationException("Services:Reporting is required.")); c.Timeout = TimeSpan.FromSeconds(20); }).AddNexaConnectCorrelationPropagation();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();

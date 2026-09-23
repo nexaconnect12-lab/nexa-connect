@@ -1,6 +1,12 @@
 # Reporting service
 
-Current deployment requires Reporting migrations 1-14. Vocabulary migration 14 accepts `order.manual-tender.settled`; its downgrade removes incompatible projections and inbox markers so retained Order audit events can be replayed after re-upgrade. References below to the earlier 1-13 payment-review baseline remain historical.
+Current deployment requires Reporting migrations 1-15. Vocabulary migration 14 accepts `order.manual-tender.settled`; migration 15 adds separate cash-close facts/receipts. References below to the earlier 1-13 payment-review baseline remain historical.
+
+## Cash-close report
+
+The read-only single-store cash-close route uses `Services__POS` (Development `https://localhost:7120/`, timeout 15 seconds) to revalidate exact-store `pos.cash-review.read` on every read. It does not use generic sales permissions. The optional `CashCloseConsumer__Enabled` defaults to false; configure its secret-managed `ConnectionString`, `Exchange` and `Queue` before enabling it. It binds only `pos.cash-close.snapshot.v1`, projects newest full snapshots and records receipt hashes in the same transaction before acknowledging. Confirm `Cash-close consumer ready` and the broker binding before enabling POS outbox dispatch. Invalid/conflicting events dead-letter; transient failures requeue. Restricted financial payloads never enter logs or the activity feed.
+
+Migration `15→14` deletes facts and receipts; controlled replay of retained POS events is required after re-upgrade, and no replay CLI is supplied. Rows include capture/projection times without completeness guarantees or totals. Query `{service_name="nexaconnect-reporting"} |= "Cash-close"`. See [API, deployment and unexecuted live pipeline gates](../../../docs/API/Cash-Close-Reporting.md).
 
 The RabbitMQ activity projection consumer exposes an internal readiness task that completes only after its exchange, durable queues, audit/dead-letter bindings, QoS, and consumer registration have succeeded. Hosted acceptance publishers await this signal before mandatory publication; checking that the queue merely exists is insufficient because declaration precedes binding and can produce RabbitMQ `312 NO_ROUTE`. This deterministic startup signal does not replace deployment health endpoints.
 

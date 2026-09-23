@@ -106,7 +106,7 @@ List items are `balanced` when variance is zero, `review_required` when a nonzer
 
 The decision endpoint commits the current review projection and immutable history in one POS transaction. Exact replay of the same operation identity and normalized payload returns the committed result. Reusing an identity for a different payload, using stale financial/review versions, or racing another decision returns `409`; clients must refresh and must not retry automatically with new values. Invalid filters or decisions return `400`, read/resolve denial returns `403`, an out-of-scope detail returns `404`, and a required dependency failure returns a sanitized `503`.
 
-Review history retains the reviewer subject and Authorization decision identifier for audit. It does not change cash totals, publish an integration event, or create a Reporting projection in this slice. Reasons, amounts, tokens, headers, and request bodies are excluded from structured logs.
+Review history retains the reviewer subject and Authorization decision identifier for audit. Decisions do not change cash totals or directly publish integration events. The optional POS migration-6 scanner separately publishes coalesced current snapshots to the [cash-close Reporting projection](Cash-Close-Reporting.md); immutable decision history stays in POS. Reasons, amounts, tokens, headers, and request bodies are excluded from structured logs.
 
 ## Terminal enrollment
 

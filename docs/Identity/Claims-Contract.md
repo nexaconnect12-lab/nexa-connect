@@ -1,5 +1,7 @@
 # Identity Claims Contract
 
+Cash-close Reporting reuses `pos.cash-review.read` through a live POS access probe for the exact organization/branch/store. It introduces no new grant, claim or client. The Customer BFF revalidates current product membership and protected tenant subject; Reporting requires matching tenant headers and independently calls POS with the user's bearer token. POS resolves Restaurant hierarchy and its store before requesting Authorization. Generic Reporting permissions do not grant this financial read. See [cash-close authorization](../API/Cash-Close-Reporting.md).
+
 ## Purpose
 
 Keycloak authenticates users and workloads. NexaConnect validates access tokens and uses stable identity identifiers, while the Platform Directory owns cross-product organizations and memberships and each NexaConnect service owns its resource-level authorization.

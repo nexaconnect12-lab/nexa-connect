@@ -1,0 +1,1 @@
+{"version":15,"name":"cash_close_projection","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.15.0"}

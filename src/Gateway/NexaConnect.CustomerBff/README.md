@@ -1,5 +1,7 @@
 # NexaConnect Customer BFF
 
+`GET /bff/customer/reports/cash-close` forwards bounded branch/store/UTC filters to Reporting through `Services__Reporting` (20-second client timeout), after protected tenant-subject and current membership checks. Organization comes from the tenant cookie; downstream error bodies are suppressed and responses are no-store. This read-only route introduces no mutation or CSRF endpoint. Reporting independently obtains live POS cash-review access. Query `{service_name="nexaconnect-customer-bff"} |= "Cash-close"`; see [contract and release gates](../../../docs/API/Cash-Close-Reporting.md).
+
 The opt-in [live Payment Review browser suite](../../Frontend/e2e/payment-review-live/README.md) exercises actual OIDC/cookie/CSRF and Order boundaries with dedicated disposable accounts and fresh fixtures. It is separate from synthetic UI tests and the isolated operations matrix; the latter does not launch this BFF. Joined execution remains an environment-owned gate.
 
 This is the Customer Portal's server-side session and tenant-context boundary. It uses the existing `nexaconnect-web-bff` client during the migration period; a future client rename must be explicit and use separate cookies and secrets.

@@ -24,6 +24,10 @@ builder.Services.AddHttpClient("PlatformDirectory", client => client.BaseAddress
 builder.Services.AddHttpClient<ProductAuthorizationClient>(client => client.BaseAddress = new Uri(builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<IReportingCustomerAuthorizer>(provider => new HttpReportingCustomerAuthorizer(provider.GetRequiredService<IHttpClientFactory>().CreateClient("PlatformDirectory"), provider.GetRequiredService<ProductAuthorizationClient>()));
 
+builder.Services.AddScoped<CashCloseReporting>();
+builder.Services.AddScoped<ICashCloseRepository, PostgresCashCloseRepository>();
+builder.Services.AddHttpClient<ICashCloseAccess, HttpCashCloseAccess>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:POS"] ?? throw new InvalidOperationException("Services:POS is required.")); c.Timeout = TimeSpan.FromSeconds(15); }).AddNexaConnectCorrelationPropagation();
+if (builder.Configuration.GetValue<bool>("CashCloseConsumer:Enabled")) builder.Services.AddHostedService<CashCloseConsumer>();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();

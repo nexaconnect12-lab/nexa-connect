@@ -10,6 +10,8 @@ At least one service mode is required, table requirement needs dine-in, and serv
 
 ## Reporting
 
+The separate [cash-close report](Cash-Close-Reporting.md) uses `/bff/customer/reports/cash-close`, a required exact branch/store and UTC range of at most 31 days. It reuses live POS `pos.cash-review.read`, returns keyset pages with row capture/projection times, and supplies no aggregate totals or completeness guarantee. Its Reporting-15 consumer is separate from the activity feed below.
+
 Reporting owns dashboard and sales endpoints under `/api/reporting/v1/customer/organizations/{organizationId}`; BFF paths are `/bff/customer/dashboard` and `/bff/customer/reports/sales`. `branchId` is required. Optional `fromUtc`/`toUtc` form a half-open `[from,to)` range, default to 30 days, and cannot exceed 366 days. Invalid ranges return `400`; denial returns `403`. Currency detection scans the full selected range (including dashboard sales and payment facts), returns `409` rather than combining incompatible totals, and is independent of the 1,000-row response cap.
 
 Dashboard returns completed orders, gross sales, net paid, refunded, currency, and `latestGlobalCheckpointUpdatedAtUtc`. Sales returns range, up to 1,000 items, the full-range completed-order total/currency, and the same checkpoint field; items are newest-first and capped at 1,000. The checkpoint is the newest global projector update, not proof the selected branch/range is current. Empty projections return zeros/empty items and null currency.

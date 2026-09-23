@@ -1,3 +1,4 @@
+import { CashCloseReportPanel } from "./CashCloseReportPanel";
 import { KitchenQueuePanel } from "./KitchenQueuePanel";
 import React, { useEffect, useState } from "react";
 import { PaymentReviewPanel } from "./PaymentReviewPanel";
@@ -250,7 +251,7 @@ function FeaturePanel({
 }: {
   section: Exclude<
     PortalSection,
-    "profile" | "products" | "users" | "configuration" | "branches" | "dashboards" | "reports" | "media" | "activity" | "payment-reviews" | "kitchen"
+    "profile" | "products" | "users" | "configuration" | "branches" | "dashboards" | "reports" | "media" | "activity" | "payment-reviews" | "kitchen" | "cash-close-reports"
   >;
 }) {
   const state = useRequest<FeatureResponse>(scopedFeaturePath(section));
@@ -305,8 +306,9 @@ function App() {
     activity: "Activity & audit history",
     "payment-reviews": "Payment Reviews",
     kitchen: "Kitchen queue",
+    "cash-close-reports": "Cash-close report",
   };
-  const nav = sections.filter(key=>(key!=="payment-reviews"&&key!=="kitchen")||tenant?.applicationCode==="nexa_connect").map((key) => ({
+  const nav = sections.filter(key=>(key!=="payment-reviews"&&key!=="kitchen"&&key!=="cash-close-reports")||tenant?.applicationCode==="nexa_connect").map((key) => ({
     key,
     label: labels[key],
     onSelect: () => {
@@ -361,6 +363,9 @@ function App() {
   else if (section === "reports") panel = <ReportsPanel />;
   else if (section === "media") panel = <MediaPanel />;
   else if (section === "activity") panel = <ActivityPanel />;
+  else if (section === "cash-close-reports") panel = tenant.applicationCode==="nexa_connect"
+    ? <CashCloseReportPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} />
+    : <Alert type="warning" message="Cash-close reports require the NexaConnect workspace."/>;
   else if (section === "kitchen") panel = tenant.applicationCode==="nexa_connect"
     ? <KitchenQueuePanel key={`${tenant.organizationId}|${tenant.applicationCode}`} />
     : <Alert type="warning" message="Kitchen queue requires the NexaConnect product workspace."/>;

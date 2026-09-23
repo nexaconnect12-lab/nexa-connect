@@ -1,0 +1,1 @@
+{"version":6,"name":"cash_close_publication","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.15.0"}

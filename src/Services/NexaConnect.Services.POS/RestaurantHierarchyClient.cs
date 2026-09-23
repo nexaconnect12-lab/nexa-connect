@@ -14,12 +14,15 @@ public sealed class RestaurantHierarchyClient(
         Guid branchId,
         CancellationToken cancellationToken)
     {
-        client.BaseAddress = new Uri(configuration["Services:Restaurant"]
+        var endpoint = new Uri(configuration["Services:Restaurant"]
             ?? throw new InvalidOperationException("Services:Restaurant is required."));
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(endpoint,
+            $"api/restaurant/v1/branches/{branchId}/authorization-scope"));
+        request.Headers.Authorization = new AuthenticationHeaderValue(
             "Bearer", await tokenProvider.GetAsync(cancellationToken));
-        RestaurantAuthorizationScope? scope = await client.GetFromJsonAsync<RestaurantAuthorizationScope>(
-            $"api/restaurant/v1/branches/{branchId}/authorization-scope", cancellationToken);
+        using var response = await client.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        RestaurantAuthorizationScope? scope = await response.Content.ReadFromJsonAsync<RestaurantAuthorizationScope>(cancellationToken: cancellationToken);
         return scope ?? throw new InvalidOperationException("Restaurant hierarchy response was empty.");
     }
 }

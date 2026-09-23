@@ -1,5 +1,7 @@
 # NexaConnect Customer Portal
 
+**Cash-close report** is a read-only single-store page: enter branch/store UUIDs and a UTC range of at most 31 days, then load 50-row pages. It shows currency, expected/counted/variance, review versions and capture/projection timestamps without totals or completeness claims. Reload is explicit; filter/tenant changes clear rows and failures remove the previous report. Current decisions stay in POS Cash Review. The BFF calls Reporting, which requires live POS access. Run `npm run test:e2e:cash-close`; see [contract and deployment prerequisites](../../../../docs/API/Cash-Close-Reporting.md).
+
 The [joined Payment Review acceptance harness](../../e2e/payment-review-live/README.md) tests real OIDC/BFF/Order boundaries using operator-provisioned disposable accounts and marked fixtures. Run `npm run test:e2e:payment-review:live` only after supplying its documented settings; missing settings fail rather than skip. Existing synthetic browser tests remain separate.
 
 Phase 8 provides the independently buildable tenant-scoped Customer Portal context/navigation shell. Authentication is owned by `NexaConnect.CustomerBff`; the browser receives only opaque cookies and selects one organization plus enabled product from `/bff/customer/access`. `/tenant` and `/features/*` revalidate the protected server-readable selection.
