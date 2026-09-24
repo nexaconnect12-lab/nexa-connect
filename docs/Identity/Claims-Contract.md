@@ -50,3 +50,5 @@ POS Cash Review uses the existing public `nexaconnect-pos` Authorization Code + 
 - Treat missing authorization context as denial.
 
 The online Kitchen queue reuses `kitchen.ticket.read` and `kitchen.ticket.transition` with current product membership and Restaurant-owned branch scope. Customer BFF cookie/tenant binding and membership revalidation do not replace Kitchen authorization. The Order workload has no operator-route bypass. Kitchen transitions require the existing BFF antiforgery cookie plus `X-Nexa-CSRF`; see [the operator contract](../API/Kitchen-Queue.md). No new role, claim or permission migration is introduced.
+
+The cash-close replay CLI uses controlled operational database/broker credentials, not Customer bearer tokens or `pos.cash-review.read`. Its operator UUID is self-asserted attribution; PostgreSQL `session_user` supplies database credential attribution. It creates no role/client/claim grant. Limit database rights to source reads and audit inserts, and broker rights to the required exchange. See [operational authority](../Deployment/Cash-Close-Recovery.md#prerequisites-and-authority).

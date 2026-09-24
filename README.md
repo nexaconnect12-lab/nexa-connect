@@ -106,3 +106,5 @@ NexaConnect uses schema-first PostgreSQL migrations with one independently owned
 - [Data Migration](src/Tools/NexaConnect.DataMigration/README.md) documents migration layout, current implementation status, and release validation.
 
 Other projects consume owned data through versioned APIs and integration events. They never connect directly to another service's PostgreSQL tables.
+
+Cash-close recovery now includes a [manifest-pinned retained-event replay CLI and disposable process/broker acceptance runner](docs/Deployment/Cash-Close-Recovery.md). POS migration 7 records append-only replay attribution; backlog/retry metrics and six alert rules are implemented. Live acceptance and alert delivery remain unverified because Docker is unavailable in the current environment.

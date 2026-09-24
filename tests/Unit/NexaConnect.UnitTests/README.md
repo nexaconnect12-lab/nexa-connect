@@ -9,3 +9,5 @@ Cashier presentation tests cover combined menu filtering, currency labelling, an
 PosCheckoutIntegrationTests exercise real client request serialization over controlled HttpMessageHandlers: Catalog origin/tenant headers, stable placement replay after lost response, scope fencing and invalid configuration. The opt-in protected-state suite also covers pending-checkout restart and corruption. These are client component tests, not live OIDC/server acceptance.
 
 Kitchen queue tests cover active station-scoped keyset pagination, revoked/read-only access, foreign branch/product/workload denial, stale actions, cancellation races and all-or-none in-memory cancellation when another station is completed. Run `dotnet test --filter FullyQualifiedName~Kitchen` from this project.
+
+`CashCloseReplayTests` covers read-only preview, manifest drift, bounded selection, attribution, durable intent before publication, audit failure and interrupted delivery with original-event retry. Migration discovery includes POS 7. These tests do not establish PostgreSQL grants, broker acknowledgement or live replay acceptance.

@@ -1,0 +1,45 @@
+groups:
+  - name: cash-close-reporting
+    rules:
+      - alert: CashCloseOutboxStalled
+        expr: max(pos_cash_close_outbox_oldest_age_seconds) > 300
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: POS cash-close outbox is not draining
+      - alert: CashCloseMetricsUnavailable
+        expr: sum(increase(pos_cash_close_metrics_failures_total[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Cash-close backlog metrics cannot be collected
+      - alert: CashCloseReportingBacklog
+        expr: sum(rabbitmq_queue_messages{queue="nexaconnect.reporting.cash-close.v1"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Cash-close snapshots are not draining
+      - alert: CashCloseReportingDeadLetters
+        expr: sum(rabbitmq_queue_messages{queue="nexaconnect.reporting.cash-close.v1.dead"}) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Cash-close snapshots require investigation
+      - alert: CashCloseReportingRetries
+        expr: sum(increase(reporting_cash_close_outcomes_total{status=~"retry|connection_retry"}[10m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Cash-close consumer is retrying
+      - alert: CashClosePublicationFailures
+        expr: sum(increase(pos_cash_close_publication_outcomes_total{status=~"retry|scan_failure"}[10m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: POS cash-close publication requires investigation

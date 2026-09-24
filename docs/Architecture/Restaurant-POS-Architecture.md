@@ -279,6 +279,8 @@ The implementation platform remains undecided. A Windows-native client is approp
 
 ## 12. Reporting architecture
 
+Operational recovery now includes a manifest-pinned retained-event replay CLI and POS-7 append-only run/attempt audit. Original snapshot identities and source cash/checkpoints remain unchanged. The disposable process/broker recovery runner and backlog/retry alerts are implemented; live execution and verified alert delivery remain release gates. See [recovery procedure and authority](../Deployment/Cash-Close-Recovery.md).
+
 The implemented [single-store cash-close report](../API/Cash-Close-Reporting.md) projects current closed-session financial/review snapshots through an opt-in POS outbox and separate Reporting consumer. POS remains authoritative for movements and decisions; late settlement can replace approval with `review_required`. The projection coalesces intermediate changes and is not complete decision history or end-of-day settlement evidence. Every read checks live exact-store POS access. Capture/projection times are row provenance, not a completeness watermark. [ADR-012](Decisions/ADR-012-cash-close-snapshot-reporting.md) records the boundary; live acceptance, exports, multi-store totals and offline reporting remain open.
 
 Operational services publish versioned facts such as:

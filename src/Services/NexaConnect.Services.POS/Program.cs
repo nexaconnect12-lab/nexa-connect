@@ -47,6 +47,7 @@ builder.Services.AddOrderSettlementConsumer(builder.Configuration);
 builder.Services.AddScoped<ICashClosePublicationStore, PostgresCashClosePublicationStore>();
 builder.Services.AddScoped<CashClosePublisher>();
 if (builder.Configuration.GetValue<bool>("CashClosePublication:Enabled")) builder.Services.AddHostedService<CashClosePublicationWorker>();
+if (builder.Configuration.GetValue<bool>("CashClosePublication:Enabled") || builder.Configuration.GetValue<bool>("Outbox:Enabled")) builder.Services.AddHostedService<CashCloseBacklogMonitor>();
 if (builder.Configuration.GetValue<bool>("Outbox:Enabled")) NexaConnect.Infrastructure.Messaging.OutboxServiceCollectionExtensions.AddPostgresOutbox(builder.Services, builder.Configuration, "POS");
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();

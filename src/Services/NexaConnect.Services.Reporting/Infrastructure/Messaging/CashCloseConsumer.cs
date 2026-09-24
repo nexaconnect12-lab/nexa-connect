@@ -11,6 +11,10 @@ public sealed class CashCloseConsumer(IServiceScopeFactory scopes, IConfiguratio
 {
     private static readonly ActivitySource Activities = new("nexaconnect-reporting");
     public const string RoutingKey = "pos.cash-close.snapshot.v1";
+    private readonly TaskCompletionSource readiness = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static readonly System.Diagnostics.Metrics.Meter Meter = new("nexaconnect-reporting");
+    private static readonly System.Diagnostics.Metrics.Counter<long> Outcomes = Meter.CreateCounter<long>("reporting.cash_close.outcomes");
+    public Task WaitUntilReadyAsync(CancellationToken ct) => readiness.Task.WaitAsync(ct);
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         string uri = configuration["CashCloseConsumer:ConnectionString"] ?? throw new InvalidOperationException("CashCloseConsumer:ConnectionString is required.");
@@ -35,10 +39,11 @@ public sealed class CashCloseConsumer(IServiceScopeFactory scopes, IConfiguratio
                 consumer.ReceivedAsync += async (_, delivery) => await Handle(channel, delivery, stoppingToken);
                 await channel.BasicConsumeAsync(queue, false, consumer, stoppingToken);
                 logger.LogInformation("Cash-close consumer ready");
+                readiness.TrySetResult();
                 await closed.Task.WaitAsync(stoppingToken);
             }
             catch (Exception e) when (e is not OperationCanceledException || !stoppingToken.IsCancellationRequested)
-            { logger.LogWarning("Cash-close consumer connection unavailable"); }
+            { Outcomes.Add(1, new KeyValuePair<string, object?>("status", "connection_retry")); logger.LogWarning("Cash-close consumer connection unavailable"); }
             await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
         }
     }
@@ -60,17 +65,20 @@ public sealed class CashCloseConsumer(IServiceScopeFactory scopes, IConfiguratio
             bool changed = await scope.ServiceProvider.GetRequiredService<CashCloseReporting>().ProjectAsync(value, ct);
             logger.LogInformation("Cash-close snapshot processed; changed {Changed}", changed);
             await channel.BasicAckAsync(delivery.DeliveryTag, false, ct);
+            Outcomes.Add(1, new KeyValuePair<string, object?>("status", changed ? "applied" : "replayed"));
         }
         catch (Exception e) when (e is JsonException or ArgumentException or OverflowException)
         {
             activity?.SetStatus(ActivityStatusCode.Error);
             logger.LogWarning("Cash-close snapshot rejected");
+            Outcomes.Add(1, new KeyValuePair<string, object?>("status", "rejected"));
             await channel.BasicNackAsync(delivery.DeliveryTag, false, false, ct);
         }
         catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             activity?.SetStatus(ActivityStatusCode.Error);
             logger.LogWarning("Cash-close projection unavailable; delivery will retry");
+            Outcomes.Add(1, new KeyValuePair<string, object?>("status", "retry"));
             await Task.Delay(500, ct);
             await channel.BasicNackAsync(delivery.DeliveryTag, false, true, ct);
         }

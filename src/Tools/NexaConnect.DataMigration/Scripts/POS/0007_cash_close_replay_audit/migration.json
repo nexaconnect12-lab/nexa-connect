@@ -1,0 +1,1 @@
+{"version":7,"name":"cash_close_replay_audit","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.16.0"}

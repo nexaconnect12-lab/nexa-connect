@@ -9,7 +9,7 @@ using Reports = REPORTING::NexaConnect.Services.Reporting.Application;
 
 namespace NexaConnect.IntegrationTests;
 
-public sealed class CashCloseProjectionPostgresTests : IAsyncLifetime
+public sealed partial class CashCloseProjectionPostgresTests : IAsyncLifetime
 {
     private NpgsqlDataSource? source, sink;
     private readonly string sourceSchema = "cashclose_src_" + Guid.NewGuid().ToString("N"), sinkSchema = "cashclose_dst_" + Guid.NewGuid().ToString("N");
@@ -84,6 +84,8 @@ public sealed class CashCloseProjectionPostgresTests : IAsyncLifetime
             await Sql(source, File.ReadAllText(Path.Combine(dir, "up.sql")));
         await Sql(source, Script("POS", "0006_cash_close_publication", "down"));
         await Sql(source, Script("POS", "0006_cash_close_publication", "up"));
+        await Sql(source, Script("POS", "0007_cash_close_replay_audit", "down"));
+        await Sql(source, Script("POS", "0007_cash_close_replay_audit", "up"));
         await Sql(sink, Script("Reporting", "0015_cash_close_projection", "up"));
     }
     private static async Task<NpgsqlDataSource> Create(string setting, string schema)
