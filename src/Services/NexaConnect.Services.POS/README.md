@@ -28,7 +28,7 @@ Cash Review requires POS migration 5 and Authorization migration 7. Tenant admin
 
 ## Cash-close publication
 
-POS migration 6 adds the publication checkpoint. `CashClosePublication__Enabled` and `Outbox__Enabled` default to false. When enabled, the scanner resolves organization through Restaurant, locks each session and atomically queues `pos.cash-close.snapshot.v1` with the new checkpoint/version. It scans 100 candidates per batch at 15-second intervals, backfills existing closed sessions, and can coalesce intermediate changes. Enable the Reporting consumer/binding before POS outbox dispatch; configure `Outbox__ConnectionString` and matching exchange. POS `6→5` refuses after publication history exists. Query `{service_name="nexaconnect-pos"} |= "cash-close"`; never log the financial payload. See [contract, configuration, rollback and pending live acceptance](../../../docs/API/Cash-Close-Reporting.md).
+POS migration 6 adds the publication checkpoint. `CashClosePublication__Enabled` and `Outbox__Enabled` default to false. When enabled, the scanner resolves organization through Restaurant, locks each session and atomically queues `pos.cash-close.snapshot.v1` with the new checkpoint/version. It scans 100 candidates per batch at 15-second intervals, backfills existing closed sessions, and can coalesce intermediate changes. Enable the Reporting consumer/binding before POS outbox dispatch; configure `Outbox__ConnectionString` and matching exchange. POS `6→5` refuses after publication history exists. Query `{service_name="nexaconnect-pos"} |= "cash-close"`; never log the financial payload. See [contract, configuration, rollback and remaining production acceptance](../../../docs/API/Cash-Close-Reporting.md).
 
 ## Configuration
 

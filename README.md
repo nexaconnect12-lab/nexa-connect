@@ -1,6 +1,6 @@
 # NexaConnect
 
-The Customer Portal now includes a read-only [single-store cash-close report](docs/API/Cash-Close-Reporting.md). POS migration 6 publishes opt-in current snapshots; Reporting migration 15 projects them with duplicate/stale-delivery protection and live POS store authorization. Capture/projection times do not certify completeness. Live database/broker pipeline acceptance remains open; exports and multi-store totals remain future work.
+The Customer Portal now includes a read-only [single-store cash-close report](docs/API/Cash-Close-Reporting.md). POS migration 6 publishes opt-in current snapshots; Reporting migration 15 projects them with duplicate/stale-delivery protection and live POS store authorization. Capture/projection times do not certify completeness. Local database/broker recovery acceptance passed on 2026-09-24; production acceptance, exports and multi-store totals remain future work.
 
 The Customer Portal now provides an online, branch-scoped **Kitchen queue** with station filtering, bounded pagination, read-only access and version-fenced Start/Ready/Complete controls. Conflicts and uncertain responses refresh authoritative state without replaying actions. See the [Kitchen contract and release gates](docs/API/Kitchen-Queue.md); live joined POS/identity/PostgreSQL/broker acceptance remains open.
 
@@ -107,4 +107,4 @@ NexaConnect uses schema-first PostgreSQL migrations with one independently owned
 
 Other projects consume owned data through versioned APIs and integration events. They never connect directly to another service's PostgreSQL tables.
 
-Cash-close recovery now includes a [manifest-pinned retained-event replay CLI and disposable process/broker acceptance runner](docs/Deployment/Cash-Close-Recovery.md). POS migration 7 records append-only replay attribution; backlog/retry metrics and six alert rules are implemented. Live acceptance and alert delivery remain unverified because Docker is unavailable in the current environment.
+Cash-close recovery now includes a [manifest-pinned retained-event replay CLI and disposable process/broker acceptance runner](docs/Deployment/Cash-Close-Recovery.md). POS migration 7 records append-only replay attribution; backlog/retry metrics and six alert rules are implemented. Local Windows recovery/restricted replay passed 2/2 with no skips, and six-rule Prometheus evaluation passed on 2026-09-24. Remote CI, production acceptance and receiver delivery remain open. See [retained evidence](docs/Architecture/Evidence/Cash-Close-Recovery-Acceptance.md).

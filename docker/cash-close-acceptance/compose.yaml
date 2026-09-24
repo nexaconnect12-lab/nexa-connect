@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ${CASH_ACCEPTANCE_PASSWORD:?required}
       POSTGRES_DB: cashclose_acceptance
     ports:
-      - "127.0.0.1::5432"
+      - "127.0.0.1:${CASH_ACCEPTANCE_PG_PORT:?required}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U acceptance -d cashclose_acceptance"]
       interval: 2s
@@ -21,7 +21,8 @@ services:
       RABBITMQ_DEFAULT_USER: acceptance
       RABBITMQ_DEFAULT_PASS: ${CASH_ACCEPTANCE_PASSWORD:?required}
     ports:
-      - "127.0.0.1::5672"
+      - "127.0.0.1:${CASH_ACCEPTANCE_BROKER_PORT:?required}:5672"
+      - "127.0.0.1:${CASH_ACCEPTANCE_MANAGEMENT_PORT:?required}:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 2s

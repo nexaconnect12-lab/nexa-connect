@@ -21,11 +21,11 @@ public sealed partial class CashCloseProjectionPostgresTests : IAsyncLifetime
         Guid org = Guid.NewGuid(), restaurant = Guid.NewGuid(), branch = Guid.NewGuid(), store = Guid.NewGuid(), terminal = Guid.NewGuid();
         await Sql(source!, "INSERT INTO stores(id,restaurant_id,branch_id,code,name,operational_status,created_at_utc,created_by,updated_at_utc,updated_by) VALUES($1,$2,$3,'test','Test','active',now(),'test',now(),'test')", store, restaurant, branch);
         await Sql(source!, "INSERT INTO terminals(id,restaurant_id,store_id,code,device_type,registration_status,registered_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'test','pos','active',now(),now(),now())", terminal, restaurant, store);
-        var shift = POS::NexaConnect.Services.POS.Domain.Shifts.Shift.Open(Guid.NewGuid(), store, terminal, "cashier", "TEST", Guid.NewGuid(), DateTimeOffset.UtcNow);
+        var shift = POS::NexaConnect.Services.POS.Domain.Shifts.Shift.Open(Guid.NewGuid(), store, terminal, "cashier", "TEST", Guid.NewGuid(), await DatabaseNow());
         await new Source.PostgresShiftStore(source!).CreateAsync(shift, default);
         var cash = new Source.PostgresCashSessionStore(source!);
         Guid session = await cash.OpenAsync(shift.Id, store, "THB", 100m, default);
-        DateTimeOffset occurred = DateTimeOffset.UtcNow;
+        DateTimeOffset occurred = await DatabaseNow();
         await cash.CloseAsync(session, 95m, 1, "cashier", terminal, default);
         var publisher = new Source.PostgresCashClosePublicationStore(source!);
         var candidate = Assert.Single(await publisher.FindAsync(null, default));
@@ -74,6 +74,11 @@ public sealed partial class CashCloseProjectionPostgresTests : IAsyncLifetime
         await using var r = await q.ExecuteReaderAsync(); var result = new List<PosCashCloseSnapshotV1>();
         while (await r.ReadAsync()) result.Add(JsonSerializer.Deserialize<PosCashCloseSnapshotV1>(r.GetString(0))!);
         return result;
+    }
+    private async Task<DateTimeOffset> DatabaseNow()
+    {
+        await using var command = source!.CreateCommand("SELECT clock_timestamp()");
+        return new DateTimeOffset((DateTime)(await command.ExecuteScalarAsync())!);
     }
     public async Task InitializeAsync()
     {

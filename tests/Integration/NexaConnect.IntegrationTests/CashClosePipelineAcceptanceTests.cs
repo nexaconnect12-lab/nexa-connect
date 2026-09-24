@@ -62,10 +62,10 @@ public sealed partial class CashCloseProjectionPostgresTests
             Guid org=Guid.NewGuid(),restaurant=Guid.NewGuid(),branch=Guid.NewGuid(),store=Guid.NewGuid(),terminal=Guid.NewGuid();
             await Sql(source!,"INSERT INTO stores(id,restaurant_id,branch_id,code,name,operational_status,created_at_utc,created_by,updated_at_utc,updated_by) VALUES($1,$2,$3,'test','Test','active',now(),'test',now(),'test')",store,restaurant,branch);
             await Sql(source!,"INSERT INTO terminals(id,restaurant_id,store_id,code,device_type,registration_status,registered_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'test','pos','active',now(),now(),now())",terminal,restaurant,store);
-            var shift=POS::NexaConnect.Services.POS.Domain.Shifts.Shift.Open(Guid.NewGuid(),store,terminal,"cashier","TEST",Guid.NewGuid(),DateTimeOffset.UtcNow);
+            var shift=POS::NexaConnect.Services.POS.Domain.Shifts.Shift.Open(Guid.NewGuid(),store,terminal,"cashier","TEST",Guid.NewGuid(),await DatabaseNow());
             await new Source.PostgresShiftStore(source!).CreateAsync(shift,default);
             var cash=new Source.PostgresCashSessionStore(source!);Guid session=await cash.OpenAsync(shift.Id,store,"THB",100,default);
-            DateTimeOffset occurred=DateTimeOffset.UtcNow;await cash.CloseAsync(session,95,1,"cashier",terminal,default);
+            DateTimeOffset occurred=await DatabaseNow();await cash.CloseAsync(session,95,1,"cashier",terminal,default);
             var publisher=new Source.PostgresCashClosePublicationStore(source!);
             var candidate=Assert.Single(await publisher.FindAsync(null,default));
             bool[] concurrent=await Task.WhenAll(Enumerable.Range(0,4).Select(_=>publisher.PublishAsync(candidate,org,Guid.NewGuid(),default)));
@@ -109,8 +109,11 @@ public sealed partial class CashCloseProjectionPostgresTests
             await Sql(sink!,Script("Reporting","0015_cash_close_projection","down"));
             await Sql(sink!,Script("Reporting","0015_cash_close_projection","up"));
             consumer=await Host("consumer");
+            await using var restricted = await CashCloseRestrictedCredentials.CreateAsync(source!, posDb, sourceSchema, broker, exchange);
+            await restricted.VerifyDeniedOperationsAsync(exchange, queue);
+            await using var restrictedDatabase = NpgsqlDataSource.Create(restricted.Database);
             var selection=new Replay.CashCloseReplayRequest(org,branch,store,occurred.AddDays(-1),occurred.AddDays(1),100);
-            var replayStore=new Source.PostgresCashCloseReplayStore(source!);
+            var replayStore=new Source.PostgresCashCloseReplayStore(restrictedDatabase);
             var replayService=new Replay.CashCloseReplay(replayStore,new POS::NexaConnect.Services.POS.Infrastructure.Messaging.CashCloseReplayTransport(transport));
             var preview=await replayService.PreviewAsync(selection,default);Assert.Equal(3,preview.Count);
             Assert.Equal(0,await Scalar(source!,"SELECT count(*)::int FROM cash_close_replay_runs"));
@@ -122,7 +125,7 @@ public sealed partial class CashCloseProjectionPostgresTests
                     "--from",selection.FromUtc.UtcDateTime.ToString("O"),"--to",selection.ToUtc.UtcDateTime.ToString("O"),"--limit","100",
                     "--execute","--operator",Guid.NewGuid().ToString(),"--reason","rebuild","--manifest",preview.Manifest};
                 var cli=Start(Environment.GetEnvironmentVariable("NEXACONNECT_CASH_REPLAY_DLL")!,args,
-                    new(){["NEXACONNECT_CASH_CLOSE_REPLAY_DB"]=posDb,["NEXACONNECT_CASH_CLOSE_REPLAY_BROKER"]=broker,["NEXACONNECT_CASH_CLOSE_REPLAY_EXCHANGE"]=exchange});
+                    new(){["NEXACONNECT_CASH_CLOSE_REPLAY_DB"]=restricted.Database,["NEXACONNECT_CASH_CLOSE_REPLAY_BROKER"]=restricted.Broker,["NEXACONNECT_CASH_CLOSE_REPLAY_EXCHANGE"]=exchange});
                 await cli.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(45));Assert.Equal(0,cli.ExitCode);
             }
             await Until(async()=>(await repository.ReadAsync(query,default)).SingleOrDefault()?.Snapshot.SnapshotVersion==3,consumer);
@@ -132,6 +135,8 @@ public sealed partial class CashCloseProjectionPostgresTests
             Assert.Equal(before.Snapshot,Assert.Single(await repository.ReadAsync(query,default)).Snapshot);
             Assert.Equal(fingerprint,await SourceFingerprint());
             Assert.Equal(6,await Scalar(source!,"SELECT count(*)::int FROM cash_close_replay_attempts WHERE outcome='confirmed'"));
+            await using (var audit = source!.CreateCommand("SELECT count(*)::int FROM cash_close_replay_runs WHERE database_actor=$1"))
+            { audit.Parameters.AddWithValue(restricted.Actor); Assert.Equal(2,(int)(await audit.ExecuteScalarAsync())!); }
             await Assert.ThrowsAsync<PostgresException>(()=>Sql(source!,"DELETE FROM cash_close_replay_runs"));
             await Assert.ThrowsAsync<PostgresException>(()=>Sql(source!,Script("POS","0007_cash_close_replay_audit","down")));
             await Kill(consumer);
@@ -168,7 +173,7 @@ public sealed class CashClosePipelineFactAttribute : FactAttribute
     {
         if(!CashCloseDatabaseFactAttribute.Ready() || Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT")!="Testing" ||
             Environment.GetEnvironmentVariable("NEXACONNECT_CASH_CLOSE_ACCEPTANCE")!="1" ||
-            new[]{"NEXACONNECT_CASH_HOST_DLL","NEXACONNECT_CASH_REPLAY_DLL","NEXACONNECT_CASH_RUN_DIR","NEXACONNECT_CASH_BROKER_CONTAINER","NEXACONNECT_RABBITMQ_INTEGRATION_URI"}
+            new[]{"NEXACONNECT_CASH_HOST_DLL","NEXACONNECT_CASH_REPLAY_DLL","NEXACONNECT_CASH_RUN_DIR","NEXACONNECT_CASH_BROKER_CONTAINER","NEXACONNECT_RABBITMQ_INTEGRATION_URI","NEXACONNECT_CASH_MANAGEMENT_URI"}
                 .Any(x=>string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(x))))
             Skip="Requires guarded disposable cash-close runner with PostgreSQL, RabbitMQ and process hosts.";
     }

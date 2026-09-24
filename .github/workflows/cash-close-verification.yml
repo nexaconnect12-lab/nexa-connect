@@ -1,0 +1,46 @@
+name: Cash-close verification
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cash-close-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  recovery:
+    name: Cash-close recovery and alert gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Validate firing, pending, healthy and resolved alerts
+        run: ./scripts/test-cash-close-alerts.ps1
+      - name: Run live recovery and restricted replay with no skips
+        run: ./scripts/test-cash-close-recovery.ps1 -ConfirmDisposableInfrastructure
+      - name: Retain bounded verification evidence only
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cash-close-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .runstate/cash-close/**/verification.json
+            .runstate/cash-close/**/evidence.json
+            .runstate/cash-close-alerts/**/verification.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,120 @@
+rule_files:
+  - ../rules/cash-close-reporting.yaml
+evaluation_interval: 1m
+tests:
+  - name: Healthy series and exact outbox threshold remain quiet
+    interval: 1m
+    input_series:
+      - series: "pos_cash_close_outbox_oldest_age_seconds"
+        values: "300+0x32"
+      - series: "pos_cash_close_metrics_failures_total"
+        values: "0+0x32"
+      - series: "rabbitmq_queue_messages{queue=\"nexaconnect.reporting.cash-close.v1\"}"
+        values: "0+0x32"
+      - series: "rabbitmq_queue_messages{queue=\"nexaconnect.reporting.cash-close.v1.dead\"}"
+        values: "0+0x32"
+      - series: "reporting_cash_close_outcomes_total{status=\"retry\"}"
+        values: "0+0x32"
+      - series: "pos_cash_close_publication_outcomes_total{status=\"scan_failure\"}"
+        values: "0+0x32"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: CashCloseOutboxStalled
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: CashCloseMetricsUnavailable
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: CashCloseReportingBacklog
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: CashCloseReportingDeadLetters
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: CashCloseReportingRetries
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: CashClosePublicationFailures
+        exp_alerts: []
+  - name: Pending then firing then resolved for all six alerts
+    interval: 1m
+    input_series:
+      - series: "pos_cash_close_outbox_oldest_age_seconds"
+        values: "0 400+0x10 0+0x22"
+      - series: "pos_cash_close_metrics_failures_total"
+        values: "0+1x10 10+0x22"
+      - series: "rabbitmq_queue_messages{queue=\"nexaconnect.reporting.cash-close.v1\"}"
+        values: "0 5+0x10 0+0x22"
+      - series: "rabbitmq_queue_messages{queue=\"nexaconnect.reporting.cash-close.v1.dead\"}"
+        values: "0 1+0x10 0+0x22"
+      - series: "reporting_cash_close_outcomes_total{status=\"retry\"}"
+        values: "0+1x10 10+0x22"
+      - series: "pos_cash_close_publication_outcomes_total{status=\"scan_failure\"}"
+        values: "0+1x10 10+0x22"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: CashCloseOutboxStalled
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: CashCloseMetricsUnavailable
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: CashCloseReportingBacklog
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: CashCloseReportingDeadLetters
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: CashCloseReportingRetries
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: CashClosePublicationFailures
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: CashCloseOutboxStalled
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "POS cash-close outbox is not draining"}
+      - eval_time: 8m
+        alertname: CashCloseMetricsUnavailable
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Cash-close backlog metrics cannot be collected"}
+      - eval_time: 8m
+        alertname: CashCloseReportingBacklog
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Cash-close snapshots are not draining"}
+      - eval_time: 8m
+        alertname: CashCloseReportingDeadLetters
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations: {summary: "Cash-close snapshots require investigation"}
+      - eval_time: 8m
+        alertname: CashCloseReportingRetries
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Cash-close consumer is retrying"}
+      - eval_time: 8m
+        alertname: CashClosePublicationFailures
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "POS cash-close publication requires investigation"}
+      - eval_time: 30m
+        alertname: CashCloseOutboxStalled
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: CashCloseMetricsUnavailable
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: CashCloseReportingBacklog
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: CashCloseReportingDeadLetters
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: CashCloseReportingRetries
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: CashClosePublicationFailures
+        exp_alerts: []
