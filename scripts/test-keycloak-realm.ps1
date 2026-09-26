@@ -112,6 +112,14 @@ if ($webBff.Count -ne 1 -or 'basic' -notin @($webBff[0].defaultClientScopes) -or
     throw 'The Customer BFF client must emit subject and nexaconnect-api audience access-token claims.'
 }
 
+$posWorkload = @($realm.clients | Where-Object clientId -eq 'nexaconnect-pos-service')
+$posWorkloadAudience = @($posWorkload.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api' -and $_.config.'access.token.claim' -eq 'true'
+})
+if ($posWorkloadAudience.Count -ne 1) {
+    throw 'The POS workload client must emit the nexaconnect-api audience in access tokens.'
+}
+
 $orderClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-order-service')
 $orderAudience = @($orderClient.protocolMappers | Where-Object {
     $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api'

@@ -36,3 +36,5 @@ The API client uses same-origin BFF cookies. It does not accept or store OAuth t
 Telemetry attributes are allow-by-construction primitives and keys that suggest tokens, cookies, secrets, passwords, authorization data, bodies, personal contacts, or card data are dropped. Portals should record stable route templates rather than raw URLs and must configure a distinct service name, such as `nexaconnect-customer-portal` or `nexaconnect-admin-portal`.
 
 Kitchen queue browser contracts run with `npm run test:e2e:kitchen`; see [fixtures and evidence boundaries](e2e/kitchen/README.md). The tenant-scoped screen uses the Customer BFF and existing Kitchen permissions; it is an online ticket-level surface.
+
+For the separate five-case real-OIDC/service/broker suite, use the [joined cash-close portal launcher](../../docs/Deployment/Cash-Close-Portal-Acceptance.md). It provisions disposable infrastructure and requires all scenarios and cleanup; the synthetic browser command above does not run it.

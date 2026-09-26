@@ -427,3 +427,5 @@ The system requires tests beyond ordinary API coverage:
 15. Whether restaurant owners and internal NexaConnect product operators use role-specific views in one product dashboard or separately deployed portals.
 
 No implementation decision should silently resolve these items. Each material decision should be recorded as an Architecture Decision Record.
+
+A [joined cash-close portal acceptance harness](../Deployment/Cash-Close-Portal-Acceptance.md) covers closed-session backfill, approval and late-settlement replacement through the actual POS scanner/outbox and Reporting consumer, plus exact-scope denial, dependency failure and live permission revocation. Fixture mutations use POS repositories rather than cashier HTTP/WPF or Order ingestion. Local live evidence is pending; this does not certify settlement completeness or production acceptance.

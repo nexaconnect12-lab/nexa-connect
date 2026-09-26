@@ -48,3 +48,5 @@ Customer profile creation has the same implementation boundary, including confli
 5. Enable BFF/UI routes last and run cross-tenant denial plus workflow acceptance tests.
 
 Rollback reverses that order: disable the browser route and producers, drain/stop dispatchers and consumers, roll back application binaries, then execute reviewed database downgrade plans. Never downgrade while an incompatible producer is publishing.
+
+The [joined cash-close portal gate](../Deployment/Cash-Close-Portal-Acceptance.md) adds five real-OIDC browser cases over the actual scanner/outbox/consumer and live exact-store authorization. Live execution evidence is pending; this supplements the passed recovery matrix without claiming production readiness or completeness.

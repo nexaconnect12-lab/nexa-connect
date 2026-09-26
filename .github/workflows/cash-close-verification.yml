@@ -11,6 +11,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  portal:
+    name: Joined cash-close portal gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare browser and validate acceptance guards
+        working-directory: src/Frontend
+        run: |
+          npm ci --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test e2e/cash-close-live/settings.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx playwright install --with-deps chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run real OIDC portal matrix without skips
+        run: ./scripts/test-cash-close-portal.ps1 -ConfirmDisposableInfrastructure
+      - name: Retain bounded portal verification only
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cash-close-portal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .runstate/cash-close-portal/*/verification.json
+            src/Frontend/test-results/cash-close-live/*/summary.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
   recovery:
     name: Cash-close recovery and alert gate
     runs-on: ubuntu-24.04

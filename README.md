@@ -108,3 +108,5 @@ NexaConnect uses schema-first PostgreSQL migrations with one independently owned
 Other projects consume owned data through versioned APIs and integration events. They never connect directly to another service's PostgreSQL tables.
 
 Cash-close recovery now includes a [manifest-pinned retained-event replay CLI and disposable process/broker acceptance runner](docs/Deployment/Cash-Close-Recovery.md). POS migration 7 records append-only replay attribution; backlog/retry metrics and six alert rules are implemented. Local Windows recovery/restricted replay passed 2/2 with no skips, and six-rule Prometheus evaluation passed on 2026-09-24. Remote CI, production acceptance and receiver delivery remain open. See [retained evidence](docs/Architecture/Evidence/Cash-Close-Recovery-Acceptance.md).
+
+The guarded [joined cash-close portal acceptance](docs/Deployment/Cash-Close-Portal-Acceptance.md) runs five real-OIDC browser cases against disposable identity, databases, broker and application hosts. Its live execution evidence is pending; synthetic UI contracts and the previously passed recovery matrix remain separate checks.
