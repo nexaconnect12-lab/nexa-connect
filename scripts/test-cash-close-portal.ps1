@@ -9,7 +9,7 @@ $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $runId=[Guid]::NewGuid().ToString('N');$projectName="nexa-cash-portal-$runId"
 $run=Join-Path $root ".runstate/cash-close-portal/$runId"
 $compose=@('compose','-f',(Join-Path $root 'docker/cash-close-portal/compose.yaml'),'-p',$projectName)
-$previous=@{};$processes=@();$created=$false;$passed=$false;$cleanup=$false
+$previous=@{};$processes=@();$created=$false;$passed=$false;$cleanup=$false;$authorizationPassed=$false
 function Set-RunSetting([string]$key,[string]$value){if(-not $previous.ContainsKey($key)){$previous[$key]=[Environment]::GetEnvironmentVariable($key)};[Environment]::SetEnvironmentVariable($key,$value)}
 function Connection([string]$suffix,[string]$user,[string]$password){$b=[System.Data.Common.DbConnectionStringBuilder]::new();$b['Host']='127.0.0.1';$b['Port']=$pgPort;$b['Database']="nexa_review_it_${runId}_$suffix";$b['Username']=$user;$b['Password']=$password;return $b.ConnectionString}
 function Start-App($name,$assembly,$working,$settings,$port){
@@ -51,6 +51,15 @@ try{
         & dotnet run --project (Join-Path $root 'src/Tools/NexaConnect.DataMigration') -- --service $e.Key --scripts-root (Join-Path $root 'src/Tools/NexaConnect.DataMigration/Scripts') --target $e.Value[1] --confirm --application-version 0.16.0
         if($LASTEXITCODE-ne 0){throw "Migration failed for $($e.Key)."}
     }
+    Set-RunSetting NEXACONNECT_AUTHORIZATION_INTEGRATION_DB (Connection authorization nexaconnect_migration $env:NEXACONNECT_JOINED_MIGRATION_PASSWORD)
+    Set-RunSetting NEXACONNECT_ENVIRONMENT Testing
+    $authorizationTrx=Join-Path $run 'authorization.trx'
+    & dotnet test (Join-Path $root 'tests/Integration/NexaConnect.IntegrationTests') --filter FullyQualifiedName~AuthorizationAssignmentPersistenceTests --logger "trx;LogFileName=$authorizationTrx" --verbosity minimal
+    if($LASTEXITCODE-ne 0){throw 'Authorization persistence regression failed.'}
+    [xml]$authorizationResults=Get-Content -LiteralPath $authorizationTrx -Raw
+    $counts=$authorizationResults.TestRun.ResultSummary.Counters
+    if([int]$counts.total-ne 6-or[int]$counts.passed-ne 6-or[int]$counts.notExecuted-ne 0){throw 'All six authorization persistence cases must pass.'}
+    $authorizationPassed=$true
     # Identity provisioning uses the same run-specific imported realm as the joined Review harness.
     & $DockerExecutable @compose exec -T keycloak sh -c '/opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user acceptance-admin --password "$KC_BOOTSTRAP_ADMIN_PASSWORD" >/dev/null'
     if($LASTEXITCODE-ne 0){throw 'Identity administrator authentication failed.'}
@@ -109,12 +118,16 @@ try{
 }
 finally{
     $failed=$false
-    foreach($state in $processes){try{if(-not $state.Process.HasExited){$state.Process.Kill($true);if(-not $state.Process.WaitForExit(10000)){throw 'Process cleanup timed out.'}};$state.Out.GetAwaiter().GetResult()|Set-Content (Join-Path $run "$($state.Name).log");$state.Error.GetAwaiter().GetResult()|Set-Content (Join-Path $run "$($state.Name).error.log")}catch{$failed=$true}}
-    if($created){& $DockerExecutable @compose down --volumes --remove-orphans|Out-Null;if($LASTEXITCODE-ne 0){$failed=$true};$remaining=@(& $DockerExecutable @compose ps -aq);if($LASTEXITCODE-ne 0-or$remaining.Count-ne 0){$failed=$true}}
-    $cleanup=-not $failed
-    if(Test-Path $run){@{runId=$runId;passed=$passed;cleanupVerified=$cleanup;productionVerified=$false;sourceRevision=(& git -C $root rev-parse HEAD);sourceDirty=[bool](& git -C $root status --porcelain);completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')}|ConvertTo-Json|Set-Content (Join-Path $run 'verification.json')}
-    if($cert-and(Test-Path -LiteralPath $cert)){Remove-Item -LiteralPath $cert}
-    foreach($key in $previous.Keys){[Environment]::SetEnvironmentVariable($key,$previous[$key])}
-    if($failed){throw 'Disposable process or infrastructure cleanup could not be verified.'}
+    try{
+        foreach($state in $processes){try{if(-not $state.Process.HasExited){$state.Process.Kill($true);if(-not $state.Process.WaitForExit(10000)){throw 'Process cleanup timed out.'}};$state.Out.GetAwaiter().GetResult()|Set-Content (Join-Path $run "$($state.Name).log");$state.Error.GetAwaiter().GetResult()|Set-Content (Join-Path $run "$($state.Name).error.log")}catch{$failed=$true}}
+        if($created){try{& $DockerExecutable @compose down --volumes --remove-orphans|Out-Null;if($LASTEXITCODE-ne 0){$failed=$true};$remaining=@(& $DockerExecutable @compose ps -aq);if($LASTEXITCODE-ne 0-or$remaining.Count-ne 0){$failed=$true}}catch{$failed=$true}}
+        try{if($cert-and(Test-Path -LiteralPath $cert)){Remove-Item -LiteralPath $cert}}catch{$failed=$true}
+    }
+    finally{
+        foreach($key in $previous.Keys){try{[Environment]::SetEnvironmentVariable($key,$previous[$key])}catch{$failed=$true}}
+        $cleanup=-not $failed
+        if(Test-Path $run){@{runId=$runId;passed=$passed;authorizationPassed=$authorizationPassed;cleanupVerified=$cleanup;productionVerified=$false;sourceRevision=(& git -C $root rev-parse HEAD);sourceDirty=[bool](& git -C $root status --porcelain);completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')}|ConvertTo-Json|Set-Content (Join-Path $run 'verification.json')}
+    }
+    if($failed){throw 'Disposable process, infrastructure, certificate or environment cleanup could not be verified.'}
 }
 Write-Output "Joined cash-close portal acceptance passed; evidence: $run/verification.json"

@@ -18,10 +18,8 @@ public sealed class AuthorizationDecisionsController(
         if (string.IsNullOrWhiteSpace(subjectId)) return Forbid();
         ApplicationDecision decision = await decisionService.DecideAsync(subjectId, request.OrganizationId, request.RestaurantId,
             request.BranchId, request.Permission, request.Amount, request.Currency, cancellationToken);
-        logger.LogInformation(
-            "Authorization decision {DecisionId}: granted {Granted} for subject {Subject}, permission {Permission}, organization {OrganizationId}, restaurant {RestaurantId}, branch {BranchId}.",
-            decision.Id, decision.Granted, subjectId, request.Permission, request.OrganizationId,
-            request.RestaurantId, request.BranchId);
+        logger.Log(decision.Granted ? LogLevel.Information : LogLevel.Warning,
+            "Authorization decision {DecisionId}: granted {Granted}.", decision.Id, decision.Granted);
         return Ok(new AuthorizationDecisionResponse(decision.Id, decision.Granted, decision.EvaluatedLimit));
     }
 }

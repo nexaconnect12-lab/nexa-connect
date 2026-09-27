@@ -28,6 +28,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Validate workload audience configuration
+        run: ./scripts/test-keycloak-realm.ps1
+      - name: Verify authorization policy and audit failure behavior
+        run: dotnet test tests/Unit/NexaConnect.UnitTests --filter FullyQualifiedName~AuthorizationPolicyTests --verbosity minimal
       - name: Prepare browser and validate acceptance guards
         working-directory: src/Frontend
         run: |

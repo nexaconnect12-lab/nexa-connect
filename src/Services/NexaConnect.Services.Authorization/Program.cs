@@ -15,7 +15,8 @@ builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Env
 builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(
     builder.Configuration.GetConnectionString("Authorization")
     ?? throw new InvalidOperationException("ConnectionStrings:Authorization is required.")));
-builder.Services.AddScoped<IAuthorizationDecisionService, PostgresAuthorizationDecisionService>();
+builder.Services.AddScoped<IAuthorizationDecisionStore, PostgresAuthorizationDecisionStore>();
+builder.Services.AddScoped<IAuthorizationDecisionService, AuthorizationDecisionService>();
 builder.Services.AddScoped<IAuthorizationAssignmentService, AuthorizationAssignmentService>();
 builder.Services.AddScoped<IAuthorizationAssignmentRepository, PostgresAuthorizationAssignmentRepository>();
 var app = builder.Build();

@@ -33,12 +33,9 @@ Reporting's actual RabbitMQ binding must exist before POS publication starts. A 
 
 ## Evidence and cleanup
 
-Exactly five unique browser cases must pass, with no skips, retries or repeated cases. Browser summaries live at `src/Frontend/test-results/cash-close-live/<run-id>/summary.json`; runner evidence lives at `.runstate/cash-close-portal/<run-id>/verification.json`. A successful browser result is insufficient unless `cleanupVerified` is also true. The runner records source revision and whether the working tree was dirty.
+Exactly five unique browser cases must pass, with no skips, retries or repeated cases. Browser summaries live at `src/Frontend/test-results/cash-close-live/<run-id>/summary.json`; runner evidence lives at `.runstate/cash-close-portal/<run-id>/verification.json`. A successful browser result is insufficient unless `cleanupVerified` is also true and the launcher exits successfully. Verification is written after child-process, Compose and certificate cleanup and environment restoration; a failure in any phase clears the cleanup flag. The runner records source revision and whether the working tree was dirty.
 
-Local fixture identifiers and service logs remain under the run directory and are excluded from CI uploads. Treat local diagnostic and Playwright failure artifacts as restricted; they may contain synthetic financial data. Application services use the shared structured logging/correlation foundation (
-exaconnect-customer-bff`, 
-exaconnect-reporting`, 
-exaconnect-pos`); follow the safe [cash-close diagnostic queries](Cash-Close-Recovery.md). The fixture CLI emits bounded stage/type/SQLSTATE failures, never exception bodies or connection strings.
+Local fixture identifiers and service logs remain under the run directory and are excluded from CI uploads. Treat local diagnostic and Playwright failure artifacts as restricted; they may contain synthetic financial data. Application services use the shared structured logging/correlation foundation (`nexaconnect-customer-bff`, `nexaconnect-reporting`, `nexaconnect-pos`); follow the safe [cash-close diagnostic queries](Cash-Close-Recovery.md). The fixture CLI emits bounded stage/type/SQLSTATE failures, never exception bodies or connection strings.
 
 Cleanup kills only child processes retained by the runner, removes its exact generated Compose project and volumes, verifies no containers remain, removes the exported certificate, and restores modified environment variables. Forced termination can bypass `finally`; investigate only the recorded run's resources. Never reuse a partially provisioned run.
 
@@ -46,5 +43,4 @@ The `Joined cash-close portal gate` GitHub job runs this matrix on Ubuntu with .
 
 ## POS workload audience prerequisite
 
-The development realm explicitly maps 
-exaconnect-api` into POS workload access tokens so the scanner can resolve Restaurant hierarchy. Existing realms need an explicit reviewed mapper update; realm import skips existing realms. Obtain a new workload token after updating the mapper (restart the local POS host or allow its cached token to expire). Token validation remains unchanged. This requirement also applies outside the disposable harness.
+The development realm explicitly maps `nexaconnect-api` into POS workload access tokens so the scanner can resolve Restaurant hierarchy. Existing realms need an explicit reviewed mapper update; realm import skips existing realms. Obtain a new workload token after updating the mapper (restart the local POS host or allow its cached token to expire). Token validation remains unchanged. This requirement also applies outside the disposable harness.

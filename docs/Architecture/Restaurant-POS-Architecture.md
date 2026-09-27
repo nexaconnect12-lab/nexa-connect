@@ -283,6 +283,8 @@ Operational recovery now includes a manifest-pinned retained-event replay CLI an
 
 The implemented [single-store cash-close report](../API/Cash-Close-Reporting.md) projects current closed-session financial/review snapshots through an opt-in POS outbox and separate Reporting consumer. POS remains authoritative for movements and decisions; late settlement can replace approval with `review_required`. The projection coalesces intermediate changes and is not complete decision history or end-of-day settlement evidence. Every read checks live exact-store POS access. Capture/projection times are row provenance, not a completeness watermark. [ADR-012](Decisions/ADR-012-cash-close-snapshot-reporting.md) records the boundary; production acceptance, exports, multi-store totals and offline reporting remain open.
 
+A [joined cash-close portal acceptance harness](../Deployment/Cash-Close-Portal-Acceptance.md) covers closed-session backfill, approval and late-settlement replacement through the actual POS scanner/outbox and Reporting consumer, plus exact-scope denial, dependency failure and live permission revocation. Fixture mutations use POS repositories rather than cashier HTTP/WPF or Order ingestion. Local live evidence is pending; this does not certify settlement completeness or production acceptance.
+
 Operational services publish versioned facts such as:
 
 - `OrderOpened`
@@ -427,5 +429,3 @@ The system requires tests beyond ordinary API coverage:
 15. Whether restaurant owners and internal NexaConnect product operators use role-specific views in one product dashboard or separately deployed portals.
 
 No implementation decision should silently resolve these items. Each material decision should be recorded as an Architecture Decision Record.
-
-A [joined cash-close portal acceptance harness](../Deployment/Cash-Close-Portal-Acceptance.md) covers closed-session backfill, approval and late-settlement replacement through the actual POS scanner/outbox and Reporting consumer, plus exact-scope denial, dependency failure and live permission revocation. Fixture mutations use POS repositories rather than cashier HTTP/WPF or Order ingestion. Local live evidence is pending; this does not certify settlement completeness or production acceptance.

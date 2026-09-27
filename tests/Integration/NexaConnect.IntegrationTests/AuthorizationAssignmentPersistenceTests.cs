@@ -1,9 +1,9 @@
 extern alias AUTH;
 
-using Microsoft.Extensions.Logging.Abstractions;
+using DecisionStore = AUTH::NexaConnect.Services.Authorization.Infrastructure.Persistence.PostgresAuthorizationDecisionStore;
 using Npgsql;
 using Assignment = AUTH::NexaConnect.Services.Authorization.Application.Assignments;
-using DecisionService = AUTH::NexaConnect.Services.Authorization.Infrastructure.Persistence.PostgresAuthorizationDecisionService;
+using DecisionService = AUTH::NexaConnect.Services.Authorization.Application.Decisions.AuthorizationDecisionService;
 using AssignmentRepository = AUTH::NexaConnect.Services.Authorization.Infrastructure.Persistence.PostgresAuthorizationAssignmentRepository;
 
 namespace NexaConnect.IntegrationTests;
@@ -15,7 +15,7 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
     private NpgsqlDataSource? _dataSource;
     private string? _schema;
 
-    [Fact]
+    [AuthorizationDatabaseFact]
     public async Task Assignment_materializes_scoped_override_and_survives_a_fresh_decision_service()
     {
         if (!DatabaseConfigured()) return;
@@ -33,8 +33,8 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
         Assert.NotEqual(Guid.Empty, result.AssignmentId);
         Assert.Equal(2, await CountOverridesAsync("nexa_pos", organizationId, restaurantId, branchId));
 
-        var firstDecision = new DecisionService(_dataSource!, NullLogger<DecisionService>.Instance);
-        var secondDecision = new DecisionService(_dataSource!, NullLogger<DecisionService>.Instance);
+        var firstDecision = new DecisionService(new DecisionStore(_dataSource!));
+        var secondDecision = new DecisionService(new DecisionStore(_dataSource!));
 
         var decision = await firstDecision.DecideAsync(
             "nexa_pos", organizationId, restaurantId, branchId,
@@ -47,7 +47,7 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
         Assert.True(freshDecision.Granted);
     }
 
-    [Fact]
+    [AuthorizationDatabaseFact]
     public async Task Organization_assignment_authorizes_organization_and_child_resources_only()
     {
         if (!DatabaseConfigured()) return;
@@ -58,7 +58,7 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
             new Assignment.AssignRoleCommand("tenant-admin", organizationId, null, null, "tenant-admin"),
             "integration-admin", CancellationToken.None);
 
-        var decisions = new DecisionService(_dataSource!, NullLogger<DecisionService>.Instance);
+        var decisions = new DecisionService(new DecisionStore(_dataSource!));
         Assert.True((await decisions.DecideAsync("tenant-admin", organizationId, null, null,
             "media.asset.read", null, null, CancellationToken.None)).Granted);
         Assert.True((await decisions.DecideAsync("tenant-admin", organizationId, Guid.NewGuid(), null,
@@ -67,7 +67,7 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
             "media.asset.read", null, null, CancellationToken.None)).Granted);
     }
 
-    [Fact]
+    [AuthorizationDatabaseFact]
     public async Task Financial_review_roles_created_after_migration_preserve_reader_resolver_separation()
     {
         if (!DatabaseConfigured()) return;
@@ -76,7 +76,7 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
         var repository=new AssignmentRepository(_dataSource!);
         await repository.AssignAsync(new Assignment.AssignRoleCommand("review-reader",organizationId,restaurantId,branchId,"accountant"),"integration-admin",default);
         await repository.AssignAsync(new Assignment.AssignRoleCommand("review-resolver",organizationId,restaurantId,null,"store-manager"),"integration-admin",default);
-        var decisions=new DecisionService(_dataSource!,NullLogger<DecisionService>.Instance);
+        var decisions=new DecisionService(new DecisionStore(_dataSource!));
 
         Assert.True((await decisions.DecideAsync("review-reader",organizationId,restaurantId,branchId,"order.payment-review.read",null,null,default)).Granted);
         Assert.False((await decisions.DecideAsync("review-reader",organizationId,restaurantId,branchId,"order.payment-review.resolve",null,null,default)).Granted);
@@ -86,6 +86,71 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
         Assert.False((await decisions.DecideAsync("review-reader",organizationId,restaurantId,branchId,"pos.cash-review.resolve",null,null,default)).Granted);
         Assert.True((await decisions.DecideAsync("review-resolver",organizationId,restaurantId,branchId,"pos.cash-review.read",null,null,default)).Granted);
         Assert.True((await decisions.DecideAsync("review-resolver",organizationId,restaurantId,branchId,"pos.cash-review.resolve",null,null,default)).Granted);
+    }
+
+    [AuthorizationDatabaseFact]
+    public async Task Explicit_deny_beats_role_and_each_request_records_current_policy()
+    {
+        if (!DatabaseConfigured()) return;
+        Guid org=Guid.NewGuid(), restaurant=Guid.NewGuid(), branch=Guid.NewGuid();
+        await new AssignmentRepository(_dataSource!).AssignAsync(new("reader",org,restaurant,branch,"accountant"),"test",default);
+        var service=new DecisionService(new DecisionStore(_dataSource!));
+        Assert.True((await service.DecideAsync("reader",org,restaurant,branch,"pos.cash-review.read",null,null,default)).Granted);
+        await Effect("reader",org,restaurant,branch,"pos.cash-review.read","deny");
+        var denied=await service.DecideAsync("reader",org,restaurant,branch,"pos.cash-review.read",null,null,default);
+        Assert.False(denied.Granted);
+        await using var audit=_dataSource!.CreateCommand("SELECT count(*) FROM authorization_decisions WHERE id=$1 AND NOT granted AND policy_version=2");
+        audit.Parameters.AddWithValue(denied.Id); Assert.Equal(1L,await audit.ExecuteScalarAsync());
+        await using var revoke=_dataSource.CreateCommand("UPDATE authorization_user_permission_overrides SET status='revoked' WHERE subject_id='reader'");
+        await revoke.ExecuteNonQueryAsync();
+        Assert.True((await service.DecideAsync("reader",org,restaurant,branch,"pos.cash-review.read",null,null,default)).Granted);
+    }
+
+    [AuthorizationDatabaseFact]
+    public async Task Most_specific_active_override_wins_without_cross_tenant_leakage()
+    {
+        if (!DatabaseConfigured()) return;
+        Guid org=Guid.NewGuid(), restaurant=Guid.NewGuid(), branch=Guid.NewGuid();
+        var repository=new AssignmentRepository(_dataSource!);
+        await repository.AssignAsync(new("operator",org,null,null,"tenant-admin"),"test",default);
+        await repository.AssignAsync(new("operator",org,restaurant,branch,"cashier"),"test",default);
+        var service=new DecisionService(new DecisionStore(_dataSource!));
+        await Effect("operator",org,null,null,"pos.shift.open","deny");
+        Assert.True((await service.DecideAsync("operator",org,restaurant,branch,"pos.shift.open",null,null,default)).Granted);
+        Assert.False((await service.DecideAsync("operator",org,restaurant,Guid.NewGuid(),"pos.shift.open",null,null,default)).Granted);
+        await Effect("operator",org,null,null,"pos.shift.open","allow");
+        await Effect("operator",org,restaurant,branch,"pos.shift.open","deny");
+        Assert.False((await service.DecideAsync("operator",org,restaurant,branch,"pos.shift.open",null,null,default)).Granted);
+        Assert.False((await service.DecideAsync("operator",Guid.NewGuid(),restaurant,branch,"pos.shift.open",null,null,default)).Granted);
+    }
+
+    [AuthorizationDatabaseFact]
+    public async Task Financial_limit_uses_only_active_roles_in_the_requested_scope()
+    {
+        if (!DatabaseConfigured()) return;
+        Guid org=Guid.NewGuid(), other=Guid.NewGuid(), restaurant=Guid.NewGuid(), branch=Guid.NewGuid();
+        var repository=new AssignmentRepository(_dataSource!);
+        await repository.AssignAsync(new("reader",org,restaurant,branch,"accountant"),"test",default);
+        await repository.AssignAsync(new("reader",other,Guid.NewGuid(),Guid.NewGuid(),"accountant"),"test",default);
+        async Task Limit(Guid organization)
+        {
+            await using var command=_dataSource!.CreateCommand("INSERT INTO financial_approval_limits(id,restaurant_id,principal_type,principal_id,action_code,currency,maximum_amount,status) SELECT $1,$2,'role',id::text,'pos.cash-review.read','THB',100,'active' FROM authorization_roles WHERE organization_id=$3");
+            command.Parameters.AddWithValue(Guid.NewGuid()); command.Parameters.AddWithValue(restaurant);command.Parameters.AddWithValue(organization);await command.ExecuteNonQueryAsync();
+        }
+        var service=new DecisionService(new DecisionStore(_dataSource!));
+        await Limit(other);
+        Assert.False((await service.DecideAsync("reader",org,restaurant,branch,"pos.cash-review.read",10,"THB",default)).Granted);
+        await Limit(org);
+        Assert.True((await service.DecideAsync("reader",org,restaurant,branch,"pos.cash-review.read",100,"THB",default)).Granted);
+        Assert.False((await service.DecideAsync("reader",org,restaurant,branch,"pos.cash-review.read",101,"THB",default)).Granted);
+    }
+
+    private async Task Effect(string subject,Guid org,Guid? restaurant,Guid? branch,string permission,string effect)
+    {
+        await using var command=_dataSource!.CreateCommand("UPDATE authorization_user_permission_overrides o SET effect=$1 FROM authorization_resource_scopes s WHERE s.id=o.scope_id AND o.subject_id=$2 AND s.organization_id=$3 AND s.restaurant_id IS NOT DISTINCT FROM $4 AND s.branch_id IS NOT DISTINCT FROM $5 AND o.permission_code=$6");
+        command.Parameters.AddWithValue(effect);command.Parameters.AddWithValue(subject);command.Parameters.AddWithValue(org);
+        command.Parameters.AddWithValue((object?)restaurant??DBNull.Value);command.Parameters.AddWithValue((object?)branch??DBNull.Value);command.Parameters.AddWithValue(permission);
+        Assert.Equal(1,await command.ExecuteNonQueryAsync());
     }
 
     public async Task InitializeAsync()
@@ -150,7 +215,7 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
         return (long)(await command.ExecuteScalarAsync() ?? 0L);
     }
 
-    private static bool IsSafeEnvironment()
+    internal static bool IsSafeEnvironment()
     {
         string? environment = Environment.GetEnvironmentVariable("NEXACONNECT_ENVIRONMENT")
             ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
@@ -207,4 +272,14 @@ public sealed class AuthorizationAssignmentPersistenceTests : IAsyncLifetime
             decided_at_utc timestamptz NOT NULL, policy_version integer NOT NULL
         );
         """;
+}
+
+public sealed class AuthorizationDatabaseFactAttribute : FactAttribute
+{
+    public AuthorizationDatabaseFactAttribute()
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("NEXACONNECT_AUTHORIZATION_INTEGRATION_DB")) ||
+            !AuthorizationAssignmentPersistenceTests.IsSafeEnvironment())
+            Skip = "Requires an explicit disposable PostgreSQL connection and safe test environment.";
+    }
 }
