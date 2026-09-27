@@ -32,6 +32,8 @@ jobs:
         run: ./scripts/test-keycloak-realm.ps1
       - name: Verify authorization policy and audit failure behavior
         run: dotnet test tests/Unit/NexaConnect.UnitTests --filter FullyQualifiedName~AuthorizationPolicyTests --verbosity minimal
+      - name: Verify authorization domain boundaries
+        run: dotnet test tests/Architecture/NexaConnect.ArchitectureTests --filter FullyQualifiedName~AuthorizationDomainDependencyTests --verbosity minimal
       - name: Prepare browser and validate acceptance guards
         working-directory: src/Frontend
         run: |

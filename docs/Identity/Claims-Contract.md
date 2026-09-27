@@ -4,6 +4,8 @@ Cash-close Reporting reuses `pos.cash-review.read` through a live POS access pro
 
 ## Purpose
 
+Authorization policy version 2 evaluates each request from a fresh database statement snapshot. The most specific active matching override replaces role fallback; deny wins ties. Active tenant/hierarchy-matching roles alone may contribute role-based financial limits, and a supplied amount requires a nonnegative value within a matching limit. Audit persistence precedes the response. This is not a revocation lock spanning the caller's later operation; see [decision semantics](../API/Authorization-Assignments.md#decision-policy). Existing-session read revocation passed in the [local joined portal acceptance](../Architecture/Evidence/Cash-Close-Portal-Acceptance.md).
+
 Keycloak authenticates users and workloads. NexaConnect validates access tokens and uses stable identity identifiers, while the Platform Directory owns cross-product organizations and memberships and each NexaConnect service owns its resource-level authorization.
 
 ## Required access-token claims

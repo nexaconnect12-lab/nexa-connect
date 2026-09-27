@@ -2,7 +2,9 @@
 
 Manual tender confirmation requires migration 6. Existing and newly assigned `cashier`, `store-manager`, and `tenant-admin` roles receive `order.manual-payment.confirm` at their normal hierarchical scopes. Downgrading `6→5` removes only this permission association and must follow disabling the manual-settlement route.
 
-Owns product-scoped authorization decisions and role assignments. Operational telemetry uses service name `nexaconnect-authorization`; decision logs contain permission and UUID scope but never bearer tokens, identity credentials, request bodies, customer PII, or payment details.
+Owns product-scoped authorization decisions and role assignments. Operational telemetry uses service name `nexaconnect-authorization`; decision events contain only decision UUID and granted flag with shared correlation context, never subject, permission, resource scope, database diagnostics, credentials, request bodies or financial values.
+
+Domain `AuthorizationPolicy` applies the most specific active override before role fallback, with deny winning equal specificity. Application orchestrates one Infrastructure evidence snapshot and a required audit insert before returning; no decision cache or new migration is introduced. Matching active roles also constrain financial-limit eligibility. Decisions record policy version 2. See [precedence, limits and concurrent policy changes](../../../docs/API/Authorization-Assignments.md#decision-policy).
 
 `POST /api/authorization/v1/role-assignments` accepts legacy `system-admin` and current `platform-owner`/`platform-admin` control-plane roles. Platform Admin BFF exposes a same-body proxy while Authorization remains the persistence owner. Assignment scope is hierarchical: `tenant-admin` is organization-scoped, `store-manager` is restaurant-scoped, and operational roles are branch-scoped. Organization-wide list APIs therefore require an organization-scoped assignment; restaurant-scoped assignments apply only when the authorization request carries their restaurant.
 

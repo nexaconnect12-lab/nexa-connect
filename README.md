@@ -2,7 +2,7 @@
 
 The Customer Portal now includes a read-only [single-store cash-close report](docs/API/Cash-Close-Reporting.md). POS migration 6 publishes opt-in current snapshots; Reporting migration 15 projects them with duplicate/stale-delivery protection and live POS store authorization. Capture/projection times do not certify completeness. Local database/broker recovery acceptance passed on 2026-09-24; production acceptance, exports and multi-store totals remain future work.
 
-The guarded [joined cash-close portal acceptance](docs/Deployment/Cash-Close-Portal-Acceptance.md) runs five real-OIDC browser cases against disposable identity, databases, broker and application hosts. Its live execution evidence is pending; synthetic UI contracts and the previously passed recovery matrix remain separate checks.
+The guarded [joined cash-close portal acceptance](docs/Deployment/Cash-Close-Portal-Acceptance.md) runs five real-OIDC browser cases against disposable identity, databases, broker and application hosts. Local Windows acceptance passed six Authorization database and five browser cases with cleanup on 2026-09-27; synthetic UI contracts and the previously passed recovery matrix remain separate checks.
 
 The Customer Portal now provides an online, branch-scoped **Kitchen queue** with station filtering, bounded pagination, read-only access and version-fenced Start/Ready/Complete controls. Conflicts and uncertain responses refresh authoritative state without replaying actions. See the [Kitchen contract and release gates](docs/API/Kitchen-Queue.md); live joined POS/identity/PostgreSQL/broker acceptance remains open.
 
