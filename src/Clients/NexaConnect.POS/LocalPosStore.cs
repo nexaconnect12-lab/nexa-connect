@@ -9,7 +9,7 @@ public sealed record LocalShiftState(Guid ShiftId, string ShiftNumber, DateTimeO
 public sealed record LocalCashSessionState(Guid CashSessionId, Guid ShiftId, DateTimeOffset OpenedAtUtc);
 public sealed record LocalPendingSettlementState(Guid OrderId, decimal Amount, string Currency,
     Guid IdempotencyKey, string? Method = null, bool ReceiptConfirmed = false, string? BankReference = null,
-    bool OutcomeUncertain = false);
+    bool OutcomeUncertain = false, PosOrderPricing? Pricing = null);
 public sealed record LocalPendingCashReviewState(
     Guid IdempotencyKey,
     Guid CashSessionId,

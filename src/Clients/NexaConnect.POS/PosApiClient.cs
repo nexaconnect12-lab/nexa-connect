@@ -12,7 +12,16 @@ namespace NexaConnect.POS;
 public sealed record PosShift(Guid ShiftId, Guid AuthorizationDecisionId);
 public sealed record PosMenuItem(Guid ProductId, string Name, decimal UnitPrice, string Currency, string PreparationStation, bool Available);
 public enum PosOrderStatus { Draft, Submitted, InventoryReserved, KitchenAccepted, Paid, PaymentFailed, Rejected, PaymentPending, PaymentReview }
-public sealed record PosOrderResult(Guid OrderId, PosOrderStatus Status, decimal TotalAmount, string Currency, bool CardTokenRequired = false);
+public sealed record PosOrderResult(Guid OrderId, PosOrderStatus Status, decimal TotalAmount, string Currency, bool CardTokenRequired = false, PosOrderPricing? Pricing = null);
+public sealed record PosOrderPricing(long PolicyVersion, decimal TaxPercent, bool TaxInclusive,
+    decimal ServiceChargePercent, decimal MenuAmount, decimal SubtotalAmount, decimal ServiceChargeAmount,
+    decimal TaxAmount, decimal TotalAmount)
+{
+    public string Summary => $"Subtotal THB {SubtotalAmount:N2} | Service charge THB {ServiceChargeAmount:N2} | Tax THB {TaxAmount:N2} | Total THB {TotalAmount:N2}";
+}
+public sealed record PosOrderQuote(string Fingerprint, PosOrderPricing Pricing, IReadOnlyList<PosQuoteLine> Lines);
+public sealed record PosQuoteLine(Guid ProductId, string Name, decimal UnitPrice, int Quantity);
+public sealed class PosPricingChangedException : Exception;
 public sealed record ManualTenderResult(Guid SettlementId, Guid OrderId, string Status, string Method,
     decimal Amount, string Currency, DateTimeOffset OccurredAtUtc, bool Replayed);
 public sealed record CashSessionResult(Guid CashSessionId, string OpenedBy);
@@ -99,6 +108,30 @@ public sealed class PosApiClient : IDisposable
         return await response.Content.ReadFromJsonAsync<IReadOnlyCollection<PosMenuItem>>(cancellationToken) ?? [];
     }
 
+    public async Task<PosOrderQuote> QuoteAsync(PosTokenSet token, PendingCheckout checkout, CancellationToken cancellationToken = default)
+    {
+        checkout.Validate(_configuration);
+        using var request = CreateRequest(HttpMethod.Post, "api/order/v1/workflows/quote", token);
+        AddTenantContext(request, checkout.OrganizationId);
+        request.Content = JsonContent.Create(new
+        {
+            checkout.RestaurantId, checkout.OrganizationId, checkout.BranchId, checkout.Currency,
+            checkout.PaymentMethod, IdempotencyKey = checkout.OrderId.ToString("N"), checkout.Lines
+        });
+        using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.quote", checkout.OrderId, cancellationToken);
+        await EnsureSuccessAsync(response, "Pricing could not be loaded.");
+        var quote = await response.Content.ReadFromJsonAsync<PosOrderQuote>(cancellationToken)
+            ?? throw new InvalidDataException("Order quote was empty.");
+        if (quote.Fingerprint is null || !System.Text.RegularExpressions.Regex.IsMatch(quote.Fingerprint, "\\A[0-9A-F]{64}\\z")
+            || quote.Pricing is null || quote.Lines is null
+            || quote.Pricing.TotalAmount <= 0 || quote.Pricing.SubtotalAmount < 0 || quote.Pricing.ServiceChargeAmount < 0 || quote.Pricing.TaxAmount < 0
+            || quote.Pricing.TotalAmount != quote.Pricing.SubtotalAmount + quote.Pricing.ServiceChargeAmount + quote.Pricing.TaxAmount
+            || !quote.Lines.OrderBy(l => l.ProductId).Select(l => (l.ProductId, l.Quantity))
+                .SequenceEqual(checkout.Lines.OrderBy(l => l.ProductId).Select(l => (l.ProductId, l.Quantity))))
+            throw new InvalidDataException("Order quote does not match checkout.");
+        return quote;
+    }
+
     public async Task<PosOrderResult> PlaceOrderAsync(PosTokenSet token, PendingCheckout checkout, CancellationToken cancellationToken = default)
         => await PlaceOrderAsync(token, checkout, null, cancellationToken);
 
@@ -115,12 +148,15 @@ public sealed class PosApiClient : IDisposable
             restaurantId = checkout.RestaurantId, organizationId = checkout.OrganizationId, branchId = checkout.BranchId,
             currency = checkout.Currency, paymentMethod = checkout.PaymentMethod, idempotencyKey = checkout.OrderId.ToString("N"),
             orderId = checkout.OrderId, correlationId = checkout.OrderId,
-            cardToken,
+            cardToken, pricingFingerprint = checkout.PricingFingerprint,
             lines = checkout.Lines.Select(line => new { productId = line.ProductId, quantity = line.Quantity }).ToArray()
         });
         using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.place", checkout.OrderId, cancellationToken);
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
+            using (var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken)))
+                if (body.RootElement.TryGetProperty("code", out var code) && code.GetString() == "pricing_changed")
+                    throw new PosPricingChangedException();
             try
             {
                 PosOrderResult? rejected = await response.Content.ReadFromJsonAsync<PosOrderResult>(cancellationToken);
@@ -146,6 +182,9 @@ public sealed class PosApiClient : IDisposable
     {
         if (result.OrderId != checkout.OrderId || result.Currency != checkout.Currency || result.TotalAmount <= 0)
             throw new InvalidDataException("Order response does not match the pending checkout.");
+        if (result.Pricing is {} pricing && (pricing.TotalAmount != result.TotalAmount
+            || pricing.TotalAmount != pricing.SubtotalAmount + pricing.ServiceChargeAmount + pricing.TaxAmount))
+            throw new InvalidDataException("Order pricing does not match its total.");
         if (result.CardTokenRequired && (checkout.PaymentMethod != "card_omise_test"
             || result.Status is not (PosOrderStatus.KitchenAccepted or PosOrderStatus.PaymentPending)))
             throw new InvalidDataException("Card-token action does not match the original checkout state.");

@@ -13,9 +13,16 @@ public interface IOrderApplicationService
     OrderAggregate? Get(Guid orderId);
 }
 
-public sealed class InMemoryOrderApplicationService : IOrderApplicationService, IOrderRepository, IOrderLookup
+public sealed class InMemoryOrderApplicationService : IOrderApplicationService, IOrderRepository, IOrderLookup, IIdempotentOrderRepository
 {
     private readonly ConcurrentDictionary<Guid, OrderAggregate> orders = new();
+    private readonly object placementLock = new();
+
+    public Task<OrderAggregate?> FindByIdempotencyKeyAsync(Guid restaurantId, string key, CancellationToken cancellationToken)
+    {
+        lock (placementLock)
+            return Task.FromResult(orders.Values.SingleOrDefault(o => o.RestaurantId == restaurantId && o.IdempotencyKey == key));
+    }
 
     public OrderAggregate Create(CreateOrderRequest request)
     {
@@ -37,7 +44,13 @@ public sealed class InMemoryOrderApplicationService : IOrderApplicationService, 
 
     public Task SaveAsync(OrderAggregate order, CancellationToken cancellationToken)
     {
-        orders[order.Id] = order;
+        lock (placementLock)
+        {
+            if (order.Pricing is not null && order.Status == OrderStatus.Submitted
+                && (orders.ContainsKey(order.Id) || orders.Values.Any(o => o.RestaurantId == order.RestaurantId && o.IdempotencyKey == order.IdempotencyKey)))
+                throw new OrderPlacementConflictException();
+            orders[order.Id] = order;
+        }
         return Task.CompletedTask;
     }
 }

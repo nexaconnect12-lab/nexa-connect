@@ -39,12 +39,17 @@ public sealed class OrderAggregate
         string? orderNumber = null,
         string? idempotencyKey = null,
         string? workflowPaymentMethod = null,
-        Guid? workflowCorrelationId = null)
+        Guid? workflowCorrelationId = null, OrderPricing? pricing = null, string? pricingFingerprint = null)
     {
         Id = id;
         OrganizationId = organizationId;
         BranchId = branchId;
         this.lines = lines.ToList();
+        if (pricing is not null && (pricing != OrderPricing.Calculate(lines, currency, new(pricing.PolicyVersion, pricing.TaxPercent, pricing.TaxInclusive, pricing.ServiceChargePercent))
+            || pricingFingerprint is null || pricingFingerprint.Length != 64))
+            throw new ArgumentException("Invalid accepted pricing snapshot.");
+        Pricing = pricing;
+        PricingFingerprint = pricingFingerprint;
         Currency = currency;
         RestaurantId = restaurantId ?? organizationId;
         Channel = channel;
@@ -69,8 +74,10 @@ public sealed class OrderAggregate
     public Guid? WorkflowCorrelationId { get; }
     public Guid? PaymentIntentId { get; private set; }
     public OrderStatus Status { get; private set; }
-    public IReadOnlyList<OrderLine> Lines => lines;
-    public decimal TotalAmount => lines.Sum(line => line.Total);
+    public IReadOnlyList<OrderLine> Lines => lines.AsReadOnly();
+    public OrderPricing? Pricing { get; }
+    public string? PricingFingerprint { get; }
+    public decimal TotalAmount => Pricing?.TotalAmount ?? lines.Sum(line => line.Total);
 
     public static OrderAggregate Create(
         Guid id,
@@ -84,13 +91,13 @@ public sealed class OrderAggregate
         string? orderNumber = null,
         string? idempotencyKey = null,
         string? workflowPaymentMethod = null,
-        Guid? workflowCorrelationId = null)
+        Guid? workflowCorrelationId = null, OrderPricing? pricing = null, string? pricingFingerprint = null)
     {
         if (lines.Count == 0) throw new ArgumentException("An order requires at least one line.", nameof(lines));
         if (lines.Any(line => line.Quantity <= 0 || line.UnitPrice < 0))
             throw new ArgumentException("Order lines must have a positive quantity and non-negative price.", nameof(lines));
         if (string.IsNullOrWhiteSpace(currency)) throw new ArgumentException("Currency is required.", nameof(currency));
-        return new OrderAggregate(id, organizationId, branchId, lines, currency.ToUpperInvariant(), restaurantId, channel, serviceType, orderNumber, idempotencyKey, workflowPaymentMethod, workflowCorrelationId);
+        return new OrderAggregate(id, organizationId, branchId, lines, currency.ToUpperInvariant(), restaurantId, channel, serviceType, orderNumber, idempotencyKey, workflowPaymentMethod, workflowCorrelationId, pricing, pricingFingerprint);
     }
 
     public void Submit() => Transition(OrderStatus.Draft, OrderStatus.Submitted);

@@ -58,6 +58,7 @@ builder.Services.AddSingleton<InMemoryIntegrationEventPublisher>();
 builder.Services.AddSingleton<IIntegrationEventPublisher>(services =>
     services.GetRequiredService<InMemoryIntegrationEventPublisher>());
 builder.Services.AddScoped<PlaceOrderWorkflow>();
+builder.Services.AddScoped<OrderPricingService>();
 builder.Services.AddScoped<OrderWorkflowRecoveryService>();
 builder.Services.AddScoped<PaymentReconciliationApplicationService>();
 builder.Services.AddScoped<PaymentReviewApplicationService>();
@@ -73,11 +74,14 @@ if (builder.Configuration.GetValue<bool>("PaymentReconciliationConsumer:Enabled"
         throw new InvalidOperationException("Payment reconciliation consumption requires PostgreSQL Order persistence and HTTP workflow adapters.");
     builder.Services.AddPaymentReconciliationConsumer(builder.Configuration);
 }
+builder.Services.AddTransient<OutboundTokenHandler>();
+builder.Services.AddSingleton<IOutboundAccessTokenProvider, KeycloakClientCredentialsTokenProvider>();
+builder.Services.AddHttpClient<IBranchPricingPort, HttpBranchPricingPort>(client =>
+    client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")))
+    .AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
 if (builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
 {
-    builder.Services.AddTransient<OutboundTokenHandler>();
     builder.Services.AddTransient<RetryingHttpMessageHandler>();
-    builder.Services.AddSingleton<IOutboundAccessTokenProvider, KeycloakClientCredentialsTokenProvider>();
     builder.Services.AddHttpClient("keycloak-token");
     builder.Services.AddHttpClient<IMenuCatalogPort, HttpMenuCatalogPort>(client =>
         client.BaseAddress = new Uri(builder.Configuration["Services:Catalog"] ?? throw new InvalidOperationException("Services:Catalog is required.")))

@@ -73,7 +73,7 @@ public partial class MainWindow : Window
         if (savedSettlement is not null)
         {
             pendingOrder = new PosOrderResult(savedSettlement.OrderId, PosOrderStatus.KitchenAccepted,
-                savedSettlement.Amount, savedSettlement.Currency);
+                savedSettlement.Amount, savedSettlement.Currency, Pricing: savedSettlement.Pricing);
             settlementIdempotencyKey = savedSettlement.IdempotencyKey;
             settlementUncertain = savedSettlement.OutcomeUncertain;
             if (savedSettlement.Method is not null)
@@ -466,7 +466,7 @@ public partial class MainWindow : Window
         { if (line.Quantity > 1) line.Quantity--; else cart.Remove(line); RefreshCart(); }
     }
 
-    private void RefreshCart() { CartList.Items.Refresh(); UpdateCartTotal(); UpdateOperationalState(); }
+    private void RefreshCart() { PricingBreakdownText.Text = "Review server pricing before confirming the order."; CartList.Items.Refresh(); UpdateCartTotal(); UpdateOperationalState(); }
     private void MenuFilter_Changed(object sender, TextChangedEventArgs e) => RefreshMenuFilter();
     private void StationFilter_Changed(object sender, SelectionChangedEventArgs e) => RefreshMenuFilter();
     private void RefreshMenuFilter()
@@ -494,13 +494,27 @@ public partial class MainWindow : Window
             {
                 var created = PendingCheckout.Create(_configuration,
                     cart.Select(line => new CheckoutLine(line.ProductId, line.Quantity)).ToArray());
-                _localStore.SavePendingCheckout(created); // Never send until recovery is durable.
+                var quote = await _api.QuoteAsync(_authentication.CurrentToken, created);
+                PricingBreakdownText.Text = quote.Pricing.Summary;
+                if (!ConfirmQuote(quote)) return;
+                created = created with { PricingFingerprint = quote.Fingerprint };
+                _localStore.SavePendingCheckout(created); // Never send until confirmed recovery is durable.
                 pendingCheckout = created;
+            }
+            if (pendingCheckout.NeedsPricingReview)
+            {
+                var quote = await _api.QuoteAsync(_authentication.CurrentToken, pendingCheckout);
+                PricingBreakdownText.Text = quote.Pricing.Summary;
+                if (!ConfirmQuote(quote)) return;
+                var confirmed = pendingCheckout with { PricingFingerprint = quote.Fingerprint, NeedsPricingReview = false };
+                _localStore.SavePendingCheckout(confirmed);
+                pendingCheckout = confirmed;
             }
             string? cardToken = CardTokenBox.Password.Length == 0 ? null : CardTokenBox.Password;
             CardTokenBox.Clear();
             var result = await _api.PlaceOrderAsync(_authentication.CurrentToken, pendingCheckout, cardToken);
             cardTokenRequired = result.CardTokenRequired;
+            PricingBreakdownText.Text = result.Pricing?.Summary ?? "Legacy order: use its original total.";
             bool clearCart = false;
             if (_configuration.PaymentMethod == "card_omise_test" && result.Status is PosOrderStatus.KitchenAccepted or PosOrderStatus.PaymentPending)
             {
@@ -515,7 +529,7 @@ public partial class MainWindow : Window
                 settlementUncertain = false;
                 PaymentTab.IsSelected = true;
                 _localStore.SavePendingSettlement(new(result.OrderId, result.TotalAmount, result.Currency,
-                    settlementIdempotencyKey.Value));
+                    settlementIdempotencyKey.Value, Pricing: result.Pricing));
                 StatusText.Text = "Order sent to the kitchen. Confirm payment when received.";
                 clearCart = true;
             }
@@ -542,16 +556,31 @@ public partial class MainWindow : Window
                 UpdateCartTotal();
             }
         }
+        catch (PosPricingChangedException)
+        {
+            if (pendingCheckout is not null)
+            {
+                var review = pendingCheckout with { NeedsPricingReview = true };
+                try { _localStore.SavePendingCheckout(review); pendingCheckout = review; }
+                catch { StatusText.Text = "Pricing review could not be saved. Original checkout is retained."; return; }
+            }
+            StatusText.Text = "Pricing changed. Select Verify original order to review and confirm a fresh quote. The original checkout identity is retained.";
+        }
         catch (Exception exception)
         {
             StatusText.Text = pendingCheckout is null
-                ? "Checkout was not sent because local recovery could not be saved. Check terminal setup and storage."
+                ? "Checkout was not sent. Check pricing availability, terminal setup and local storage."
                 : exception is PosApiException api
                     ? $"{api.Message} Original checkout retained. Use Verify order; do not create another order."
                     : "Original checkout retained. Use Verify order to check its result; do not create another order.";
         }
         finally { CardTokenBox.Clear(); UpdateOperationalState(); }
     }
+    private bool ConfirmQuote(PosOrderQuote quote) => MessageBox.Show(this,
+        string.Join("\n", quote.Lines.Select(l => $"{l.Quantity} × {l.Name} @ THB {l.UnitPrice:N2}"))
+        + "\n\n" + quote.Pricing.Summary + "\n\nConfirm this bill and send to the kitchen?",
+        "Confirm order pricing", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+
     private void CardToken_Changed(object sender, RoutedEventArgs e)
     {
         if (IsLoaded && !busy) UpdateOperationalState();
@@ -591,7 +620,7 @@ public partial class MainWindow : Window
             // must reopen in verification mode with the exact original tender fields.
             var attempt = new LocalPendingSettlementState(currentOrder.OrderId, currentOrder.TotalAmount,
                 currentOrder.Currency, currentIdempotencyKey, method,
-                method == "promptpay_manual", method == "promptpay_manual" ? bankReference : null, true);
+                method == "promptpay_manual", method == "promptpay_manual" ? bankReference : null, true, currentOrder.Pricing);
             ManualTenderResult result = await SettlementAttempt.ExecuteAsync(attempt,
                 state => { _localStore.SavePendingSettlement(state); settlementUncertain = true; },
                 () => _api.ConfirmManualSettlementAsync(
@@ -1100,7 +1129,7 @@ public partial class MainWindow : Window
             && (method != "promptpay_manual" || PromptPayQrImage.Source is not null);
         PendingOrderText.Text = pendingOrder is null
             ? "No order awaiting payment."
-            : $"Order {pendingOrder.OrderId:D} · {pendingOrder.Currency} {pendingOrder.TotalAmount:N2} · awaiting payment";
+            : $"Order {pendingOrder.OrderId:D} · {pendingOrder.Currency} {pendingOrder.TotalAmount:N2} · awaiting payment\n{pendingOrder.Pricing?.Summary}";
         EnrollTerminalButton.IsEnabled = signedIn;
         IReadOnlyList<LocalOutboxOperation> operations = outbox.Load();
         int rejected = operations.Count(operation => operation.TerminalFailureStatusCode is not null);

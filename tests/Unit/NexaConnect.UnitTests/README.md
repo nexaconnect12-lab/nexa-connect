@@ -1,5 +1,7 @@
 # NexaConnect Unit Tests
 
+OrderPricingTests verifies inclusive/exclusive calculations, decimal rounding, changed-price confirmation, snapshot replay, scope/content conflicts, tamper rejection and provider totals. ProductConfigurationTests bounds tax precision; PosCheckoutIntegrationTests covers quote identity and explicit reconfirmation responses.
+
 `AuthorizationPolicyTests` supplies 12 cases covering explicit override precedence, unknown-effect denial, nonnegative bounded amounts, missing limits and audit-write failure. These passed for policy version 2; persistence scope selection is covered separately by live PostgreSQL tests.
 
 Cash-close tests protect snapshot translation, ownership/source-version invariants, late-settlement review invalidation, exact-store authorization before reads, cursor bounds, authoritative publication scope and repeated Restaurant-client requests. Migration discovery checks include POS 6 and Reporting 15. Run the `CashClose|MigrationRunner` fully qualified name filter; these tests do not exercise a live broker. See [cash-close verification](../../../docs/API/Cash-Close-Reporting.md).

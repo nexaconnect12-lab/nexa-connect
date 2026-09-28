@@ -9,6 +9,29 @@ namespace NexaConnect.UnitTests;
 public sealed class PosCheckoutIntegrationTests
 {
     [Fact]
+    public async Task Quote_and_submission_preserve_pricing_identity_and_changed_response_is_explicit()
+    {
+        var config = Configuration();
+        var checkout = PendingCheckout.Create(config, [new CheckoutLine(Guid.NewGuid(), 1)]);
+        string fingerprint = new('A', 64);
+        var pricing = new PosOrderPricing(1, 7, false, 10, 100, 100, 10, 7.7m, 117.7m);
+        using var api = new PosApiClient(config, orderHandler: new Handler(async request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/quote"))
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new PosOrderQuote(fingerprint, pricing,
+                    [new(checkout.Lines[0].ProductId, "Item", 100, 1)])) };
+            using var json = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(fingerprint, json.RootElement.GetProperty("pricingFingerprint").GetString());
+            return new HttpResponseMessage(HttpStatusCode.Conflict) { Content = JsonContent.Create(new { code = "pricing_changed" }) };
+        }));
+        var quote = await api.QuoteAsync(Token(), checkout);
+        Assert.Equal(pricing, quote.Pricing);
+        var confirmed = checkout with { PricingFingerprint = quote.Fingerprint };
+        Assert.Equal(confirmed, JsonSerializer.Deserialize<PendingCheckout>(JsonSerializer.Serialize(confirmed))! with { Lines = confirmed.Lines });
+        await Assert.ThrowsAsync<PosPricingChangedException>(() => api.PlaceOrderAsync(Token(), confirmed));
+    }
+
+    [Fact]
     public async Task Omise_token_is_transient_and_not_part_of_saved_checkout()
     {
         var config = Configuration() with { PaymentMethod = "card_omise_test", EnableOmiseTestCheckout = true };

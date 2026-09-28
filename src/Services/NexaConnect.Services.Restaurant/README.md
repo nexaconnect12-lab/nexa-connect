@@ -1,5 +1,7 @@
 # Restaurant Service
 
+Branch configuration now includes taxPercent/taxInclusive and currency in reads; omitted tax fields preserve existing settings. The exact Order-workload pricing route returns only active THB branch settings within the requested organization. Existing configuration versions and audit/outbox apply; no new Restaurant schema is required. Service name: nexaconnect-restaurant; query logs for Branch pricing. See [pricing contract and rollout](../../../docs/API/Order-Pricing.md).
+
 Owns restaurant and branch hierarchy used by tenant authorization. Operational telemetry uses service name `nexaconnect-restaurant`; request logs exclude query strings, bodies, authorization headers, cookies, and arbitrary headers.
 
 Platform owners and administrators browse and provision hierarchy through `GET|POST /api/restaurant/v1/restaurants` and `GET|POST /api/restaurant/v1/restaurants/{restaurantId}/branches`. Restaurant listing requires an `organizationId` query value; branch listing is scoped by the restaurant route. Both mutations are idempotent by owner/code, and all parameterized PostgreSQL access remains inside Restaurant Infrastructure. Equivalent Platform Admin BFF proxies preserve the bearer/session boundary. Provisioning logs record scoped UUIDs but no tokens or request bodies.

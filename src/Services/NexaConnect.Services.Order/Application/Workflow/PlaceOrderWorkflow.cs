@@ -1,3 +1,4 @@
+using NexaConnect.Services.Order.Application.Orders;
 using NexaConnect.Contracts.IntegrationEvents;
 using NexaConnect.Services.Order.Domain;
 
@@ -15,7 +16,7 @@ public sealed record PlaceOrderCommand(
     string? IdempotencyKey = null,
     Guid? OrderId = null,
     Guid? CorrelationId = null,
-    [property: System.Text.Json.Serialization.JsonIgnore] string? CardToken = null)
+    [property: System.Text.Json.Serialization.JsonIgnore] string? CardToken = null, string? PricingFingerprint = null)
 {
     public override string ToString() => $"PlaceOrderCommand {{ OrderId = {OrderId} }}";
 }
@@ -36,7 +37,7 @@ public sealed record CatalogMenuItem(
 public sealed record InventoryReservationResult(bool Reserved, Guid? ReservationId, string? Reason);
 public sealed record KitchenTicketResult(Guid TicketId);
 public sealed record PaymentResult(bool Completed, Guid? PaymentId, string? Reason, string Outcome = "authorized");
-public sealed record PlaceOrderResult(Guid OrderId, OrderStatus Status, decimal TotalAmount, string Currency, bool CardTokenRequired = false);
+public sealed record PlaceOrderResult(Guid OrderId, OrderStatus Status, decimal TotalAmount, string Currency, bool CardTokenRequired = false, OrderPricing? Pricing = null);
 
 public interface IMenuCatalogPort
 {
@@ -98,7 +99,7 @@ public sealed class PlaceOrderWorkflow(
     IOrderRepository orders,
     IIntegrationEventPublisher events,
     TimeProvider? timeProvider = null,
-    Microsoft.Extensions.Options.IOptions<CardCheckoutOptions>? cardCheckout = null)
+    Microsoft.Extensions.Options.IOptions<CardCheckoutOptions>? cardCheckout = null, OrderPricingService? pricingService = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
@@ -116,39 +117,63 @@ public sealed class PlaceOrderWorkflow(
             var existing = await idempotent.FindByIdempotencyKeyAsync(restaurantId, command.IdempotencyKey, cancellationToken);
             if (existing is not null)
             {
-                if (command.PaymentMethod == "card_omise_test" && (existing.OrganizationId != command.OrganizationId || existing.BranchId != command.BranchId
-                    || existing.Id != command.OrderId || existing.Currency != command.Currency
-                    || existing.WorkflowPaymentMethod != command.PaymentMethod
+                if ((existing.OrganizationId != command.OrganizationId || existing.BranchId != command.BranchId
+                    || (command.OrderId is not null && existing.Id != command.OrderId) || existing.Currency != command.Currency
+                    || (existing.WorkflowPaymentMethod is not null && existing.WorkflowPaymentMethod != command.PaymentMethod)
+                    || (existing.PricingFingerprint is not null && existing.PricingFingerprint != command.PricingFingerprint)
                     || !existing.Lines.OrderBy(line => line.ProductId).Select(line => (line.ProductId, line.Quantity))
                         .SequenceEqual(command.Lines.OrderBy(line => line.ProductId).Select(line => (line.ProductId, line.Quantity)))))
                     throw new ArgumentException("The original order differs from this checkout. Restore its original scope and contents.");
                 if (command.PaymentMethod == "card_omise_test" && existing.Status is OrderStatus.KitchenAccepted or OrderStatus.PaymentPending)
                     return await CompletePaymentAsync(existing, command, existing.WorkflowCorrelationId ?? existing.Id, cancellationToken);
-                return new PlaceOrderResult(existing.Id, existing.Status, existing.TotalAmount, existing.Currency);
+                return new PlaceOrderResult(existing.Id, existing.Status, existing.TotalAmount, existing.Currency, Pricing: existing.Pricing);
             }
         }
         Guid orderId = command.OrderId ?? Guid.NewGuid();
         Guid correlationId = command.CorrelationId ?? orderId;
-        IReadOnlyDictionary<Guid, CatalogMenuItem> catalog = await menuCatalog.GetItemsAsync(
-            command.BranchId, command.Lines.Select(line => line.ProductId).Distinct().ToArray(), cancellationToken);
-        if (catalog.Count != command.Lines.Select(line => line.ProductId).Distinct().Count())
-            throw new InvalidOperationException("One or more products are not present in the branch menu.");
-
-        var orderLines = command.Lines.Select(line =>
+        OrderQuote? quote = null;
+        OrderLine[] orderLines;
+        if (pricingService is not null)
         {
-            CatalogMenuItem item = catalog[line.ProductId];
-            if (!item.Available) throw new InvalidOperationException($"Product {line.ProductId} is unavailable.");
-            if (!string.Equals(item.Currency, command.Currency, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Menu prices use a different currency than the order.");
-            return new OrderLine(item.ProductId, item.Name, item.UnitPrice, line.Quantity, item.PreparationStation);
-        }).ToArray();
+            quote = await pricingService.QuoteAsync(command, cancellationToken);
+            if (quote.Fingerprint != command.PricingFingerprint) throw new PricingChangedException();
+            orderLines = quote.Lines.ToArray();
+        }
+        else
+        {
+            IReadOnlyDictionary<Guid, CatalogMenuItem> catalog = await menuCatalog.GetItemsAsync(
+                command.BranchId, command.Lines.Select(line => line.ProductId).Distinct().ToArray(), cancellationToken);
+            if (catalog.Count != command.Lines.Select(line => line.ProductId).Distinct().Count())
+                throw new InvalidOperationException("One or more products are not present in the branch menu.");
+
+            orderLines = command.Lines.Select(line =>
+            {
+                CatalogMenuItem item = catalog[line.ProductId];
+                if (!item.Available) throw new InvalidOperationException($"Product {line.ProductId} is unavailable.");
+                if (!string.Equals(item.Currency, command.Currency, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Menu prices use a different currency than the order.");
+                return new OrderLine(item.ProductId, item.Name, item.UnitPrice, line.Quantity, item.PreparationStation);
+            }).ToArray();
+        }
         var order = OrderAggregate.Create(orderId, command.OrganizationId, command.BranchId, orderLines, command.Currency,
             command.RestaurantId, idempotencyKey: command.IdempotencyKey,
-            workflowPaymentMethod: command.PaymentMethod, workflowCorrelationId: correlationId);
+            workflowPaymentMethod: command.PaymentMethod, workflowCorrelationId: correlationId,
+            pricing: quote?.Pricing, pricingFingerprint: quote?.Fingerprint);
         order.Submit();
-        await PersistAsync(order, new OrderSubmittedV1(
-            Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, order.OrganizationId, order.BranchId,
-            order.Lines.Select(ToSnapshot).ToArray(), order.TotalAmount, order.Currency), cancellationToken);
+        try
+        {
+            await PersistAsync(order, new OrderSubmittedV1(
+                Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, order.OrganizationId, order.BranchId,
+                order.Lines.Select(ToSnapshot).ToArray(), order.TotalAmount, order.Currency), cancellationToken);
+        }
+        catch (OrderPlacementConflictException)
+        {
+            // The winning transaction owns advancement. Re-read through the normal replay/scope checks.
+            if (orders is not IIdempotentOrderRepository repository || command.RestaurantId is null
+                || await repository.FindByIdempotencyKeyAsync(command.RestaurantId.Value, command.IdempotencyKey!, cancellationToken) is null)
+                throw new InvalidOperationException("Order identity conflicts with another checkout.");
+            return await ExecuteAsync(command, cancellationToken);
+        }
 
         InventoryReservationResult reservation = await inventory.ReserveAsync(
             order.OrganizationId, order.Id, order.BranchId, order.Lines, cancellationToken);
@@ -158,7 +183,7 @@ public sealed class PlaceOrderWorkflow(
             await PersistAsync(order, new InventoryReservationRejectedV1(
                 Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id,
                 reservation.Reason ?? "Inventory could not be reserved."), cancellationToken);
-            return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
+            return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency, Pricing: order.Pricing);
         }
         order.MarkInventoryReserved();
         await PersistAsync(order, new InventoryReservedV1(
@@ -172,7 +197,7 @@ public sealed class PlaceOrderWorkflow(
 
         if (command.PaymentMethod is "cash_manual" or "promptpay_manual")
         {
-            return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
+            return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency, Pricing: order.Pricing);
         }
 
         return await CompletePaymentAsync(order, command, correlationId, cancellationToken);
@@ -191,13 +216,13 @@ public sealed class PlaceOrderWorkflow(
             if (order.Status == OrderStatus.PaymentPending)
             {
                 order.RestorePaymentIntent(paid.PaymentId.Value);
-                return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency, paid.Outcome == "awaiting_token");
+                return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency, paid.Outcome == "awaiting_token", order.Pricing);
             }
             order.MarkPaymentPending(paid.PaymentId.Value);
             await PersistAsync(order, new PaymentAuthorizationUncertainV1(
                 Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id, paid.PaymentId,
                 paid.Reason ?? "Payment authorization requires reconciliation."), cancellationToken);
-            return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency, paid.Outcome == "awaiting_token");
+            return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency, paid.Outcome == "awaiting_token", order.Pricing);
         }
         if (!paid.Completed || paid.PaymentId is null)
         {
@@ -207,13 +232,13 @@ public sealed class PlaceOrderWorkflow(
             await PersistAsync(order, new PaymentFailedV1(
                 Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id,
                 paid.Reason ?? "Payment was not completed."), cancellationToken);
-            return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
+            return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency, Pricing: order.Pricing);
         }
         order.MarkPaid(paid.PaymentId.Value);
         await PersistAsync(order, new PaymentCompletedV1(
             OrderPaymentEventIdentity.Completion(order.Id, command.PaymentMethod), correlationId, clock.GetUtcNow(), order.Id, paid.PaymentId.Value,
             order.TotalAmount, order.Currency, command.PaymentMethod), cancellationToken);
-        return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency);
+        return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency, Pricing: order.Pricing);
     }
 
 

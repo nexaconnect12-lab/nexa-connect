@@ -1,10 +1,12 @@
 # Customer product configuration, reporting, and media
 
+Restaurant configuration now includes taxPercent and taxInclusive, plus currency in reads. PUT omits tax fields to preserve them; explicit zero/false resets them. Rates support at most two decimals. These settings affect newly confirmed THB checkout only; historical orders preserve accepted prices. See [pricing contract and rollout](Order-Pricing.md).
+
 All routes require an authenticated Customer session. The BFF derives `organizationId` from its protected active `nexa_connect` tenant selection, forwards the server-held bearer token, query/body, status, and JSON, and never accepts organization from browser input. Missing context returns `401`; owning-service denial returns `403`; dependency/database failures propagate.
 
 ## Product configuration
 
-Restaurant owns `GET/PUT /api/restaurant/v1/customer/organizations/{organizationId}/configuration/branches/{branchId}`; the BFF surface is `/bff/customer/configuration/branches/{branchId}`. GET returns branch/restaurant/organization IDs, `dineInEnabled`, `takeawayEnabled`, `requireTableForDineIn`, `serviceChargePercent`, and `concurrencyVersion`. PUT accepts the four settings plus positive `expectedVersion`.
+Restaurant owns `GET/PUT /api/restaurant/v1/customer/organizations/{organizationId}/configuration/branches/{branchId}`; the BFF surface is `/bff/customer/configuration/branches/{branchId}`. GET returns branch/restaurant/organization IDs, `dineInEnabled`, `takeawayEnabled`, `requireTableForDineIn`, `serviceChargePercent`, `taxPercent`, `taxInclusive`, `currency`, and `concurrencyVersion`. PUT accepts service-mode/service-charge settings, optional tax fields, and positive `expectedVersion`.
 
 At least one service mode is required, table requirement needs dine-in, and service charge is 0–100. GET returns `404` for missing, cross-tenant, closed, or inactive hierarchy. Invalid PUT returns `400`; unavailable/cross-tenant/closed/stale writes collapse to `409`; success returns `200`. Lifecycle and configuration edits share the branch concurrency token. Writes append `branch.configuration.updated` transactionally.
 

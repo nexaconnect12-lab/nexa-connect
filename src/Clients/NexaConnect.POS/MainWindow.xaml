@@ -174,7 +174,7 @@
                   <PasswordBox x:Name="CardTokenBox" MaxLength="100" PasswordChanged="CardToken_Changed" AutomationProperties.Name="Fresh Omise test token" Margin="0,0,0,12" />
                 </StackPanel>
                 <Button x:Name="PlaceOrderButton" Content="Send order · Continue to payment" Click="PlaceOrder_Click" Style="{StaticResource Primary}" ToolTipService.ShowOnDisabled="True" />
-                <TextBlock Text="Menu total. Final amount is confirmed by the order service." FontSize="12" Foreground="#63756A" TextWrapping="Wrap" />
+                <TextBlock x:Name="PricingBreakdownText" Text="Review server pricing before confirming the order." FontSize="12" Foreground="#63756A" TextWrapping="Wrap" />
               </StackPanel>
             </Grid>
           </Border>

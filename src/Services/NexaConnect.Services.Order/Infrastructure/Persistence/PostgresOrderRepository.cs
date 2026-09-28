@@ -1,3 +1,4 @@
+using NexaConnect.Services.Order.Application.Orders;
 using System.Text.Json;
 using Npgsql;
 using NexaConnect.Contracts.IntegrationEvents;
@@ -72,7 +73,9 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
     public async Task SaveAsync(OrderAggregate order, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await SaveOrderAsync(connection, null, order, cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SaveOrderAsync(connection, transaction, order, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task SaveWithEventAsync(OrderAggregate order, IIntegrationEvent integrationEvent, CancellationToken cancellationToken)
@@ -169,7 +172,8 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
 
     public async Task<OrderAggregate?> FindByIdempotencyKeyAsync(Guid restaurantId, string key, CancellationToken cancellationToken)
     {
-        await using var command = dataSource.CreateCommand("SELECT resource_id FROM idempotency_records WHERE operation_scope = @scope AND idempotency_key = @key AND expires_at_utc > now()");
+        await using var command = dataSource.CreateCommand("SELECT id FROM orders WHERE restaurant_id=@restaurant AND placement_key=@key UNION SELECT resource_id FROM idempotency_records WHERE operation_scope = @scope AND idempotency_key = @key LIMIT 1");
+        command.Parameters.AddWithValue("restaurant", restaurantId);
         command.Parameters.AddWithValue("scope", $"order:{restaurantId:N}");
         command.Parameters.AddWithValue("key", key);
         var resource = await command.ExecuteScalarAsync(cancellationToken);
@@ -179,7 +183,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
     public async Task<OrderAggregate?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("SELECT organization_id, restaurant_id, branch_id, currency, status, order_number, channel, service_type, payment_intent_id, workflow_payment_method, workflow_correlation_id FROM orders WHERE id=@id", connection);
+        await using var command = new NpgsqlCommand("SELECT organization_id, restaurant_id, branch_id, currency, status, order_number, channel, service_type, payment_intent_id, workflow_payment_method, workflow_correlation_id,pricing_snapshot::text,pricing_fingerprint,placement_key FROM orders WHERE id=@id", connection);
         command.Parameters.AddWithValue("id", id);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
@@ -189,6 +193,9 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         Guid? paymentIntentId = reader.IsDBNull(8) ? null : reader.GetGuid(8);
         string? workflowPaymentMethod = reader.IsDBNull(9) ? null : reader.GetString(9);
         Guid? workflowCorrelationId = reader.IsDBNull(10) ? null : reader.GetGuid(10);
+        OrderPricing? pricing = reader.IsDBNull(11) ? null : JsonSerializer.Deserialize<OrderPricing>(reader.GetString(11));
+        string? pricingFingerprint = reader.IsDBNull(12) ? null : reader.GetString(12);
+        string? placementKey = reader.IsDBNull(13) ? null : reader.GetString(13);
         await reader.CloseAsync();
         await using var linesCommand = new NpgsqlCommand("SELECT product_id, name_snapshot, unit_price, quantity, COALESCE(notes,'') FROM order_lines WHERE order_id=@id ORDER BY line_number", connection);
         linesCommand.Parameters.AddWithValue("id", id);
@@ -196,7 +203,8 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         await using var linesReader = await linesCommand.ExecuteReaderAsync(cancellationToken);
         while (await linesReader.ReadAsync(cancellationToken)) lines.Add(new OrderLine(linesReader.GetGuid(0), linesReader.GetString(1), linesReader.GetDecimal(2), (int)linesReader.GetDecimal(3), linesReader.GetString(4)));
         var order = OrderAggregate.Create(id, organization, branch, lines, currency, restaurant, channel, serviceType,
-            orderNumber, workflowPaymentMethod: workflowPaymentMethod, workflowCorrelationId: workflowCorrelationId);
+            orderNumber, idempotencyKey: placementKey, workflowPaymentMethod: workflowPaymentMethod, workflowCorrelationId: workflowCorrelationId,
+            pricing: pricing, pricingFingerprint: pricingFingerprint);
         order.RestorePaymentIntent(paymentIntentId);
         ApplyStatus(order, status);
         return order;
@@ -206,10 +214,13 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         CancellationToken cancellationToken, Guid? recoveryClaimId = null)
     {
         await using var command = new NpgsqlCommand("""
-            INSERT INTO orders (id,organization_id,restaurant_id,branch_id,payment_intent_id,order_number,currency,channel,service_type,subtotal_amount,total_amount,status,workflow_payment_method,workflow_correlation_id,workflow_recovery_next_attempt_at_utc,created_at_utc,created_by,updated_at_utc,updated_by)
-            VALUES (@id,@organization,@restaurant,@branch,@payment_intent,@number,@currency,@channel,@service,@subtotal,@total,@status,@workflow_method,@workflow_correlation,CASE WHEN @status='submitted' AND @workflow_method IS NOT NULL THEN @recovery_at ELSE NULL END,@now,'order-service',@now,'order-service')
+            INSERT INTO orders (id,organization_id,restaurant_id,branch_id,payment_intent_id,order_number,currency,channel,service_type,subtotal_amount,service_charge_amount,tax_amount,total_amount,pricing_snapshot,pricing_fingerprint,placement_key,status,workflow_payment_method,workflow_correlation_id,workflow_recovery_next_attempt_at_utc,created_at_utc,created_by,updated_at_utc,updated_by)
+            VALUES (@id,@organization,@restaurant,@branch,@payment_intent,@number,@currency,@channel,@service,@subtotal,@service_charge,@tax,@total,@pricing::jsonb,@fingerprint,@placement_key,@status,@workflow_method,@workflow_correlation,CASE WHEN @status='submitted' AND @workflow_method IS NOT NULL THEN @recovery_at ELSE NULL END,@now,'order-service',@now,'order-service')
             ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,payment_intent_id=COALESCE(orders.payment_intent_id,EXCLUDED.payment_intent_id),total_amount=EXCLUDED.total_amount,workflow_payment_method=COALESCE(orders.workflow_payment_method,EXCLUDED.workflow_payment_method),workflow_correlation_id=COALESCE(orders.workflow_correlation_id,EXCLUDED.workflow_correlation_id),workflow_recovery_next_attempt_at_utc=CASE WHEN EXCLUDED.status='inventory_reserved' AND EXCLUDED.workflow_payment_method IS NOT NULL THEN @recovery_at WHEN EXCLUDED.status='kitchen_accepted' AND EXCLUDED.workflow_payment_method NOT IN('cash_manual','promptpay_manual') THEN @recovery_at ELSE NULL END,workflow_recovery_claim_id=NULL,workflow_recovery_locked_until_utc=NULL,updated_at_utc=EXCLUDED.updated_at_utc,updated_by=EXCLUDED.updated_by,concurrency_version=orders.concurrency_version+1
             WHERE orders.organization_id=EXCLUDED.organization_id
+              AND NOT (orders.pricing_snapshot IS NOT NULL AND EXCLUDED.status='submitted')
+              AND orders.pricing_snapshot IS NOT DISTINCT FROM EXCLUDED.pricing_snapshot
+              AND orders.pricing_fingerprint IS NOT DISTINCT FROM EXCLUDED.pricing_fingerprint
               AND (orders.payment_intent_id IS NULL OR EXCLUDED.payment_intent_id IS NULL OR orders.payment_intent_id=EXCLUDED.payment_intent_id)
               AND (orders.status NOT IN ('completed','cancelled') OR orders.status=EXCLUDED.status)
               AND (orders.workflow_recovery_claim_id IS NULL OR orders.workflow_recovery_claim_id=@recovery_claim)
@@ -219,22 +230,32 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
             """, connection, transaction);
         var now = DateTime.UtcNow;
         command.Parameters.AddWithValue("id", order.Id); command.Parameters.AddWithValue("organization", order.OrganizationId); command.Parameters.AddWithValue("restaurant", order.RestaurantId); command.Parameters.AddWithValue("branch", order.BranchId);
-        command.Parameters.AddWithValue("payment_intent", (object?)order.PaymentIntentId ?? DBNull.Value);
+        command.Parameters.AddWithValue("payment_intent", NpgsqlTypes.NpgsqlDbType.Uuid, (object?)order.PaymentIntentId ?? DBNull.Value);
         command.Parameters.AddWithValue("number", order.OrderNumber); command.Parameters.AddWithValue("currency", order.Currency); command.Parameters.AddWithValue("channel", order.Channel); command.Parameters.AddWithValue("service", order.ServiceType);
-        command.Parameters.AddWithValue("subtotal", order.TotalAmount); command.Parameters.AddWithValue("total", order.TotalAmount); command.Parameters.AddWithValue("status", ToDbStatus(order.Status)); command.Parameters.AddWithValue("now", now);
-        command.Parameters.AddWithValue("workflow_method", (object?)order.WorkflowPaymentMethod ?? DBNull.Value);
-        command.Parameters.AddWithValue("workflow_correlation", (object?)order.WorkflowCorrelationId ?? DBNull.Value);
+        command.Parameters.AddWithValue("subtotal", order.Pricing?.SubtotalAmount ?? order.TotalAmount);
+        command.Parameters.AddWithValue("service_charge", order.Pricing?.ServiceChargeAmount ?? 0);
+        command.Parameters.AddWithValue("tax", order.Pricing?.TaxAmount ?? 0);
+        command.Parameters.AddWithValue("pricing", NpgsqlTypes.NpgsqlDbType.Text, (object?)(order.Pricing is null ? null : JsonSerializer.Serialize(order.Pricing)) ?? DBNull.Value);
+        command.Parameters.AddWithValue("fingerprint", NpgsqlTypes.NpgsqlDbType.Text, (object?)order.PricingFingerprint ?? DBNull.Value);
+        command.Parameters.AddWithValue("placement_key", NpgsqlTypes.NpgsqlDbType.Text, (object?)(order.Pricing is null ? null : order.IdempotencyKey) ?? DBNull.Value); command.Parameters.AddWithValue("total", order.TotalAmount); command.Parameters.AddWithValue("status", ToDbStatus(order.Status)); command.Parameters.AddWithValue("now", now);
+        command.Parameters.AddWithValue("workflow_method", NpgsqlTypes.NpgsqlDbType.Text, (object?)order.WorkflowPaymentMethod ?? DBNull.Value);
+        command.Parameters.AddWithValue("workflow_correlation", NpgsqlTypes.NpgsqlDbType.Uuid, (object?)order.WorkflowCorrelationId ?? DBNull.Value);
         command.Parameters.AddWithValue("recovery_at", now.AddSeconds(30));
-        command.Parameters.AddWithValue("recovery_claim", (object?)recoveryClaimId ?? DBNull.Value);
-        int affected = await command.ExecuteNonQueryAsync(cancellationToken);
+        command.Parameters.AddWithValue("recovery_claim", NpgsqlTypes.NpgsqlDbType.Uuid, (object?)recoveryClaimId ?? DBNull.Value);
+        int affected;
+        try { affected = await command.ExecuteNonQueryAsync(cancellationToken); }
+        catch (PostgresException exception) when (exception.SqlState == "23505" && exception.ConstraintName == "ux_orders_placement_key")
+        { throw new OrderPlacementConflictException(); }
+        if (affected == 0 && order.Pricing is not null && order.Status == OrderStatus.Submitted)
+            throw new OrderPlacementConflictException();
         if (affected == 0)
             throw new InvalidOperationException($"Order {order.Id} has already reached a conflicting terminal state.");
         await using var delete = new NpgsqlCommand("DELETE FROM order_lines WHERE order_id=@id", connection, transaction); delete.Parameters.AddWithValue("id", order.Id); await delete.ExecuteNonQueryAsync(cancellationToken);
         for (var i = 0; i < order.Lines.Count; i++)
         {
             var line = order.Lines[i];
-            await using var lineCommand = new NpgsqlCommand("INSERT INTO order_lines (id,restaurant_id,branch_id,order_id,line_number,product_id,sku_snapshot,name_snapshot,quantity,unit_price,line_total,status,created_at_utc,created_by,updated_at_utc,updated_by) VALUES (@id,@restaurant,@branch,@order,@number,@product,@sku,@name,@quantity,@unit,@total,'active',@now,'order-service',@now,'order-service')", connection, transaction);
-            lineCommand.Parameters.AddWithValue("id", Guid.NewGuid()); lineCommand.Parameters.AddWithValue("restaurant", order.RestaurantId); lineCommand.Parameters.AddWithValue("branch", order.BranchId); lineCommand.Parameters.AddWithValue("order", order.Id); lineCommand.Parameters.AddWithValue("number", i + 1); lineCommand.Parameters.AddWithValue("product", line.ProductId); lineCommand.Parameters.AddWithValue("sku", line.ProductId.ToString("N")); lineCommand.Parameters.AddWithValue("name", line.Name); lineCommand.Parameters.AddWithValue("quantity", (decimal)line.Quantity); lineCommand.Parameters.AddWithValue("unit", line.UnitPrice); lineCommand.Parameters.AddWithValue("total", line.Total); lineCommand.Parameters.AddWithValue("now", now);
+            await using var lineCommand = new NpgsqlCommand("INSERT INTO order_lines (id,restaurant_id,branch_id,order_id,line_number,product_id,sku_snapshot,name_snapshot,quantity,unit_price,line_total,notes,status,created_at_utc,created_by,updated_at_utc,updated_by) VALUES (@id,@restaurant,@branch,@order,@number,@product,@sku,@name,@quantity,@unit,@total,@station,'active',@now,'order-service',@now,'order-service')", connection, transaction);
+            lineCommand.Parameters.AddWithValue("station", line.PreparationStation); lineCommand.Parameters.AddWithValue("id", Guid.NewGuid()); lineCommand.Parameters.AddWithValue("restaurant", order.RestaurantId); lineCommand.Parameters.AddWithValue("branch", order.BranchId); lineCommand.Parameters.AddWithValue("order", order.Id); lineCommand.Parameters.AddWithValue("number", i + 1); lineCommand.Parameters.AddWithValue("product", line.ProductId); lineCommand.Parameters.AddWithValue("sku", line.ProductId.ToString("N")); lineCommand.Parameters.AddWithValue("name", line.Name); lineCommand.Parameters.AddWithValue("quantity", (decimal)line.Quantity); lineCommand.Parameters.AddWithValue("unit", line.UnitPrice); lineCommand.Parameters.AddWithValue("total", line.Total); lineCommand.Parameters.AddWithValue("now", now);
             await lineCommand.ExecuteNonQueryAsync(cancellationToken);
         }
         if (!string.IsNullOrWhiteSpace(order.IdempotencyKey))

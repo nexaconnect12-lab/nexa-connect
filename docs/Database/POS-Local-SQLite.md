@@ -1,5 +1,7 @@
 # POS local SQLite
 
+Pricing checkout extends the existing protected JSON payloads with pricingFingerprint/needsPricingReview and pending-settlement pricing. These additive fields use the existing SQLite schema. Original identity is retained during reconfirmation; missing fields on old pending work remain compatible for original-order verification. See [pricing contract and rollout](../API/Order-Pricing.md).
+
 The WPF POS owns `%LOCALAPPDATA%\NexaConnect\POS\pos-state.db` for current-user crash recovery and brief device-to-service interruption. Backend services never access this database. PostgreSQL remains authoritative for shifts, cash, Orders, settlements, and synchronization deduplication.
 
 Schema 2 uses WAL mode, `synchronous=FULL`, foreign-key enforcement, a five-second busy timeout, and startup `quick_check`. `local_state` stores one protected payload for terminal scope, active shift, cash session, pending checkout, pending settlement, and pending Cash Review decision. The review payload contains its idempotency UUID, exact terminal scope, decision, reason, and expected financial/review versions so an uncertain request can be verified after restart without changing its business input. `outbox_operations` stores immutable operation identity and routing metadata with a DPAPI-protected payload. Its state is `queued`, `sending`, `rejected`, or `completed`; constraints bind rejected state to a failure status code and completed state to a completion timestamp. Transition code records the corresponding rejection timestamp.

@@ -12,7 +12,13 @@ public sealed class HttpCustomerOrderPort(HttpClient client) : ICustomerOrderPor
         Guid branchId,
         CustomerPlaceOrderRequest request,
         string accessToken,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) => SendAsync(tenant, branchId, request, accessToken, "place", cancellationToken);
+
+    public Task<HttpResponseMessage> QuoteAsync(TenantContext tenant, Guid branchId, CustomerPlaceOrderRequest request,
+        string accessToken, CancellationToken cancellationToken) => SendAsync(tenant, branchId, request, accessToken, "quote", cancellationToken);
+
+    private async Task<HttpResponseMessage> SendAsync(TenantContext tenant, Guid branchId, CustomerPlaceOrderRequest request,
+        string accessToken, string operation, CancellationToken cancellationToken)
     {
         var payload = new
         {
@@ -24,9 +30,9 @@ public sealed class HttpCustomerOrderPort(HttpClient client) : ICustomerOrderPor
             request.IdempotencyKey,
             Lines = request.Lines,
             request.OrderId,
-            request.CorrelationId
+            request.CorrelationId, request.PricingFingerprint
         };
-        using var message = new HttpRequestMessage(HttpMethod.Post, "api/order/v1/workflows/place")
+        using var message = new HttpRequestMessage(HttpMethod.Post, $"api/order/v1/workflows/{operation}")
         {
             Content = JsonContent.Create(payload)
         };
@@ -34,6 +40,6 @@ public sealed class HttpCustomerOrderPort(HttpClient client) : ICustomerOrderPor
         message.Headers.Add(TenantContextHeaders.OrganizationId, tenant.OrganizationId.ToString("D"));
         message.Headers.Add(TenantContextHeaders.ApplicationCode, tenant.ApplicationCode);
         message.Headers.Add(TenantContextHeaders.PortalRequest, "customer");
-        return client.SendAsync(message, cancellationToken);
+        return await client.SendAsync(message, cancellationToken);
     }
 }

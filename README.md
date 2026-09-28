@@ -1,5 +1,7 @@
 # NexaConnect
 
+Authoritative THB checkout pricing now adds server quotes, explicit POS bill confirmation, immutable accepted tax/service-charge breakdowns and Order migration 8. Restaurant owns branch tax settings; Payment and manual settlement use the accepted total. Coordinated rollout and physical-terminal acceptance remain required. See [pricing contract and rollout](docs/API/Order-Pricing.md).
+
 The Customer Portal now includes a read-only [single-store cash-close report](docs/API/Cash-Close-Reporting.md). POS migration 6 publishes opt-in current snapshots; Reporting migration 15 projects them with duplicate/stale-delivery protection and live POS store authorization. Capture/projection times do not certify completeness. Local database/broker recovery acceptance passed on 2026-09-24; production acceptance, exports and multi-store totals remain future work.
 
 The guarded [joined cash-close portal acceptance](docs/Deployment/Cash-Close-Portal-Acceptance.md) runs five real-OIDC browser cases against disposable identity, databases, broker and application hosts. Local Windows acceptance passed six Authorization database and five browser cases with cleanup on 2026-09-27; synthetic UI contracts and the previously passed recovery matrix remain separate checks.

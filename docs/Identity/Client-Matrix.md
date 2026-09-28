@@ -1,5 +1,7 @@
 # Keycloak Client Matrix
 
+[Authoritative pricing](../API/Order-Pricing.md) reuses `nexaconnect-order-service`: Restaurant's branch-pricing endpoint requires the service-workload policy and exact `azp`, organization context and `nexa_connect` application. No new client, secret or product permission is introduced. Customer quote/place retains `order.place`; branch tax edits retain existing Restaurant configuration permissions.
+
 | Client | Owner | Client type | Enabled flow | Local redirect URI |
 |---|---|---|---|---|
 | `nexaconnect-web-bff` | NexaConnect | Confidential | Authorization Code | `https://localhost:7100/signin-oidc` |

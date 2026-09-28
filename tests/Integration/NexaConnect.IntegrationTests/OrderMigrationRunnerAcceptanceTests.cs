@@ -16,7 +16,7 @@ namespace NexaConnect.IntegrationTests;
 public sealed class OrderMigrationRunnerAcceptanceTests
 {
     [OrderMigrationAcceptanceFact]
-    public async Task Empty_database_runs_0_to_7_to_6_to_7_and_guards_recoverable_workflows()
+    public async Task Empty_database_runs_through_pricing_migration_and_guards_recoverable_workflows()
     {
         string adminConnectionString=Environment.GetEnvironmentVariable("NEXACONNECT_POSTGRES_ADMIN_INTEGRATION_DB")!;
         string databaseName=$"nexaconnect_order_clean_it_{Guid.NewGuid():N}";ValidateDatabaseName(databaseName);
@@ -36,13 +36,18 @@ public sealed class OrderMigrationRunnerAcceptanceTests
             await AssertVersion6Async(dataSource);
             Assert.Equal(0,await RunAsync(scriptsRoot,7));
             await AssertVersion7Async(dataSource);
+            Assert.Equal(0,await RunAsync(scriptsRoot,8));
+            Assert.Equal(0,await RunAsync(scriptsRoot,7,true));
+            Assert.Equal(0,await RunAsync(scriptsRoot,8));
             await AssertPersistedOwnershipAndOutboxAsync(dataSource);
             await AssertRecoveryClaimFencesForegroundProgressAsync(dataSource);
             await AssertKitchenAcceptedProviderPaymentCanBeClaimedAsync(dataSource);
             await AssertKitchenAcceptedManualTenderCanSettleAsync(dataSource);
             await SeedRecoverableOrderAsync(dataSource);
             Assert.NotEqual(0,await RunAsync(scriptsRoot,5,true));
-            await AssertVersion7Async(dataSource);
+            await AssertVersion6Async(dataSource);
+            Assert.Equal(0,await RunAsync(scriptsRoot,8));
+            Assert.True(await ColumnExistsAsync(dataSource,"orders","pricing_snapshot"));
         }
         finally
         {
@@ -53,7 +58,7 @@ public sealed class OrderMigrationRunnerAcceptanceTests
 
     private static Task<int> RunAsync(string root,int target,bool destructive=false)
     {
-        var args=new List<string>{"--service","Order","--scripts-root",root,"--target",target.ToString(),"--application-version","0.16.0","--confirm"};
+        var args=new List<string>{"--service","Order","--scripts-root",root,"--target",target.ToString(),"--application-version","0.17.0","--confirm"};
         if(destructive)args.AddRange(["--allow-destructive","--backup-verified"]);
         return MigrationApplication.RunAsync(args.ToArray());
     }

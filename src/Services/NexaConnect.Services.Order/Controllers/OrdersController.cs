@@ -16,17 +16,8 @@ public sealed class OrdersController(IOrderApplicationService orders, IOrderTena
     ManualTenderApplicationService manualTenders) : ControllerBase
 {
     [HttpPost]
-    public async Task<ActionResult<OrderResponse>> Create(CreateOrderRequest request, CancellationToken cancellationToken)
-    {
-        if (!await HasCustomerAccessAsync(request.OrganizationId, request.BranchId, ProductPermissions.OrderCreate, cancellationToken))
-            return Forbid();
-        try
-        {
-            OrderAggregate order = orders.Create(request);
-            return CreatedAtAction(nameof(Get), new { orderId = order.Id }, ToResponse(order));
-        }
-        catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
-    }
+    public IActionResult Create(CreateOrderRequest request) => StatusCode(410,
+        new { error = "Use the authoritative quote and place workflow. Client-priced order creation is retired." });
 
     [HttpGet("{orderId:guid}")]
     public async Task<ActionResult<OrderResponse>> Get(Guid orderId, CancellationToken cancellationToken)
@@ -76,13 +67,47 @@ public sealed class OrdersController(IOrderApplicationService orders, IOrderTena
 
     private static OrderResponse ToResponse(OrderAggregate order) =>
         new(order.Id, order.OrganizationId, order.BranchId, order.Status.ToString(), order.TotalAmount, order.Currency,
-            order.Lines.Select(line => new OrderLineResponse(line.ProductId, line.Name, line.UnitPrice, line.Quantity, line.PreparationStation)).ToArray());
+            order.Lines.Select(line => new OrderLineResponse(line.ProductId, line.Name, line.UnitPrice, line.Quantity, line.PreparationStation)).ToArray(), order.Pricing);
 }
 
 [ApiController]
 [Route("api/order/v1/workflows")]
-public sealed class OrderWorkflowController(PlaceOrderWorkflow workflow, IOrderTenantAuthorizer tenantAuthorizer) : ControllerBase
+public sealed class OrderWorkflowController(PlaceOrderWorkflow workflow, IOrderTenantAuthorizer tenantAuthorizer,
+    OrderPricingService pricing, ILogger<OrderWorkflowController> logger) : ControllerBase
 {
+    [HttpPost("quote")]
+    [RequestSizeLimit(65536)]
+    public async Task<IActionResult> Quote(PlaceOrderRequest request, CancellationToken cancellationToken)
+    {
+        if (!await Granted(request, cancellationToken))
+        {
+            logger.LogWarning("Order pricing authorization denied");
+            return Forbid();
+        }
+        try
+        {
+            if (request.Lines is null || request.Lines.Any(line => line is null)) return BadRequest();
+            return Ok(await pricing.QuoteAsync(new(request.OrganizationId, request.BranchId,
+                request.Lines.Select(l => new PlaceOrderLine(l.ProductId, l.Quantity)).ToArray(),
+                request.Currency, request.PaymentMethod, request.RestaurantId), cancellationToken));
+        }
+        catch (ArgumentException) { return BadRequest(new { error = "Invalid checkout scope, pricing or items." }); }
+        catch (OverflowException) { return BadRequest(new { error = "Order amount exceeds the supported range." }); }
+        catch (HttpRequestException)
+        {
+            logger.LogWarning("Order pricing dependency unavailable");
+            return StatusCode(503, new { error = "Pricing is temporarily unavailable." });
+        }
+    }
+
+    private async Task<bool> Granted(PlaceOrderRequest request, CancellationToken cancellationToken) =>
+        ServiceWorkloadPrincipal.IsTrusted(User) ||
+        (Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out Guid organization)
+        && organization == request.OrganizationId
+        && Request.Headers[TenantContextHeaders.ApplicationCode] == "nexa_connect"
+        && await tenantAuthorizer.HasBranchAccessAsync(organization, request.BranchId, ProductPermissions.OrderPlace,
+            Request.Headers.Authorization.ToString(), cancellationToken));
+
     [HttpPost("place")]
     [RequestSizeLimit(65536)]
     public async Task<ActionResult<PlaceOrderResult>> Place(PlaceOrderRequest request, CancellationToken cancellationToken)
@@ -97,30 +122,45 @@ public sealed class OrderWorkflowController(PlaceOrderWorkflow workflow, IOrderT
                     || !Request.Headers.TryGetValue("Authorization", out var authorization)
                     || !await tenantAuthorizer.HasBranchAccessAsync(contextOrganization, request.BranchId, ProductPermissions.OrderPlace,
                         authorization.ToString(), cancellationToken))
+                {
+                    logger.LogWarning("Order placement authorization denied");
                     return Forbid();
+                }
             }
+            if (request.Lines is null || request.Lines.Any(line => line is null)) return BadRequest();
             if (string.IsNullOrWhiteSpace(request.IdempotencyKey))
                 return BadRequest(new { error = "IdempotencyKey is required." });
             var result = await workflow.ExecuteAsync(new PlaceOrderCommand(request.OrganizationId, request.BranchId,
                 request.Lines.Select(line => new PlaceOrderLine(line.ProductId, line.Quantity)).ToArray(), request.Currency,
-                request.PaymentMethod, request.RestaurantId, request.IdempotencyKey, request.OrderId, request.CorrelationId, request.CardToken), cancellationToken);
+                request.PaymentMethod, request.RestaurantId, request.IdempotencyKey, request.OrderId, request.CorrelationId, request.CardToken, request.PricingFingerprint), cancellationToken);
             return result.Status is OrderStatus.Rejected or OrderStatus.PaymentFailed ? Conflict(result) : Ok(result);
         }
         catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
+        catch (PricingChangedException)
+        {
+            logger.LogInformation("Order pricing requires reconfirmation");
+            return Conflict(new { code = "pricing_changed", error = "Review a fresh quote before confirming this order." });
+        }
+        catch (HttpRequestException)
+        {
+            logger.LogWarning("Order checkout dependency unavailable");
+            return StatusCode(503, new { error = "Checkout is temporarily unavailable. Verify the original order." });
+        }
+        catch (OverflowException) { return BadRequest(new { error = "Order amount exceeds the supported range." }); }
         catch (InvalidOperationException exception) { return UnprocessableEntity(new { error = exception.Message }); }
     }
 }
 
 public sealed record PlaceOrderRequest(Guid RestaurantId, Guid OrganizationId, Guid BranchId, string Currency,
     string PaymentMethod, string IdempotencyKey, IReadOnlyCollection<PlaceOrderRequestLine> Lines,
-    Guid? OrderId = null, Guid? CorrelationId = null, string? CardToken = null)
+    Guid? OrderId = null, Guid? CorrelationId = null, string? CardToken = null, string? PricingFingerprint = null)
 {
     public override string ToString() => $"PlaceOrderRequest {{ OrderId = {OrderId} }}";
 }
 public sealed record PlaceOrderRequestLine(Guid ProductId, int Quantity);
 
 public sealed record OrderResponse(Guid OrderId, Guid OrganizationId, Guid BranchId, string Status, decimal TotalAmount,
-    string Currency, IReadOnlyCollection<OrderLineResponse> Lines);
+    string Currency, IReadOnlyCollection<OrderLineResponse> Lines, OrderPricing? Pricing = null);
 public sealed record OrderLineResponse(Guid ProductId, string Name, decimal UnitPrice, int Quantity, string PreparationStation);
 public sealed record ConfirmManualTenderRequest(Guid OrganizationId, Guid BranchId, Guid TerminalId, Guid IdempotencyKey,
     string Method, decimal Amount, string Currency, bool ReceiptConfirmed, string? BankReference = null, Guid? CorrelationId = null);

@@ -261,6 +261,7 @@ app.MapPost("/bff/customer/orders/branches/{branchId:guid}/place", async (
     HttpContext context,
     IHttpClientFactory clients,
     ICustomerOrderPort orders,
+    ILogger<Program> logger,
     TenantSelectionCookie selectionCookie,
     CancellationToken cancellationToken) =>
 {
@@ -275,9 +276,38 @@ app.MapPost("/bff/customer/orders/branches/{branchId:guid}/place", async (
     CurrentPlatformAccessResponse? access = await accessResponse.Content.ReadFromJsonAsync<CurrentPlatformAccessResponse>(cancellationToken: cancellationToken);
     bool stillGranted = access?.SubjectId == tenant.SubjectId && access.Organizations.Any(item =>
         item.OrganizationId == tenant.OrganizationId && item.ApplicationCode == tenant.ApplicationCode);
-    if (!stillGranted) return Results.Forbid();
+    if (!stillGranted) { logger.LogWarning("Customer order branch access denied"); return Results.Forbid(); }
 
     using HttpResponseMessage response = await orders.PlaceAsync(tenant, branchId, request, accessToken, cancellationToken);
+    if (!response.IsSuccessStatusCode) logger.LogWarning("Customer order boundary rejected with status {StatusCode}", (int)response.StatusCode);
+    return await ForwardJsonAsync(response, cancellationToken);
+}).RequireAuthorization("CustomerSession");
+
+app.MapPost("/bff/customer/orders/branches/{branchId:guid}/quote", async (
+    Guid branchId,
+    CustomerPlaceOrderRequest request,
+    HttpContext context,
+    IHttpClientFactory clients,
+    ICustomerOrderPort orders,
+    ILogger<Program> logger,
+    TenantSelectionCookie selectionCookie,
+    CancellationToken cancellationToken) =>
+{
+    TenantContext? tenant = selectionCookie.Unprotect(context.Request.Cookies["__Host-nexa-customer-tenant"]);
+    string? subjectId = context.User.FindFirstValue("sub");
+    string? accessToken = await GetCustomerAccessTokenAsync(context, cancellationToken);
+    if (tenant is null || string.IsNullOrWhiteSpace(subjectId) || subjectId != tenant.SubjectId || string.IsNullOrWhiteSpace(accessToken))
+        return Results.Unauthorized();
+
+    HttpResponseMessage accessResponse = await CallPlatformDirectoryAsync(context, clients, "api/platform-directory/v1/me/access", cancellationToken);
+    if (!accessResponse.IsSuccessStatusCode) return await ForwardJsonAsync(accessResponse, cancellationToken);
+    CurrentPlatformAccessResponse? access = await accessResponse.Content.ReadFromJsonAsync<CurrentPlatformAccessResponse>(cancellationToken: cancellationToken);
+    bool stillGranted = access?.SubjectId == tenant.SubjectId && access.Organizations.Any(item =>
+        item.OrganizationId == tenant.OrganizationId && item.ApplicationCode == tenant.ApplicationCode);
+    if (!stillGranted) { logger.LogWarning("Customer order branch access denied"); return Results.Forbid(); }
+
+    using HttpResponseMessage response = await orders.QuoteAsync(tenant, branchId, request, accessToken, cancellationToken);
+    if (!response.IsSuccessStatusCode) logger.LogWarning("Customer order boundary rejected with status {StatusCode}", (int)response.StatusCode);
     return await ForwardJsonAsync(response, cancellationToken);
 }).RequireAuthorization("CustomerSession");
 
