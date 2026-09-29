@@ -26,7 +26,19 @@ Service authorization, tenant ownership, Order totals, cash attribution, and tra
 
 ## Automated verification
 
-From the repository root:
+The cashier-sale gate has two stages. The repeatable backend stage requires PowerShell 7, restored .NET dependencies, and a local Docker `default` or `desktop-linux` context using the recognized Docker Desktop named pipe or local Unix socket. It refuses an explicit `DOCKER_HOST`. Run it from the repository root:
+
+```powershell
+./scripts/test-pos-cashier-sale.ps1 `
+  -ConfirmDisposableInfrastructure `
+  -ConfirmDestructiveRollback
+```
+
+The launcher creates an isolated PostgreSQL/RabbitMQ Compose project with generated credentials and random loopback ports. It runs the 20-case protected POS recovery/projection matrix, three Order receipt/authorization/migration cases, and 15 isolated live-verifier fixtures and guards. The authorization case requires branch `order.read` and proves cross-tenant/branch non-disclosure plus revoked, anonymous, and workload denial. It always restores the caller environment and removes the generated containers, network, and volumes. Sanitized evidence is written to `.runstate/pos-cashier-sale/<run-id>/verification.json`; it explicitly records that live OIDC, WPF interaction, the Windows print dialog, and production were not verified.
+
+The local automated gate passed 20 + 3 + 15 checks with zero skips on 2026-09-29, verified cleanup, and retained sanitized evidence at `.runstate/pos-cashier-sale/1de33ded9d574abf960d101d2da2eb31/verification.json`. See [cashier-sale acceptance evidence](../Architecture/Evidence/POS-Cashier-Sale-Acceptance.md).
+
+The focused commands below remain useful while developing client recovery behavior:
 
 ```powershell
 dotnet build src/Clients/NexaConnect.POS/NexaConnect.POS.csproj --no-restore --verbosity minimal
@@ -35,7 +47,7 @@ dotnet test tests/Unit/NexaConnect.UnitTests/NexaConnect.UnitTests.csproj --no-r
 
 Windows protected-state tests require the normal interactive user's DPAPI key store. In a disposable test run, set `NEXACONNECT_POS_DPAPI_ACCEPTANCE=1` and include `FullyQualifiedName~PosPendingSettlementRecoveryTests|FullyQualifiedName~PosLocalSqliteStoreTests` in the filter. The tests create isolated temporary databases and legacy files. They do not drive WPF or authenticate against Keycloak.
 
-Current isolated verification passed all 12 SQLite-store tests, including schema 1-to-2 upgrade, protected Cash Review restart recovery, scope/payload rejection, corruption refusal, and count-only inspection. The complete unit project passed 304 tests with five current-user DPAPI tests skipped in the non-interactive host; the interactive evidence runner requires all 17 protected SQLite/recovery tests to pass. POS and inspector builds completed with no warnings or errors. The earlier protected SQLite/PostgreSQL/RabbitMQ/migration runner passed its then-current 17-case matrix on 2026-09-10; sanitized evidence is retained under `.runstate/pos-paid-workflow/9ec72791806540d28dd2947a55666801`. The expanded runner now requires 20 cases. Joined SQLite-backed checkout evidence is recorded below.
+Current isolated verification passed all 12 SQLite-store tests, including schema 1-to-2 upgrade, protected Cash Review restart recovery, scope/payload rejection, corruption refusal, and count-only inspection. The complete unit project passed 304 tests with five current-user DPAPI tests skipped in the non-interactive host; the live evidence runner requires all 17 protected SQLite/recovery tests to pass. POS and inspector builds completed with no warnings or errors. The earlier protected SQLite/PostgreSQL/RabbitMQ/migration runner passed its then-current 17-case matrix on 2026-09-10; sanitized evidence is retained under `.runstate/pos-paid-workflow/9ec72791806540d28dd2947a55666801`. The current cashier-sale gate requires 20 protected cases. Joined SQLite-backed checkout evidence is recorded below.
 
 ## Extended live acceptance scenarios
 
@@ -59,6 +71,8 @@ Retain sanitized boolean evidence for these scenarios. Do not include tokens, QR
 Keep terminal configuration unchanged while checkout or settlement is pending. New checkout records retain and validate organization, restaurant, branch, store, terminal, currency, and checkout mode. Legacy settlement-only records retain order, amount, currency, idempotency key, and tender fields but still obtain request scope from current configuration. Reconcile pending work before moving a terminal to another scope.
 
 ## Remaining boundaries
+
+Live execution of the strengthened OIDC/WPF/receipt gate and validation of physical-printer output remain release work.
 
 Full offline order/shift/device synchronization, hardware drivers, human-readable identity context, multi-store review, review export/Reporting projection, offline supervisor authorization/execution, and Thai localization are subsequent work. The cashier reconciliation view covers the active or just-closed terminal cash session; Cash review covers online closed-session history for one configured store. SQLite protects current operational state, cash-movement replay, and the exact pending supervisor decision across brief client/service interruption; it does not execute orders or decisions without the service graph or cache offline authorization. Order migrations 6-7 and the enabled Order recovery worker resume server workflows through Inventory and Kitchen. Manual tenders stop at KitchenAccepted; provider methods continue through a stable Payment intent and use durable Payment reconciliation for uncertain authorization/capture outcomes. Only a matching terminal Rejected or PaymentFailed result releases the checkout lock; other failed commands remain retained.
 
@@ -95,19 +109,23 @@ Complete these steps in one WPF session against the supervised local stack:
 1. Sign in through Keycloak, open a new shift, and open its THB cash session.
 2. Refresh the menu, add an item, and send the order. Wait for **Order sent to the kitchen**.
 3. In Payment, confirm that the displayed amount and currency match the sale, select Cash, and choose **Confirm payment received** once. Copy the Paid Order ID from the footer.
-4. Wait for the POS settlement consumer, enter the counted drawer amount, close cash, then close the shift.
-5. Sign out and confirm the header shows **Signed out**.
-6. Run:
+4. Confirm the Receipts view automatically previews the same immutable bill. Exercise a failed receipt load and verify the Order remains Paid without another payment action. Restore access, load the receipt by Order ID, and use **Print / reprint**; verify the client reloads the snapshot before the standard Windows print dialog opens.
+5. Wait for the POS settlement consumer, enter the counted drawer amount, close cash, then close the shift.
+6. Sign out and confirm the header shows **Signed out**.
+7. Run:
 
 ```powershell
 ./scripts/verify-pos-cashier-live-acceptance.ps1 `
   -OrderId '<paid-order-uuid>' `
   -ConfirmInteractiveOidc `
   -ConfirmWpfCashCheckout `
+  -ConfirmReceiptPreview `
+  -ConfirmReceiptReprint `
+  -ConfirmReceiptFailureDidNotRetryPayment `
   -ConfirmSignedOut
 ```
 
-The verifier refuses remote Docker, pins this repository's Compose project, and reads only `NexaConnect_Order` and `NexaConnect_POS`. It requires one completed exact-total cash lifecycle with closed session/shift state. Its read-only local-state inspector then requires SQLite schema 2, `quick_check=ok`, zero active operational rows, zero unresolved outbox rows, zero pending Cash Review decisions, no interrupted sends, no legacy state files, and no token file. Only then does it write sanitized evidence. Confirmation switches attest to human interaction; the script does not automate UI clicks.
+The verifier refuses remote Docker, pins this repository's Compose project, and reads `NexaConnect_Order` and `NexaConnect_POS` through read-only transactions. It requires one completed exact-total cash lifecycle; one immutable version-1 receipt whose scope, lines, components, total, currency, and cash tender match the stored Order and settlement; one amount-matched POS projection; and a closed session and shift. Its read-only local-state inspector then requires SQLite schema 2, `quick_check=ok`, zero active operational rows, zero unresolved outbox rows, zero pending Cash Review decisions, no interrupted sends, no legacy state files, and no token file. Only then does it write sanitized evidence. Confirmation switches attest to human interaction; the script does not automate UI clicks or inspect printer output.
 
 The historical SQLite-backed local gate passed on 2026-09-10 UTC for Order `60bc4440-4274-4c79-a12a-259a83d94740`, with evidence at `.runstate/pos-cashier-live/dcdceb87b24944aa913c9019b1855bc3/evidence.json`. It verified one completed exact-total cash settlement and POS projection, closed cash session and shift, signed-out client, then-current SQLite schema 1 integrity, zero active operational or unresolved outbox rows, and no retained credentials or legacy recovery files. New runs use schema 2.
 
