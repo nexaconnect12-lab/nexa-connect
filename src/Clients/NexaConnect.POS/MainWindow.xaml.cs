@@ -545,11 +545,13 @@ public partial class MainWindow : Window
                 clearCart = true;
                 await PreviewPaidReceiptAsync(result.OrderId);
             }
-            else if (result.Status is PosOrderStatus.Rejected or PosOrderStatus.PaymentFailed)
+            else if (result.Status is PosOrderStatus.Rejected or PosOrderStatus.PaymentFailed or PosOrderStatus.Cancelled)
             {
                 _localStore.ClearPendingCheckout();
                 pendingCheckout = null;
-                StatusText.Text = "The original order was rejected and created no active sale. Its recovery lock is cleared; review the current cart before sending a new order.";
+                StatusText.Text = result.Status == PosOrderStatus.Cancelled
+                    ? "The original unpaid order is cancelled. Its recovery lock is cleared."
+                    : "The original order was rejected and created no active sale. Its recovery lock is cleared; review the current cart before sending a new order.";
             }
             else
             {
@@ -669,6 +671,48 @@ public partial class MainWindow : Window
             settlementInFlight = false;
             UpdateOperationalState();
         }
+    }
+
+    private async void CancelOrder_Click(object sender, RoutedEventArgs e)
+    {
+        if (_authentication.CurrentToken is null || pendingOrder is null || settlementIdempotencyKey is null
+            || settlementInFlight || !CancelOrderButton.IsEnabled) return;
+        string reason = CancellationReasonTextBox.Text.Trim();
+        if (reason.Length is < 1 or > 200 || reason.Any(char.IsControl))
+        { StatusText.Text = "Enter a cancellation reason of 1-200 printable characters."; return; }
+        if (MessageBox.Show(this, "Cancel this unpaid order and withdraw it from Kitchen?",
+            "Confirm cancellation", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        settlementInFlight = true;
+        SetBusy("Cancelling unpaid order…");
+        try
+        {
+            PosOrderCancellationResult result = await _api.CancelOrderAsync(_authentication.CurrentToken,
+                pendingOrder.OrderId, settlementIdempotencyKey.Value, reason);
+            if (result.Status == "completed")
+            {
+                _localStore.ClearCheckoutAndSettlement(); pendingCheckout = null; pendingOrder = null;
+                settlementIdempotencyKey = null; settlementUncertain = false; CancellationReasonTextBox.Clear();
+                StatusText.Text = result.Replayed ? "The original unpaid order was already cancelled."
+                    : "The unpaid order was cancelled and its inventory and Kitchen work were compensated.";
+            }
+            else if (result.Status == "blocked")
+                StatusText.Text = "Cancellation requires manager review because Kitchen reached a terminal state. Do not collect payment or create a replacement order.";
+            else
+                StatusText.Text = "Cancellation is saved and compensation will retry automatically. Keep this order open and do not collect payment.";
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException
+            || exception is PosApiException { StatusCode: >= 500 })
+        { StatusText.Text = "Cancellation result is uncertain. Retry Cancel unpaid order with the same reason; do not collect payment."; }
+        catch (PosApiException exception)
+        {
+            StatusText.Text = exception.StatusCode switch
+            {
+                403 => "Your account lacks order.cancel for this branch.",
+                409 => "The order cannot be cancelled from its current state. Do not collect payment until it is reconciled.",
+                _ => exception.Message
+            };
+        }
+        finally { settlementInFlight = false; UpdateOperationalState(); }
     }
 
     private void TenderMethod_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1142,6 +1186,7 @@ public partial class MainWindow : Window
         CloseCashButton.IsEnabled = false;
         RecordMovementButton.IsEnabled = false;
         PaidButton.IsEnabled = false;
+        CancelOrderButton.IsEnabled = false;
         LoadCashReviewsButton.IsEnabled = false;
         LoadMoreCashReviewsButton.IsEnabled = false;
         InvestigateCashReviewButton.IsEnabled = false;
@@ -1208,6 +1253,9 @@ public partial class MainWindow : Window
         PaidButton.IsEnabled = _configuration.PaymentMethod != "card_omise_test" && signedIn && hasActiveShift && pendingOrder is not null && !settlementInFlight
             && (method != "cash" || cashSessionId is not null)
             && (method != "promptpay_manual" || PromptPayQrImage.Source is not null);
+        CancelOrderButton.IsEnabled = signedIn && hasActiveShift && pendingOrder is not null
+            && settlementIdempotencyKey is not null && !settlementInFlight && !settlementUncertain;
+        CancellationReasonTextBox.IsEnabled = CancelOrderButton.IsEnabled;
         PendingOrderText.Text = pendingOrder is null
             ? "No order awaiting payment."
             : $"Order {pendingOrder.OrderId:D} · {pendingOrder.Currency} {pendingOrder.TotalAmount:N2} · awaiting payment\n{pendingOrder.Pricing?.Summary}";

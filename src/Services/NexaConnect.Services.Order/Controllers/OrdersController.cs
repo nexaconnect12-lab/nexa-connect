@@ -7,13 +7,15 @@ using NexaConnect.Contracts.Platform;
 using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Services.Order.Application.ManualTenders;
 using System.Security.Claims;
+using NexaConnect.Services.Order.Application.Cancellations;
 
 namespace NexaConnect.Services.Order.Controllers;
 
 [ApiController]
 [Route("api/order/v1/orders")]
 public sealed class OrdersController(IOrderApplicationService orders, IOrderTenantAuthorizer tenantAuthorizer,
-    ManualTenderApplicationService manualTenders) : ControllerBase
+    ManualTenderApplicationService manualTenders, OrderCancellationApplicationService cancellations,
+    ILogger<OrdersController> logger) : ControllerBase
 {
     [HttpPost]
     public IActionResult Create(CreateOrderRequest request) => StatusCode(410,
@@ -52,6 +54,44 @@ public sealed class OrdersController(IOrderApplicationService orders, IOrderTena
         }
         catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
         catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
+    }
+
+    [HttpPost("{orderId:guid}/cancellations")]
+    public async Task<ActionResult<OrderCancellationResult>> Cancel(Guid orderId, CancelOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (orderId == Guid.Empty || request.OrganizationId == Guid.Empty || request.BranchId == Guid.Empty
+            || request.OperationId == Guid.Empty) return BadRequest();
+        OrderAggregate? order = orders.Get(orderId);
+        if (order is null || order.OrganizationId != request.OrganizationId || order.BranchId != request.BranchId)
+            return NotFound();
+        if (!Guid.TryParse(Request.Headers[TenantContextHeaders.OrganizationId], out Guid contextOrganization)
+            || contextOrganization != request.OrganizationId
+            || !string.Equals(Request.Headers[TenantContextHeaders.ApplicationCode], "nexa_connect", StringComparison.Ordinal)
+            || !Request.Headers.TryGetValue("Authorization", out var authorization)) return Forbid();
+        Guid? decision = await tenantAuthorizer.GetBranchDecisionAsync(contextOrganization, request.BranchId,
+            ProductPermissions.OrderCancel, authorization.ToString(), cancellationToken);
+        string? actor = User.FindFirstValue("sub");
+        if (decision is null || string.IsNullOrWhiteSpace(actor))
+        {
+            logger.LogWarning("Order cancellation authorization denied");
+            return Forbid();
+        }
+        try
+        {
+            var result = await cancellations.RequestAsync(new(orderId, request.OrganizationId, request.BranchId,
+                request.OperationId, request.Reason, actor, decision.Value, request.CorrelationId ?? request.OperationId),
+                cancellationToken);
+            if (result is null) return NotFound();
+            return result.Status switch
+            {
+                "completed" => Ok(result),
+                "blocked" => Conflict(result),
+                _ => StatusCode(StatusCodes.Status202Accepted, result)
+            };
+        }
+        catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
+        catch (OrderCancellationConflictException exception) { return Conflict(new { error = exception.Message }); }
     }
 
     private async Task<bool> HasCustomerAccessAsync(Guid organizationId, Guid branchId, string permission, CancellationToken cancellationToken)
@@ -164,3 +204,5 @@ public sealed record OrderResponse(Guid OrderId, Guid OrganizationId, Guid Branc
 public sealed record OrderLineResponse(Guid ProductId, string Name, decimal UnitPrice, int Quantity, string PreparationStation);
 public sealed record ConfirmManualTenderRequest(Guid OrganizationId, Guid BranchId, Guid TerminalId, Guid IdempotencyKey,
     string Method, decimal Amount, string Currency, bool ReceiptConfirmed, string? BankReference = null, Guid? CorrelationId = null);
+public sealed record CancelOrderRequest(Guid OrganizationId, Guid BranchId, Guid OperationId, string Reason,
+    Guid? CorrelationId = null);

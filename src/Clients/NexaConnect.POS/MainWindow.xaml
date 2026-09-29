@@ -200,6 +200,9 @@
               </StackPanel>
               <TextBlock Text="Confirm only after receiving the exact amount. If the result is uncertain, verify the existing payment; do not collect again." TextWrapping="Wrap" Margin="0,16" Foreground="#63756A" />
               <Button x:Name="PaidButton" Content="Confirm payment received" Click="Paid_Click" Style="{StaticResource Primary}" />
+              <TextBlock Text="Cancellation reason" Margin="0,16,0,0" />
+              <TextBox x:Name="CancellationReasonTextBox" MaxLength="200" AutomationProperties.Name="Cancellation reason" />
+              <Button x:Name="CancelOrderButton" Content="Cancel unpaid order" Click="CancelOrder_Click" ToolTipService.ShowOnDisabled="True" />
             </StackPanel>
           </Border>
         </ScrollViewer>

@@ -10,7 +10,10 @@ public enum OrderStatus
     PaymentFailed = 5,
     Rejected = 6,
     PaymentPending = 7,
-    PaymentReview = 8
+    PaymentReview = 8,
+    CancellationPending = 9,
+    CancellationReview = 10,
+    Cancelled = 11
 }
 
 public sealed record OrderLine(
@@ -148,6 +151,19 @@ public sealed class OrderAggregate
     public void ResolvePaymentReviewAsVoided() => Transition(OrderStatus.PaymentReview, OrderStatus.PaymentFailed);
     public void ResumePaymentPending() => Transition(OrderStatus.PaymentReview, OrderStatus.PaymentPending);
     public void Reject() => Status = OrderStatus.Rejected;
+    public OrderStatus BeginCancellation()
+    {
+        if (Status is not (OrderStatus.Submitted or OrderStatus.InventoryReserved or OrderStatus.KitchenAccepted))
+            throw new InvalidOperationException($"Order {Id} cannot be cancelled from {Status}.");
+        OrderStatus previous = Status;
+        Status = OrderStatus.CancellationPending;
+        return previous;
+    }
+    public void CompleteCancellation() => Transition(OrderStatus.CancellationPending, OrderStatus.Cancelled);
+    public void RequireCancellationReview() => Transition(OrderStatus.CancellationPending, OrderStatus.CancellationReview);
+    public void RestoreCancellationPending() { if (Status != OrderStatus.Draft) throw new InvalidOperationException(); Status = OrderStatus.CancellationPending; }
+    public void RestoreCancellationReview() { if (Status != OrderStatus.Draft) throw new InvalidOperationException(); Status = OrderStatus.CancellationReview; }
+    public void RestoreCancelled() { if (Status != OrderStatus.Draft) throw new InvalidOperationException(); Status = OrderStatus.Cancelled; }
 
     public void RestorePaymentIntent(Guid? paymentIntentId) => BindPaymentIntent(paymentIntentId);
 

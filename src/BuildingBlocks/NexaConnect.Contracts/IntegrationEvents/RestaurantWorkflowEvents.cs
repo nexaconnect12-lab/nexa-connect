@@ -169,3 +169,9 @@ public sealed record InventoryStockSetV1(Guid EventId, Guid CorrelationId, DateT
 public sealed record InventoryReservationCreatedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc, Guid OrganizationId, Guid BranchId, Guid OrderId, Guid ReservationId, IReadOnlyCollection<InventoryReservationLineV1> Lines) : IIntegrationEvent;
 public sealed record InventoryReservationReleasedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc, Guid OrganizationId, Guid OrderId) : IIntegrationEvent;
 public sealed record InventoryReservationLineV1(Guid ProductId, decimal Quantity);
+public sealed record OrderCancellationRequestedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrderId, Guid OrganizationId, Guid BranchId, Guid OperationId, string FromStatus) : IIntegrationEvent;
+public sealed record OrderCancelledV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrderId, Guid OrganizationId, Guid BranchId, Guid OperationId) : IIntegrationEvent;
+public sealed record OrderCancellationReviewRequiredV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrderId, Guid OrganizationId, Guid BranchId, Guid OperationId, string FailureCategory) : IIntegrationEvent;

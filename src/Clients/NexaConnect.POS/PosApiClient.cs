@@ -11,7 +11,7 @@ namespace NexaConnect.POS;
 
 public sealed record PosShift(Guid ShiftId, Guid AuthorizationDecisionId);
 public sealed record PosMenuItem(Guid ProductId, string Name, decimal UnitPrice, string Currency, string PreparationStation, bool Available);
-public enum PosOrderStatus { Draft, Submitted, InventoryReserved, KitchenAccepted, Paid, PaymentFailed, Rejected, PaymentPending, PaymentReview }
+public enum PosOrderStatus { Draft, Submitted, InventoryReserved, KitchenAccepted, Paid, PaymentFailed, Rejected, PaymentPending, PaymentReview, CancellationPending, CancellationReview, Cancelled }
 public sealed record PosOrderResult(Guid OrderId, PosOrderStatus Status, decimal TotalAmount, string Currency, bool CardTokenRequired = false, PosOrderPricing? Pricing = null);
 public sealed record PosOrderPricing(long PolicyVersion, decimal TaxPercent, bool TaxInclusive,
     decimal ServiceChargePercent, decimal MenuAmount, decimal SubtotalAmount, decimal ServiceChargeAmount,
@@ -24,6 +24,7 @@ public sealed record PosQuoteLine(Guid ProductId, string Name, decimal UnitPrice
 public sealed class PosPricingChangedException : Exception;
 public sealed record ManualTenderResult(Guid SettlementId, Guid OrderId, string Status, string Method,
     decimal Amount, string Currency, DateTimeOffset OccurredAtUtc, bool Replayed);
+public sealed record PosOrderCancellationResult(Guid OrderId, Guid OperationId, string Status, bool Replayed);
 public sealed record CashSessionResult(Guid CashSessionId, string OpenedBy);
 public sealed record PosCashMovementSummary(Guid MovementId, string MovementType, decimal Amount,
     string? ReasonCode, DateTimeOffset OccurredAtUtc);
@@ -264,6 +265,27 @@ public sealed class PosApiClient : IDisposable
         await EnsureSuccessAsync(response, "Manual settlement could not be confirmed.");
         return await response.Content.ReadFromJsonAsync<ManualTenderResult>(cancellationToken)
             ?? throw new InvalidDataException("The Order API returned an empty settlement response.");
+    }
+
+    public async Task<PosOrderCancellationResult> CancelOrderAsync(PosTokenSet token, Guid orderId,
+        Guid operationId, string reason, CancellationToken cancellationToken = default)
+    {
+        if (orderId == Guid.Empty || operationId == Guid.Empty || string.IsNullOrWhiteSpace(reason)
+            || reason.Trim().Length > 200 || reason.Any(char.IsControl))
+            throw new ArgumentException("Enter a printable cancellation reason of at most 200 characters.");
+        using var request = CreateRequest(HttpMethod.Post, $"api/order/v1/orders/{orderId:D}/cancellations", token);
+        AddTenantContext(request, _configuration.OrganizationId);
+        request.Content = JsonContent.Create(new { organizationId = _configuration.OrganizationId,
+            branchId = _configuration.BranchId, operationId, reason = reason.Trim(), correlationId = operationId });
+        using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.cancel", operationId, cancellationToken);
+        if (response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.Accepted or HttpStatusCode.Conflict))
+            await EnsureSuccessAsync(response, "Order cancellation could not be accepted.");
+        var result = await response.Content.ReadFromJsonAsync<PosOrderCancellationResult>(cancellationToken)
+            ?? throw new InvalidDataException("The Order API returned an empty cancellation response.");
+        if (result.OrderId != orderId || result.OperationId != operationId
+            || result.Status is not ("pending" or "completed" or "blocked"))
+            throw new InvalidDataException("Cancellation response does not match the original order request.");
+        return result;
     }
 
     public async Task<CashSessionResult> OpenCashSessionAsync(PosTokenSet token, Guid shiftId, Guid storeId, string currency, decimal openingAmount, CancellationToken cancellationToken = default)

@@ -40,8 +40,12 @@ public sealed class OrderMigrationRunnerAcceptanceTests
             Assert.Equal(0,await RunAsync(scriptsRoot,7,true));
             Assert.Equal(0,await RunAsync(scriptsRoot,8));
             Assert.Equal(0,await RunAsync(scriptsRoot,9));
+            Assert.Equal(0,await RunAsync(scriptsRoot,10));
+            Assert.True(await TableExistsAsync(dataSource,"order_cancellations"));
+            Assert.Equal(0,await RunAsync(scriptsRoot,9,true));
+            Assert.Equal(0,await RunAsync(scriptsRoot,10));
             Assert.Equal(0,await RunAsync(scriptsRoot,8,true));
-            Assert.Equal(0,await RunAsync(scriptsRoot,9));
+            Assert.Equal(0,await RunAsync(scriptsRoot,10));
             await AssertPersistedOwnershipAndOutboxAsync(dataSource);
             await AssertRecoveryClaimFencesForegroundProgressAsync(dataSource);
             await AssertKitchenAcceptedProviderPaymentCanBeClaimedAsync(dataSource);
@@ -61,7 +65,7 @@ public sealed class OrderMigrationRunnerAcceptanceTests
 
     private static Task<int> RunAsync(string root,int target,bool destructive=false)
     {
-        var args=new List<string>{"--service","Order","--scripts-root",root,"--target",target.ToString(),"--application-version","0.18.0","--confirm"};
+        var args=new List<string>{"--service","Order","--scripts-root",root,"--target",target.ToString(),"--application-version","0.19.0","--confirm"};
         if(destructive)args.AddRange(["--allow-destructive","--backup-verified"]);
         return MigrationApplication.RunAsync(args.ToArray());
     }
@@ -201,6 +205,12 @@ public sealed class OrderMigrationRunnerAcceptanceTests
         await using var command=source.CreateCommand("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=$1 AND column_name=$2)");
         command.Parameters.AddWithValue(table);command.Parameters.AddWithValue(column);
         return (bool)(await command.ExecuteScalarAsync())!;
+    }
+
+    private static async Task<bool> TableExistsAsync(NpgsqlDataSource source,string table)
+    {
+        await using var command=source.CreateCommand("SELECT to_regclass('public.' || $1) IS NOT NULL");
+        command.Parameters.AddWithValue(table);return (bool)(await command.ExecuteScalarAsync())!;
     }
 
     private static async Task AssertPersistedOwnershipAndOutboxAsync(NpgsqlDataSource source)

@@ -191,7 +191,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
     public async Task<OrderAggregate?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("SELECT organization_id, restaurant_id, branch_id, currency, status, order_number, channel, service_type, payment_intent_id, workflow_payment_method, workflow_correlation_id,pricing_snapshot::text,pricing_fingerprint,placement_key,receipt_snapshot::text FROM orders WHERE id=@id", connection);
+        await using var command = new NpgsqlCommand("SELECT organization_id, restaurant_id, branch_id, currency, status, order_number, channel, service_type, payment_intent_id, workflow_payment_method, workflow_correlation_id,pricing_snapshot::text,pricing_fingerprint,placement_key,receipt_snapshot::text,(SELECT status FROM order_cancellations WHERE order_id=orders.id) FROM orders WHERE id=@id", connection);
         command.Parameters.AddWithValue("id", id);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
@@ -205,6 +205,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         string? pricingFingerprint = reader.IsDBNull(12) ? null : reader.GetString(12);
         string? placementKey = reader.IsDBNull(13) ? null : reader.GetString(13);
         PaidOrderReceipt? receipt = reader.IsDBNull(14) ? null : JsonSerializer.Deserialize<PaidOrderReceipt>(reader.GetString(14));
+        string? cancellationStatus = reader.IsDBNull(15) ? null : reader.GetString(15);
         await reader.CloseAsync();
         await using var linesCommand = new NpgsqlCommand("SELECT product_id, name_snapshot, unit_price, quantity, COALESCE(notes,'') FROM order_lines WHERE order_id=@id ORDER BY line_number", connection);
         linesCommand.Parameters.AddWithValue("id", id);
@@ -215,7 +216,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
             orderNumber, idempotencyKey: placementKey, workflowPaymentMethod: workflowPaymentMethod, workflowCorrelationId: workflowCorrelationId,
             pricing: pricing, pricingFingerprint: pricingFingerprint);
         order.RestorePaymentIntent(paymentIntentId);
-        ApplyStatus(order, status);
+        ApplyStatus(order, status, cancellationStatus);
         order.RestoreReceipt(receipt);
         return order;
     }
@@ -330,12 +331,12 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private static string ToDbStatus(OrderStatus status) => status switch { OrderStatus.Paid => "completed", OrderStatus.PaymentFailed or OrderStatus.Rejected => "cancelled", OrderStatus.PaymentPending => "payment_pending", OrderStatus.PaymentReview => "payment_review", OrderStatus.KitchenAccepted => "kitchen_accepted", OrderStatus.InventoryReserved => "inventory_reserved", _ => status.ToString().ToLowerInvariant() };
+    private static string ToDbStatus(OrderStatus status) => status switch { OrderStatus.Paid => "completed", OrderStatus.PaymentFailed or OrderStatus.Rejected or OrderStatus.Cancelled => "cancelled", OrderStatus.CancellationPending => "cancellation_pending", OrderStatus.CancellationReview => "cancellation_review", OrderStatus.PaymentPending => "payment_pending", OrderStatus.PaymentReview => "payment_review", OrderStatus.KitchenAccepted => "kitchen_accepted", OrderStatus.InventoryReserved => "inventory_reserved", _ => status.ToString().ToLowerInvariant() };
     private static string EventType(IIntegrationEvent integrationEvent) => integrationEvent switch
     {
         OrderPaymentReviewRequiredV1 => "order.payment-review-required.v1",
         OrderPaymentReviewResolvedV1 => "order.payment-review-resolved.v1",
         _ => integrationEvent.GetType().Name
     };
-    private static void ApplyStatus(OrderAggregate order, string status) { if (status == "submitted") order.Submit(); else if (status == "inventory_reserved") { order.Submit(); order.MarkInventoryReserved(); } else if (status is "accepted" or "kitchen_accepted") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); } else if (status is "payment_pending" or "payment_review") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaymentPending(); if(status=="payment_review")order.MarkPaymentReview(); } else if (status == "completed") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaid(); } else if (status == "cancelled") order.Reject(); }
+    private static void ApplyStatus(OrderAggregate order, string status, string? cancellationStatus) { if (status == "submitted") order.Submit(); else if (status == "inventory_reserved") { order.Submit(); order.MarkInventoryReserved(); } else if (status is "accepted" or "kitchen_accepted") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); } else if (status is "payment_pending" or "payment_review") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaymentPending(); if(status=="payment_review")order.MarkPaymentReview(); } else if (status == "completed") { order.Submit(); order.MarkInventoryReserved(); order.MarkKitchenAccepted(); order.MarkPaid(); } else if (status == "cancellation_pending") order.RestoreCancellationPending(); else if (status == "cancellation_review") order.RestoreCancellationReview(); else if (status == "cancelled" && cancellationStatus == "completed") order.RestoreCancelled(); else if (status == "cancelled") order.Reject(); }
 }

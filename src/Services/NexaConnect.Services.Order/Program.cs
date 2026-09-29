@@ -13,6 +13,7 @@ using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Observability;
 using NexaConnect.Services.Order.Application.PaymentReviews;
 using NexaConnect.Services.Order.Application.ManualTenders;
+using NexaConnect.Services.Order.Application.Cancellations;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-order");
@@ -41,6 +42,8 @@ if (usePostgres)
     var connectionString = builder.Configuration.GetConnectionString("Order") ?? throw new InvalidOperationException("ConnectionStrings:Order is required for PostgreSQL persistence.");
     builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(connectionString).Build());
     builder.Services.AddSingleton<PostgresOrderRepository>();
+    builder.Services.AddSingleton<PostgresOrderCancellationRepository>();
+    builder.Services.AddSingleton<IOrderCancellationRepository>(services => services.GetRequiredService<PostgresOrderCancellationRepository>());
     builder.Services.AddSingleton<IOrderRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
     builder.Services.AddSingleton<IOrderWorkflowRecoveryRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
     builder.Services.AddSingleton<IManualTenderRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
@@ -53,6 +56,7 @@ else
     builder.Services.AddSingleton<InMemoryOrderApplicationService>();
     builder.Services.AddSingleton<IOrderApplicationService>(services => services.GetRequiredService<InMemoryOrderApplicationService>());
     builder.Services.AddSingleton<IOrderRepository>(services => services.GetRequiredService<InMemoryOrderApplicationService>());
+    builder.Services.AddSingleton<IOrderCancellationRepository, InMemoryOrderCancellationRepository>();
 }
 builder.Services.AddSingleton<InMemoryIntegrationEventPublisher>();
 builder.Services.AddSingleton<IIntegrationEventPublisher>(services =>
@@ -65,6 +69,7 @@ builder.Services.AddScoped<OrderWorkflowRecoveryService>();
 builder.Services.AddScoped<PaymentReconciliationApplicationService>();
 builder.Services.AddScoped<PaymentReviewApplicationService>();
 builder.Services.AddScoped<ManualTenderApplicationService>();
+builder.Services.AddScoped<OrderCancellationApplicationService>();
 if (usePostgres)
 {
     builder.Services.AddPostgresOutbox(builder.Configuration, "Order");

@@ -1,0 +1,1 @@
+{"version":8,"name":"order_cancellation_permission","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.19.0"}
