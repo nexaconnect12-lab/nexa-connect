@@ -1,5 +1,7 @@
 # NexaConnect POS
 
+The Receipts tab automatically previews a newly Paid Order and retrieves prior receipts by Order ID. It validates the server snapshot before rendering, stores only a protected last-Order reference, clears receipt contents on session lock/sign-out, and reloads with live `order.read` authorization before every standard Windows print/reprint. Receipt or printer failure never changes Paid; keep the Order ID and retry retrieval without collecting again. Device-specific printers and fiscal tax invoices remain planned. See [paid-order receipt contract](../../../docs/API/Paid-Order-Receipts.md).
+
 New orders require a server pricing preview and explicit bill confirmation. Confirmed fingerprints persist before send; pricing changes retain the original checkout identity and require another confirmation. Accepted breakdowns persist with pending settlement and are displayed after restart. This requires the pricing-capable Order API and migration 8; hardware/live OIDC acceptance remains separate. See [pricing contract and rollout](../../../docs/API/Order-Pricing.md).
 
 The optional signed Omise webhook worker is Payment-owned and requires Payment migration 8 plus explicit launcher enablement. POS never receives the webhook/API secret or callback body. Webhook notifications supplement existing polling and can reconcile uncertain server payment while the original checkout remains locked; they do not certify cashier UI interactions or trigger another card collection. See [test webhook enablement](../../../docs/Deployment/Omise-Webhooks.md).

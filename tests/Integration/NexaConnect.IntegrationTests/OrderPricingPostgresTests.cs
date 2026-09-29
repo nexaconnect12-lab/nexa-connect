@@ -106,6 +106,12 @@ public sealed class OrderPricingPostgresTests
             Assert.All(results, result => Assert.Equal(117.70m, result!.Amount));
             Assert.Equal(1L, await new NpgsqlCommand("SELECT count(*) FROM order_manual_tender_settlements", connection).ExecuteScalarAsync());
             Assert.Equal(OrderStatus.Paid, (await repository.GetAsync(stored.Id, default))!.Status);
+            var receipt = (await repository.GetReceiptAsync(organization, branch, stored.Id, default))!;
+            Assert.Equal(117.70m, receipt.TotalAmount);
+            Assert.Equal("cash", receipt.Tender);
+            Assert.Equal(pricing, receipt.Pricing);
+            Assert.InRange(Math.Abs((results[0]!.OccurredAtUtc - receipt.PaidAtUtc).Ticks), 0, 9);
+            Assert.Equal(receipt.ReceiptNumber, (await repository.GetAsync(stored.Id, default))!.Receipt!.ReceiptNumber);
             await Assert.ThrowsAsync<PostgresException>(() => new NpgsqlCommand("UPDATE orders SET pricing_fingerprint=repeat('B',64)", connection).ExecuteNonQueryAsync());
             await Assert.ThrowsAsync<PostgresException>(() => new NpgsqlCommand(down, connection).ExecuteNonQueryAsync());
             Assert.Equal(pricing, (await repository.GetAsync(stored.Id, default))!.Pricing);

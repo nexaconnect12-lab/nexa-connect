@@ -297,6 +297,29 @@ public sealed class PosCheckoutIntegrationTests
         Assert.Throws<InvalidDataException>(() => (config with { BranchId = Guid.Empty }).ValidateCheckout());
     }
 
+    [Fact]
+    public async Task Receipt_reads_are_scoped_gets_and_reprints_preserve_the_bill()
+    {
+        var config = Configuration(); Guid orderId = Guid.NewGuid(); int calls = 0;
+        var receipt = new PosReceipt(1, $"R-{orderId:N}".ToUpperInvariant(), orderId, config.OrganizationId,
+            config.RestaurantId, config.BranchId, "123", DateTimeOffset.UtcNow, "THB", "cash",
+            [new(Guid.NewGuid(), "Rice", 100, 1, 100)], new(1,7,false,10,100,100,10,7.7m,117.7m),100,10,7.7m,117.7m);
+        using var api = new PosApiClient(config, orderHandler: new Handler(request =>
+        {
+            calls++;
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.Contains($"branchId={config.BranchId:D}", request.RequestUri!.Query);
+            Assert.NotNull(request.Headers.Authorization);
+            Assert.True(request.Headers.Contains("X-Correlation-ID"));
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(receipt) });
+        }));
+        Assert.Equal((await api.GetReceiptAsync(Token(),orderId)).Render(), (await api.GetReceiptAsync(Token(),orderId)).Render());
+        Assert.Equal(2,calls);
+        Assert.Contains("TOTAL THB 117.70",receipt.Render());
+        receipt = receipt with { BranchId = Guid.NewGuid() };
+        await Assert.ThrowsAsync<InvalidDataException>(() => api.GetReceiptAsync(Token(),orderId));
+    }
+
     private sealed class Handler(Func<HttpRequestMessage, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request);

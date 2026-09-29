@@ -5,6 +5,7 @@ using Microsoft.Data.Sqlite;
 
 namespace NexaConnect.POS;
 
+public sealed record LocalReceiptReference(Guid OrderId);
 public sealed record LocalShiftState(Guid ShiftId, string ShiftNumber, DateTimeOffset OpenedAtUtc);
 public sealed record LocalCashSessionState(Guid CashSessionId, Guid ShiftId, DateTimeOffset OpenedAtUtc);
 public sealed record LocalPendingSettlementState(Guid OrderId, decimal Amount, string Currency,
@@ -65,6 +66,13 @@ public sealed class LocalPosStore
         LocalPosScope? scope = null)
     {
         database = new LocalPosDatabase(storageDirectory, payloadProtector, scope);
+    }
+
+    public LocalReceiptReference? LoadLastReceipt() => Read<LocalReceiptReference>("last-receipt", "The last receipt reference cannot be read.");
+    public void SaveLastReceipt(Guid orderId)
+    {
+        if (orderId == Guid.Empty) throw new ArgumentException("Order identity is required.");
+        Write("last-receipt", new LocalReceiptReference(orderId));
     }
 
     public LocalShiftState? LoadActiveShift() => Read<LocalShiftState>("active-shift",

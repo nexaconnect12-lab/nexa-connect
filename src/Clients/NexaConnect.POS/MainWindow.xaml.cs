@@ -30,6 +30,8 @@ public partial class MainWindow : Window
     private PosOrderResult? pendingOrder;
     private PendingCheckout? pendingCheckout;
     private bool cardTokenRequired;
+    private Guid? displayedReceiptOrderId;
+    private int receiptSessionGeneration;
     private Guid? settlementIdempotencyKey;
     private bool settlementUncertain;
     private bool settlementInFlight;
@@ -61,6 +63,8 @@ public partial class MainWindow : Window
         _localStore = localStore;
         outbox = outboxStore;
         _configuration = configuration;
+        try { ReceiptOrderIdTextBox.Text = _localStore.LoadLastReceipt()?.OrderId.ToString("D") ?? ""; }
+        catch (Exception) { ReceiptStatusText.Text = "Last receipt reference unavailable; enter the paid order ID."; }
         _activeShift = _localStore.LoadActiveShift();
         cashSessionId = _localStore.LoadCashSession()?.CashSessionId;
         pendingCheckout = _localStore.LoadPendingCheckout();
@@ -539,6 +543,7 @@ public partial class MainWindow : Window
                 pendingCheckout = null;
                 StatusText.Text = $"The original order is already Paid. Order ID: {result.OrderId:D}. Do not collect payment again. Checkout recovery is cleared.";
                 clearCart = true;
+                await PreviewPaidReceiptAsync(result.OrderId);
             }
             else if (result.Status is PosOrderStatus.Rejected or PosOrderStatus.PaymentFailed)
             {
@@ -637,6 +642,7 @@ public partial class MainWindow : Window
             StatusText.Text = result.Replayed
                 ? $"Order {result.OrderId:D} was already Paid; the original settlement was verified."
                 : $"Order {result.OrderId:D} is Paid.";
+            await PreviewPaidReceiptAsync(result.OrderId);
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException
             || exception is PosApiException { StatusCode: >= 500 })
@@ -1009,6 +1015,78 @@ public partial class MainWindow : Window
         CashMovementList.ItemsSource = cashSummary.Movements;
     }
 
+    private void ClearReceiptView()
+    {
+        receiptSessionGeneration++;
+        displayedReceiptOrderId = null;
+        ReceiptPreview.Document = null;
+        PrintReceiptButton.IsEnabled = false;
+    }
+
+    private static System.Windows.Documents.FlowDocument ReceiptDocument(PosReceipt receipt) =>
+        new(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(receipt.Render())))
+        { FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 12,
+          PagePadding = new Thickness(24), ColumnWidth = double.PositiveInfinity };
+
+    private async Task PreviewPaidReceiptAsync(Guid orderId)
+    {
+        // This boundary must never turn a committed payment into a payment retry.
+        ReceiptOrderIdTextBox.Text = orderId.ToString("D");
+        bool referenceSaved = true;
+        try { _localStore.SaveLastReceipt(orderId); } catch (Exception) { referenceSaved = false; }
+        await LoadReceiptAsync(orderId, false);
+        if (!referenceSaved) ReceiptStatusText.Text += " Save this order ID for retrieval after restart.";
+        if (IsSignedIn()) WorkspaceTabs.SelectedItem = ReceiptsTab;
+    }
+
+    private async void LoadReceipt_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsSignedIn() || busy) return;
+        if (!Guid.TryParse(ReceiptOrderIdTextBox.Text, out var id) || id == Guid.Empty)
+        { ReceiptStatusText.Text = "Enter a valid order ID."; return; }
+        SetBusy("Loading receipt…");
+        try { await LoadReceiptAsync(id, false); } finally { UpdateOperationalState(); }
+    }
+
+    private async void PrintReceipt_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsSignedIn() || busy || displayedReceiptOrderId is not { } id) return;
+        SetBusy("Checking receipt access…");
+        try { await LoadReceiptAsync(id, true); } finally { UpdateOperationalState(); }
+    }
+
+    private async Task LoadReceiptAsync(Guid orderId, bool print)
+    {
+        ClearReceiptView();
+        int generation = receiptSessionGeneration;
+        try
+        {
+            if (!IsSignedIn() || _authentication.CurrentToken is not { } token) return;
+            var receipt = await _api.GetReceiptAsync(token, orderId);
+            if (generation != receiptSessionGeneration || !IsSignedIn()) return;
+            ReceiptPreview.Document = ReceiptDocument(receipt);
+            displayedReceiptOrderId = orderId;
+            ReceiptStatusText.Text = "Paid receipt loaded. Reprints use the same receipt number and amounts.";
+            PrintReceiptButton.IsEnabled = true;
+            if (print)
+            {
+                var dialog = new PrintDialog();
+                if (dialog.ShowDialog() == true && generation == receiptSessionGeneration && IsSignedIn())
+                {
+                    var document = ReceiptDocument(receipt);
+                    document.PageWidth = dialog.PrintableAreaWidth;
+                    document.PageHeight = dialog.PrintableAreaHeight;
+                    dialog.PrintDocument(((System.Windows.Documents.IDocumentPaginatorSource)document).DocumentPaginator, "Sales receipt");
+                }
+            }
+        }
+        catch (Exception)
+        {
+            ClearReceiptView();
+            ReceiptStatusText.Text = "Receipt unavailable or printing failed. Payment is unchanged. Check access and retry Load receipt; do not collect again.";
+        }
+    }
+
     private void SignOut_Click(object sender, RoutedEventArgs e)
     {
         CardTokenBox.Clear();
@@ -1021,6 +1099,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        ClearReceiptView();
         _authentication.SignOut();
         reauthenticationRequired = false;
         sessionLockMessage = null;
@@ -1074,6 +1153,8 @@ public partial class MainWindow : Window
         busy = false;
         WorkspaceTabs.IsEnabled = true;
         bool signedIn = IsSignedIn();
+        LoadReceiptButton.IsEnabled = signedIn;
+        PrintReceiptButton.IsEnabled = signedIn && displayedReceiptOrderId is not null;
         bool hasStoredSession = _authentication.CurrentToken is not null;
         bool hasActiveShift = _activeShift is not null;
         SignInButton.Content = "Sign in";
@@ -1236,6 +1317,7 @@ public partial class MainWindow : Window
 
     private void LockSession(string message)
     {
+        ClearReceiptView();
         CardTokenBox.Clear();
         cardTokenRequired = false;
         reauthenticationRequired = true;

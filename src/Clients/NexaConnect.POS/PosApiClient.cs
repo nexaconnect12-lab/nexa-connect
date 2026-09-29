@@ -42,6 +42,29 @@ public sealed record PosCashReviewDetail(PosCashReviewListItem Session,
     IReadOnlyList<PosCashMovementSummary> Movements, IReadOnlyList<PosCashReviewHistoryEntry> History);
 public sealed record PosCashReviewPage(IReadOnlyList<PosCashReviewListItem> Items, string? NextCursor);
 
+public sealed record PosReceiptLine(Guid ProductId, string Name, decimal UnitPrice, int Quantity, decimal Total);
+public sealed record PosReceipt(int Version, string ReceiptNumber, Guid OrderId, Guid OrganizationId,
+    Guid RestaurantId, Guid BranchId, string OrderNumber, DateTimeOffset PaidAtUtc, string Currency, string Tender,
+    IReadOnlyList<PosReceiptLine> Lines, PosOrderPricing? Pricing, decimal SubtotalAmount,
+    decimal ServiceChargeAmount, decimal TaxAmount, decimal TotalAmount)
+{
+    public string Render()
+    {
+        static string Money(decimal value) => value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+        static string Safe(string value) => new(value.Select(c => char.IsControl(c) ? ' ' : c).ToArray());
+        return "SALES RECEIPT — PAID\n" + Safe(ReceiptNumber) + "\nOrder: " + Safe(OrderNumber)
+            + "\nOrder ID: " + OrderId.ToString("D") + "\nBranch: " + BranchId.ToString("D")
+            + "\nPaid (UTC): " + PaidAtUtc.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)
+            + "\nTender: " + Safe(Tender) + "\n\n"
+            + string.Join("\n", Lines.Select(l => $"{l.Quantity} × {Safe(l.Name)} @ {Money(l.UnitPrice)} = {Money(l.Total)}"))
+            + $"\n\nSubtotal {Currency} {Money(SubtotalAmount)}\nService charge {Currency} {Money(ServiceChargeAmount)}"
+            + $"\nTax {Currency} {Money(TaxAmount)}\nTOTAL {Currency} {Money(TotalAmount)}"
+            + (Pricing?.TaxInclusive == true ? "\nMenu prices include tax." : "")
+            + (Pricing is null ? "\nLegacy order: tax breakdown unavailable." : "")
+            + "\n\nOrdinary sales receipt. Not a tax invoice.";
+    }
+}
+
 public sealed class PosApiClient : IDisposable
 {
     private readonly PosClientConfiguration _configuration;
@@ -58,6 +81,26 @@ public sealed class PosApiClient : IDisposable
         _httpClient = new HttpClient(posHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.PosApi) };
         _orderHttpClient = new HttpClient(orderHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.OrderApi) };
         _catalogHttpClient = new HttpClient(catalogHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.CatalogApi) };
+    }
+
+    public async Task<PosReceipt> GetReceiptAsync(PosTokenSet token, Guid orderId, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Get, $"api/order/v1/orders/{orderId:D}/receipt?branchId={_configuration.BranchId:D}", token);
+        AddTenantContext(request, _configuration.OrganizationId);
+        using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.receipt.read", Guid.NewGuid(), cancellationToken);
+        await EnsureSuccessAsync(response, "Receipt unavailable. Payment is unchanged; verify access or retry receipt retrieval.");
+        var receipt = await response.Content.ReadFromJsonAsync<PosReceipt>(cancellationToken)
+            ?? throw new InvalidDataException("Empty receipt response.");
+        if (receipt.Version != 1 || receipt.OrderId != orderId || receipt.OrganizationId != _configuration.OrganizationId
+            || receipt.RestaurantId != _configuration.RestaurantId || receipt.BranchId != _configuration.BranchId
+            || receipt.Currency != _configuration.Currency || receipt.PaidAtUtc == default
+            || receipt.ReceiptNumber != $"R-{orderId:N}".ToUpperInvariant() || string.IsNullOrWhiteSpace(receipt.Tender)
+            || receipt.Lines is null || receipt.Lines.Count == 0 || receipt.Lines.Any(l => l.Quantity <= 0 || l.UnitPrice < 0 || l.Total != l.UnitPrice * l.Quantity)
+            || receipt.TotalAmount < 0 || receipt.SubtotalAmount + receipt.ServiceChargeAmount + receipt.TaxAmount != receipt.TotalAmount
+            || (receipt.Pricing is { } p && (p.TotalAmount != receipt.TotalAmount || p.SubtotalAmount != receipt.SubtotalAmount
+                || p.ServiceChargeAmount != receipt.ServiceChargeAmount || p.TaxAmount != receipt.TaxAmount)))
+            throw new InvalidDataException("Receipt does not match this order and terminal scope.");
+        return receipt;
     }
 
     public async Task<PosShift> OpenShiftAsync(

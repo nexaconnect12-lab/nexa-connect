@@ -22,6 +22,8 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
             "Count and receipt checked", 4, 1);
         PendingCheckout checkout = PendingCheckout.Create(PosCheckoutIntegrationTests.Configuration(), [new(Guid.NewGuid(), 2)]);
         var first = new LocalPosStore(directory, protector);
+        Guid lastReceiptOrderId = Guid.NewGuid();
+        first.SaveLastReceipt(lastReceiptOrderId);
         first.SaveActiveShift(shift);
         first.SaveCashSession(cash);
         first.SavePendingCheckout(checkout);
@@ -29,6 +31,7 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
         first.SavePendingCashReview(cashReview, configuration);
 
         var restarted = new LocalPosStore(directory, protector);
+        Assert.Equal(lastReceiptOrderId, restarted.LoadLastReceipt()!.OrderId);
         Assert.Equal(shift, restarted.LoadActiveShift());
         Assert.Equal(cash, restarted.LoadCashSession());
         PendingCheckout restoredCheckout = restarted.LoadPendingCheckout()!;
@@ -37,6 +40,7 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
         Assert.Equal(checkout.Lines, restoredCheckout.Lines);
         Assert.Equal(settlement, restarted.LoadPendingSettlement());
         Assert.Equal(cashReview, restarted.LoadPendingCashReview(configuration));
+        Assert.Equal(lastReceiptOrderId, restarted.LoadLastReceipt()!.OrderId);
 
         restarted.ClearCheckoutAndSettlement();
 

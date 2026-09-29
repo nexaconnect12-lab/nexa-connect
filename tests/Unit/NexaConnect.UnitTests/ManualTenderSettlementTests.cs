@@ -17,6 +17,8 @@ public sealed class ManualTenderSettlementTests
         order.MarkManuallyPaid(settlement);
 
         Assert.Equal(OrderStatus.Paid, order.Status);
+        Assert.Equal(settlement.OccurredAtUtc, order.Receipt!.PaidAtUtc);
+        Assert.Equal(method, order.Receipt.Tender);
         Assert.Null(order.PaymentIntentId);
         Assert.Equal("THB", settlement.Currency);
     }

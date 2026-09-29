@@ -354,6 +354,18 @@
           </Grid>
         </Grid>
       </TabItem>
+      <TabItem x:Name="ReceiptsTab" Header="Receipts">
+        <Grid Margin="0,16,0,0">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+          <WrapPanel>
+            <TextBox x:Name="ReceiptOrderIdTextBox" Width="320" AutomationProperties.Name="Receipt order ID" />
+            <Button x:Name="LoadReceiptButton" Content="Load receipt" Click="LoadReceipt_Click" />
+            <Button x:Name="PrintReceiptButton" Content="Print / reprint" Click="PrintReceipt_Click" IsEnabled="False" />
+          </WrapPanel>
+          <TextBlock Grid.Row="1" x:Name="ReceiptStatusText" Text="Enter a paid order ID. Loading or printing never collects payment." TextWrapping="Wrap" Margin="0,8" />
+          <FlowDocumentScrollViewer Grid.Row="2" x:Name="ReceiptPreview" IsToolBarVisible="False" />
+        </Grid>
+      </TabItem>
       <TabItem Header="Terminal &amp; sync">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <Border Style="{StaticResource Card}" Margin="0,16,0,0">

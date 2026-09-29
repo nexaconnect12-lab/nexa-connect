@@ -10,8 +10,15 @@ using NexaConnect.Services.Order.Domain;
 namespace NexaConnect.Services.Order.Infrastructure.Persistence;
 
 public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
-    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderWorkflowRecoveryRepository, IOrderLookup, IPaymentReviewRepository, IPaymentReviewHistoryRepository, IManualTenderRepository
+    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderWorkflowRecoveryRepository, IOrderLookup, IPaymentReviewRepository, IPaymentReviewHistoryRepository, IManualTenderRepository, IOrderReceiptRepository
 {
+    public async Task<PaidOrderReceipt?> GetReceiptAsync(Guid organizationId, Guid branchId, Guid orderId, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("SELECT receipt_snapshot::text FROM orders WHERE id=$1 AND organization_id=$2 AND branch_id=$3 AND status='completed'");
+        command.Parameters.AddWithValue(orderId); command.Parameters.AddWithValue(organizationId); command.Parameters.AddWithValue(branchId);
+        return await command.ExecuteScalarAsync(cancellationToken) is string json ? JsonSerializer.Deserialize<PaidOrderReceipt>(json) : null;
+    }
+
     public async Task<StoredManualTender?> FindAsync(Guid organizationId,Guid branchId,Guid idempotencyKey,CancellationToken cancellationToken)
     {
         await using var command=dataSource.CreateCommand("SELECT id,order_id,request_fingerprint,method,amount,currency,occurred_at_utc FROM order_manual_tender_settlements WHERE organization_id=$1 AND branch_id=$2 AND idempotency_key=$3");
@@ -34,9 +41,10 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
                 return new(value.Fingerprint==fingerprint?ManualTenderCommitStatus.Replayed:ManualTenderCommitStatus.IdempotencyConflict,value);
             }
         }
-        await using(var update=new NpgsqlCommand("UPDATE orders SET status='completed',updated_at_utc=$1,updated_by=$2,concurrency_version=concurrency_version+1 WHERE id=$3 AND organization_id=$4 AND branch_id=$5 AND payment_intent_id IS NULL AND status IN('accepted','kitchen_accepted','payment_pending') AND total_amount=$6 AND btrim(currency)=$7",connection,transaction))
+        await using(var update=new NpgsqlCommand("UPDATE orders SET status='completed',receipt_snapshot=$8::jsonb,updated_at_utc=$1,updated_by=$2,concurrency_version=concurrency_version+1 WHERE id=$3 AND organization_id=$4 AND branch_id=$5 AND payment_intent_id IS NULL AND status IN('accepted','kitchen_accepted','payment_pending') AND total_amount=$6 AND btrim(currency)=$7",connection,transaction))
         {
             update.Parameters.AddWithValue(settlement.OccurredAtUtc);update.Parameters.AddWithValue(settlement.OperatorSubjectId);update.Parameters.AddWithValue(order.Id);update.Parameters.AddWithValue(order.OrganizationId);update.Parameters.AddWithValue(order.BranchId);update.Parameters.AddWithValue(settlement.Amount);update.Parameters.AddWithValue(settlement.Currency);
+            update.Parameters.AddWithValue(JsonSerializer.Serialize(order.Receipt ?? throw new InvalidOperationException("Paid settlement requires a receipt.")));
             if(await update.ExecuteNonQueryAsync(cancellationToken)!=1){await transaction.RollbackAsync(cancellationToken);return new(ManualTenderCommitStatus.StateConflict,null);}
         }
         try
@@ -183,7 +191,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
     public async Task<OrderAggregate?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("SELECT organization_id, restaurant_id, branch_id, currency, status, order_number, channel, service_type, payment_intent_id, workflow_payment_method, workflow_correlation_id,pricing_snapshot::text,pricing_fingerprint,placement_key FROM orders WHERE id=@id", connection);
+        await using var command = new NpgsqlCommand("SELECT organization_id, restaurant_id, branch_id, currency, status, order_number, channel, service_type, payment_intent_id, workflow_payment_method, workflow_correlation_id,pricing_snapshot::text,pricing_fingerprint,placement_key,receipt_snapshot::text FROM orders WHERE id=@id", connection);
         command.Parameters.AddWithValue("id", id);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
@@ -196,6 +204,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         OrderPricing? pricing = reader.IsDBNull(11) ? null : JsonSerializer.Deserialize<OrderPricing>(reader.GetString(11));
         string? pricingFingerprint = reader.IsDBNull(12) ? null : reader.GetString(12);
         string? placementKey = reader.IsDBNull(13) ? null : reader.GetString(13);
+        PaidOrderReceipt? receipt = reader.IsDBNull(14) ? null : JsonSerializer.Deserialize<PaidOrderReceipt>(reader.GetString(14));
         await reader.CloseAsync();
         await using var linesCommand = new NpgsqlCommand("SELECT product_id, name_snapshot, unit_price, quantity, COALESCE(notes,'') FROM order_lines WHERE order_id=@id ORDER BY line_number", connection);
         linesCommand.Parameters.AddWithValue("id", id);
@@ -207,6 +216,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
             pricing: pricing, pricingFingerprint: pricingFingerprint);
         order.RestorePaymentIntent(paymentIntentId);
         ApplyStatus(order, status);
+        order.RestoreReceipt(receipt);
         return order;
     }
 
@@ -214,9 +224,9 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         CancellationToken cancellationToken, Guid? recoveryClaimId = null)
     {
         await using var command = new NpgsqlCommand("""
-            INSERT INTO orders (id,organization_id,restaurant_id,branch_id,payment_intent_id,order_number,currency,channel,service_type,subtotal_amount,service_charge_amount,tax_amount,total_amount,pricing_snapshot,pricing_fingerprint,placement_key,status,workflow_payment_method,workflow_correlation_id,workflow_recovery_next_attempt_at_utc,created_at_utc,created_by,updated_at_utc,updated_by)
-            VALUES (@id,@organization,@restaurant,@branch,@payment_intent,@number,@currency,@channel,@service,@subtotal,@service_charge,@tax,@total,@pricing::jsonb,@fingerprint,@placement_key,@status,@workflow_method,@workflow_correlation,CASE WHEN @status='submitted' AND @workflow_method IS NOT NULL THEN @recovery_at ELSE NULL END,@now,'order-service',@now,'order-service')
-            ON CONFLICT (id) DO UPDATE SET status=EXCLUDED.status,payment_intent_id=COALESCE(orders.payment_intent_id,EXCLUDED.payment_intent_id),total_amount=EXCLUDED.total_amount,workflow_payment_method=COALESCE(orders.workflow_payment_method,EXCLUDED.workflow_payment_method),workflow_correlation_id=COALESCE(orders.workflow_correlation_id,EXCLUDED.workflow_correlation_id),workflow_recovery_next_attempt_at_utc=CASE WHEN EXCLUDED.status='inventory_reserved' AND EXCLUDED.workflow_payment_method IS NOT NULL THEN @recovery_at WHEN EXCLUDED.status='kitchen_accepted' AND EXCLUDED.workflow_payment_method NOT IN('cash_manual','promptpay_manual') THEN @recovery_at ELSE NULL END,workflow_recovery_claim_id=NULL,workflow_recovery_locked_until_utc=NULL,updated_at_utc=EXCLUDED.updated_at_utc,updated_by=EXCLUDED.updated_by,concurrency_version=orders.concurrency_version+1
+            INSERT INTO orders (id,organization_id,restaurant_id,branch_id,payment_intent_id,order_number,currency,channel,service_type,subtotal_amount,service_charge_amount,tax_amount,total_amount,pricing_snapshot,pricing_fingerprint,placement_key,receipt_snapshot,status,workflow_payment_method,workflow_correlation_id,workflow_recovery_next_attempt_at_utc,created_at_utc,created_by,updated_at_utc,updated_by)
+            VALUES (@id,@organization,@restaurant,@branch,@payment_intent,@number,@currency,@channel,@service,@subtotal,@service_charge,@tax,@total,@pricing::jsonb,@fingerprint,@placement_key,@receipt::jsonb,@status,@workflow_method,@workflow_correlation,CASE WHEN @status='submitted' AND @workflow_method IS NOT NULL THEN @recovery_at ELSE NULL END,@now,'order-service',@now,'order-service')
+            ON CONFLICT (id) DO UPDATE SET receipt_snapshot=COALESCE(orders.receipt_snapshot,EXCLUDED.receipt_snapshot),status=EXCLUDED.status,payment_intent_id=COALESCE(orders.payment_intent_id,EXCLUDED.payment_intent_id),total_amount=EXCLUDED.total_amount,workflow_payment_method=COALESCE(orders.workflow_payment_method,EXCLUDED.workflow_payment_method),workflow_correlation_id=COALESCE(orders.workflow_correlation_id,EXCLUDED.workflow_correlation_id),workflow_recovery_next_attempt_at_utc=CASE WHEN EXCLUDED.status='inventory_reserved' AND EXCLUDED.workflow_payment_method IS NOT NULL THEN @recovery_at WHEN EXCLUDED.status='kitchen_accepted' AND EXCLUDED.workflow_payment_method NOT IN('cash_manual','promptpay_manual') THEN @recovery_at ELSE NULL END,workflow_recovery_claim_id=NULL,workflow_recovery_locked_until_utc=NULL,updated_at_utc=EXCLUDED.updated_at_utc,updated_by=EXCLUDED.updated_by,concurrency_version=orders.concurrency_version+1
             WHERE orders.organization_id=EXCLUDED.organization_id
               AND NOT (orders.pricing_snapshot IS NOT NULL AND EXCLUDED.status='submitted')
               AND orders.pricing_snapshot IS NOT DISTINCT FROM EXCLUDED.pricing_snapshot
@@ -228,6 +238,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
               AND NOT (orders.status='kitchen_accepted' AND EXCLUDED.status IN('submitted','inventory_reserved'))
               AND NOT (orders.status IN('payment_pending','payment_review') AND EXCLUDED.status IN('submitted','inventory_reserved','kitchen_accepted'))
             """, connection, transaction);
+        command.Parameters.AddWithValue("receipt", NpgsqlTypes.NpgsqlDbType.Text, (object?)(order.Receipt is null ? null : JsonSerializer.Serialize(order.Receipt)) ?? DBNull.Value);
         var now = DateTime.UtcNow;
         command.Parameters.AddWithValue("id", order.Id); command.Parameters.AddWithValue("organization", order.OrganizationId); command.Parameters.AddWithValue("restaurant", order.RestaurantId); command.Parameters.AddWithValue("branch", order.BranchId);
         command.Parameters.AddWithValue("payment_intent", NpgsqlTypes.NpgsqlDbType.Uuid, (object?)order.PaymentIntentId ?? DBNull.Value);

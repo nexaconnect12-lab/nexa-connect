@@ -13,10 +13,15 @@ public interface IOrderApplicationService
     OrderAggregate? Get(Guid orderId);
 }
 
-public sealed class InMemoryOrderApplicationService : IOrderApplicationService, IOrderRepository, IOrderLookup, IIdempotentOrderRepository
+public sealed class InMemoryOrderApplicationService : IOrderApplicationService, IOrderRepository, IOrderLookup, IIdempotentOrderRepository, IOrderReceiptRepository
 {
     private readonly ConcurrentDictionary<Guid, OrderAggregate> orders = new();
     private readonly object placementLock = new();
+    public Task<PaidOrderReceipt?> GetReceiptAsync(Guid organizationId, Guid branchId, Guid orderId, CancellationToken cancellationToken)
+    {
+        var order = Get(orderId);
+        return Task.FromResult(order?.OrganizationId == organizationId && order.BranchId == branchId ? order.Receipt : null);
+    }
 
     public Task<OrderAggregate?> FindByIdempotencyKeyAsync(Guid restaurantId, string key, CancellationToken cancellationToken)
     {

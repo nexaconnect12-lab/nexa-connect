@@ -77,6 +77,25 @@ public sealed class OrderAggregate
     public IReadOnlyList<OrderLine> Lines => lines.AsReadOnly();
     public OrderPricing? Pricing { get; }
     public string? PricingFingerprint { get; }
+    public PaidOrderReceipt? Receipt { get; private set; }
+    public void IssueReceipt(DateTimeOffset paidAtUtc, string tender) => Receipt ??= PaidOrderReceipt.Create(this, paidAtUtc, tender);
+    public void RestoreReceipt(PaidOrderReceipt? receipt)
+    {
+        if (receipt is null) return;
+        if (Receipt is not null || Status != OrderStatus.Paid || receipt.OrderId != Id
+            || receipt.OrganizationId != OrganizationId || receipt.RestaurantId != RestaurantId
+            || receipt.BranchId != BranchId || receipt.Currency != Currency || receipt.TotalAmount != TotalAmount
+            || receipt.Version != 1 || receipt.ReceiptNumber != $"R-{Id:N}".ToUpperInvariant()
+            || receipt.OrderNumber != OrderNumber || receipt.PaidAtUtc == default || string.IsNullOrWhiteSpace(receipt.Tender)
+            || receipt.SubtotalAmount != (Pricing?.SubtotalAmount ?? TotalAmount)
+            || receipt.ServiceChargeAmount != (Pricing?.ServiceChargeAmount ?? 0)
+            || receipt.TaxAmount != (Pricing?.TaxAmount ?? 0)
+            || receipt.Pricing != Pricing
+            || !receipt.Lines.SequenceEqual(lines.Select(line =>
+                new ReceiptLine(line.ProductId, line.Name, line.UnitPrice, line.Quantity, line.Total))))
+            throw new InvalidOperationException("Receipt does not match the paid order.");
+        Receipt = receipt with { Lines = Array.AsReadOnly(receipt.Lines.ToArray()) };
+    }
     public decimal TotalAmount => Pricing?.TotalAmount ?? lines.Sum(line => line.Total);
 
     public static OrderAggregate Create(
@@ -117,6 +136,7 @@ public sealed class OrderAggregate
         if (PaymentIntentId is not null)
             throw new InvalidOperationException("An order bound to a provider payment intent cannot be manually settled.");
         MarkPaid();
+        IssueReceipt(settlement.OccurredAtUtc, settlement.Method == ManualTenderMethod.Cash ? "cash" : "promptpay_manual");
     }
     public void MarkPaymentPending(Guid? paymentIntentId = null)
     {

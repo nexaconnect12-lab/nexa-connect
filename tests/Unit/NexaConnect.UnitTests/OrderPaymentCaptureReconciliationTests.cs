@@ -20,6 +20,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
 
         Assert.True(applied);
         Assert.Equal(OrderStatus.Paid, order.Status);
+        Assert.Equal(order.TotalAmount, order.Receipt!.TotalAmount);
         var completed = Assert.IsType<PaymentCompletedV1>(repository.Event);
         Assert.Equal(order.Id, completed.OrderId);
         Assert.Empty(publisher.Events);

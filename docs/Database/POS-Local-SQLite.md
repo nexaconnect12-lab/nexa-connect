@@ -1,5 +1,7 @@
 # POS local SQLite
 
+Receipt retrieval adds the protected `last-receipt` local-state key containing only an Order UUID. Receipt contents, tender and bill values are not cached; POS reloads them from Order with live authorization before preview/reprint and clears the rendered document on lock/sign-out. The key-based addition needs no SQLite schema migration.
+
 Pricing checkout extends the existing protected JSON payloads with pricingFingerprint/needsPricingReview and pending-settlement pricing. These additive fields use the existing SQLite schema. Original identity is retained during reconfirmation; missing fields on old pending work remain compatible for original-order verification. See [pricing contract and rollout](../API/Order-Pricing.md).
 
 The WPF POS owns `%LOCALAPPDATA%\NexaConnect\POS\pos-state.db` for current-user crash recovery and brief device-to-service interruption. Backend services never access this database. PostgreSQL remains authoritative for shifts, cash, Orders, settlements, and synchronization deduplication.

@@ -59,6 +59,8 @@ builder.Services.AddSingleton<IIntegrationEventPublisher>(services =>
     services.GetRequiredService<InMemoryIntegrationEventPublisher>());
 builder.Services.AddScoped<PlaceOrderWorkflow>();
 builder.Services.AddScoped<OrderPricingService>();
+builder.Services.AddScoped<OrderReceiptService>();
+builder.Services.AddSingleton<IOrderReceiptRepository>(services => (IOrderReceiptRepository)services.GetRequiredService<IOrderRepository>());
 builder.Services.AddScoped<OrderWorkflowRecoveryService>();
 builder.Services.AddScoped<PaymentReconciliationApplicationService>();
 builder.Services.AddScoped<PaymentReviewApplicationService>();

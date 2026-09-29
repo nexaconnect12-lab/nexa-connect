@@ -32,11 +32,11 @@ try {
     $env:NEXACONNECT_PRICING_ACCEPTANCE = '1'
     $env:DOTNET_ENVIRONMENT = 'Testing'
     $env:NEXACONNECT_ENVIRONMENT = 'Testing'
-    & dotnet test (Join-Path $PSScriptRoot '../tests/Integration/NexaConnect.IntegrationTests') --no-restore --filter 'FullyQualifiedName~OrderPricingPostgresTests|FullyQualifiedName~OrderMigrationRunnerAcceptanceTests' --results-directory $results --logger 'trx;LogFileName=pricing.trx' --verbosity minimal
+    & dotnet test (Join-Path $PSScriptRoot '../tests/Integration/NexaConnect.IntegrationTests') --no-restore --filter 'FullyQualifiedName~OrderPricingPostgresTests|FullyQualifiedName~OrderMigrationRunnerAcceptanceTests|FullyQualifiedName~PaidOrderReceiptPostgresTests' --results-directory $results --logger 'trx;LogFileName=pricing.trx' --verbosity minimal
     if ($LASTEXITCODE -ne 0) { throw 'Pricing acceptance failed.' }
     [xml]$trx = Get-Content -LiteralPath (Join-Path $results 'pricing.trx')
     $counters = $trx.TestRun.ResultSummary.Counters
-    if ([int]$counters.total -ne 3 -or [int]$counters.passed -ne 3 -or [int]$counters.notExecuted -ne 0) { throw 'Pricing acceptance did not execute all three required tests.' }
+    if ([int]$counters.total -ne 4 -or [int]$counters.passed -ne 4 -or [int]$counters.notExecuted -ne 0) { throw 'Pricing acceptance did not execute all four required tests.' }
 } finally {
     foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process') }
     if ($started) {

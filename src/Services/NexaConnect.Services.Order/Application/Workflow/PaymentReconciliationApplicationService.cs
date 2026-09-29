@@ -41,9 +41,11 @@ public sealed class PaymentReconciliationApplicationService(
             EnsurePaymentIntent(order, capture.PaymentId ?? Guid.Empty);
             if (capture.Completed)
             {
+                DateTimeOffset paidAtUtc = clock.GetUtcNow();
                 order.MarkPaid();
+                order.IssueReceipt(paidAtUtc, paymentMethod);
                 await PersistAsync(order, new PaymentCompletedV1(OrderPaymentEventIdentity.Completion(order.Id, order.WorkflowPaymentMethod), reconciliation.CorrelationId,
-                    clock.GetUtcNow(), order.Id, reconciliation.PaymentIntentId, order.TotalAmount, order.Currency,
+                    paidAtUtc, order.Id, reconciliation.PaymentIntentId, order.TotalAmount, order.Currency,
                     paymentMethod), cancellationToken);
                 return true;
             }
@@ -107,9 +109,11 @@ public sealed class PaymentReconciliationApplicationService(
 
         if (string.Equals(outcome, "captured", StringComparison.Ordinal))
         {
+            DateTimeOffset paidAtUtc = clock.GetUtcNow();
             order.MarkPaid();
+            order.IssueReceipt(paidAtUtc, order.WorkflowPaymentMethod ?? "provider");
             await PersistAsync(order, new PaymentCompletedV1(OrderPaymentEventIdentity.Completion(order.Id, order.WorkflowPaymentMethod), reconciliation.CorrelationId,
-                clock.GetUtcNow(), order.Id, reconciliation.PaymentIntentId, order.TotalAmount, order.Currency,
+                paidAtUtc, order.Id, reconciliation.PaymentIntentId, order.TotalAmount, order.Currency,
                 "reconciled_capture"), cancellationToken);
             return true;
         }

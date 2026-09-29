@@ -39,14 +39,17 @@ public sealed class OrderMigrationRunnerAcceptanceTests
             Assert.Equal(0,await RunAsync(scriptsRoot,8));
             Assert.Equal(0,await RunAsync(scriptsRoot,7,true));
             Assert.Equal(0,await RunAsync(scriptsRoot,8));
+            Assert.Equal(0,await RunAsync(scriptsRoot,9));
+            Assert.Equal(0,await RunAsync(scriptsRoot,8,true));
+            Assert.Equal(0,await RunAsync(scriptsRoot,9));
             await AssertPersistedOwnershipAndOutboxAsync(dataSource);
             await AssertRecoveryClaimFencesForegroundProgressAsync(dataSource);
             await AssertKitchenAcceptedProviderPaymentCanBeClaimedAsync(dataSource);
             await AssertKitchenAcceptedManualTenderCanSettleAsync(dataSource);
             await SeedRecoverableOrderAsync(dataSource);
             Assert.NotEqual(0,await RunAsync(scriptsRoot,5,true));
-            await AssertVersion6Async(dataSource);
-            Assert.Equal(0,await RunAsync(scriptsRoot,8));
+            Assert.True(await ColumnExistsAsync(dataSource,"orders","receipt_snapshot"));
+            Assert.Equal(0,await RunAsync(scriptsRoot,9));
             Assert.True(await ColumnExistsAsync(dataSource,"orders","pricing_snapshot"));
         }
         finally
@@ -58,7 +61,7 @@ public sealed class OrderMigrationRunnerAcceptanceTests
 
     private static Task<int> RunAsync(string root,int target,bool destructive=false)
     {
-        var args=new List<string>{"--service","Order","--scripts-root",root,"--target",target.ToString(),"--application-version","0.17.0","--confirm"};
+        var args=new List<string>{"--service","Order","--scripts-root",root,"--target",target.ToString(),"--application-version","0.18.0","--confirm"};
         if(destructive)args.AddRange(["--allow-destructive","--backup-verified"]);
         return MigrationApplication.RunAsync(args.ToArray());
     }

@@ -234,9 +234,11 @@ public sealed class PlaceOrderWorkflow(
                 paid.Reason ?? "Payment was not completed."), cancellationToken);
             return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency, Pricing: order.Pricing);
         }
+        DateTimeOffset paidAtUtc = clock.GetUtcNow();
         order.MarkPaid(paid.PaymentId.Value);
+        order.IssueReceipt(paidAtUtc, command.PaymentMethod);
         await PersistAsync(order, new PaymentCompletedV1(
-            OrderPaymentEventIdentity.Completion(order.Id, command.PaymentMethod), correlationId, clock.GetUtcNow(), order.Id, paid.PaymentId.Value,
+            OrderPaymentEventIdentity.Completion(order.Id, command.PaymentMethod), correlationId, paidAtUtc, order.Id, paid.PaymentId.Value,
             order.TotalAmount, order.Currency, command.PaymentMethod), cancellationToken);
         return new PlaceOrderResult(order.Id, order.Status, order.TotalAmount, order.Currency, Pricing: order.Pricing);
     }
