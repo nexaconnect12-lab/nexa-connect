@@ -33,10 +33,11 @@ public sealed class OrderWorkflowRecoveryWorker(
                 using IServiceScope scope = scopeFactory.CreateScope();
                 var service = scope.ServiceProvider.GetRequiredService<OrderWorkflowRecoveryService>();
                 bool recovered = await service.RecoverNextAsync(settings.LeaseDuration, settings.RetryDelay, stoppingToken);
-                if (recovered) { RecoveredSteps.Add(1); continue; }
+                if (recovered) RecoveredSteps.Add(1);
                 var cancellations = scope.ServiceProvider.GetRequiredService<OrderCancellationApplicationService>();
                 if (await cancellations.RecoverNextAsync(settings.LeaseDuration, settings.RetryDelay, stoppingToken))
-                { RecoveredCancellations.Add(1); continue; }
+                { RecoveredCancellations.Add(1); recovered = true; }
+                if (recovered) continue;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception exception)

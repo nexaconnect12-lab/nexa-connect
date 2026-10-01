@@ -1,5 +1,7 @@
 # Authorization Service
 
+Pre-payment Order cancellation requires migration 8. Existing and newly assigned `cashier`, `store-manager`, and `tenant-admin` roles receive `order.cancel` at their normal hierarchical scopes. Order obtains a live branch decision and persists its UUID with the immutable cancellation operation. Downgrading `8→7` removes only this permission association and must follow disabling the cancellation route and POS control.
+
 Manual tender confirmation requires migration 6. Existing and newly assigned `cashier`, `store-manager`, and `tenant-admin` roles receive `order.manual-payment.confirm` at their normal hierarchical scopes. Downgrading `6→5` removes only this permission association and must follow disabling the manual-settlement route.
 
 Owns product-scoped authorization decisions and role assignments. Operational telemetry uses service name `nexaconnect-authorization`; decision events contain only decision UUID and granted flag with shared correlation context, never subject, permission, resource scope, database diagnostics, credentials, request bodies or financial values.

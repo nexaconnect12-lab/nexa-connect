@@ -82,3 +82,4 @@ Payment Review also exposes branch permission probes and tenant-filtered immutab
 Payment-review routes have no trusted-workload bypass. Resolution persists the Authorization decision ID and uses a two-minute fenced lease; active claims reject competing decisions, while an expired claim can be retried only with the same resolution.
 
 Kitchen also exposes `GET /api/kitchen/v1/branches/{branchId}/tickets` for active, station-filtered keyset pages. Its online Customer Portal/BFF surface and CSRF-protected transitions are specified in [Kitchen queue](Kitchen-Queue.md).
+Order now exposes `POST /api/order/v1/orders/{orderId}/cancellations` for authenticated, branch-authorized pre-payment cancellation. The stable operation is durable and replay-safe; dependency outage returns pending recovery and terminal Kitchen preparation returns explicit review without Inventory release. See [full contract](Order-Cancellation.md).

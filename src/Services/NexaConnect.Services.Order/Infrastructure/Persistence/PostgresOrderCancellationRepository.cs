@@ -132,7 +132,12 @@ public sealed class PostgresOrderCancellationRepository(NpgsqlDataSource dataSou
             if (await update.ExecuteNonQueryAsync(cancellationToken) != 1) throw new InvalidOperationException("Cancellation claim was lost.");
         }
         await using (var order = new NpgsqlCommand("UPDATE orders SET status='cancellation_review',updated_at_utc=$1,updated_by=$2,concurrency_version=concurrency_version+1 WHERE id=$3 AND status='cancellation_pending'", connection, transaction))
-        { order.Parameters.AddWithValue(now); order.Parameters.AddWithValue(claim.Cancellation.ActorSubjectId); order.Parameters.AddWithValue(claim.Cancellation.OrderId); await order.ExecuteNonQueryAsync(cancellationToken); }
+        {
+            order.Parameters.AddWithValue(now); order.Parameters.AddWithValue(claim.Cancellation.ActorSubjectId);
+            order.Parameters.AddWithValue(claim.Cancellation.OrderId);
+            if (await order.ExecuteNonQueryAsync(cancellationToken) != 1)
+                throw new OrderCancellationConflictException("Order left cancellation-pending state.");
+        }
         var blocked = new OrderCancellationReviewRequiredV1(Guid.NewGuid(), claim.Cancellation.CorrelationId, now,
             claim.Cancellation.OrderId, claim.Cancellation.OrganizationId, claim.Cancellation.BranchId,
             claim.Cancellation.OperationId, category);

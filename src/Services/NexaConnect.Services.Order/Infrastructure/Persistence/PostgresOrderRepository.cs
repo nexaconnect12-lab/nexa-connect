@@ -233,7 +233,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
               AND orders.pricing_snapshot IS NOT DISTINCT FROM EXCLUDED.pricing_snapshot
               AND orders.pricing_fingerprint IS NOT DISTINCT FROM EXCLUDED.pricing_fingerprint
               AND (orders.payment_intent_id IS NULL OR EXCLUDED.payment_intent_id IS NULL OR orders.payment_intent_id=EXCLUDED.payment_intent_id)
-              AND (orders.status NOT IN ('completed','cancelled') OR orders.status=EXCLUDED.status)
+              AND (orders.status NOT IN ('completed','cancelled','cancellation_pending','cancellation_review') OR orders.status=EXCLUDED.status)
               AND (orders.workflow_recovery_claim_id IS NULL OR orders.workflow_recovery_claim_id=@recovery_claim)
               AND NOT (orders.status='inventory_reserved' AND EXCLUDED.status='submitted')
               AND NOT (orders.status='kitchen_accepted' AND EXCLUDED.status IN('submitted','inventory_reserved'))

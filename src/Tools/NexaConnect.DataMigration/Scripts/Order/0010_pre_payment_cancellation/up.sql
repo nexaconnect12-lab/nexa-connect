@@ -36,3 +36,26 @@ CREATE TABLE order_cancellations (
 CREATE INDEX ix_order_cancellations_recovery ON order_cancellations(next_attempt_at_utc,order_id)
 WHERE status='pending';
 COMMENT ON TABLE order_cancellations IS 'One immutable operator cancellation identity plus fenced compensation state per pre-payment Order.';
+
+CREATE FUNCTION protect_order_cancellation_history() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'Order cancellation history is immutable';
+    END IF;
+    IF ROW(OLD.order_id,OLD.organization_id,OLD.branch_id,OLD.operation_id,OLD.reason,
+           OLD.actor_subject_id,OLD.authorization_decision_id,OLD.correlation_id,OLD.from_status,
+           OLD.release_inventory,OLD.cancel_kitchen,OLD.requested_at_utc)
+       IS DISTINCT FROM
+       ROW(NEW.order_id,NEW.organization_id,NEW.branch_id,NEW.operation_id,NEW.reason,
+           NEW.actor_subject_id,NEW.authorization_decision_id,NEW.correlation_id,NEW.from_status,
+           NEW.release_inventory,NEW.cancel_kitchen,NEW.requested_at_utc) THEN
+        RAISE EXCEPTION 'Order cancellation identity and audit fields are immutable';
+    END IF;
+    IF OLD.status IN ('completed','blocked') AND ROW(OLD.*) IS DISTINCT FROM ROW(NEW.*) THEN
+        RAISE EXCEPTION 'Terminal order cancellation history is immutable';
+    END IF;
+    RETURN NEW;
+END $$;
+CREATE TRIGGER trg_order_cancellation_history
+BEFORE UPDATE OR DELETE ON order_cancellations
+FOR EACH ROW EXECUTE FUNCTION protect_order_cancellation_history();

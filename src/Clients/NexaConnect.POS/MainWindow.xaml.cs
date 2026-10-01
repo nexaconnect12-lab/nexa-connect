@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private Guid? settlementIdempotencyKey;
     private bool settlementUncertain;
     private bool settlementInFlight;
+    private string? cancellationStatus;
     private bool viewInitialized;
     private bool busy;
     private bool reauthenticationRequired;
@@ -80,6 +81,8 @@ public partial class MainWindow : Window
                 savedSettlement.Amount, savedSettlement.Currency, Pricing: savedSettlement.Pricing);
             settlementIdempotencyKey = savedSettlement.IdempotencyKey;
             settlementUncertain = savedSettlement.OutcomeUncertain;
+            cancellationStatus = savedSettlement.CancellationStatus;
+            CancellationReasonTextBox.Text = savedSettlement.CancellationReason ?? string.Empty;
             if (savedSettlement.Method is not null)
                 TenderMethodComboBox.SelectedIndex = savedSettlement.Method == "promptpay_manual" ? 1 : 0;
             BankReferenceTextBox.Text = savedSettlement.BankReference ?? string.Empty;
@@ -547,8 +550,13 @@ public partial class MainWindow : Window
             }
             else if (result.Status is PosOrderStatus.Rejected or PosOrderStatus.PaymentFailed or PosOrderStatus.Cancelled)
             {
-                _localStore.ClearPendingCheckout();
-                pendingCheckout = null;
+                if (result.Status == PosOrderStatus.Cancelled)
+                {
+                    _localStore.ClearCheckoutAndSettlement(); pendingCheckout = null; pendingOrder = null;
+                    settlementIdempotencyKey = null; settlementUncertain = false; cancellationStatus = null;
+                    CancellationReasonTextBox.Clear();
+                }
+                else { _localStore.ClearPendingCheckout(); pendingCheckout = null; }
                 StatusText.Text = result.Status == PosOrderStatus.Cancelled
                     ? "The original unpaid order is cancelled. Its recovery lock is cleared."
                     : "The original order was rejected and created no active sale. Its recovery lock is cleared; review the current cart before sending a new order.";
@@ -677,11 +685,27 @@ public partial class MainWindow : Window
     {
         if (_authentication.CurrentToken is null || pendingOrder is null || settlementIdempotencyKey is null
             || settlementInFlight || !CancelOrderButton.IsEnabled) return;
-        string reason = CancellationReasonTextBox.Text.Trim();
+        LocalPendingSettlementState? savedSettlement = _localStore.LoadPendingSettlement();
+        string reason = savedSettlement?.CancellationReason ?? CancellationReasonTextBox.Text.Trim();
         if (reason.Length is < 1 or > 200 || reason.Any(char.IsControl))
         { StatusText.Text = "Enter a cancellation reason of 1-200 printable characters."; return; }
-        if (MessageBox.Show(this, "Cancel this unpaid order and withdraw it from Kitchen?",
+        if (MessageBox.Show(this, cancellationStatus == "pending"
+                ? "Verify the original cancellation request?"
+                : "Cancel this unpaid order and withdraw it from Kitchen?",
             "Confirm cancellation", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (savedSettlement is null)
+        {
+            StatusText.Text = "Pending settlement recovery is missing. Preserve local state and reconcile; do not collect payment.";
+            return;
+        }
+        var cancellationAttempt = savedSettlement with { CancellationStatus = "pending", CancellationReason = reason };
+        try { _localStore.SavePendingSettlement(cancellationAttempt); }
+        catch
+        {
+            StatusText.Text = "Cancellation was not sent because recovery could not be saved. Preserve local state and reconcile.";
+            return;
+        }
+        cancellationStatus = "pending";
         settlementInFlight = true;
         SetBusy("Cancelling unpaid order…");
         try
@@ -691,12 +715,17 @@ public partial class MainWindow : Window
             if (result.Status == "completed")
             {
                 _localStore.ClearCheckoutAndSettlement(); pendingCheckout = null; pendingOrder = null;
-                settlementIdempotencyKey = null; settlementUncertain = false; CancellationReasonTextBox.Clear();
+                settlementIdempotencyKey = null; settlementUncertain = false; cancellationStatus = null;
+                CancellationReasonTextBox.Clear();
                 StatusText.Text = result.Replayed ? "The original unpaid order was already cancelled."
                     : "The unpaid order was cancelled and its inventory and Kitchen work were compensated.";
             }
             else if (result.Status == "blocked")
+            {
+                cancellationStatus = "blocked";
+                _localStore.SavePendingSettlement(cancellationAttempt with { CancellationStatus = "blocked" });
                 StatusText.Text = "Cancellation requires manager review because Kitchen reached a terminal state. Do not collect payment or create a replacement order.";
+            }
             else
                 StatusText.Text = "Cancellation is saved and compensation will retry automatically. Keep this order open and do not collect payment.";
         }
@@ -1251,14 +1280,19 @@ public partial class MainWindow : Window
         string method = SelectedTenderMethod();
         PaidButton.Content = settlementUncertain ? "Verify payment" : "Confirm payment received";
         PaidButton.IsEnabled = _configuration.PaymentMethod != "card_omise_test" && signedIn && hasActiveShift && pendingOrder is not null && !settlementInFlight
+            && cancellationStatus is null
             && (method != "cash" || cashSessionId is not null)
             && (method != "promptpay_manual" || PromptPayQrImage.Source is not null);
+        CancelOrderButton.Content = cancellationStatus == "pending" ? "Verify cancellation" : "Cancel unpaid order";
         CancelOrderButton.IsEnabled = signedIn && hasActiveShift && pendingOrder is not null
-            && settlementIdempotencyKey is not null && !settlementInFlight && !settlementUncertain;
-        CancellationReasonTextBox.IsEnabled = CancelOrderButton.IsEnabled;
+            && settlementIdempotencyKey is not null && !settlementInFlight && !settlementUncertain
+            && cancellationStatus != "blocked";
+        CancellationReasonTextBox.IsEnabled = CancelOrderButton.IsEnabled && cancellationStatus is null;
         PendingOrderText.Text = pendingOrder is null
             ? "No order awaiting payment."
-            : $"Order {pendingOrder.OrderId:D} · {pendingOrder.Currency} {pendingOrder.TotalAmount:N2} · awaiting payment\n{pendingOrder.Pricing?.Summary}";
+            : $"Order {pendingOrder.OrderId:D} · {pendingOrder.Currency} {pendingOrder.TotalAmount:N2} · "
+                + (cancellationStatus == "blocked" ? "cancellation review" : cancellationStatus == "pending"
+                    ? "cancellation pending" : "awaiting payment") + $"\n{pendingOrder.Pricing?.Summary}";
         EnrollTerminalButton.IsEnabled = signedIn;
         IReadOnlyList<LocalOutboxOperation> operations = outbox.Load();
         int rejected = operations.Count(operation => operation.TerminalFailureStatusCode is not null);

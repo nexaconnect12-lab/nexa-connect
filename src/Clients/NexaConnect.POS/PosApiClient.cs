@@ -280,11 +280,23 @@ public sealed class PosApiClient : IDisposable
         using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.cancel", operationId, cancellationToken);
         if (response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.Accepted or HttpStatusCode.Conflict))
             await EnsureSuccessAsync(response, "Order cancellation could not be accepted.");
-        var result = await response.Content.ReadFromJsonAsync<PosOrderCancellationResult>(cancellationToken)
-            ?? throw new InvalidDataException("The Order API returned an empty cancellation response.");
+        PosOrderCancellationResult? result = null;
+        try { result = await response.Content.ReadFromJsonAsync<PosOrderCancellationResult>(cancellationToken); }
+        catch (JsonException) when (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            await EnsureSuccessAsync(response, "Order cancellation conflicted with current order state.");
+        }
+        if (result is null && response.StatusCode == HttpStatusCode.Conflict)
+            await EnsureSuccessAsync(response, "Order cancellation conflicted with current order state.");
+        if (result is null)
+            throw new InvalidDataException("The Order API returned an empty cancellation response.");
         if (result.OrderId != orderId || result.OperationId != operationId
             || result.Status is not ("pending" or "completed" or "blocked"))
+        {
+            if (response.StatusCode == HttpStatusCode.Conflict)
+                await EnsureSuccessAsync(response, "Order cancellation conflicted with current order state.");
             throw new InvalidDataException("Cancellation response does not match the original order request.");
+        }
         return result;
     }
 

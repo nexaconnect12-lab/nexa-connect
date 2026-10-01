@@ -28,7 +28,7 @@ public sealed class PaymentReconciliationApplicationService(
             throw new InvalidOperationException("Payment reconciliation organization does not match the order.");
         if (IsAwaitingProviderBinding(order)) return false;
         EnsurePaymentIntent(order, reconciliation.PaymentIntentId);
-        if (order.Status is OrderStatus.Paid or OrderStatus.PaymentFailed or OrderStatus.Rejected)
+        if (IsTerminalForPayment(order.Status))
             return true;
         if (order.Status != OrderStatus.PaymentPending) return false;
 
@@ -103,7 +103,7 @@ public sealed class PaymentReconciliationApplicationService(
             throw new InvalidOperationException("Payment capture reconciliation organization does not match the order.");
         if (IsAwaitingProviderBinding(order)) return false;
         EnsurePaymentIntent(order, reconciliation.PaymentIntentId);
-        if (order.Status is OrderStatus.Paid or OrderStatus.PaymentFailed or OrderStatus.Rejected)
+        if (IsTerminalForPayment(order.Status))
             return true;
         if (order.Status != OrderStatus.PaymentPending) return false;
 
@@ -173,7 +173,7 @@ public sealed class PaymentReconciliationApplicationService(
         EnsurePaymentIntent(order, paymentIntentId);
         // Captured/paid orders are immutable at the void boundary. A provider-side reversal after
         // capture belongs to the refund workflow and must never cancel a paid Order.
-        if (order.Status is OrderStatus.Paid or OrderStatus.PaymentFailed or OrderStatus.Rejected)
+        if (IsTerminalForPayment(order.Status))
             return true;
         if (order.Status == OrderStatus.PaymentReview) return true;
         if (order.Status != OrderStatus.PaymentPending) return false;
@@ -215,6 +215,10 @@ public sealed class PaymentReconciliationApplicationService(
         && order.PaymentIntentId is null
         && order.WorkflowPaymentMethod is not null
         && order.WorkflowPaymentMethod is not ("cash_manual" or "promptpay_manual");
+
+    private static bool IsTerminalForPayment(OrderStatus status) => status is OrderStatus.Paid
+        or OrderStatus.PaymentFailed or OrderStatus.Rejected or OrderStatus.CancellationPending
+        or OrderStatus.CancellationReview or OrderStatus.Cancelled;
 
     private async Task PersistAsync(OrderAggregate order, IIntegrationEvent integrationEvent,
         CancellationToken cancellationToken)

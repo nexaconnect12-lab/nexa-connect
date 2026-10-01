@@ -29,7 +29,8 @@ public sealed class HttpInventoryReservationPort(HttpClient client) : IInventory
             $"api/inventory/v1/branches/{branchId:D}/reservations/{orderId:D}/release", organizationId);
         using var response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
-            throw new InvalidOperationException($"Inventory release failed with {(int)response.StatusCode}.");
+            throw new HttpRequestException($"Inventory release failed with {(int)response.StatusCode}.", null,
+                response.StatusCode);
     }
     public async Task<InventoryReservationResult> ReserveAsync(
         Guid organizationId, Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
@@ -72,7 +73,8 @@ public sealed class HttpKitchenPort(HttpClient client) : IKitchenPort
         if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             throw new OrderCancellationConflictException("Kitchen preparation reached a terminal state.");
         if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
-            throw new InvalidOperationException($"Kitchen cancellation failed with {(int)response.StatusCode}.");
+            throw new HttpRequestException($"Kitchen cancellation failed with {(int)response.StatusCode}.", null,
+                response.StatusCode);
     }
     public async Task<KitchenTicketResult> CreateTicketAsync(
         Guid organizationId,Guid restaurantId,Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)

@@ -10,7 +10,8 @@ public sealed record LocalShiftState(Guid ShiftId, string ShiftNumber, DateTimeO
 public sealed record LocalCashSessionState(Guid CashSessionId, Guid ShiftId, DateTimeOffset OpenedAtUtc);
 public sealed record LocalPendingSettlementState(Guid OrderId, decimal Amount, string Currency,
     Guid IdempotencyKey, string? Method = null, bool ReceiptConfirmed = false, string? BankReference = null,
-    bool OutcomeUncertain = false, PosOrderPricing? Pricing = null);
+    bool OutcomeUncertain = false, PosOrderPricing? Pricing = null, string? CancellationStatus = null,
+    string? CancellationReason = null);
 public sealed record LocalPendingCashReviewState(
     Guid IdempotencyKey,
     Guid CashSessionId,
@@ -106,7 +107,12 @@ public sealed class LocalPosStore
     public void SavePendingSettlement(LocalPendingSettlementState state)
     {
         if (state.OrderId == Guid.Empty || state.IdempotencyKey == Guid.Empty || state.Amount <= 0
-            || !string.Equals(state.Currency, "THB", StringComparison.Ordinal))
+            || !string.Equals(state.Currency, "THB", StringComparison.Ordinal)
+            || state.CancellationStatus is not (null or "pending" or "blocked")
+            || (state.CancellationStatus is null) != (state.CancellationReason is null)
+            || (state.CancellationReason is not null && (state.CancellationReason.Length is < 1 or > 200
+                || state.CancellationReason != state.CancellationReason.Trim()
+                || state.CancellationReason.Any(char.IsControl))))
             throw new InvalidDataException("The pending settlement state is invalid.");
         Write("pending-settlement", state);
     }

@@ -1,5 +1,7 @@
 # Keycloak Client Matrix
 
+Pre-payment cancellation reuses the public `nexaconnect-pos` client and stable user `sub`; no client, scope, redirect, or secret changes. Authorization migration 8 grants branch `order.cancel` to tenant-admin, store-manager, and cashier roles. Order requires a live decision and stores its decision UUID with the immutable cancellation operation. Trusted workload identity cannot invoke the operator route. See [cancellation contract](../API/Order-Cancellation.md).
+
 Paid receipt retrieval reuses the WPF POS public client and existing `order.read` permission. The Order receipt route always requires a customer bearer plus live branch authorization and deliberately does not accept the usual trusted-workload shortcut. No client, role, scope or secret is added. See [receipt contract](../API/Paid-Order-Receipts.md).
 
 [Authoritative pricing](../API/Order-Pricing.md) reuses `nexaconnect-order-service`: Restaurant's branch-pricing endpoint requires the service-workload policy and exact `azp`, organization context and `nexa_connect` application. No new client, secret or product permission is introduced. Customer quote/place retains `order.place`; branch tax edits retain existing Restaurant configuration permissions.

@@ -433,3 +433,4 @@ The system requires tests beyond ordinary API coverage:
 15. Whether restaurant owners and internal NexaConnect product operators use role-specific views in one product dashboard or separately deployed portals.
 
 No implementation decision should silently resolve these items. Each material decision should be recorded as an Architecture Decision Record.
+The online POS supports operator cancellation before payment. It preserves a stable protected operation identity, requires a bounded reason and confirmation, and blocks payment while cancellation is pending or under review. Order durably cancels Kitchen before Inventory release; completed Kitchen preparation keeps Inventory reserved and creates an investigation state. This does not cover offline cancellation or refunds after capture. See [pre-payment cancellation](../API/Order-Cancellation.md).

@@ -221,6 +221,24 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
     }
 
     [Fact]
+    public void Pending_cancellation_preserves_exact_replay_fields_and_rejects_incomplete_state()
+    {
+        var expected = new LocalPendingSettlementState(Guid.NewGuid(), 75m, "THB", Guid.NewGuid(),
+            CancellationStatus: "pending", CancellationReason: "Customer changed order");
+        var first = new LocalPosStore(directory, protector);
+        first.SavePendingSettlement(expected);
+
+        var restarted = new LocalPosStore(directory, protector);
+        Assert.Equal(expected, restarted.LoadPendingSettlement());
+        Assert.Throws<InvalidDataException>(() => restarted.SavePendingSettlement(
+            expected with { CancellationReason = null }));
+        Assert.Throws<InvalidDataException>(() => restarted.SavePendingSettlement(
+            expected with { CancellationStatus = "unknown" }));
+        Assert.Throws<InvalidDataException>(() => restarted.SavePendingSettlement(
+            expected with { CancellationReason = " changed" }));
+    }
+
+    [Fact]
     public void Schema_one_database_upgrades_to_two_without_losing_state()
     {
         var shift = new LocalShiftState(Guid.NewGuid(), "SHIFT-V1", DateTimeOffset.UtcNow);
