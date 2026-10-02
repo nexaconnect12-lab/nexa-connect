@@ -59,6 +59,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
             return winner is null ? new(ManualTenderCommitStatus.StateConflict,null)
                 : new(winner.Fingerprint==fingerprint?ManualTenderCommitStatus.Replayed:ManualTenderCommitStatus.IdempotencyConflict,winner);
         }
+        await PostgresSalePublication.EnsureAsync(connection,transaction,order.Id,cancellationToken);
         await EnqueueAsync(connection,transaction,integrationEvent,"order.manual-tender-settled.v1",order.Id,cancellationToken);
         await EnqueueAsync(connection,transaction,audit,"order.audit.v1",order.Id,cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -275,6 +276,8 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
             await using var idem = new NpgsqlCommand("INSERT INTO idempotency_records (operation_scope,idempotency_key,request_hash,response_status,response_body,resource_id,created_at_utc,expires_at_utc) VALUES (@scope,@key,'order',201,NULL,@resource,@now,@expires) ON CONFLICT DO NOTHING", connection, transaction);
             idem.Parameters.AddWithValue("scope", $"order:{order.RestaurantId:N}"); idem.Parameters.AddWithValue("key", order.IdempotencyKey); idem.Parameters.AddWithValue("resource", order.Id); idem.Parameters.AddWithValue("now", now); idem.Parameters.AddWithValue("expires", now.AddDays(1)); await idem.ExecuteNonQueryAsync(cancellationToken);
         }
+        if (order.Status == OrderStatus.Paid)
+            await PostgresSalePublication.EnsureAsync(connection, transaction!, order.Id, cancellationToken);
     }
 
     public async Task<ClaimedOrderWorkflow?> ClaimNextAsync(DateTimeOffset now, TimeSpan lease, CancellationToken cancellationToken)

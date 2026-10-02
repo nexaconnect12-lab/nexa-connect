@@ -25,3 +25,7 @@ Updating original sale-period facts would support restated sale cohorts but conc
 Reporting 18 requires application 0.21.0. Destructive downgrade removes refund facts, receipts and checkpoint, requiring retained Payment event replay after re-upgrade. Checkpoint position counts unique applied events; it is not a source offset or completeness watermark. Provider payloads and credentials stay outside Reporting.
 
 Sales/payment source consumers, historical backfill tooling, certified reconciliation and joined production acceptance remain unimplemented. Until those prerequisites exist, net sales describes projected inputs and does not certify complete accounting. See [contract and rollout](../../API/Refund-Financial-Reporting.md).
+
+## Subsequent implementation
+
+Reporting 19 adds receipt-backed sale/payment consumption and bounded retained-receipt replay/scoped reconciliation under [ADR-018](ADR-018-receipt-backed-sale-projection.md). The unimplemented prerequisites above record this decision's original scope. Refund historical replay, certified global completeness and joined production acceptance remain open.

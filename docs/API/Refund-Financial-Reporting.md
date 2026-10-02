@@ -39,7 +39,7 @@ Run focused `RefundFinancialReportingTests` and `RefundFinancialProjectionPostgr
 
 ## Completeness boundary
 
-The current repository has no operational sales-fact or payment-fact consumers. Their tables/read queries predate this slice and tests seed them explicitly. The refund pipeline is implemented, but gross sales, net paid and net sales are not certified complete production accounting reports until source projections, backfill/replay, reconciliation and joined production acceptance exist. Manual-tender refunds, return/restock allocation, fiscal credit notes and settlement accounting remain separate work.
+Reporting 19 now supplies receipt-backed operational sales/payment consumers and bounded Order replay/reconciliation; see [sale financial reporting](Sale-Financial-Reporting.md). The refund pipeline is implemented, but gross sales, net paid and net sales are not certified complete production accounting reports until all-source historical completeness and joined production acceptance are established. Manual-tender refunds, return/restock allocation, fiscal credit notes and settlement accounting remain separate work.
 
 See [ADR-017](../Architecture/Decisions/ADR-017-refund-time-financial-reporting.md) and [Payment refund contract](Payment-Refunds.md).
 

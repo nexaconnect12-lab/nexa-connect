@@ -19,3 +19,5 @@ dotnet build src/Clients/NexaConnect.POS/NexaConnect.POS.csproj --no-restore
 ```
 
 The disposable PostgreSQL matrix covers atomic rollback, concurrent completion, one retained snapshot/event, tenant scoping, rehydration, immutability, manual settlement and downgrade refusal. HTTP tests cover unpaid, allowed, denied, wrong-scope, anonymous and workload calls. Device-specific printer models, fiscal numbering/signing, tax-invoice fields, refunds/void receipts, delivery and historical backfill remain separate work.
+
+Order 11/application 0.22.0 also retains one immutable receipt-backed sale publication in the Paid transaction. Concurrent completion publishes the persisted winning receipt time/pricing, and replay uses retained evidence. This does not backfill receiptless historical orders. See [sale reporting](Sale-Financial-Reporting.md).

@@ -9,6 +9,8 @@ This project contains stable cross-context contracts only. `IntegrationEvents/Re
 
 These records are integration contracts, not domain entities. Each bounded context keeps its own aggregate and persistence model.
 
+`IntegrationEvents/OrderSaleCompletedV1.cs` defines `order.sale-completed.v1`: receipt-backed Order completion evidence with tenant/branch scope, original pricing and timestamps, and a provider-intent or manual-settlement payment identity. Order publishes through its transaction/outbox boundary; Reporting translates it into separately owned sales/payment facts. It excludes customer details and bank references, but contains restricted financial data and must never be logged. See [projection, replay and rollout](../../../docs/API/Sale-Financial-Reporting.md).
+
 `IntegrationEvents/PosCashCloseSnapshotV1.cs` defines `pos.cash-close.snapshot.v1`: a full versioned POS cash-session snapshot with tenant/store scope, amounts, currency, current review status and capture time. Unlike safe audit events, this is restricted financial integration data and must never be logged. It excludes review reasons and actor subjects; Reporting translates it into its own model. See [contract and replay semantics](../../../docs/API/Cash-Close-Reporting.md).
 
 `IntegrationEvents/CustomerProfileEvents.cs` defines `CustomerProfileCreatedV1`. It carries tenant/profile identifiers, status, concurrency version, and correlation only; Customer PII remains inside the Customer bounded context.

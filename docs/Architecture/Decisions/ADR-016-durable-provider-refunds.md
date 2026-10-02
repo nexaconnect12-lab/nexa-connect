@@ -18,4 +18,4 @@ Partial refunds can proceed concurrently without exceeding the capture, and repl
 
 ## Subsequent implementation
 
-Reporting 18 implements the dedicated refund financial projection and refund-time dashboard/sales totals under [ADR-017](ADR-017-refund-time-financial-reporting.md). The original follow-up above records the decision-time scope. Sales/payment source consumers, completeness reconciliation and production acceptance remain open.
+Reporting 18 implements the dedicated refund financial projection and refund-time dashboard/sales totals under [ADR-017](ADR-017-refund-time-financial-reporting.md). The original follow-up above records the decision-time scope. Reporting 19 subsequently implements receipt-backed sales/payment consumers and bounded replay/scoped reconciliation under [ADR-018](ADR-018-receipt-backed-sale-projection.md). Global completeness and production acceptance remain open.

@@ -17,6 +17,8 @@ builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Env
 builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Reporting") ?? throw new InvalidOperationException("ConnectionStrings:Reporting is required.")));
 builder.Services.AddScoped<ReportingQueries>();
 builder.Services.AddScoped<IReportingReadRepository, PostgresReportingReadRepository>();
+builder.Services.AddScoped<SaleFinancialReporting>();
+builder.Services.AddScoped<ISaleFinancialFactRepository, PostgresSaleFinancialFactRepository>();
 builder.Services.AddScoped<RefundFinancialReporting>();
 builder.Services.AddScoped<IRefundFinancialFactRepository, PostgresRefundFinancialFactRepository>();
 builder.Services.AddScoped<ActivityService>();
@@ -31,6 +33,7 @@ builder.Services.AddScoped<ICashCloseRepository, PostgresCashCloseRepository>();
 builder.Services.AddHttpClient<ICashCloseAccess, HttpCashCloseAccess>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:POS"] ?? throw new InvalidOperationException("Services:POS is required.")); c.Timeout = TimeSpan.FromSeconds(15); }).AddNexaConnectCorrelationPropagation();
 if (builder.Configuration.GetValue<bool>("CashCloseConsumer:Enabled")) builder.Services.AddHostedService<CashCloseConsumer>();
 if (builder.Configuration.GetValue<bool>("PaymentRefundConsumer:Enabled")) builder.Services.AddHostedService<PaymentRefundFinancialConsumer>();
+if (builder.Configuration.GetValue<bool>("OrderSaleConsumer:Enabled")) builder.Services.AddHostedService<OrderSaleFinancialConsumer>();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
