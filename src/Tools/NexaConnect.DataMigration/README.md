@@ -1,5 +1,7 @@
 # NexaConnect Data Migration
 
+Reporting `0018_payment_refund_facts` requires application `0.21.0` and creates refund financial facts and hash receipts. Its destructive `18→17` downgrade removes both tables and only the refund-financial checkpoint. Stop consumption/affected reads first and retain Payment source events for replay after re-upgrade. `scripts/migrate-databases.ps1` defaults to application compatibility `0.21.0`; this value does not choose a schema target. See [refund reporting rollout](../../../docs/API/Refund-Financial-Reporting.md).
+
 Order `0010_pre_payment_cancellation` adds immutable cancellation identity, compensation/recovery fencing, and explicit Order states; its downgrade refuses once history exists. Authorization `0008_order_cancellation_permission` grants `order.cancel` to existing tenant-admin, store-manager, and cashier roles. Reporting `0016_order_cancellation_vocabulary` accepts the three safe audit actions and removes incompatible facts/inbox receipts on destructive rollback. Deploy all three before exposing cancellation; use forward recovery for recorded Order history.
 
 Order migration 0008_authoritative_pricing requires application 0.17.0. It adds pricing JSON/fingerprint/placement identity, amount constraints and an immutable-history trigger. Downgrade refuses after any priced order; use forward recovery. The dedicated test-order-pricing runner verifies SQL guards and the real migration runner. See [pricing contract and rollout](../../../docs/API/Order-Pricing.md).

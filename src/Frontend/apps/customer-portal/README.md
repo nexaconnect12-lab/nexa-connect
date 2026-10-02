@@ -1,5 +1,7 @@
 # NexaConnect Customer Portal
 
+Dashboard and sales display gross sales, refunds and net sales using Reporting 18. Refunds belong to their refund UTC period, including older sales; net sales can be negative. Dashboard net paid retains the existing payment-fact measure. Latest global checkpoint is diagnostic only; missing sales/payment source consumers mean these screens do not certify complete accounting. See [semantics and deployment prerequisites](../../../../docs/API/Refund-Financial-Reporting.md).
+
 Product configuration includes tax percentage and inclusive-menu-price controls alongside service charge. Rates allow two decimal places. Accepted orders retain their original policy; review existing service-charge settings before the pricing rollout. Cashier preview/confirmation is implemented in WPF POS. See [pricing contract and rollout](../../../../docs/API/Order-Pricing.md).
 
 **Cash-close report** is a read-only single-store page: enter branch/store UUIDs and a UTC range of at most 31 days, then load 50-row pages. It shows currency, expected/counted/variance, review versions and capture/projection timestamps without totals or completeness claims. Reload is explicit; filter/tenant changes clear rows and failures remove the previous report. Current decisions stay in POS Cash Review. The BFF calls Reporting, which requires live POS access. Run `npm run test:e2e:cash-close`; see [contract and deployment prerequisites](../../../../docs/API/Cash-Close-Reporting.md).

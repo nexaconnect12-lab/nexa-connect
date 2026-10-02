@@ -1,5 +1,7 @@
 # Business Service API Slices
 
+Reporting dashboard adds `netSales` and derives `refunded` from refund-time facts. Sales adds `grossSales` (an explicit alias of the retained full-range `totalSales`), `refundedAmount` and `netSales`. These additive fields use Reporting 18 and are displayed in the Customer Portal. Existing net paid remains the payment-fact measure. Sales/payment source consumers and accounting completeness remain planned; see [refund reporting contract and prerequisites](Refund-Financial-Reporting.md).
+
 Order checkout exposes `/api/order/v1/workflows/quote` and requires its `pricingFingerprint` on new `/place` requests. Placement and GET include accepted pricing; client-priced `POST /api/order/v1/orders` is retired with `410`. Newly Paid Orders also expose an immutable ordinary receipt through the tenant-authorized receipt route. Existing legacy-order recovery retains its original behavior, while historical Paid Orders are not backfilled. See [pricing contract and rollout](Order-Pricing.md) and [paid-order receipt contract](Paid-Order-Receipts.md).
 
 The read-only [cash-close Reporting slice](Cash-Close-Reporting.md) connects POS migration-6 snapshot publication to Reporting migration-15 facts and a Customer BFF/portal report. Live exact-store POS authorization precedes reads; publication/consumption are opt-in and joined broker acceptance remains open.

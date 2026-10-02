@@ -20,7 +20,7 @@ public sealed class MigrationRunnerTests
             ["Notification"] = 3,
             ["POS"] = 7,
             ["Media"] = 4,
-            ["Reporting"] = 17
+            ["Reporting"] = 18
         };
 
         foreach ((string service, int expectedVersion) in services)

@@ -15,3 +15,7 @@ Order remains the source of fulfillment and paid-order history; it is not change
 ## Consequences
 
 Partial refunds can proceed concurrently without exceeding the capture, and replay cannot create an extra refund. Refund creation fails closed when no eligible financial limit exists. Provider uncertainty can reduce temporarily available refundable balance until review. Refund receipts are operational customer documents, not tax credit notes or fiscal documents. Payment 9 refuses upgrade over pre-existing baseline refund rows and cannot be downgraded after refund history exists. Manual-tender refund policy, return-line allocation, Inventory restocking, tax credit documents, production Omise onboarding, and automated Reporting financial facts require later slices.
+
+## Subsequent implementation
+
+Reporting 18 implements the dedicated refund financial projection and refund-time dashboard/sales totals under [ADR-017](ADR-017-refund-time-financial-reporting.md). The original follow-up above records the decision-time scope. Sales/payment source consumers, completeness reconciliation and production acceptance remain open.
