@@ -65,6 +65,16 @@ public sealed record PosReceipt(int Version, string ReceiptNumber, Guid OrderId,
             + "\n\nOrdinary sales receipt. Not a tax invoice.";
     }
 }
+public sealed record PosRefundReceipt(string ReceiptNumber, Guid RefundId, Guid PaymentIntentId, Guid OrderId,
+    decimal Amount, string Currency, string ReasonCode, DateTimeOffset RefundedAtUtc,
+    decimal CapturedAmount, decimal CumulativeRefundedAmount)
+{
+    public string Render() => $"REFUND RECEIPT\n{ReceiptNumber}\nOrder ID: {OrderId:D}\nPayment ID: {PaymentIntentId:D}\nRefunded (UTC): {RefundedAtUtc:yyyy-MM-dd HH:mm:ss}\nReason: {ReasonCode}\n\nREFUND {Currency} {Amount:F2}\nCumulative refunded {Currency} {CumulativeRefundedAmount:F2}\nOriginal captured {Currency} {CapturedAmount:F2}";
+}
+public sealed record PosPaymentRefund(Guid Id, Guid OrganizationId, Guid RestaurantId, Guid BranchId, Guid OrderId,
+    Guid PaymentIntentId, Guid OperationId, decimal Amount, string Currency, string ReasonCode, string Status,
+    DateTimeOffset RequestedAtUtc, DateTimeOffset? CompletedAtUtc,
+    string? FailureCode, PosRefundReceipt? Receipt);
 
 public sealed class PosApiClient : IDisposable
 {
@@ -72,16 +82,73 @@ public sealed class PosApiClient : IDisposable
     private readonly HttpClient _httpClient;
     private readonly HttpClient _orderHttpClient;
     private readonly HttpClient _catalogHttpClient;
+    private readonly HttpClient _paymentHttpClient;
     private readonly ILoggerFactory loggerFactory = NexaConnectObservabilityExtensions.CreateClientLoggerFactory("nexaconnect-pos-client");
 
     public PosApiClient(PosClientConfiguration configuration, HttpMessageHandler? posHandler = null,
-        HttpMessageHandler? orderHandler = null, HttpMessageHandler? catalogHandler = null)
+        HttpMessageHandler? orderHandler = null, HttpMessageHandler? catalogHandler = null, HttpMessageHandler? paymentHandler = null)
     {
         _configuration = configuration;
         configuration.ValidateCheckout();
         _httpClient = new HttpClient(posHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.PosApi) };
         _orderHttpClient = new HttpClient(orderHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.OrderApi) };
         _catalogHttpClient = new HttpClient(catalogHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.CatalogApi) };
+        _paymentHttpClient = new HttpClient(paymentHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(
+            string.IsNullOrWhiteSpace(configuration.PaymentApi) ? configuration.OrderApi : configuration.PaymentApi) };
+    }
+
+    public async Task<PosPaymentRefund> CreateRefundAsync(PosTokenSet token, Guid paymentIntentId, Guid operationId,
+        decimal amount, string reasonCode, CancellationToken cancellationToken = default)
+    {
+        if (paymentIntentId == Guid.Empty || operationId == Guid.Empty || amount <= 0 || decimal.Round(amount, 4) != amount
+            || reasonCode is not ("customer_request" or "duplicate_charge" or "item_unavailable" or "service_issue" or "other"))
+            throw new ArgumentException("Enter a valid payment, amount, and refund reason.");
+        using var request = CreateRequest(HttpMethod.Post, $"api/payment/v1/intents/{paymentIntentId:D}/refunds", token);
+        AddTenantContext(request, _configuration.OrganizationId);
+        request.Content = JsonContent.Create(new { operationId, amount, currency = _configuration.Currency, reasonCode });
+        using HttpResponseMessage response = await SendCheckoutAsync(_paymentHttpClient, request, "payment.refund", operationId, cancellationToken);
+        await EnsureSuccessAsync(response, "Refund could not be accepted. Verify the existing operation before retrying.");
+        PosPaymentRefund refund = await response.Content.ReadFromJsonAsync<PosPaymentRefund>(cancellationToken)
+            ?? throw new InvalidDataException("Payment returned an empty refund response.");
+        ValidateRefund(refund, paymentIntentId, operationId); return refund;
+    }
+
+    public async Task<PosPaymentRefund> GetRefundAsync(PosTokenSet token, Guid paymentIntentId, Guid refundId,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Get, $"api/payment/v1/intents/{paymentIntentId:D}/refunds/{refundId:D}", token);
+        AddTenantContext(request, _configuration.OrganizationId);
+        using HttpResponseMessage response = await SendCheckoutAsync(_paymentHttpClient, request, "payment.refund.read", refundId, cancellationToken);
+        await EnsureSuccessAsync(response, "Refund receipt could not be loaded.");
+        PosPaymentRefund refund = await response.Content.ReadFromJsonAsync<PosPaymentRefund>(cancellationToken)
+            ?? throw new InvalidDataException("Payment returned an empty refund response.");
+        ValidateRefund(refund, paymentIntentId, refund.OperationId); return refund;
+    }
+
+    public async Task<PosPaymentRefund> GetRefundByOperationAsync(PosTokenSet token, Guid paymentIntentId, Guid operationId,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Get, $"api/payment/v1/intents/{paymentIntentId:D}/refunds/by-operation/{operationId:D}", token);
+        AddTenantContext(request, _configuration.OrganizationId);
+        using HttpResponseMessage response = await SendCheckoutAsync(_paymentHttpClient, request, "payment.refund.read", operationId, cancellationToken);
+        await EnsureSuccessAsync(response, "Pending refund could not be verified.");
+        PosPaymentRefund refund = await response.Content.ReadFromJsonAsync<PosPaymentRefund>(cancellationToken)
+            ?? throw new InvalidDataException("Payment returned an empty refund response.");
+        ValidateRefund(refund, paymentIntentId, operationId); return refund;
+    }
+
+    private void ValidateRefund(PosPaymentRefund refund, Guid paymentIntentId, Guid operationId)
+    {
+        if (refund.OrganizationId != _configuration.OrganizationId || refund.RestaurantId != _configuration.RestaurantId
+            || refund.BranchId != _configuration.BranchId || refund.PaymentIntentId != paymentIntentId
+            || refund.OperationId != operationId || refund.Amount <= 0 || refund.Currency != _configuration.Currency
+            || refund.Status is not ("processing" or "refund_unknown" or "review_required" or "completed" or "failed")
+            || refund.RequestedAtUtc == default
+            || (refund.Status == "completed") != (refund.Receipt is not null)
+            || refund.Receipt is { } receipt && (receipt.RefundId != refund.Id || receipt.PaymentIntentId != paymentIntentId
+                || receipt.OrderId != refund.OrderId || receipt.Amount != refund.Amount || receipt.Currency != refund.Currency
+                || receipt.ReceiptNumber != $"RF-{refund.Id:N}".ToUpperInvariant()))
+            throw new InvalidDataException("Refund response does not match this terminal scope and request.");
     }
 
     public async Task<PosReceipt> GetReceiptAsync(PosTokenSet token, Guid orderId, CancellationToken cancellationToken = default)
@@ -563,6 +630,7 @@ public sealed class PosApiClient : IDisposable
         _httpClient.Dispose();
         _orderHttpClient.Dispose();
         _catalogHttpClient.Dispose();
+        _paymentHttpClient.Dispose();
         loggerFactory.Dispose();
     }
 

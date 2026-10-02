@@ -1,5 +1,7 @@
 # Authorization Service
 
+Provider-captured refund authorization requires migration 9. Existing and newly assigned `tenant-admin` and `store-manager` roles receive `payment.refund.create`; `cashier` and `accountant` receive `payment.refund.read` alongside those managers. Create decisions are branch-scoped and include the requested amount and currency. Permission alone does not grant a refund: an active subject or matching-role approval limit for the restaurant, `payment.refund.create` action, and currency must cover the amount. Payment retains the successful decision UUID with the refund. Downgrading `9→8` removes only these permission associations and must follow disabling refund create/read routes and the POS control.
+
 Pre-payment Order cancellation requires migration 8. Existing and newly assigned `cashier`, `store-manager`, and `tenant-admin` roles receive `order.cancel` at their normal hierarchical scopes. Order obtains a live branch decision and persists its UUID with the immutable cancellation operation. Downgrading `8→7` removes only this permission association and must follow disabling the cancellation route and POS control.
 
 Manual tender confirmation requires migration 6. Existing and newly assigned `cashier`, `store-manager`, and `tenant-admin` roles receive `order.manual-payment.confirm` at their normal hierarchical scopes. Downgrading `6→5` removes only this permission association and must follow disabling the manual-settlement route.

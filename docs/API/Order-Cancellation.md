@@ -23,4 +23,4 @@ Order migration 10 stores one immutable cancellation identity, original state, a
 
 Events are `order.cancellation-requested.v1`, `order.cancelled.v1`, and `order.cancellation-review-required.v1`, with safe `order.audit.v1` records. Reporting migration 16 accepts their audit vocabulary. Logs exclude reason and identifiers; use the validated correlation ID with `{service_name="nexaconnect-order"}` and inspect `order.cancellation_recovery.steps`. Apply Authorization 8, Order 10, and Reporting 16 before enabling the control.
 
-This contract covers pre-payment voiding only. Captured payments require the separate refund workflow and immutable refund receipt planned next.
+This contract covers pre-payment voiding only. Captured provider payments use the separate implemented [refund workflow and immutable refund receipt](Payment-Refunds.md); manual-tender refunds remain planned.

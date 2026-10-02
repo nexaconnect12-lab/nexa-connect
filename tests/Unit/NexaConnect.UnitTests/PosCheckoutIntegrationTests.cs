@@ -320,6 +320,29 @@ public sealed class PosCheckoutIntegrationTests
         await Assert.ThrowsAsync<InvalidDataException>(() => api.GetReceiptAsync(Token(),orderId));
     }
 
+    [Fact]
+    public async Task Refund_command_preserves_operation_identity_and_validates_immutable_receipt()
+    {
+        var config = Configuration() with { PaymentApi = "http://localhost:5235/" };
+        Guid intent = Guid.NewGuid(), operation = Guid.NewGuid(), refundId = Guid.NewGuid(), order = Guid.NewGuid();
+        var receipt = new PosRefundReceipt($"RF-{refundId:N}".ToUpperInvariant(), refundId, intent, order,
+            25m, "THB", "customer_request", DateTimeOffset.UtcNow, 100m, 25m);
+        var result = new PosPaymentRefund(refundId, config.OrganizationId, config.RestaurantId, config.BranchId,
+            order, intent, operation, 25m, "THB", "customer_request", "completed",
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, receipt);
+        using var api = new PosApiClient(config, paymentHandler: new Handler(async request =>
+        {
+            Assert.Equal(5235, request.RequestUri!.Port);
+            Assert.Equal(config.OrganizationId.ToString("D"), request.Headers.GetValues("X-Nexa-Organization-Id").Single());
+            using JsonDocument body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(operation, body.RootElement.GetProperty("operationId").GetGuid());
+            return new(HttpStatusCode.Created) { Content = JsonContent.Create(result) };
+        }));
+
+        PosPaymentRefund actual = await api.CreateRefundAsync(Token(), intent, operation, 25m, "customer_request");
+        Assert.Equal(receipt.Render(), actual.Receipt!.Render());
+    }
+
     private sealed class Handler(Func<HttpRequestMessage, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request);

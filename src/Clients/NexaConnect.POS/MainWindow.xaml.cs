@@ -31,6 +31,9 @@ public partial class MainWindow : Window
     private PendingCheckout? pendingCheckout;
     private bool cardTokenRequired;
     private Guid? displayedReceiptOrderId;
+    private PosRefundReceipt? displayedRefundReceipt;
+    private LocalPendingRefundState? pendingRefund;
+    private LocalRefundReference? lastRefund;
     private int receiptSessionGeneration;
     private Guid? settlementIdempotencyKey;
     private bool settlementUncertain;
@@ -66,6 +69,19 @@ public partial class MainWindow : Window
         _configuration = configuration;
         try { ReceiptOrderIdTextBox.Text = _localStore.LoadLastReceipt()?.OrderId.ToString("D") ?? ""; }
         catch (Exception) { ReceiptStatusText.Text = "Last receipt reference unavailable; enter the paid order ID."; }
+        pendingRefund = _localStore.LoadPendingRefund();
+        lastRefund = _localStore.LoadLastRefund();
+        if (pendingRefund is not null)
+        {
+            RefundPaymentIntentIdTextBox.Text = pendingRefund.PaymentIntentId.ToString("D");
+            RefundAmountTextBox.Text = pendingRefund.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+            RefundStatusText.Text = "A refund needs verification. Do not issue another refund.";
+        }
+        else if (lastRefund is not null)
+        {
+            RefundPaymentIntentIdTextBox.Text = lastRefund.PaymentIntentId.ToString("D");
+            RefundStatusText.Text = "The last completed refund can be loaded and reprinted.";
+        }
         _activeShift = _localStore.LoadActiveShift();
         cashSessionId = _localStore.LoadCashSession()?.CashSessionId;
         pendingCheckout = _localStore.LoadPendingCheckout();
@@ -1094,12 +1110,72 @@ public partial class MainWindow : Window
         displayedReceiptOrderId = null;
         ReceiptPreview.Document = null;
         PrintReceiptButton.IsEnabled = false;
+        displayedRefundReceipt = null;
+        PrintRefundButton.IsEnabled = false;
     }
 
     private static System.Windows.Documents.FlowDocument ReceiptDocument(PosReceipt receipt) =>
         new(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(receipt.Render())))
         { FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 12,
           PagePadding = new Thickness(24), ColumnWidth = double.PositiveInfinity };
+
+    private static System.Windows.Documents.FlowDocument RefundDocument(PosRefundReceipt receipt) =>
+        new(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(receipt.Render())))
+        { FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 12,
+          PagePadding = new Thickness(24), ColumnWidth = double.PositiveInfinity };
+
+    private async void Refund_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsSignedIn() || busy || _authentication.CurrentToken is not { } token) return;
+        if (pendingRefund is not null) { RefundStatusText.Text = "Verify the pending refund before another command."; return; }
+        if (!Guid.TryParse(RefundPaymentIntentIdTextBox.Text, out Guid intentId) || intentId == Guid.Empty
+            || !decimal.TryParse(RefundAmountTextBox.Text, System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture, out decimal amount) || amount <= 0
+            || RefundReasonComboBox.SelectedItem is not ComboBoxItem reasonItem || reasonItem.Tag is not string reason)
+        { RefundStatusText.Text = "Enter a valid payment intent, positive THB amount, and reason."; return; }
+        pendingRefund = new(intentId, Guid.NewGuid(), amount, _configuration.Currency, reason);
+        _localStore.SavePendingRefund(pendingRefund);
+        SetBusy("Issuing refund…");
+        try
+        {
+            PosPaymentRefund result = await _api.CreateRefundAsync(token, intentId, pendingRefund.OperationId, amount, reason);
+            pendingRefund = pendingRefund with { RefundId = result.Id }; _localStore.SavePendingRefund(pendingRefund);
+            ShowRefund(result);
+        }
+        catch (Exception) { RefundStatusText.Text = "Refund result is uncertain. Verify this pending operation; do not issue another refund."; }
+        finally { UpdateOperationalState(); }
+    }
+
+    private async void LoadRefund_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsSignedIn() || busy || _authentication.CurrentToken is not { } token) return;
+        LocalRefundReference? reference = pendingRefund is { } pending
+            ? new(pending.PaymentIntentId, pending.OperationId) : lastRefund;
+        if (reference is null) { RefundStatusText.Text = "No saved refund operation is available."; return; }
+        SetBusy("Verifying refund…");
+        try { ShowRefund(await _api.GetRefundByOperationAsync(token, reference.PaymentIntentId, reference.OperationId)); }
+        catch (Exception) { RefundStatusText.Text = "Refund is not yet verifiable. Do not issue another refund."; }
+        finally { UpdateOperationalState(); }
+    }
+
+    private void ShowRefund(PosPaymentRefund refund)
+    {
+        RefundStatusText.Text = refund.Status switch { "completed" => "Refund completed. The immutable receipt can be reprinted.", "failed" => "Refund failed definitively; no amount remains reserved.", "review_required" => "Refund requires Payment operations review.", _ => "Refund is pending provider verification. Do not issue another refund." };
+        if (refund.Status is "completed" or "failed")
+        {
+            _localStore.ClearPendingRefund(); pendingRefund = null;
+            if (refund.Status == "completed") { _localStore.SaveLastRefund(refund.PaymentIntentId, refund.OperationId); lastRefund = new(refund.PaymentIntentId, refund.OperationId); }
+        }
+        if (refund.Receipt is { } receipt) { displayedRefundReceipt = receipt; ReceiptPreview.Document = RefundDocument(receipt); PrintRefundButton.IsEnabled = true; }
+    }
+
+    private void PrintRefund_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsSignedIn() || displayedRefundReceipt is not { } receipt) return;
+        var dialog = new PrintDialog(); if (dialog.ShowDialog() != true) return;
+        var document = RefundDocument(receipt); document.PageWidth = dialog.PrintableAreaWidth; document.PageHeight = dialog.PrintableAreaHeight;
+        dialog.PrintDocument(((System.Windows.Documents.IDocumentPaginatorSource)document).DocumentPaginator, "Refund receipt");
+    }
 
     private async Task PreviewPaidReceiptAsync(Guid orderId)
     {
@@ -1164,10 +1240,11 @@ public partial class MainWindow : Window
     {
         CardTokenBox.Clear();
         if (_activeShift is not null || cashSessionId is not null || pendingOrder is not null ||
-            pendingCheckout is not null || pendingCashReviewAttempt is not null)
+            pendingCheckout is not null || pendingCashReviewAttempt is not null || pendingRefund is not null)
         {
             StatusText.Text = pendingCashReviewAttempt is not null
                 ? "Verify the pending cash-review decision before signing out."
+                : pendingRefund is not null ? "Verify the pending refund before signing out."
                 : "Resolve the pending payment, shift, and cash session before signing out.";
             return;
         }
@@ -1229,6 +1306,9 @@ public partial class MainWindow : Window
         bool signedIn = IsSignedIn();
         LoadReceiptButton.IsEnabled = signedIn;
         PrintReceiptButton.IsEnabled = signedIn && displayedReceiptOrderId is not null;
+        RefundButton.IsEnabled = signedIn && pendingRefund is null;
+        LoadRefundButton.IsEnabled = signedIn && (pendingRefund is not null || lastRefund is not null);
+        PrintRefundButton.IsEnabled = signedIn && displayedRefundReceipt is not null;
         bool hasStoredSession = _authentication.CurrentToken is not null;
         bool hasActiveShift = _activeShift is not null;
         SignInButton.Content = "Sign in";

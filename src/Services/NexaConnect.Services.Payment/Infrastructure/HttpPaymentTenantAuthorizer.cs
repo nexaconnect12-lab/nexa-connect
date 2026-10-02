@@ -12,38 +12,43 @@ public sealed class HttpPaymentTenantAuthorizer(
     ProductAuthorizationClient authorization) : IPaymentTenantAuthorizer
 {
     public async Task<bool> CanAccessAsync(Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, string permission,
-        string authorizationHeader, CancellationToken cancellationToken)
+        string authorizationHeader, CancellationToken cancellationToken) =>
+        (await DecideAsync(organizationId, restaurantId, branchId, orderId, permission, authorizationHeader, cancellationToken)).Granted;
+
+    public async Task<PaymentAccessDecision> DecideAsync(Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, string permission,
+        string authorizationHeader, CancellationToken cancellationToken, decimal? amount = null, string? currency = null)
     {
         if (organizationId == Guid.Empty || restaurantId == Guid.Empty || branchId == Guid.Empty || orderId == Guid.Empty
             || !AuthenticationHeaderValue.TryParse(authorizationHeader, out AuthenticationHeaderValue? customerAuthorization))
-            return false;
+            return new(false, Guid.Empty);
 
         using var accessRequest = new HttpRequestMessage(HttpMethod.Get,
             $"api/platform-directory/v1/organizations/{organizationId:D}/access");
         accessRequest.Headers.Authorization = customerAuthorization;
         using HttpResponseMessage accessResponse = await clients.CreateClient("PaymentPlatformDirectory")
             .SendAsync(accessRequest, cancellationToken);
-        if (!accessResponse.IsSuccessStatusCode) return false;
+        if (!accessResponse.IsSuccessStatusCode) return new(false, Guid.Empty);
 
         string workloadToken = await tokens.GetAsync(cancellationToken);
         using var orderRequest = new HttpRequestMessage(HttpMethod.Get, $"api/order/v1/orders/{orderId:D}");
         orderRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", workloadToken);
         using HttpResponseMessage orderResponse = await clients.CreateClient("PaymentOrder").SendAsync(orderRequest, cancellationToken);
-        if (!orderResponse.IsSuccessStatusCode) return false;
+        if (!orderResponse.IsSuccessStatusCode) return new(false, Guid.Empty);
         OrderScope? order = await orderResponse.Content.ReadFromJsonAsync<OrderScope>(cancellationToken: cancellationToken);
-        if (order is null || order.OrganizationId != organizationId || order.BranchId != branchId) return false;
+        if (order is null || order.OrganizationId != organizationId || order.BranchId != branchId) return new(false, Guid.Empty);
 
         using var branchRequest = new HttpRequestMessage(HttpMethod.Get,
             $"api/restaurant/v1/branches/{branchId:D}/authorization-scope");
         branchRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", workloadToken);
         using HttpResponseMessage branchResponse = await clients.CreateClient("PaymentRestaurant")
             .SendAsync(branchRequest, cancellationToken);
-        if (!branchResponse.IsSuccessStatusCode) return false;
+        if (!branchResponse.IsSuccessStatusCode) return new(false, Guid.Empty);
         BranchScope? branch = await branchResponse.Content.ReadFromJsonAsync<BranchScope>(cancellationToken: cancellationToken);
-        return branch is not null && branch.OrganizationId == organizationId && branch.RestaurantId == restaurantId
-            && branch.BranchId == branchId
-            && await authorization.IsGrantedAsync(organizationId, restaurantId, branchId, permission,
-                authorizationHeader, cancellationToken);
+        if (branch is null || branch.OrganizationId != organizationId || branch.RestaurantId != restaurantId
+            || branch.BranchId != branchId) return new(false, Guid.Empty);
+        ProductAuthorizationClient.Decision? decision = await authorization.DecideAsync(organizationId, restaurantId,
+            branchId, permission, authorizationHeader, cancellationToken, amount, currency);
+        return decision is null ? new(false, Guid.Empty) : new(decision.Granted, decision.DecisionId, decision.EvaluatedLimit);
     }
 
     private sealed record OrderScope(Guid OrganizationId, Guid BranchId);

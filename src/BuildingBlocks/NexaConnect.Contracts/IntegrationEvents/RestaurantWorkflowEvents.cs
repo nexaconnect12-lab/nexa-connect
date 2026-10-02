@@ -119,6 +119,19 @@ public sealed record PaymentVoidUncertainV1(Guid EventId, Guid CorrelationId, Da
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string FailureCode) : IIntegrationEvent;
 public sealed record PaymentVoidReconciledV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Status, string? FailureCode) : IIntegrationEvent;
+public sealed record PaymentRefundRequestedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid RestaurantId, Guid BranchId, Guid OrderId, Guid PaymentIntentId, Guid RefundId,
+    decimal Amount, string Currency, string ReasonCode, Guid AuthorizationDecisionId) : IIntegrationEvent;
+public sealed record PaymentRefundedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid RestaurantId, Guid BranchId, Guid OrderId, Guid PaymentIntentId, Guid RefundId,
+    decimal Amount, string Currency, string ReasonCode, decimal CumulativeRefundedAmount, decimal CapturedAmount,
+    string ReceiptNumber) : IIntegrationEvent;
+public sealed record PaymentRefundFailedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, Guid RefundId, string FailureCode) : IIntegrationEvent;
+public sealed record PaymentRefundUncertainV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, Guid RefundId, string FailureCode) : IIntegrationEvent;
+public sealed record PaymentRefundReviewRequiredV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, Guid RefundId, string FailureCode) : IIntegrationEvent;
 public sealed record OrderPaymentReviewRequiredV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Reason) : IIntegrationEvent;
 

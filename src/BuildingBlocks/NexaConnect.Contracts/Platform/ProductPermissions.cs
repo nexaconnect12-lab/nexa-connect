@@ -17,6 +17,8 @@ public static class ProductPermissions
     public const string OrderManualPaymentConfirm = "order.manual-payment.confirm";
     public const string PaymentIntentCreate = "payment.intent.create";
     public const string PaymentIntentRead = "payment.intent.read";
+    public const string PaymentRefundCreate = "payment.refund.create";
+    public const string PaymentRefundRead = "payment.refund.read";
     public const string CustomerProfileCreate = "customer.profile.create";
     public const string CustomerProfileRead = "customer.profile.read";
     public const string RestaurantBranchRead = "restaurant.branch.read";
@@ -40,7 +42,7 @@ public static class ProductPermissions
         CatalogMenuRead, CatalogMenuWrite,
         InventoryStockRead, InventoryStockWrite, InventoryReservationCreate, InventoryReservationRelease,
         OrderCreate, OrderRead, OrderPlace, OrderCancel, OrderPaymentReviewRead, OrderPaymentReviewResolve, OrderManualPaymentConfirm,
-        PaymentIntentCreate, PaymentIntentRead,
+        PaymentIntentCreate, PaymentIntentRead, PaymentRefundCreate, PaymentRefundRead,
         CustomerProfileCreate, CustomerProfileRead,
         RestaurantBranchRead, RestaurantBranchManage,
         RestaurantConfigurationRead, RestaurantConfigurationManage,

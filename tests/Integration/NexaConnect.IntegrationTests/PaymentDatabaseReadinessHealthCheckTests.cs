@@ -9,7 +9,7 @@ namespace NexaConnect.IntegrationTests;
 public sealed class PaymentDatabaseReadinessHealthCheckTests
 {
     [PaymentDatabaseFact]
-    public async Task Readiness_requires_reachable_payment_migration_7()
+    public async Task Readiness_requires_reachable_payment_migration_9()
     {
         string configured = Environment.GetEnvironmentVariable("NEXACONNECT_PAYMENT_INTEGRATION_DB")!;
         string schema = $"payment_readiness_it_{Guid.NewGuid():N}";
@@ -21,18 +21,18 @@ public sealed class PaymentDatabaseReadinessHealthCheckTests
         try
         {
             await new NpgsqlCommand(
-                "CREATE TABLE nexaconnect_schema_migrations(version integer NOT NULL); INSERT INTO nexaconnect_schema_migrations(version) VALUES (7)",
+                "CREATE TABLE nexaconnect_schema_migrations(version integer NOT NULL); INSERT INTO nexaconnect_schema_migrations(version) VALUES (9)",
                 connection).ExecuteNonQueryAsync();
             var check = new PaymentReadiness(dataSource);
 
             HealthCheckResult current = await check.CheckHealthAsync(new HealthCheckContext());
             Assert.Equal(HealthStatus.Healthy, current.Status);
-            Assert.Equal(7, current.Data["currentSchemaVersion"]);
+            Assert.Equal(9, current.Data["currentSchemaVersion"]);
 
-            await new NpgsqlCommand("UPDATE nexaconnect_schema_migrations SET version=6", connection).ExecuteNonQueryAsync();
+            await new NpgsqlCommand("UPDATE nexaconnect_schema_migrations SET version=8", connection).ExecuteNonQueryAsync();
             HealthCheckResult stale = await check.CheckHealthAsync(new HealthCheckContext());
             Assert.Equal(HealthStatus.Unhealthy, stale.Status);
-            Assert.Equal(6, stale.Data["currentSchemaVersion"]);
+            Assert.Equal(8, stale.Data["currentSchemaVersion"]);
 
             var unavailableBuilder = new NpgsqlConnectionStringBuilder(configured)
             {
