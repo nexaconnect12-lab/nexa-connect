@@ -135,7 +135,7 @@ Assert-Settings @(
     'ConnectionStrings__Restaurant', 'ConnectionStrings__Reporting', 'ConnectionStrings__Media',
     'ConnectionStrings__Catalog', 'KeycloakAdmin__ClientSecret', 'Bff__ClientSecret',
     'PLATFORM_ADMIN_BFF_CLIENT_SECRET',
-    'NEXACONNECT_CATALOG_SERVICE_CLIENT_SECRET', 'NEXACONNECT_MEDIA_SERVICE_CLIENT_SECRET',
+    'NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET', 'NEXACONNECT_CATALOG_SERVICE_CLIENT_SECRET', 'NEXACONNECT_MEDIA_SERVICE_CLIENT_SECRET',
     'MediaStorage__ServiceUrl', 'MediaStorage__Bucket', 'MediaStorage__AccessKey',
     'MediaStorage__SecretKey', 'MediaSafety__ClamAvHost', 'MediaSafety__ClamAvPort',
     'Outbox__ConnectionString'
@@ -174,7 +174,7 @@ $services = @(
     @{ Name='platform-directory'; Project=$projects[0]; Url='http://localhost:53357'; ReadinessUrl='http://localhost:53357/health'; Environment=@{ Outbox__Enabled='true'; Outbox__ConnectionString=$rabbit } },
     @{ Name='authorization'; Project=$projects[1]; Url='http://localhost:51223'; ReadinessUrl='http://localhost:51223/openapi/v1.json'; Environment=@{} },
     @{ Name='restaurant'; Project=$projects[2]; Url='http://localhost:51225'; ReadinessUrl='http://localhost:51225/openapi/v1.json'; Environment=@{ Outbox__Enabled='true'; Outbox__ConnectionString=$rabbit } },
-    @{ Name='reporting'; Project=$projects[3]; Url='http://localhost:51227'; ReadinessUrl='http://localhost:51227/openapi/v1.json'; Environment=@{ ActivityConsumer__Enabled='true'; ActivityConsumer__ConnectionString=$rabbit } },
+    @{ Name='reporting'; Project=$projects[3]; Url='http://localhost:51227'; ReadinessUrl='http://localhost:51227/openapi/v1.json'; Environment=@{ ActivityConsumer__Enabled='true'; ActivityConsumer__ConnectionString=$rabbit; WorkloadIdentity__Authority='http://localhost:8080/realms/nexa-dev'; WorkloadIdentity__ClientId='nexaconnect-reporting-service'; WorkloadIdentity__ClientSecret=[Environment]::GetEnvironmentVariable('NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET') } },
     @{ Name='media'; Project=$projects[4]; Url='http://localhost:51229'; ReadinessUrl='http://localhost:51229/openapi/v1.json'; Environment=@{ Outbox__Enabled='true'; Outbox__ConnectionString=$rabbit; MediaSafety__MalwareScanEnabled='true'; WorkloadIdentity__Authority='http://localhost:8080/realms/nexa-dev'; WorkloadIdentity__ClientId='nexaconnect-media-service'; WorkloadIdentity__ClientSecret=[Environment]::GetEnvironmentVariable('NEXACONNECT_MEDIA_SERVICE_CLIENT_SECRET') } },
     @{ Name='catalog'; Project=$projects[5]; Url='http://localhost:5268'; ReadinessUrl='http://localhost:5268/openapi/v1.json'; Environment=@{ Persistence__Provider='PostgreSQL'; WorkloadIdentity__Authority='http://localhost:8080/realms/nexa-dev'; WorkloadIdentity__ClientId='nexaconnect-catalog-service'; WorkloadIdentity__ClientSecret=[Environment]::GetEnvironmentVariable('NEXACONNECT_CATALOG_SERVICE_CLIENT_SECRET') } },
     @{ Name='customer-bff'; Project=$projects[6]; ArtifactName='customer-bff'; Url='https://localhost:51829'; ReadinessUrl='https://localhost:51829/health/live'; Environment=@{} },

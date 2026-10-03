@@ -11,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-reporting");
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
 builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "reporting");
@@ -28,7 +29,10 @@ builder.Services.AddScoped<IActivityProjectionRepository, PostgresActivityProjec
 builder.Services.AddActivityConsumer(builder.Configuration);
 builder.Services.AddHttpClient("PlatformDirectory", client => client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"] ?? throw new InvalidOperationException("Services:PlatformDirectory is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<ProductAuthorizationClient>(client => client.BaseAddress = new Uri(builder.Configuration["Services:Authorization"] ?? throw new InvalidOperationException("Services:Authorization is required."))).AddNexaConnectCorrelationPropagation();
-builder.Services.AddScoped<IReportingCustomerAuthorizer>(provider => new HttpReportingCustomerAuthorizer(provider.GetRequiredService<IHttpClientFactory>().CreateClient("PlatformDirectory"), provider.GetRequiredService<ProductAuthorizationClient>()));
+builder.Services.AddHttpClient<IServiceWorkloadTokenProvider,ServiceWorkloadTokenProvider>(client=>client.Timeout=TimeSpan.FromSeconds(15)).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient("ReportingRestaurant",client=>{client.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]??throw new InvalidOperationException("Services:Restaurant is required."));client.Timeout=TimeSpan.FromSeconds(15);}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<IReportingAccessDependencies,HttpReportingCustomerAuthorizer>();
+builder.Services.AddScoped<IReportingCustomerAuthorizer,ReportingCustomerAuthorizer>();
 
 builder.Services.AddScoped<CashCloseReporting>();
 builder.Services.AddScoped<ICashCloseRepository, PostgresCashCloseRepository>();

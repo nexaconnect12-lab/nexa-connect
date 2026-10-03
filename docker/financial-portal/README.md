@@ -1,0 +1,5 @@
+# Disposable financial portal infrastructure
+
+Use only through `scripts/test-financial-completeness-portal.ps1 -ConfirmDisposableInfrastructure`. PostgreSQL 17 owns six independent generated service databases plus a separate Keycloak database. Keycloak 26.7.0 reuses the existing joined realm template; RabbitMQ 4 carries retained sale/refund events. Ports bind only to IPv4 loopback. The launcher supplies generated secrets, realm/database run ID and BFF redirect port.
+
+Initialization separates migration ownership from per-service runtime roles and revokes public database connection/schema creation. All fixtures are synthetic; the runner destroys only its exact generated Compose project and verifies cleanup. The fixture uses generated disposable credentials. The accompanying Reporting authorization fix requires a dedicated Reporting workload client and Restaurant endpoint configuration; production prerequisites are documented in the runbook. See [runbook, evidence and limitations](../../docs/Deployment/Financial-Completeness-Portal-Acceptance.md).

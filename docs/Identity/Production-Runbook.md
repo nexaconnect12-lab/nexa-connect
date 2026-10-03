@@ -103,3 +103,5 @@ Record evidence for:
 - Admin Console network restriction;
 - audit-event ingestion, alerting, and retention;
 - load, capacity, recovery-time, and recovery-point objectives.
+
+Reporting's branch read authorization requires a dedicated confidential `nexaconnect-reporting-service` client with the `nexaconnect-api` audience and independent `NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET`. Configure its `WorkloadIdentity` settings and `Services__Restaurant` as described in the [Reporting README](../../src/Services/NexaConnect.Services.Reporting/README.md). Provision the client/audience through reviewed desired-state administration for existing realms; bootstrap/import skips existing realm data. Restaurant accepts this identity only for branch scope lookup, while report reads retain customer authorization.

@@ -1,5 +1,7 @@
 # NexaConnect frontend foundations
 
+The [joined financial suite](e2e/financial-completeness-live/README.md) adds real OIDC/BFF/Reporting validation through the disposable launcher. Run `npm run test:financial-completeness:guards` for fail-closed settings/evidence checks; live execution requires that launcher environment.
+
 Financial completeness browser contracts run with `npm run test:e2e:financial-completeness`. The Customer Sales report displays recorded reconciliation status, provenance and separate financial inventories using the same explicit closed UTC filters as fresh totals. It clears stale evidence on filters/tenant/reload/denial and sends no financial mutation. See [test setup and evidence boundaries](e2e/financial-completeness/README.md).
 
 Single-store cash-close Reporting browser contracts run with `npm run test:e2e:cash-close`. The read-only screen uses synthetic fixtures for these tests; see [test setup and evidence boundaries](e2e/cash-close/README.md).
