@@ -9,7 +9,7 @@ using NpgsqlTypes;
 
 namespace NexaConnect.Services.Payment.Infrastructure;
 
-public sealed class PostgresPaymentRefunds(NpgsqlDataSource dataSource, IOptions<PaymentProviderOptions> options) : IPaymentRefunds
+public sealed class PostgresPaymentRefunds(NpgsqlDataSource dataSource, IOptions<PaymentProviderOptions> options, TimeProvider? clock = null) : IPaymentRefunds
 {
     private readonly TimeSpan leaseDuration = options.Value.LeaseDuration;
     private readonly int maximumAttempts = Math.Clamp(options.Value.MaximumRefundRecoveryAttempts, 1, 100);
@@ -38,7 +38,7 @@ public sealed class PostgresPaymentRefunds(NpgsqlDataSource dataSource, IOptions
             if ((decimal)total.ExecuteScalar()! + command.Amount > intent.Amount)
                 throw new InvalidOperationException("The refund would exceed the captured payment amount.");
         }
-        DateTimeOffset now = DateTimeOffset.UtcNow; Guid id = Guid.NewGuid(); string reason = InMemoryPaymentRefunds.NormalizeReason(command.ReasonCode);
+        DateTimeOffset now = (clock ?? TimeProvider.System).GetUtcNow(); Guid id = Guid.NewGuid(); string reason = InMemoryPaymentRefunds.NormalizeReason(command.ReasonCode);
         using (var insert = new NpgsqlCommand("""
             INSERT INTO refunds(id,payment_intent_id,idempotency_key,amount,currency,reason_code,status,requested_at_utc,requested_by,updated_at_utc,
               organization_id,restaurant_id,branch_id,order_id,operation_id,authorization_decision_id,lease_owner,lease_expires_at_utc)
@@ -82,7 +82,7 @@ public sealed class PostgresPaymentRefunds(NpgsqlDataSource dataSource, IOptions
 
     public PaymentRefundLease ClaimExpired(Guid organizationId, Guid refundId, PaymentMutationContext context)
     {
-        ValidateContext(context); DateTimeOffset now = DateTimeOffset.UtcNow;
+        ValidateContext(context); DateTimeOffset now = (clock ?? TimeProvider.System).GetUtcNow();
         using NpgsqlConnection c = dataSource.OpenConnection(); using NpgsqlTransaction t = c.BeginTransaction();
         PaymentRefund refund = Read(c, t, organizationId, refundId, true) ?? throw new KeyNotFoundException("Refund was not found.");
         PaymentIntent intent = ReadIntent(c, t, organizationId, refund.PaymentIntentId, false)!;
@@ -109,7 +109,7 @@ public sealed class PostgresPaymentRefunds(NpgsqlDataSource dataSource, IOptions
     {
         ValidateContext(context);
         if (outcome == ProviderRefundOutcome.Refunded && !SafeReference(providerRefundId)) throw new ArgumentException("A completed refund requires a valid provider reference.");
-        DateTimeOffset now = DateTimeOffset.UtcNow; using NpgsqlConnection c = dataSource.OpenConnection(); using NpgsqlTransaction t = c.BeginTransaction();
+        DateTimeOffset now = (clock ?? TimeProvider.System).GetUtcNow(); using NpgsqlConnection c = dataSource.OpenConnection(); using NpgsqlTransaction t = c.BeginTransaction();
         PaymentRefund refund = Read(c, t, organizationId, refundId, true) ?? throw new KeyNotFoundException("Refund was not found.");
         if (refund.Status == "completed") { t.Commit(); return refund; }
         if (refund.Status != "processing" || refund.ConcurrencyVersion != expectedVersion) throw new PaymentConcurrencyException("The refund changed while provider processing was in progress.");

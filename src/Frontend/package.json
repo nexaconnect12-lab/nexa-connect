@@ -9,6 +9,8 @@
     "check": "tsc -b --pretty false",
     "test": "vitest run",
     "test:e2e:end-of-day": "playwright test --config playwright.end-of-day.config.mjs",
+    "test:e2e:end-of-day:live": "playwright test --config playwright.end-of-day-live.config.mjs",
+    "test:end-of-day:guards": "node --test e2e/end-of-day-live/settings.test.mjs",
     "test:e2e:financial-completeness:live": "playwright test --config playwright.financial-completeness-live.config.mjs",
     "test:financial-completeness:guards": "node --test e2e/financial-completeness-live/settings.test.mjs",
     "test:e2e:financial-completeness": "playwright test --config playwright.financial-completeness.config.mjs",

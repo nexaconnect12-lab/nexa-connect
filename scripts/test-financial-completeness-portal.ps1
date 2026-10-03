@@ -1,21 +1,22 @@
 #requires -Version 7.0
 [CmdletBinding()]
-param([switch]$ConfirmDisposableInfrastructure,[switch]$NoBuild,[string]$DockerExecutable='docker')
+param([switch]$ConfirmDisposableInfrastructure,[switch]$NoBuild,[string]$DockerExecutable='docker',[switch]$EndOfDay)
 $ErrorActionPreference='Stop'
 if(-not $ConfirmDisposableInfrastructure){throw 'Pass -ConfirmDisposableInfrastructure to authorize generated local infrastructure, fixture writes and cleanup.'}
 if(-not(Get-Command $DockerExecutable -ErrorAction SilentlyContinue)){$DockerExecutable=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs/DockerDesktop/resources/bin/docker.exe'}
 . (Join-Path $PSScriptRoot 'payment-review-joined-helpers.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$runId=[Guid]::NewGuid().ToString('N');$projectName="nexa-financial-portal-$runId"
-$run=Join-Path $root ".runstate/financial-portal/$runId"
-$compose=@('compose','-f',(Join-Path $root 'docker/financial-portal/compose.yaml'),'-p',$projectName)
+$runId=[Guid]::NewGuid().ToString('N');$kind=if($EndOfDay){'end-of-day-portal'}else{'financial-portal'};$projectName="nexa-$kind-$runId"
+$run=Join-Path $root ".runstate/$kind/$runId"
+$compose=@('compose','-f',(Join-Path $root "docker/$kind/compose.yaml"),'-p',$projectName)
+$noRestore=@();if($EndOfDay){$noRestore=@('--no-restore')}
 $previous=@{};$processes=@();$created=$false;$passed=$false;$cleanup=$false;$authorizationPassed=$false
 function Set-RunSetting([string]$key,[string]$value){if(-not $previous.ContainsKey($key)){$previous[$key]=[Environment]::GetEnvironmentVariable($key)};[Environment]::SetEnvironmentVariable($key,$value)}
 function Connection([string]$suffix,[string]$user,[string]$password){$b=[System.Data.Common.DbConnectionStringBuilder]::new();$b['Host']='127.0.0.1';$b['Port']=$pgPort;$b['Database']="nexa_review_it_${runId}_$suffix";$b['Username']=$user;$b['Password']=$password;return $b.ConnectionString}
 function Start-App($name,$assembly,$working,$settings,$port){
     $info=[Diagnostics.ProcessStartInfo]::new('dotnet');$info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.WorkingDirectory=$working
     $info.ArgumentList.Add($assembly);$info.ArgumentList.Add('--urls');$info.ArgumentList.Add("$(if($name-eq'Bff'){'https'}else{'http'})://127.0.0.1:$port")
-    foreach($key in @($info.Environment.Keys)){if($key -match '^NEXACONNECT_'){$info.Environment.Remove($key)|Out-Null}}
+    foreach($key in @($info.Environment.Keys)){if($key -match '^NEXACONNECT_' -or ($EndOfDay -and $key -match '__')){$info.Environment.Remove($key)|Out-Null}}
     foreach($e in $settings.GetEnumerator()){$info.Environment[$e.Key]=[string]$e.Value}
     # Local logs only; the CI artifact allowlist contains the bounded summary exclusively.
     $info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
@@ -33,7 +34,7 @@ try{
     $endpoint=& $DockerExecutable context inspect --format '{{.Endpoints.docker.Host}}'
     if($LASTEXITCODE-ne 0-or$endpoint-notmatch '^(npipe|unix)://'-or($env:DOCKER_HOST-and$env:DOCKER_HOST-notmatch '^(npipe|unix)://')){throw 'A local Docker socket is required.'}
     New-Item -ItemType Directory -Path $run -Force|Out-Null
-    $ports=@(Get-ReviewJoinedFreePorts 6);$bffPort=$ports[4]
+    $ports=@(Get-ReviewJoinedFreePorts $(if($EndOfDay){10}else{6}));$bffPort=$ports[4]
     Set-RunSetting NEXACONNECT_JOINED_RUN_ID $runId
     Set-RunSetting NEXACONNECT_JOINED_BFF_PORT $bffPort
     foreach($name in @('ADMIN_PASSWORD','MIGRATION_PASSWORD','RUNTIME_PASSWORD','KEYCLOAK_DB_PASSWORD','KEYCLOAK_ADMIN_PASSWORD','CLIENT_SECRET','READER_PASSWORD','RESOLVER_PASSWORD','RABBITMQ_PASSWORD')){Set-RunSetting "NEXACONNECT_JOINED_$name" ('Aa1!'+[Guid]::NewGuid().ToString('N')+[Guid]::NewGuid().ToString('N'))}
@@ -46,15 +47,16 @@ try{
     $proxyListener=$ports[5]
 
     $targets=@{PlatformDirectory=@('platform',3);Restaurant=@('restaurant',3);Authorization=@('authorization',9);Order=@('order',11);Payment=@('payment',10);Reporting=@('reporting',20)}
+    if($EndOfDay){$targets.POS=@('pos',7)}
     foreach($e in $targets.GetEnumerator()){
         Set-RunSetting ('NEXACONNECT_'+$e.Key.ToUpperInvariant()+'_DB') (Connection $e.Value[0] nexaconnect_migration $env:NEXACONNECT_JOINED_MIGRATION_PASSWORD)
-        & dotnet run --project (Join-Path $root 'src/Tools/NexaConnect.DataMigration') -- --service $e.Key --scripts-root (Join-Path $root 'src/Tools/NexaConnect.DataMigration/Scripts') --target $e.Value[1] --confirm --application-version 0.23.0
+        & dotnet run @noRestore --project (Join-Path $root 'src/Tools/NexaConnect.DataMigration') -- --service $e.Key --scripts-root (Join-Path $root 'src/Tools/NexaConnect.DataMigration/Scripts') --target $e.Value[1] --confirm --application-version 0.23.0
         if($LASTEXITCODE-ne 0){throw "Migration failed for $($e.Key)."}
     }
     Set-RunSetting NEXACONNECT_AUTHORIZATION_INTEGRATION_DB (Connection authorization nexaconnect_migration $env:NEXACONNECT_JOINED_MIGRATION_PASSWORD)
     Set-RunSetting NEXACONNECT_ENVIRONMENT Testing
     $authorizationTrx=Join-Path $run 'authorization.trx'
-    & dotnet test (Join-Path $root 'tests/Integration/NexaConnect.IntegrationTests') --filter FullyQualifiedName~AuthorizationAssignmentPersistenceTests --logger "trx;LogFileName=$authorizationTrx" --verbosity minimal
+    & dotnet test @noRestore (Join-Path $root 'tests/Integration/NexaConnect.IntegrationTests') --filter FullyQualifiedName~AuthorizationAssignmentPersistenceTests --logger "trx;LogFileName=$authorizationTrx" --verbosity minimal
     if($LASTEXITCODE-ne 0){throw 'Authorization persistence regression failed.'}
     [xml]$authorizationResults=Get-Content -LiteralPath $authorizationTrx -Raw
     $counts=$authorizationResults.TestRun.ResultSummary.Counters
@@ -74,27 +76,47 @@ try{
     $fixtureProject=Join-Path $root 'src/Tools/NexaConnect.FinancialPortalAcceptance'
     $fixtureDll=Join-Path $fixtureProject 'bin/Debug/net10.0/NexaConnect.FinancialPortalAcceptance.dll'
     $runtime=@{platform='platform_directory_app';restaurant='nexaconnect_restaurant_app';authorization='nexaconnect_authorization_app';order='nexaconnect_order_app';payment='nexaconnect_payment_app';reporting='nexaconnect_reporting_app'}
+    if($EndOfDay){$runtime.pos='nexaconnect_pos_app'}
     foreach($e in $runtime.GetEnumerator()){Set-RunSetting ('NEXACONNECT_FINANCIAL_PORTAL_DB_'+$e.Key.ToUpperInvariant()) (Connection $e.Key $e.Value $env:NEXACONNECT_JOINED_RUNTIME_PASSWORD)}
     $settings=@{ENABLED='1';CONFIRM_DISPOSABLE='1';RUN_ID=$runId;STATE_PATH=(Join-Path $run 'fixture.json');READER_SUBJECT=$subjects.reader;RESOLVER_SUBJECT=$subjects.resolver;FIXTURE_DLL=$fixtureDll;RECOVERY_DLL=(Join-Path $root "src/Tools/NexaConnect.FinancialReportingRecovery/bin/Debug/net10.0/NexaConnect.FinancialReportingRecovery.dll")}
     foreach($e in $settings.GetEnumerator()){Set-RunSetting "NEXACONNECT_FINANCIAL_PORTAL_$($e.Key)" $e.Value}
-    if(-not $NoBuild){& dotnet build $fixtureProject --verbosity minimal -m:1;if($LASTEXITCODE-ne 0){throw 'Fixture build failed.'}}
-    & dotnet build (Join-Path $root 'src/Tools/NexaConnect.FinancialReportingRecovery') --verbosity minimal -m:1
+    Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_END_OF_DAY $(if($EndOfDay){'1'}else{'0'})
+    if(-not $NoBuild){& dotnet build $fixtureProject @noRestore --verbosity minimal -m:1;if($LASTEXITCODE-ne 0){throw 'Fixture build failed.'}}
+    & dotnet build (Join-Path $root 'src/Tools/NexaConnect.FinancialReportingRecovery') @noRestore --verbosity minimal -m:1
     if($LASTEXITCODE-ne 0){throw 'Recovery CLI build failed.'}
     & dotnet $fixtureDll provision | Out-Null;if($LASTEXITCODE-ne 0){throw 'Fixture provisioning failed.'}
     $fixture=Get-Content (Join-Path $run 'fixture.json') -Raw|ConvertFrom-Json
     $serviceNames=@('PlatformDirectory','Authorization','Restaurant','Reporting')
     $urls=@{};for($i=0;$i-lt 4;$i++){$urls[$serviceNames[$i]]="http://127.0.0.1:$($ports[$i])/"}
+    if($EndOfDay){$urls.Order="http://127.0.0.1:$($ports[6])/";$urls.Payment="http://127.0.0.1:$($ports[7])/";$urls.POS="http://127.0.0.1:$($ports[8])/"}
     $authority="http://127.0.0.1:$keycloakPort/realms/$realm"
     $common=@{ASPNETCORE_ENVIRONMENT='Development';Authentication__Authority=$authority;Authentication__Audience='nexaconnect-api';Authentication__RequireHttpsMetadata='false';Services__PlatformDirectory=$urls.PlatformDirectory;Services__Authorization=$urls.Authorization;Services__Restaurant=$urls.Restaurant;WorkloadIdentity__Authority=$authority;WorkloadIdentity__ClientSecret=$env:NEXACONNECT_JOINED_CLIENT_SECRET;WorkloadIdentity__ClientId='nexaconnect-pos-service'}
     $broker="amqp://acceptance:$([Uri]::EscapeDataString($env:NEXACONNECT_JOINED_RABBITMQ_PASSWORD))@127.0.0.1:$brokerPort/"
     for($i=0;$i-lt 4;$i++){
         $name=$serviceNames[$i];$dir=Join-Path $root "src/Services/NexaConnect.Services.$name"
-        if(-not $NoBuild){& dotnet build $dir --verbosity minimal -m:1;if($LASTEXITCODE-ne 0){throw "$name build failed."}}
+        if(-not $NoBuild){& dotnet build $dir @noRestore --verbosity minimal -m:1;if($LASTEXITCODE-ne 0){throw "$name build failed."}}
         $suffix=if($name-eq'PlatformDirectory'){'platform'}else{$name.ToLowerInvariant()}
         $config=$common.Clone();$config["ConnectionStrings__$name"]=[Environment]::GetEnvironmentVariable('NEXACONNECT_FINANCIAL_PORTAL_DB_'+$suffix.ToUpperInvariant())
+        if($EndOfDay -and $name-eq'Reporting'){$config.Services__Order=$urls.Order;$config.Services__Payment="http://127.0.0.1:$($ports[9])/";$config.Services__POS=$urls.POS}
         if($name-eq'PlatformDirectory'){$config.KeycloakAdmin__BaseUrl="http://127.0.0.1:$keycloakPort/";$config.KeycloakAdmin__Realm=$realm;$config.KeycloakAdmin__ClientId='platform-directory-admin';$config.KeycloakAdmin__ClientSecret=$env:NEXACONNECT_JOINED_CLIENT_SECRET}
         if($name-eq'Reporting'){$config.WorkloadIdentity__ClientId='nexaconnect-reporting-service';foreach($consumer in @('OrderSaleConsumer','PaymentRefundConsumer')){$config[$consumer+'__Enabled']='true';$config[$consumer+'__ConnectionString']=$broker};$config.CashCloseConsumer__Enabled='false';$config.ActivityConsumer__Enabled='false'}
         Start-App $name (Join-Path $dir "bin/Debug/net10.0/NexaConnect.Services.$name.dll") $dir $config $ports[$i]
+    }
+    if($EndOfDay){
+        for($i=0;$i-lt 3;$i++){
+            $name=@('Order','Payment','POS')[$i];$dir=Join-Path $root "src/Services/NexaConnect.Services.$name"
+            if(-not $NoBuild){& dotnet build $dir @noRestore --verbosity minimal -m:1;if($LASTEXITCODE-ne 0){throw "$name build failed."}}
+            $config=$common.Clone();$config["ConnectionStrings__$name"]=[Environment]::GetEnvironmentVariable('NEXACONNECT_FINANCIAL_PORTAL_DB_'+$name.ToUpperInvariant());$config.Persistence__Provider='PostgreSQL'
+            $config.Services__Order=$urls.Order;$config.Services__Payment=$urls.Payment
+            $config.WorkloadIdentity__ClientId=if($name-eq'POS'){'nexaconnect-pos-service'}elseif($name-eq'Order'){'nexaconnect-order-service'}else{'nexaconnect-payment-service'}
+            $config.Outbox__Enabled='false';$config.OrderSettlementConsumer__Enabled='false';$config.CashClosePublication__Enabled='false';$config.WorkflowRecovery__Enabled='false';$config.PaymentRecovery__Enabled='false'
+            # Order always registers a dispatcher under PostgreSQL; reserve delivery for the fixture phase.
+            if($name-eq'Order'){
+                $config.Outbox__ConnectionString=$broker;$config.Outbox__BatchSize='0';$config.Workflow__UseHttpAdapters='true'
+                foreach($unused in @('Catalog','Inventory','Kitchen')){$config['Services__'+$unused]='http://127.0.0.1:1/'}
+            }
+            Start-App $name (Join-Path $dir "bin/Debug/net10.0/NexaConnect.Services.$name.dll") $dir $config $ports[6+$i]
+        }
     }
     Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_BROKER $broker
     $bound=$false;$deadline=[DateTimeOffset]::UtcNow.AddSeconds(45)
@@ -105,7 +127,7 @@ try{
     }
     if(-not $bound){throw 'Both actual Reporting financial bindings must exist before delivery.'}
     $bffDir=Join-Path $run 'bff'
-    & dotnet publish (Join-Path $root 'src/Gateway/NexaConnect.CustomerBff') --output $bffDir --verbosity minimal -m:1
+    & dotnet publish (Join-Path $root 'src/Gateway/NexaConnect.CustomerBff') --output $bffDir @noRestore --verbosity minimal -m:1
     if($LASTEXITCODE-ne 0){throw 'BFF publish failed.'}
     $cert=Join-Path $run 'acceptance.pfx';$certPassword=[Guid]::NewGuid().ToString('N')
     & dotnet dev-certs https --export-path $cert --password $certPassword|Out-Null;if($LASTEXITCODE-ne 0){throw 'Acceptance certificate creation failed.'}
@@ -113,10 +135,13 @@ try{
     Start-App Bff (Join-Path $bffDir 'NexaConnect.CustomerBff.dll') $bffDir $bff $bffPort
     $live=@{BASE_URL="https://127.0.0.1:$bffPort";OIDC_ISSUER=$authority;PROXY_PORT=$proxyListener;REPORTING_PORT=$ports[3];READER_USERNAME=$users.reader;READER_PASSWORD=$env:NEXACONNECT_JOINED_READER_PASSWORD;RESOLVER_USERNAME=$users.resolver;RESOLVER_PASSWORD=$env:NEXACONNECT_JOINED_RESOLVER_PASSWORD}
     foreach($e in $live.GetEnumerator()){Set-RunSetting "NEXACONNECT_FINANCIAL_PORTAL_$($e.Key)" $e.Value}
+    if($EndOfDay){Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_SOURCE_PROXY_PORT $ports[9];Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_PAYMENT_PORT $ports[7]}
     Push-Location (Join-Path $root 'src/Frontend')
-    try{& npx playwright test --config playwright.financial-completeness-live.config.mjs;if($LASTEXITCODE-ne 0){throw 'Joined financial-completeness browser acceptance failed.'}}finally{Pop-Location}
-    $summary=Get-Content (Join-Path $root "src/Frontend/test-results/financial-completeness-live/$runId/summary.json") -Raw|ConvertFrom-Json
-    if(-not $summary.verified-or$summary.passed-ne 7-or$summary.total-ne 7){throw 'All seven scenarios must pass without skips.'};$passed=$true
+    $suite=if($EndOfDay){'end-of-day-live'}else{'financial-completeness-live'}
+    try{& npx playwright test --config "playwright.$suite.config.mjs";if($LASTEXITCODE-ne 0){throw 'Joined browser acceptance failed.'}}finally{Pop-Location}
+    $summary=Get-Content (Join-Path $root "src/Frontend/test-results/$suite/$runId/summary.json") -Raw|ConvertFrom-Json
+    $expected=if($EndOfDay){8}else{7}
+    if(-not $summary.verified-or$summary.passed-ne $expected-or$summary.total-ne $expected){throw 'All distinct scenarios must pass without skips.'};$passed=$true
 }
 finally{
     $failed=$false
@@ -132,4 +157,4 @@ finally{
     }
     if($failed){throw 'Disposable process, infrastructure, certificate or environment cleanup could not be verified.'}
 }
-Write-Output "Joined financial-completeness portal acceptance passed; evidence: $run/verification.json"
+Write-Output "Joined $kind acceptance passed; evidence: $run/verification.json"

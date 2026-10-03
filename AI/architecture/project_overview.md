@@ -1,5 +1,7 @@
 # NexaConnect Project Architecture
 
+The [joined end-of-day gate](../../docs/Deployment/End-Of-Day-Portal-Acceptance.md) passed eight real-OIDC browser and six Authorization persistence cases without skips, with verified cleanup locally on Windows on 2026-10-03. Actual owning Order/Payment/POS APIs and Reporting prove retained-event delivery and live source permission/membership boundaries. Its disposable lifecycle adds a POS-owned database to the financial portal topology. [Execution evidence](../../docs/Architecture/Evidence/End-Of-Day-Joined-Acceptance.md) remains separate from remote CI and production settlement approval/locking.
+
 The single-branch end-of-day draft is implemented as a read-only Reporting Application orchestrator over customer-authorized Order/Payment/POS APIs and Restaurant workload calendar metadata. Current configured timezone defines completed local days; sales, tender, refund and drawer measures retain distinct time bases. Separate source snapshots and historical completeness checks cannot certify settlement. No database ownership, schema, permission or role expansion is added. Reporting gains Order/Payment dependencies. See [contract](../../docs/API/End-Of-Day-Draft.md) and [ADR-020](../../docs/Architecture/Decisions/ADR-020-branch-end-of-day-draft.md).
 
 A guarded [hosted refund acceptance gate](../../docs/Deployment/Hosted-Refund-Acceptance.md) now exercises real customer authentication, live amount/currency approval limits, Payment HTTP refunds, immutable receipt/audit/outbox boundaries, provider response-loss restart recovery and actual Reporting propagation. Simulator and separately guarded Omise test-account modes retain distinct evidence; checkout/POS and target-production acceptance remain separate. No schema or product permission changes are introduced. Payment receives version-column-only migration-history SELECT for readiness, with checksums/history writes still denied; existing databases require the documented explicit grant. Its existing workload client now explicitly emits the API audience; persisted realms require a reviewed mapper update. Local simulator acceptance passed 17/17 hosted and 6/6 Authorization checks with cleanup on 2026-10-03; the separate 15-case Omise gate is implemented but unexecuted.
@@ -642,6 +644,8 @@ Enforce boundaries such as:
 
 ### End-to-end tests
 
+The [joined end-of-day gate](../../docs/Deployment/End-Of-Day-Portal-Acceptance.md) requires eight real-OIDC browser cases and six Authorization persistence cases without skips. Seven service databases, eight application children and two transport proxies remain disposable; historical repository/fixture inputs and actual retained-event delivery prove authenticated reads and live revocation. Provider commands, physical/offline POS, verified cutoffs and durable settlement remain separate gates.
+
 Use Playwright for web flows and targeted end-to-end tests for critical checkout, payment, and POS synchronization scenarios.
 
 ## 15. Deployment
@@ -674,7 +678,7 @@ Each service should be independently buildable, configurable, deployable, and ro
 8. Test the slice through WAN loss, restart, retry, duplication, and recovery scenarios.
 9. Add QR ordering after its online and offline availability requirements are decided.
 10. Add kiosk ordering after its device, payment, peripheral, and offline requirements are decided.
-11. Reporting projections, bounded replay/completeness checks and the single-branch end-of-day read draft are implemented. Validate joined owning-host/identity acceptance next; durable settlement approval, locking and verified cutoffs remain planned.
+11. Reporting projections, bounded replay/completeness checks and the single-branch end-of-day read draft are implemented. The joined owning-host/identity gate is implemented; durable settlement approval, locking and verified cutoffs remain planned.
 12. Expand Menu, Inventory, Payment, Customer, Media, and Notification capabilities incrementally.
 
 ## 17. Architecture decisions to document later

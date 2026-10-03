@@ -19,3 +19,7 @@ There is no distributed transaction. Order's aggregate/tender reads share a loca
 Reading other service databases would bypass their authorization and ownership. Combining only asynchronous projections would hide current uncertain payments and late drawer changes. Building a durable settlement aggregate now would require additional cutoffs, authorization, locking, publication completeness and recovery policy outside this draft slice.
 
 No migration, new product permission or expanded role is introduced. Reporting gains Order/Payment HTTPS dependencies and customer read access must satisfy every owning permission. Current timezone configuration is not a historical configuration ledger. A joined production-like acceptance gate, settlement approval/locking, verified financial cutoffs, exports and manual-tender refund/return policy remain follow-up work. See [contract](../../API/End-Of-Day-Draft.md) and [rollout/verification](../../Deployment/End-Of-Day-Draft.md).
+
+## Validation follow-up — 2026-10-03
+
+The [joined disposable acceptance gate](../../Deployment/End-Of-Day-Portal-Acceptance.md) is now implemented for actual OIDC, owning-service read APIs, retained-event delivery and live revocation. The preceding follow-up list records the original draft decision. Repository historical clock inputs and fixture-only initial POS snapshots do not change production clocks, financial contracts or persistence ownership. [Execution evidence](../Evidence/End-Of-Day-Joined-Acceptance.md) is separate from settlement approval/locking and target-production acceptance.

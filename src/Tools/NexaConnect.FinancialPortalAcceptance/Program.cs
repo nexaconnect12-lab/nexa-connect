@@ -25,7 +25,7 @@ string stage="options";
 try
 {
     var options=FixtureOptions.Read();
-    if(args.Length!=1 || args[0] is not ("provision" or "record" or "deliver" or "revoke" or "membership")) return 2;
+    if(args.Length!=1 || args[0] is not ("provision" or "record" or "deliver" or "revoke" or "revoke-source" or "membership")) return 2;
     using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(3));var ct=timeout.Token;
     await using var platformDb=NpgsqlDataSource.Create(options.Connection("platform"));
     await using var restaurantDb=NpgsqlDataSource.Create(options.Connection("restaurant"));
@@ -56,16 +56,22 @@ try
                 if(!await platform.ChangeMembershipAsync(id,subject,new(subject,"active"),actor,ct))throw new InvalidOperationException();
         }
         var restaurant=new RestaurantProvisioningService(restaurantRepository);
-        var r=await restaurant.CreateRestaurantAsync(new(org.OrganizationId,"financial","Financial Restaurant","THB","Etc/UTC"),actor,ct);
-        var branch=await restaurant.CreateBranchAsync(r.RestaurantId,new("allowed","Allowed Branch","THB","Etc/UTC"),actor,ct)??throw new InvalidOperationException();
+        var r=await restaurant.CreateRestaurantAsync(new(org.OrganizationId,"financial","Financial Restaurant","THB",options.EndOfDay ? "Asia/Bangkok" : "Etc/UTC"),actor,ct);
+        var branch=await restaurant.CreateBranchAsync(r.RestaurantId,new("allowed","Allowed Branch","THB",options.EndOfDay ? "Asia/Bangkok" : "Etc/UTC"),actor,ct)??throw new InvalidOperationException();
         var denied=await restaurant.CreateBranchAsync(r.RestaurantId,new("denied","Denied Branch","THB","Etc/UTC"),actor,ct)??throw new InvalidOperationException();
         var assignments=new AuthorizationAssignmentService(assignmentsRepository);
         await assignments.AssignAsync(new(options.Reader,org.OrganizationId,r.RestaurantId,branch.BranchId,"accountant"),actor,ct);
         await assignments.AssignAsync(new(options.Resolver,org.OrganizationId,r.RestaurantId,null,"store-manager"),actor,ct);
         stage="retained-sources";
+        bool day=options.EndOfDay;
+        var zone=TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
+        var businessDate=DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,zone).DateTime).AddDays(-1);
+        var from=new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(businessDate.ToDateTime(TimeOnly.MinValue),zone));
+        var until=from.AddDays(1);
+        TimeProvider clock=day ? new FixtureClock(from.AddHours(10)) : TimeProvider.System;
         var provider=Options.Create(new PaymentProviderOptions());
         var context=new PaymentMutationContext(actor,Guid.NewGuid());
-        var intents=new PostgresPaymentIntents(paymentDb,provider);
+        var intents=new PostgresPaymentIntents(paymentDb,provider,clock);
         var intent=intents.Create(org.OrganizationId,new(r.RestaurantId,branch.BranchId,Guid.NewGuid(),Guid.NewGuid().ToString("D"),100,"THB","card"),context);
         var authorization=intents.BeginAuthorization(org.OrganizationId,intent.Id,context);
         intents.CompleteAuthorization(org.OrganizationId,intent.Id,authorization.Intent.ConcurrencyVersion,ProviderAuthorizationOutcome.Authorized,"synthetic-charge",null,context);
@@ -74,11 +80,27 @@ try
         var value=OrderAggregate.Create(intent.OrderId,org.OrganizationId,branch.BranchId,[new OrderLine(Guid.NewGuid(),"Synthetic sale",100,1,"kitchen")],"THB",restaurantId:r.RestaurantId,workflowPaymentMethod:"card");
         value.Submit();value.MarkInventoryReserved();value.MarkKitchenAccepted();
         var orders=new PostgresOrderRepository(orderDb);await orders.SaveAsync(value,ct);
-        value.MarkPaid(intent.Id);value.IssueReceipt(DateTimeOffset.UtcNow,"card");await orders.SaveAsync(value,ct);
-        var refunds=new PostgresPaymentRefunds(paymentDb,provider);
+        if(day)await store.SetUnpaidOrderTimeAsync(orderDb,value.Id,from.AddHours(9),ct);
+        value.MarkPaid(intent.Id);value.IssueReceipt(clock.GetUtcNow(),"card");await orders.SaveAsync(value,ct);
+        var refunds=new PostgresPaymentRefunds(paymentDb,provider,clock);
         var lease=refunds.Begin(org.OrganizationId,intent.Id,new(Guid.NewGuid(),25,"THB","customer_request",Guid.NewGuid()),context);
         refunds.Complete(org.OrganizationId,lease.Refund.Id,lease.Refund.ConcurrencyVersion,ProviderRefundOutcome.Refunded,"synthetic-refund",null,context);
         // UI has minute precision: close the window only after the retained sources exist.
+        if(day)
+        {
+            intents.Create(org.OrganizationId,new(r.RestaurantId,branch.BranchId,Guid.NewGuid(),Guid.NewGuid().ToString("D"),20,"THB","card"),context);
+            var uncertain=refunds.Begin(org.OrganizationId,intent.Id,new(Guid.NewGuid(),10,"THB","customer_request",Guid.NewGuid()),context);
+            refunds.Complete(org.OrganizationId,uncertain.Refund.Id,uncertain.Refund.ConcurrencyVersion,ProviderRefundOutcome.Unknown,null,null,context);
+            var pending=OrderAggregate.Create(Guid.NewGuid(),org.OrganizationId,branch.BranchId,[new OrderLine(Guid.NewGuid(),"Unresolved fixture",20,1,"kitchen")],"THB",restaurantId:r.RestaurantId);
+            pending.Submit();pending.MarkInventoryReserved();pending.MarkKitchenAccepted();await orders.SaveAsync(pending,ct);
+            await store.SetUnpaidOrderTimeAsync(orderDb,pending.Id,from.AddDays(-1),ct);
+
+            await using var posDb=NpgsqlDataSource.Create(options.Connection("pos"));
+            await store.CreateHistoricalCashAsync(posDb,r.RestaurantId,branch.BranchId,options.Resolver,from,ct);
+            var dayState=new FixtureState(options.RunId,org.OrganizationId,other.OrganizationId,r.RestaurantId,branch.BranchId,denied.BranchId,from,until,businessDate.ToString("yyyy-MM-dd"));
+            await File.WriteAllTextAsync(options.StatePath,JsonSerializer.Serialize(dayState,json),ct);
+            return 0;
+        }
         var to=DateTimeOffset.UtcNow;
         to=new DateTimeOffset(to.Year,to.Month,to.Day,to.Hour,to.Minute,0,TimeSpan.Zero);
         while(DateTimeOffset.UtcNow<to.AddMinutes(1))await Task.Delay(250,ct);
@@ -91,6 +113,11 @@ try
         if(state.RunId!=options.RunId||state.OrganizationId==Guid.Empty||state.BranchId==Guid.Empty)throw new InvalidOperationException();
         stage=args[0];
         if(args[0]=="revoke")await store.RevokeReadAsync(options.Reader,ct);
+        else if(args[0]=="revoke-source")
+        {
+            if(!options.EndOfDay)throw new InvalidOperationException();
+            await store.RevokeReadAsync(options.Reader,ct,"payment.refund.read");
+        }
         else if(args[0]=="membership")
         {
             if(!await platform.ChangeMembershipAsync(state.OrganizationId,options.Resolver,new(options.Resolver,"suspended"),actor,ct))throw new InvalidOperationException();
@@ -135,10 +162,12 @@ try
 }
 catch(Exception exception){Console.Error.WriteLine($"Financial portal fixture failed at {stage} ({exception.GetType().Name}, SQLSTATE={(exception as PostgresException)?.SqlState??"none"}); sensitive details suppressed.");return 1;}
 
-internal sealed record FixtureState(string RunId,Guid OrganizationId,Guid OtherOrganizationId,Guid RestaurantId,Guid BranchId,Guid DeniedBranchId,DateTimeOffset FromUtc,DateTimeOffset ToUtc);
+internal sealed record FixtureState(string RunId,Guid OrganizationId,Guid OtherOrganizationId,Guid RestaurantId,Guid BranchId,Guid DeniedBranchId,DateTimeOffset FromUtc,DateTimeOffset ToUtc,string? BusinessDate=null);
+internal sealed class FixtureClock(DateTimeOffset now):TimeProvider { public override DateTimeOffset GetUtcNow()=>now; }
 internal sealed record FixtureOptions(string RunId,string Reader,string Resolver,string StatePath)
 {
     private static string Required(string key)=>Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_"+key)??throw new ArgumentException();
+    public bool EndOfDay=>Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_END_OF_DAY")=="1";
     public static FixtureOptions Read()
     {
         string run=Required("RUN_ID");
@@ -151,7 +180,7 @@ internal sealed record FixtureOptions(string RunId,string Reader,string Resolver
     }
     public string Connection(string suffix)
     {
-        if(suffix is not ("platform" or "restaurant" or "authorization" or "order" or "payment" or "reporting"))throw new ArgumentException();
+        if(suffix is not ("platform" or "restaurant" or "authorization" or "order" or "payment" or "reporting") && !(suffix=="pos"&&EndOfDay))throw new ArgumentException();
         string value=Required("DB_"+suffix.ToUpperInvariant());var b=new NpgsqlConnectionStringBuilder(value);
         if(b.Host!="127.0.0.1"||b.Database!=$"nexa_review_it_{RunId}_{suffix}"||!string.IsNullOrEmpty(b.SearchPath))throw new ArgumentException();
         return value;

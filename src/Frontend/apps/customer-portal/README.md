@@ -1,5 +1,7 @@
 # NexaConnect Customer Portal
 
+The [joined end-of-day gate](../../../../docs/Deployment/End-Of-Day-Portal-Acceptance.md) adds eight real-OIDC browser scenarios through actual BFF/Reporting/source APIs. Run `npm run test:end-of-day:guards` before the guarded launcher; `test:e2e:end-of-day:live` requires its complete generated environment. The existing synthetic end-of-day suite remains a separate UI contract check.
+
 **End-of-day draft** is a read-only NexaConnect navigation page using branch UUID and completed branch-local date. The server supplies timezone and authoritative sales/tender/refund/drawer summaries, source observation times and unresolved/evidence issues. Reloads, filters, tenant changes and failures clear financial results; generation fencing discards late responses and the browser deadline is 40 seconds. Response scope, draft status, currency and net-sales arithmetic are validated before display. No settlement action, export, polling or repair is supplied. Run `npm run test:e2e:end-of-day` from `src/Frontend`; its six synthetic browser cases complement API/database tests. See [contract](../../../../docs/API/End-Of-Day-Draft.md).
 
 The [joined financial acceptance runner](../../../../docs/Deployment/Financial-Completeness-Portal-Acceptance.md) exercises actual OIDC, tenant/permission boundaries, Reporting delivery and recorded status progression. Synthetic unit/browser contracts remain separate; provider and production acceptance are outside this harness.
