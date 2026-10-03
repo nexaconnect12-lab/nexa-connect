@@ -1,5 +1,7 @@
 # NexaConnect frontend foundations
 
+Financial completeness browser contracts run with `npm run test:e2e:financial-completeness`. The Customer Sales report displays recorded reconciliation status, provenance and separate financial inventories using the same explicit closed UTC filters as fresh totals. It clears stale evidence on filters/tenant/reload/denial and sends no financial mutation. See [test setup and evidence boundaries](e2e/financial-completeness/README.md).
+
 Single-store cash-close Reporting browser contracts run with `npm run test:e2e:cash-close`. The read-only screen uses synthetic fixtures for these tests; see [test setup and evidence boundaries](e2e/cash-close/README.md).
 
 Payment Review now has an opt-in real-OIDC suite: `npm run test:e2e:payment-review:live`, with `npm run test:payment-review:guards` for fail-closed configuration/evidence checks. See [live prerequisites and evidence limits](e2e/payment-review-live/README.md). It is not provisioned by the isolated infrastructure matrix and has not been live-executed here.

@@ -10,6 +10,8 @@ This is the Customer Portal's server-side session and tenant-context boundary. I
 
 The Phase 8 React portal is in `src/Frontend/apps/customer-portal` and is built into this BFF during publish. It provides the requested navigation in implementation order. Features without an owning versioned API return an explicit tenant-bound `contract-pending` response from the allow-listed `/bff/customer/features/{feature}` route; this is capability status, not synthetic business data.
 
+Financial completeness uses read-only `GET /bff/customer/reports/financial-completeness` with required branch/closed UTC filters (maximum 31 days). Its controller validates the protected tenant subject against the session; the Application use case validates filters, product and current Platform Directory membership/subject. Infrastructure forwards the saved token and derived tenant to Reporting through existing `Services__Reporting`. There is a combined 20-second deadline; Reporting independently checks live sales access. All statuses are no-store, downstream failures are sanitized, and both outbound clients propagate validated correlation. Query `{service_name="nexaconnect-customer-bff"} |= "Financial completeness BFF"`; JSON/optional OTLP use the existing foundation. This route never runs reconciliation or repair. Deploy with Reporting 20 and the matching portal bundle; see [contract and verification](../../../docs/API/Financial-Reporting-Completeness.md).
+
 Endpoints:
 
 - `GET /health/live` provides the unauthenticated process-liveness response; `/` is reserved for the Customer Portal SPA.

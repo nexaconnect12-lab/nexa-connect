@@ -1,6 +1,6 @@
 # NexaConnect
 
-Payment 10 / Reporting 20 (application 0.23.0), with Order 11, add retained original refund events, scoped attributed replay and combined sales/payment/refund reconciliation. A live-authorized Reporting API reads exact-window recorded completeness observations; lost historical originals remain explicit gaps. See [contract and limitations](docs/API/Financial-Reporting-Completeness.md) and [recovery runbook](docs/Deployment/Financial-Reporting-Recovery.md).
+Payment 10 / Reporting 20 (application 0.23.0), with Order 11, add retained original refund events, scoped attributed replay and combined sales/payment/refund reconciliation. The Customer Portal Sales report reads exact-window recorded completeness observations through an authenticated, tenant-revalidated Customer BFF route; lost historical originals remain explicit gaps. Loading the report never runs reconciliation or repair. See [contract and limitations](docs/API/Financial-Reporting-Completeness.md) and [recovery runbook](docs/Deployment/Financial-Reporting-Recovery.md).
 
 Order 11 / Reporting 19 (application 0.22.0) implement receipt-backed sale/payment facts, atomic durable consumption, scoped historical replay and evidence reconciliation. Configure the Order sale queue before publication; historical rows without receipts remain gaps. See [sale financial reporting](docs/API/Sale-Financial-Reporting.md).
 
