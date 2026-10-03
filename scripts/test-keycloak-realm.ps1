@@ -131,6 +131,13 @@ if ($orderClient.Count -ne 1 -or $orderAudience.Count -ne 1 -or
     throw 'The Order workload client must emit the nexaconnect-api audience in access tokens.'
 }
 
+$paymentClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-payment-service')
+$paymentAudience = @($paymentClient.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api' -and $_.config.'access.token.claim' -eq 'true'
+})
+if ($paymentClient.Count -ne 1 -or $paymentAudience.Count -ne 1) {
+    throw 'The Payment workload client must emit the nexaconnect-api audience in access tokens.'
+}
 $reportingClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-reporting-service')
 $reportingAudience = @($reportingClient.protocolMappers | Where-Object {
     $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api' -and $_.config.'access.token.claim' -eq 'true'

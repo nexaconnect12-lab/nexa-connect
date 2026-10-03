@@ -143,7 +143,7 @@ The wrapper stops on the first failed service. Each service retains its own hist
 
 Database and role creation is deliberately separate from service schema migration. For local development, Docker Compose mounts [`docker/postgres/init/001_create_nexaconnect_databases.sh`](../../../docker/postgres/init/001_create_nexaconnect_databases.sh) into PostgreSQL's first-start initialization directory.
 
-On an empty PostgreSQL volume, the initializer creates all 13 catalog databases, the `nexaconnect_migration` DDL owner, and one restricted runtime login per database. It also configures default table and sequence privileges for objects later created by the migration owner. The migration history table is explicitly removed from runtime-role access by the runner.
+On an empty PostgreSQL volume, the initializer creates all 13 catalog databases, the `nexaconnect_migration` DDL owner, and one restricted runtime login per database. It also configures default table and sequence privileges for objects later created by the migration owner. The runner removes runtime-role migration-history privileges. Payment alone receives SELECT on the version column for readiness; checksum reads and all history mutation remain denied. Already-current databases need an explicit reviewed column grant because a no-step invocation does not reconcile privileges. See the [hosted refund rollout correction](../../../docs/Deployment/Hosted-Refund-Acceptance.md#existing-payment-deployment-correction).
 
 Initialization scripts run only when the PostgreSQL data directory is empty. They do not apply service migrations, rerun on ordinary container restarts, or rotate passwords in an existing cluster.
 

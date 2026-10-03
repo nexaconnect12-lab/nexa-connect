@@ -43,3 +43,5 @@ Cash-close `WaitUntilReadyAsync` completes after initial bindings/QoS/consumer r
 Local Windows recovery and restricted replay passed 2/2 with no skips on 2026-09-24; synthetic six-rule alert checks also passed. Remote CI, receiver delivery and production acceptance remain open. See [evidence](../../../docs/Architecture/Evidence/Cash-Close-Recovery-Acceptance.md).
 
 The [joined portal acceptance](../../../docs/Deployment/Cash-Close-Portal-Acceptance.md) uses the real consumer and HTTP read path with OIDC/BFF/POS/Restaurant/Authorization. A test-owned loopback proxy interrupts POS access; browser checks require denied/unavailable responses to clear rows. No production fault hook or projection fixture writes are added.
+
+The [hosted refund acceptance gate](../../../docs/Deployment/Hosted-Refund-Acceptance.md) uses generated disposable identity/infrastructure and existing service-owned schemas. Simulator evidence and the credentialed Omise test-account gate are separate from production readiness. The acceptance-only password-grant client and fixture approval limits do not change production provisioning.

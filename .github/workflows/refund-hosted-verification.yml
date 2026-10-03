@@ -1,0 +1,44 @@
+name: Hosted refund verification
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: refund-hosted-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  hosted:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build acceptance and verify guards
+        run: |
+          ./scripts/test-keycloak-realm.ps1
+          dotnet build src/Tools/NexaConnect.RefundAcceptance --verbosity minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/test-refund-hosted-guards.ps1
+      - name: Verify refund invariants
+        run: dotnet test tests/Unit/NexaConnect.UnitTests --filter 'FullyQualifiedName~PaymentRefundLifecycleTests|FullyQualifiedName~RefundFinancialReportingTests' --verbosity minimal
+      - name: Run hosted simulator matrix without skips
+        run: ./scripts/test-refund-hosted.ps1 -ConfirmDisposableInfrastructure -ConfirmProcessTermination
+      - name: Retain bounded verification only
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: refund-hosted-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .runstate/refund-hosted/*/verification.json
+            .runstate/refund-hosted/*/matrix.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
