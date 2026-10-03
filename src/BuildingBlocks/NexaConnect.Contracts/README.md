@@ -1,5 +1,7 @@
 # Shared Contracts
 
+`Reporting/EndOfDaySources.cs` contains version-one owning-service read DTOs for an explicit UTC owner/window, tender totals and Order/Payment/POS summaries. It contains no business policy, domain entities or persistence models. Financial amounts and summary bodies are restricted data and never logged. See [end-of-day contract](../../../docs/API/End-Of-Day-Draft.md).
+
 This project contains stable cross-context contracts only. `IntegrationEvents/RestaurantWorkflowEvents.cs` defines versioned events for the first restaurant workflow:
 
 - `OrderSubmittedV1`
@@ -8,6 +10,8 @@ This project contains stable cross-context contracts only. `IntegrationEvents/Re
 - `PaymentCompletedV1` / `PaymentFailedV1`
 
 These records are integration contracts, not domain entities. Each bounded context keeps its own aggregate and persistence model.
+
+`IntegrationEvents/OrderSaleCompletedV1.cs` defines `order.sale-completed.v1`: receipt-backed Order completion evidence with tenant/branch scope, original pricing and timestamps, and a provider-intent or manual-settlement payment identity. Order publishes through its transaction/outbox boundary; Reporting translates it into separately owned sales/payment facts. It excludes customer details and bank references, but contains restricted financial data and must never be logged. See [projection, replay and rollout](../../../docs/API/Sale-Financial-Reporting.md).
 
 `IntegrationEvents/PosCashCloseSnapshotV1.cs` defines `pos.cash-close.snapshot.v1`: a full versioned POS cash-session snapshot with tenant/store scope, amounts, currency, current review status and capture time. Unlike safe audit events, this is restricted financial integration data and must never be logged. It excludes review reasons and actor subjects; Reporting translates it into its own model. See [contract and replay semantics](../../../docs/API/Cash-Close-Reporting.md).
 

@@ -135,6 +135,47 @@ public sealed class ReportingActivityVocabularyPostgresTests : IAsyncLifetime
         await store.MarkCompletedAsync(audit.EventId, "reporting.activity.v1", default);
     }
 
+    [ReportingDatabaseFact]
+    public async Task Migration_17_accepts_refund_audit_and_replays_after_re_upgrade()
+    {
+        string root = Path.Combine(FindRepositoryRoot(), "src", "Tools", "NexaConnect.DataMigration", "Scripts", "Reporting");
+        await using NpgsqlConnection connection = await dataSource!.OpenConnectionAsync();
+        foreach (string version in new[]
+        {
+            "0004_activity_vocabulary", "0005_kitchen_activity_vocabulary", "0006_customer_activity_vocabulary",
+            "0007_notification_delivery_vocabulary", "0008_payment_authorization_vocabulary",
+            "0009_payment_authorization_reconciliation", "0010_payment_capture_vocabulary",
+            "0011_payment_capture_reconciliation", "0012_payment_void_vocabulary",
+            "0013_order_payment_review_vocabulary", "0014_manual_tender_vocabulary",
+            "0016_order_cancellation_vocabulary"
+        })
+            await ExecuteAsync(connection, Path.Combine(root, version, "up.sql"));
+
+        string migration = Path.Combine(root, "0017_payment_refund_vocabulary");
+        await ExecuteAsync(connection, Path.Combine(migration, "up.sql"));
+        var repository = new ReportingActivityRepository(dataSource!);
+        var audit = new PlatformAuditEventV1(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow,
+            "payment-refund-recovery", Guid.NewGuid(), "payment.refund.reconciled", "payment-refund",
+            Guid.NewGuid().ToString("D"), "succeeded");
+        Assert.True(await repository.ProjectAsync(new ReportingActivityCommand(audit, "nexa_connect", "payment"), default));
+        await using (var inbox = new NpgsqlCommand("INSERT INTO inbox_messages(message_id,consumer_name,status,attempts,processed_at_utc) VALUES($1,'reporting.activity.v1','completed',1,now())", connection))
+        {
+            inbox.Parameters.AddWithValue(audit.EventId);
+            await inbox.ExecuteNonQueryAsync();
+        }
+
+        await ExecuteAsync(connection, Path.Combine(migration, "down.sql"));
+        Assert.Equal(0L, await CountAsync(connection, "SELECT count(*) FROM activity_records WHERE event_id=$1", audit.EventId));
+        Assert.Equal(0L, await CountAsync(connection, "SELECT count(*) FROM inbox_messages WHERE message_id=$1 AND consumer_name='reporting.activity.v1'", audit.EventId));
+
+        await ExecuteAsync(connection, Path.Combine(migration, "up.sql"));
+        var store = new PostgresInboxStore(dataSource!);
+        Assert.Equal(InboxClaimResult.Claimed,
+            await store.ClaimAsync(audit.EventId, "reporting.activity.v1", TimeSpan.FromMinutes(2), default));
+        Assert.True(await repository.ProjectAsync(new ReportingActivityCommand(audit, "nexa_connect", "payment"), default));
+        await store.MarkCompletedAsync(audit.EventId, "reporting.activity.v1", default);
+    }
+
     [ReportingRabbitFact]
     public async Task Hosted_consumer_projects_repository_compatible_order_audit_once_after_duplicate_delivery()
     {

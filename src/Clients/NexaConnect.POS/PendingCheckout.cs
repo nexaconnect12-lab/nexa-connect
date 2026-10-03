@@ -6,7 +6,7 @@ public sealed record CheckoutLine(Guid ProductId, int Quantity);
 
 public sealed record PendingCheckout(Guid OrderId, Guid SettlementKey, Guid OrganizationId,
     Guid RestaurantId, Guid BranchId, Guid StoreId, Guid TerminalId, string Currency,
-    string PaymentMethod, CheckoutLine[] Lines)
+    string PaymentMethod, CheckoutLine[] Lines, string? PricingFingerprint = null, bool NeedsPricingReview = false)
 {
     public static PendingCheckout Create(PosClientConfiguration configuration, CheckoutLine[] lines)
     {

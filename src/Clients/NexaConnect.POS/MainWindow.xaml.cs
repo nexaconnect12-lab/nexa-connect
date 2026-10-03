@@ -30,9 +30,15 @@ public partial class MainWindow : Window
     private PosOrderResult? pendingOrder;
     private PendingCheckout? pendingCheckout;
     private bool cardTokenRequired;
+    private Guid? displayedReceiptOrderId;
+    private PosRefundReceipt? displayedRefundReceipt;
+    private LocalPendingRefundState? pendingRefund;
+    private LocalRefundReference? lastRefund;
+    private int receiptSessionGeneration;
     private Guid? settlementIdempotencyKey;
     private bool settlementUncertain;
     private bool settlementInFlight;
+    private string? cancellationStatus;
     private bool viewInitialized;
     private bool busy;
     private bool reauthenticationRequired;
@@ -61,6 +67,21 @@ public partial class MainWindow : Window
         _localStore = localStore;
         outbox = outboxStore;
         _configuration = configuration;
+        try { ReceiptOrderIdTextBox.Text = _localStore.LoadLastReceipt()?.OrderId.ToString("D") ?? ""; }
+        catch (Exception) { ReceiptStatusText.Text = "Last receipt reference unavailable; enter the paid order ID."; }
+        pendingRefund = _localStore.LoadPendingRefund();
+        lastRefund = _localStore.LoadLastRefund();
+        if (pendingRefund is not null)
+        {
+            RefundPaymentIntentIdTextBox.Text = pendingRefund.PaymentIntentId.ToString("D");
+            RefundAmountTextBox.Text = pendingRefund.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+            RefundStatusText.Text = "A refund needs verification. Do not issue another refund.";
+        }
+        else if (lastRefund is not null)
+        {
+            RefundPaymentIntentIdTextBox.Text = lastRefund.PaymentIntentId.ToString("D");
+            RefundStatusText.Text = "The last completed refund can be loaded and reprinted.";
+        }
         _activeShift = _localStore.LoadActiveShift();
         cashSessionId = _localStore.LoadCashSession()?.CashSessionId;
         pendingCheckout = _localStore.LoadPendingCheckout();
@@ -73,9 +94,11 @@ public partial class MainWindow : Window
         if (savedSettlement is not null)
         {
             pendingOrder = new PosOrderResult(savedSettlement.OrderId, PosOrderStatus.KitchenAccepted,
-                savedSettlement.Amount, savedSettlement.Currency);
+                savedSettlement.Amount, savedSettlement.Currency, Pricing: savedSettlement.Pricing);
             settlementIdempotencyKey = savedSettlement.IdempotencyKey;
             settlementUncertain = savedSettlement.OutcomeUncertain;
+            cancellationStatus = savedSettlement.CancellationStatus;
+            CancellationReasonTextBox.Text = savedSettlement.CancellationReason ?? string.Empty;
             if (savedSettlement.Method is not null)
                 TenderMethodComboBox.SelectedIndex = savedSettlement.Method == "promptpay_manual" ? 1 : 0;
             BankReferenceTextBox.Text = savedSettlement.BankReference ?? string.Empty;
@@ -466,7 +489,7 @@ public partial class MainWindow : Window
         { if (line.Quantity > 1) line.Quantity--; else cart.Remove(line); RefreshCart(); }
     }
 
-    private void RefreshCart() { CartList.Items.Refresh(); UpdateCartTotal(); UpdateOperationalState(); }
+    private void RefreshCart() { PricingBreakdownText.Text = "Review server pricing before confirming the order."; CartList.Items.Refresh(); UpdateCartTotal(); UpdateOperationalState(); }
     private void MenuFilter_Changed(object sender, TextChangedEventArgs e) => RefreshMenuFilter();
     private void StationFilter_Changed(object sender, SelectionChangedEventArgs e) => RefreshMenuFilter();
     private void RefreshMenuFilter()
@@ -494,13 +517,27 @@ public partial class MainWindow : Window
             {
                 var created = PendingCheckout.Create(_configuration,
                     cart.Select(line => new CheckoutLine(line.ProductId, line.Quantity)).ToArray());
-                _localStore.SavePendingCheckout(created); // Never send until recovery is durable.
+                var quote = await _api.QuoteAsync(_authentication.CurrentToken, created);
+                PricingBreakdownText.Text = quote.Pricing.Summary;
+                if (!ConfirmQuote(quote)) return;
+                created = created with { PricingFingerprint = quote.Fingerprint };
+                _localStore.SavePendingCheckout(created); // Never send until confirmed recovery is durable.
                 pendingCheckout = created;
+            }
+            if (pendingCheckout.NeedsPricingReview)
+            {
+                var quote = await _api.QuoteAsync(_authentication.CurrentToken, pendingCheckout);
+                PricingBreakdownText.Text = quote.Pricing.Summary;
+                if (!ConfirmQuote(quote)) return;
+                var confirmed = pendingCheckout with { PricingFingerprint = quote.Fingerprint, NeedsPricingReview = false };
+                _localStore.SavePendingCheckout(confirmed);
+                pendingCheckout = confirmed;
             }
             string? cardToken = CardTokenBox.Password.Length == 0 ? null : CardTokenBox.Password;
             CardTokenBox.Clear();
             var result = await _api.PlaceOrderAsync(_authentication.CurrentToken, pendingCheckout, cardToken);
             cardTokenRequired = result.CardTokenRequired;
+            PricingBreakdownText.Text = result.Pricing?.Summary ?? "Legacy order: use its original total.";
             bool clearCart = false;
             if (_configuration.PaymentMethod == "card_omise_test" && result.Status is PosOrderStatus.KitchenAccepted or PosOrderStatus.PaymentPending)
             {
@@ -515,7 +552,7 @@ public partial class MainWindow : Window
                 settlementUncertain = false;
                 PaymentTab.IsSelected = true;
                 _localStore.SavePendingSettlement(new(result.OrderId, result.TotalAmount, result.Currency,
-                    settlementIdempotencyKey.Value));
+                    settlementIdempotencyKey.Value, Pricing: result.Pricing));
                 StatusText.Text = "Order sent to the kitchen. Confirm payment when received.";
                 clearCart = true;
             }
@@ -525,12 +562,20 @@ public partial class MainWindow : Window
                 pendingCheckout = null;
                 StatusText.Text = $"The original order is already Paid. Order ID: {result.OrderId:D}. Do not collect payment again. Checkout recovery is cleared.";
                 clearCart = true;
+                await PreviewPaidReceiptAsync(result.OrderId);
             }
-            else if (result.Status is PosOrderStatus.Rejected or PosOrderStatus.PaymentFailed)
+            else if (result.Status is PosOrderStatus.Rejected or PosOrderStatus.PaymentFailed or PosOrderStatus.Cancelled)
             {
-                _localStore.ClearPendingCheckout();
-                pendingCheckout = null;
-                StatusText.Text = "The original order was rejected and created no active sale. Its recovery lock is cleared; review the current cart before sending a new order.";
+                if (result.Status == PosOrderStatus.Cancelled)
+                {
+                    _localStore.ClearCheckoutAndSettlement(); pendingCheckout = null; pendingOrder = null;
+                    settlementIdempotencyKey = null; settlementUncertain = false; cancellationStatus = null;
+                    CancellationReasonTextBox.Clear();
+                }
+                else { _localStore.ClearPendingCheckout(); pendingCheckout = null; }
+                StatusText.Text = result.Status == PosOrderStatus.Cancelled
+                    ? "The original unpaid order is cancelled. Its recovery lock is cleared."
+                    : "The original order was rejected and created no active sale. Its recovery lock is cleared; review the current cart before sending a new order.";
             }
             else
             {
@@ -542,16 +587,31 @@ public partial class MainWindow : Window
                 UpdateCartTotal();
             }
         }
+        catch (PosPricingChangedException)
+        {
+            if (pendingCheckout is not null)
+            {
+                var review = pendingCheckout with { NeedsPricingReview = true };
+                try { _localStore.SavePendingCheckout(review); pendingCheckout = review; }
+                catch { StatusText.Text = "Pricing review could not be saved. Original checkout is retained."; return; }
+            }
+            StatusText.Text = "Pricing changed. Select Verify original order to review and confirm a fresh quote. The original checkout identity is retained.";
+        }
         catch (Exception exception)
         {
             StatusText.Text = pendingCheckout is null
-                ? "Checkout was not sent because local recovery could not be saved. Check terminal setup and storage."
+                ? "Checkout was not sent. Check pricing availability, terminal setup and local storage."
                 : exception is PosApiException api
                     ? $"{api.Message} Original checkout retained. Use Verify order; do not create another order."
                     : "Original checkout retained. Use Verify order to check its result; do not create another order.";
         }
         finally { CardTokenBox.Clear(); UpdateOperationalState(); }
     }
+    private bool ConfirmQuote(PosOrderQuote quote) => MessageBox.Show(this,
+        string.Join("\n", quote.Lines.Select(l => $"{l.Quantity} × {l.Name} @ THB {l.UnitPrice:N2}"))
+        + "\n\n" + quote.Pricing.Summary + "\n\nConfirm this bill and send to the kitchen?",
+        "Confirm order pricing", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+
     private void CardToken_Changed(object sender, RoutedEventArgs e)
     {
         if (IsLoaded && !busy) UpdateOperationalState();
@@ -591,7 +651,7 @@ public partial class MainWindow : Window
             // must reopen in verification mode with the exact original tender fields.
             var attempt = new LocalPendingSettlementState(currentOrder.OrderId, currentOrder.TotalAmount,
                 currentOrder.Currency, currentIdempotencyKey, method,
-                method == "promptpay_manual", method == "promptpay_manual" ? bankReference : null, true);
+                method == "promptpay_manual", method == "promptpay_manual" ? bankReference : null, true, currentOrder.Pricing);
             ManualTenderResult result = await SettlementAttempt.ExecuteAsync(attempt,
                 state => { _localStore.SavePendingSettlement(state); settlementUncertain = true; },
                 () => _api.ConfirmManualSettlementAsync(
@@ -608,6 +668,7 @@ public partial class MainWindow : Window
             StatusText.Text = result.Replayed
                 ? $"Order {result.OrderId:D} was already Paid; the original settlement was verified."
                 : $"Order {result.OrderId:D} is Paid.";
+            await PreviewPaidReceiptAsync(result.OrderId);
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException
             || exception is PosApiException { StatusCode: >= 500 })
@@ -634,6 +695,69 @@ public partial class MainWindow : Window
             settlementInFlight = false;
             UpdateOperationalState();
         }
+    }
+
+    private async void CancelOrder_Click(object sender, RoutedEventArgs e)
+    {
+        if (_authentication.CurrentToken is null || pendingOrder is null || settlementIdempotencyKey is null
+            || settlementInFlight || !CancelOrderButton.IsEnabled) return;
+        LocalPendingSettlementState? savedSettlement = _localStore.LoadPendingSettlement();
+        string reason = savedSettlement?.CancellationReason ?? CancellationReasonTextBox.Text.Trim();
+        if (reason.Length is < 1 or > 200 || reason.Any(char.IsControl))
+        { StatusText.Text = "Enter a cancellation reason of 1-200 printable characters."; return; }
+        if (MessageBox.Show(this, cancellationStatus == "pending"
+                ? "Verify the original cancellation request?"
+                : "Cancel this unpaid order and withdraw it from Kitchen?",
+            "Confirm cancellation", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (savedSettlement is null)
+        {
+            StatusText.Text = "Pending settlement recovery is missing. Preserve local state and reconcile; do not collect payment.";
+            return;
+        }
+        var cancellationAttempt = savedSettlement with { CancellationStatus = "pending", CancellationReason = reason };
+        try { _localStore.SavePendingSettlement(cancellationAttempt); }
+        catch
+        {
+            StatusText.Text = "Cancellation was not sent because recovery could not be saved. Preserve local state and reconcile.";
+            return;
+        }
+        cancellationStatus = "pending";
+        settlementInFlight = true;
+        SetBusy("Cancelling unpaid order…");
+        try
+        {
+            PosOrderCancellationResult result = await _api.CancelOrderAsync(_authentication.CurrentToken,
+                pendingOrder.OrderId, settlementIdempotencyKey.Value, reason);
+            if (result.Status == "completed")
+            {
+                _localStore.ClearCheckoutAndSettlement(); pendingCheckout = null; pendingOrder = null;
+                settlementIdempotencyKey = null; settlementUncertain = false; cancellationStatus = null;
+                CancellationReasonTextBox.Clear();
+                StatusText.Text = result.Replayed ? "The original unpaid order was already cancelled."
+                    : "The unpaid order was cancelled and its inventory and Kitchen work were compensated.";
+            }
+            else if (result.Status == "blocked")
+            {
+                cancellationStatus = "blocked";
+                _localStore.SavePendingSettlement(cancellationAttempt with { CancellationStatus = "blocked" });
+                StatusText.Text = "Cancellation requires manager review because Kitchen reached a terminal state. Do not collect payment or create a replacement order.";
+            }
+            else
+                StatusText.Text = "Cancellation is saved and compensation will retry automatically. Keep this order open and do not collect payment.";
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException
+            || exception is PosApiException { StatusCode: >= 500 })
+        { StatusText.Text = "Cancellation result is uncertain. Retry Cancel unpaid order with the same reason; do not collect payment."; }
+        catch (PosApiException exception)
+        {
+            StatusText.Text = exception.StatusCode switch
+            {
+                403 => "Your account lacks order.cancel for this branch.",
+                409 => "The order cannot be cancelled from its current state. Do not collect payment until it is reconciled.",
+                _ => exception.Message
+            };
+        }
+        finally { settlementInFlight = false; UpdateOperationalState(); }
     }
 
     private void TenderMethod_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -980,18 +1104,152 @@ public partial class MainWindow : Window
         CashMovementList.ItemsSource = cashSummary.Movements;
     }
 
+    private void ClearReceiptView()
+    {
+        receiptSessionGeneration++;
+        displayedReceiptOrderId = null;
+        ReceiptPreview.Document = null;
+        PrintReceiptButton.IsEnabled = false;
+        displayedRefundReceipt = null;
+        PrintRefundButton.IsEnabled = false;
+    }
+
+    private static System.Windows.Documents.FlowDocument ReceiptDocument(PosReceipt receipt) =>
+        new(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(receipt.Render())))
+        { FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 12,
+          PagePadding = new Thickness(24), ColumnWidth = double.PositiveInfinity };
+
+    private static System.Windows.Documents.FlowDocument RefundDocument(PosRefundReceipt receipt) =>
+        new(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(receipt.Render())))
+        { FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 12,
+          PagePadding = new Thickness(24), ColumnWidth = double.PositiveInfinity };
+
+    private async void Refund_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsSignedIn() || busy || _authentication.CurrentToken is not { } token) return;
+        if (pendingRefund is not null) { RefundStatusText.Text = "Verify the pending refund before another command."; return; }
+        if (!Guid.TryParse(RefundPaymentIntentIdTextBox.Text, out Guid intentId) || intentId == Guid.Empty
+            || !decimal.TryParse(RefundAmountTextBox.Text, System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture, out decimal amount) || amount <= 0
+            || RefundReasonComboBox.SelectedItem is not ComboBoxItem reasonItem || reasonItem.Tag is not string reason)
+        { RefundStatusText.Text = "Enter a valid payment intent, positive THB amount, and reason."; return; }
+        pendingRefund = new(intentId, Guid.NewGuid(), amount, _configuration.Currency, reason);
+        _localStore.SavePendingRefund(pendingRefund);
+        SetBusy("Issuing refund…");
+        try
+        {
+            PosPaymentRefund result = await _api.CreateRefundAsync(token, intentId, pendingRefund.OperationId, amount, reason);
+            pendingRefund = pendingRefund with { RefundId = result.Id }; _localStore.SavePendingRefund(pendingRefund);
+            ShowRefund(result);
+        }
+        catch (Exception) { RefundStatusText.Text = "Refund result is uncertain. Verify this pending operation; do not issue another refund."; }
+        finally { UpdateOperationalState(); }
+    }
+
+    private async void LoadRefund_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsSignedIn() || busy || _authentication.CurrentToken is not { } token) return;
+        LocalRefundReference? reference = pendingRefund is { } pending
+            ? new(pending.PaymentIntentId, pending.OperationId) : lastRefund;
+        if (reference is null) { RefundStatusText.Text = "No saved refund operation is available."; return; }
+        SetBusy("Verifying refund…");
+        try { ShowRefund(await _api.GetRefundByOperationAsync(token, reference.PaymentIntentId, reference.OperationId)); }
+        catch (Exception) { RefundStatusText.Text = "Refund is not yet verifiable. Do not issue another refund."; }
+        finally { UpdateOperationalState(); }
+    }
+
+    private void ShowRefund(PosPaymentRefund refund)
+    {
+        RefundStatusText.Text = refund.Status switch { "completed" => "Refund completed. The immutable receipt can be reprinted.", "failed" => "Refund failed definitively; no amount remains reserved.", "review_required" => "Refund requires Payment operations review.", _ => "Refund is pending provider verification. Do not issue another refund." };
+        if (refund.Status is "completed" or "failed")
+        {
+            _localStore.ClearPendingRefund(); pendingRefund = null;
+            if (refund.Status == "completed") { _localStore.SaveLastRefund(refund.PaymentIntentId, refund.OperationId); lastRefund = new(refund.PaymentIntentId, refund.OperationId); }
+        }
+        if (refund.Receipt is { } receipt) { displayedRefundReceipt = receipt; ReceiptPreview.Document = RefundDocument(receipt); PrintRefundButton.IsEnabled = true; }
+    }
+
+    private void PrintRefund_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsSignedIn() || displayedRefundReceipt is not { } receipt) return;
+        var dialog = new PrintDialog(); if (dialog.ShowDialog() != true) return;
+        var document = RefundDocument(receipt); document.PageWidth = dialog.PrintableAreaWidth; document.PageHeight = dialog.PrintableAreaHeight;
+        dialog.PrintDocument(((System.Windows.Documents.IDocumentPaginatorSource)document).DocumentPaginator, "Refund receipt");
+    }
+
+    private async Task PreviewPaidReceiptAsync(Guid orderId)
+    {
+        // This boundary must never turn a committed payment into a payment retry.
+        ReceiptOrderIdTextBox.Text = orderId.ToString("D");
+        bool referenceSaved = true;
+        try { _localStore.SaveLastReceipt(orderId); } catch (Exception) { referenceSaved = false; }
+        await LoadReceiptAsync(orderId, false);
+        if (!referenceSaved) ReceiptStatusText.Text += " Save this order ID for retrieval after restart.";
+        if (IsSignedIn()) WorkspaceTabs.SelectedItem = ReceiptsTab;
+    }
+
+    private async void LoadReceipt_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsSignedIn() || busy) return;
+        if (!Guid.TryParse(ReceiptOrderIdTextBox.Text, out var id) || id == Guid.Empty)
+        { ReceiptStatusText.Text = "Enter a valid order ID."; return; }
+        SetBusy("Loading receipt…");
+        try { await LoadReceiptAsync(id, false); } finally { UpdateOperationalState(); }
+    }
+
+    private async void PrintReceipt_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsSignedIn() || busy || displayedReceiptOrderId is not { } id) return;
+        SetBusy("Checking receipt access…");
+        try { await LoadReceiptAsync(id, true); } finally { UpdateOperationalState(); }
+    }
+
+    private async Task LoadReceiptAsync(Guid orderId, bool print)
+    {
+        ClearReceiptView();
+        int generation = receiptSessionGeneration;
+        try
+        {
+            if (!IsSignedIn() || _authentication.CurrentToken is not { } token) return;
+            var receipt = await _api.GetReceiptAsync(token, orderId);
+            if (generation != receiptSessionGeneration || !IsSignedIn()) return;
+            ReceiptPreview.Document = ReceiptDocument(receipt);
+            displayedReceiptOrderId = orderId;
+            ReceiptStatusText.Text = "Paid receipt loaded. Reprints use the same receipt number and amounts.";
+            PrintReceiptButton.IsEnabled = true;
+            if (print)
+            {
+                var dialog = new PrintDialog();
+                if (dialog.ShowDialog() == true && generation == receiptSessionGeneration && IsSignedIn())
+                {
+                    var document = ReceiptDocument(receipt);
+                    document.PageWidth = dialog.PrintableAreaWidth;
+                    document.PageHeight = dialog.PrintableAreaHeight;
+                    dialog.PrintDocument(((System.Windows.Documents.IDocumentPaginatorSource)document).DocumentPaginator, "Sales receipt");
+                }
+            }
+        }
+        catch (Exception)
+        {
+            ClearReceiptView();
+            ReceiptStatusText.Text = "Receipt unavailable or printing failed. Payment is unchanged. Check access and retry Load receipt; do not collect again.";
+        }
+    }
+
     private void SignOut_Click(object sender, RoutedEventArgs e)
     {
         CardTokenBox.Clear();
         if (_activeShift is not null || cashSessionId is not null || pendingOrder is not null ||
-            pendingCheckout is not null || pendingCashReviewAttempt is not null)
+            pendingCheckout is not null || pendingCashReviewAttempt is not null || pendingRefund is not null)
         {
             StatusText.Text = pendingCashReviewAttempt is not null
                 ? "Verify the pending cash-review decision before signing out."
+                : pendingRefund is not null ? "Verify the pending refund before signing out."
                 : "Resolve the pending payment, shift, and cash session before signing out.";
             return;
         }
 
+        ClearReceiptView();
         _authentication.SignOut();
         reauthenticationRequired = false;
         sessionLockMessage = null;
@@ -1034,6 +1292,7 @@ public partial class MainWindow : Window
         CloseCashButton.IsEnabled = false;
         RecordMovementButton.IsEnabled = false;
         PaidButton.IsEnabled = false;
+        CancelOrderButton.IsEnabled = false;
         LoadCashReviewsButton.IsEnabled = false;
         LoadMoreCashReviewsButton.IsEnabled = false;
         InvestigateCashReviewButton.IsEnabled = false;
@@ -1045,6 +1304,11 @@ public partial class MainWindow : Window
         busy = false;
         WorkspaceTabs.IsEnabled = true;
         bool signedIn = IsSignedIn();
+        LoadReceiptButton.IsEnabled = signedIn;
+        PrintReceiptButton.IsEnabled = signedIn && displayedReceiptOrderId is not null;
+        RefundButton.IsEnabled = signedIn && pendingRefund is null;
+        LoadRefundButton.IsEnabled = signedIn && (pendingRefund is not null || lastRefund is not null);
+        PrintRefundButton.IsEnabled = signedIn && displayedRefundReceipt is not null;
         bool hasStoredSession = _authentication.CurrentToken is not null;
         bool hasActiveShift = _activeShift is not null;
         SignInButton.Content = "Sign in";
@@ -1096,11 +1360,19 @@ public partial class MainWindow : Window
         string method = SelectedTenderMethod();
         PaidButton.Content = settlementUncertain ? "Verify payment" : "Confirm payment received";
         PaidButton.IsEnabled = _configuration.PaymentMethod != "card_omise_test" && signedIn && hasActiveShift && pendingOrder is not null && !settlementInFlight
+            && cancellationStatus is null
             && (method != "cash" || cashSessionId is not null)
             && (method != "promptpay_manual" || PromptPayQrImage.Source is not null);
+        CancelOrderButton.Content = cancellationStatus == "pending" ? "Verify cancellation" : "Cancel unpaid order";
+        CancelOrderButton.IsEnabled = signedIn && hasActiveShift && pendingOrder is not null
+            && settlementIdempotencyKey is not null && !settlementInFlight && !settlementUncertain
+            && cancellationStatus != "blocked";
+        CancellationReasonTextBox.IsEnabled = CancelOrderButton.IsEnabled && cancellationStatus is null;
         PendingOrderText.Text = pendingOrder is null
             ? "No order awaiting payment."
-            : $"Order {pendingOrder.OrderId:D} · {pendingOrder.Currency} {pendingOrder.TotalAmount:N2} · awaiting payment";
+            : $"Order {pendingOrder.OrderId:D} · {pendingOrder.Currency} {pendingOrder.TotalAmount:N2} · "
+                + (cancellationStatus == "blocked" ? "cancellation review" : cancellationStatus == "pending"
+                    ? "cancellation pending" : "awaiting payment") + $"\n{pendingOrder.Pricing?.Summary}";
         EnrollTerminalButton.IsEnabled = signedIn;
         IReadOnlyList<LocalOutboxOperation> operations = outbox.Load();
         int rejected = operations.Count(operation => operation.TerminalFailureStatusCode is not null);
@@ -1207,6 +1479,7 @@ public partial class MainWindow : Window
 
     private void LockSession(string message)
     {
+        ClearReceiptView();
         CardTokenBox.Clear();
         cardTokenRequired = false;
         reauthenticationRequired = true;

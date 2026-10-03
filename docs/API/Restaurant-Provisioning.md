@@ -1,5 +1,7 @@
 # Restaurant provisioning API
 
+`GET /api/restaurant/v1/branches/{branchId}/business-calendar` exposes current active owner IDs/timezone/currency under the existing `BranchScopeReader` workload policy for the end-of-day draft. Customer financial authorization remains independent. The original authorization-scope HTTP response is unchanged. See [calendar contract](End-Of-Day-Draft.md).
+
 ## Customer branch management
 
 `GET /api/restaurant/v1/customer/organizations/{organizationId}/branches` requires `customer-owner` or `customer-admin`, active Platform Directory access, and `restaurant.branch.read`. `POST` accepts `{ restaurantId, code, name, timeZone, currency }`; `PUT .../{branchId}` accepts `{ name, timeZone, currency, status, expectedVersion }`. Mutations require `restaurant.branch.manage`. Ownership is enforced by organization-leading queries. Invalid input returns `400`, denial `403`, missing hierarchy `404`, and code/concurrency conflicts `409`.

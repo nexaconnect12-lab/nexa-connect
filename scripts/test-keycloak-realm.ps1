@@ -28,6 +28,7 @@ $values = [ordered]@{
     NEXACONNECT_POS_SERVICE_CLIENT_SECRET = 'validation-pos-workload-secret'
     NEXACONNECT_CATALOG_SERVICE_CLIENT_SECRET = 'validation-catalog-workload-secret'
     NEXACONNECT_ORDER_SERVICE_CLIENT_SECRET = 'validation-order-workload-secret'
+    NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET = 'validation-reporting-workload-secret'
     NEXACONNECT_INVENTORY_SERVICE_CLIENT_SECRET = 'validation-inventory-workload-secret'
     NEXACONNECT_KITCHEN_SERVICE_CLIENT_SECRET = 'validation-kitchen-workload-secret'
     NEXACONNECT_PAYMENT_SERVICE_CLIENT_SECRET = 'validation-payment-workload-secret'
@@ -73,6 +74,7 @@ $requiredClients = @(
     'nexaconnect-pos-service'
     'nexaconnect-catalog-service'
     'nexaconnect-order-service'
+    'nexaconnect-reporting-service'
     'nexaconnect-inventory-service'
     'nexaconnect-kitchen-service'
     'nexaconnect-payment-service'
@@ -129,6 +131,22 @@ if ($orderClient.Count -ne 1 -or $orderAudience.Count -ne 1 -or
     throw 'The Order workload client must emit the nexaconnect-api audience in access tokens.'
 }
 
+$paymentClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-payment-service')
+$paymentAudience = @($paymentClient.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api' -and $_.config.'access.token.claim' -eq 'true'
+})
+if ($paymentClient.Count -ne 1 -or $paymentAudience.Count -ne 1) {
+    throw 'The Payment workload client must emit the nexaconnect-api audience in access tokens.'
+}
+$reportingClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-reporting-service')
+$reportingAudience = @($reportingClient.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api' -and $_.config.'access.token.claim' -eq 'true'
+})
+if ($reportingClient.Count -ne 1 -or $reportingAudience.Count -ne 1 -or
+    $reportingClient[0].publicClient -or -not $reportingClient[0].serviceAccountsEnabled -or
+    $reportingClient[0].standardFlowEnabled -or $reportingClient[0].directAccessGrantsEnabled) {
+    throw 'Reporting must use a confidential client-credentials client with the API audience.'
+}
 $posClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-pos')
 $posSubject = @($posClient.protocolMappers | Where-Object protocolMapper -eq 'oidc-sub-mapper')
 $posAudience = @($posClient.protocolMappers | Where-Object {

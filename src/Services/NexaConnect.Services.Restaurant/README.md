@@ -1,5 +1,9 @@
 # Restaurant Service
 
+`GET /api/restaurant/v1/branches/{branchId}/business-calendar` returns active owner IDs and current configured timezone/currency under the same `BranchScopeReader` workload policy. Reporting uses its existing dedicated workload client; this gives no financial command or generic mutation access. The authorization-scope HTTP response remains its original three IDs. Calendar reads use no-store responses and existing `nexaconnect-restaurant` request/correlation telemetry. No schema or identity provisioning change is added. See [end-of-day contract](../../../docs/API/End-Of-Day-Draft.md).
+
+Branch configuration now includes taxPercent/taxInclusive and currency in reads; omitted tax fields preserve existing settings. The exact Order-workload pricing route returns only active THB branch settings within the requested organization. Existing configuration versions and audit/outbox apply; no new Restaurant schema is required. Service name: nexaconnect-restaurant; query logs for Branch pricing. See [pricing contract and rollout](../../../docs/API/Order-Pricing.md).
+
 Owns restaurant and branch hierarchy used by tenant authorization. Operational telemetry uses service name `nexaconnect-restaurant`; request logs exclude query strings, bodies, authorization headers, cookies, and arbitrary headers.
 
 Platform owners and administrators browse and provision hierarchy through `GET|POST /api/restaurant/v1/restaurants` and `GET|POST /api/restaurant/v1/restaurants/{restaurantId}/branches`. Restaurant listing requires an `organizationId` query value; branch listing is scoped by the restaurant route. Both mutations are idempotent by owner/code, and all parameterized PostgreSQL access remains inside Restaurant Infrastructure. Equivalent Platform Admin BFF proxies preserve the bearer/session boundary. Provisioning logs record scoped UUIDs but no tokens or request bodies.
@@ -9,3 +13,5 @@ Customer owners/admins manage tenant branches through `/api/restaurant/v1/custom
 Typed branch product configuration is exposed at `/api/restaurant/v1/customer/organizations/{organizationId}/configuration/branches/{branchId}`. It controls dine-in, takeaway, table requirements, and service-charge percentage. Versioned writes require `restaurant.configuration.manage`, Restaurant migration 3, and append `branch.configuration.updated` in the same transaction.
 
 JSON stdout is always enabled. For centralized local debugging set `Observability__OtlpEnabled=true` and `Observability__OtlpEndpoint=http://localhost:4317`, then use the correlation query in the [observability guide](../../../docs/Deployment/Observability.md).
+
+`GET /api/restaurant/v1/branches/{branchId}/authorization-scope` uses the endpoint-specific `BranchScopeReader` workload policy. It preserves the existing scope readers and additionally accepts the dedicated `nexaconnect-reporting-service` client. Reporting uses this hierarchy for customer branch/restaurant permission evaluation; this client is excluded from the generic `ServiceWorkload` policy and receives no pricing or mutation access. No Restaurant schema change is required.

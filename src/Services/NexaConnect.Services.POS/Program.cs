@@ -49,8 +49,11 @@ builder.Services.AddScoped<CashClosePublisher>();
 if (builder.Configuration.GetValue<bool>("CashClosePublication:Enabled")) builder.Services.AddHostedService<CashClosePublicationWorker>();
 if (builder.Configuration.GetValue<bool>("CashClosePublication:Enabled") || builder.Configuration.GetValue<bool>("Outbox:Enabled")) builder.Services.AddHostedService<CashCloseBacklogMonitor>();
 if (builder.Configuration.GetValue<bool>("Outbox:Enabled")) NexaConnect.Infrastructure.Messaging.OutboxServiceCollectionExtensions.AddPostgresOutbox(builder.Services, builder.Configuration, "POS");
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.PosDayRead>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPosDayReader, NexaConnect.Services.POS.Infrastructure.Persistence.PostgresPosDayReader>();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
+app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/pos/v1/customer/end-of-day", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing"))

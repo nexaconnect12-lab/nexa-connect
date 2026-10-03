@@ -68,6 +68,7 @@ public sealed class OrderWorkflowRecoveryTests
         Assert.True(await service.RecoverNextAsync(TimeSpan.FromSeconds(30), TimeSpan.Zero, default));
 
         Assert.Equal(OrderStatus.Paid, repository.Current.Status);
+        Assert.Equal(repository.Current.TotalAmount, repository.Current.Receipt!.TotalAmount);
         Assert.Equal(paymentId, repository.Current.PaymentIntentId);
         Assert.IsType<PaymentCompletedV1>(repository.Events.Last());
         Assert.Equal(orderId, payment.LastOrderId);

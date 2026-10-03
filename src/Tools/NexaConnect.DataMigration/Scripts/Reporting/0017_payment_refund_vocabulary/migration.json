@@ -1,0 +1,1 @@
+{"version":17,"name":"payment_refund_vocabulary","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.20.0"}

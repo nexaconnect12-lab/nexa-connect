@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using NexaConnect.Services.Order.Application.Workflow;
+using NexaConnect.Services.Order.Application.Cancellations;
 using System.Diagnostics.Metrics;
 
 namespace NexaConnect.Services.Order.Infrastructure;
@@ -20,6 +21,7 @@ public sealed class OrderWorkflowRecoveryWorker(
     private static readonly Meter Meter = new("nexaconnect-order");
     private static readonly Counter<long> RecoveredSteps = Meter.CreateCounter<long>("order.workflow_recovery.steps");
     private static readonly Counter<long> FailedAttempts = Meter.CreateCounter<long>("order.workflow_recovery.failures");
+    private static readonly Counter<long> RecoveredCancellations = Meter.CreateCounter<long>("order.cancellation_recovery.steps");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -31,7 +33,11 @@ public sealed class OrderWorkflowRecoveryWorker(
                 using IServiceScope scope = scopeFactory.CreateScope();
                 var service = scope.ServiceProvider.GetRequiredService<OrderWorkflowRecoveryService>();
                 bool recovered = await service.RecoverNextAsync(settings.LeaseDuration, settings.RetryDelay, stoppingToken);
-                if (recovered) { RecoveredSteps.Add(1); continue; }
+                if (recovered) RecoveredSteps.Add(1);
+                var cancellations = scope.ServiceProvider.GetRequiredService<OrderCancellationApplicationService>();
+                if (await cancellations.RecoverNextAsync(settings.LeaseDuration, settings.RetryDelay, stoppingToken))
+                { RecoveredCancellations.Add(1); recovered = true; }
+                if (recovered) continue;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception exception)

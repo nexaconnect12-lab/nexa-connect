@@ -20,7 +20,7 @@ public sealed class ProductAuthorizationClient(HttpClient client, ILogger<Produc
     }
 
     public async Task<Decision?> DecideAsync(Guid organizationId,Guid? restaurantId,Guid? branchId,string permission,
-        string authorizationHeader,CancellationToken cancellationToken)
+        string authorizationHeader,CancellationToken cancellationToken,decimal? amount=null,string? currency=null)
     {
         if (organizationId == Guid.Empty || string.IsNullOrWhiteSpace(permission)
             || !AuthenticationHeaderValue.TryParse(authorizationHeader, out AuthenticationHeaderValue? authorization)) return null;
@@ -28,7 +28,7 @@ public sealed class ProductAuthorizationClient(HttpClient client, ILogger<Produc
         using var request = new HttpRequestMessage(HttpMethod.Post, "api/authorization/v1/decisions")
         {
             Content = JsonContent.Create(new AuthorizationDecisionRequest(
-                organizationId, restaurantId, branchId, permission, null, null))
+                organizationId, restaurantId, branchId, permission, amount, currency))
         };
         request.Headers.Authorization = authorization;
         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);

@@ -11,10 +11,20 @@ namespace NexaConnect.POS;
 
 public sealed record PosShift(Guid ShiftId, Guid AuthorizationDecisionId);
 public sealed record PosMenuItem(Guid ProductId, string Name, decimal UnitPrice, string Currency, string PreparationStation, bool Available);
-public enum PosOrderStatus { Draft, Submitted, InventoryReserved, KitchenAccepted, Paid, PaymentFailed, Rejected, PaymentPending, PaymentReview }
-public sealed record PosOrderResult(Guid OrderId, PosOrderStatus Status, decimal TotalAmount, string Currency, bool CardTokenRequired = false);
+public enum PosOrderStatus { Draft, Submitted, InventoryReserved, KitchenAccepted, Paid, PaymentFailed, Rejected, PaymentPending, PaymentReview, CancellationPending, CancellationReview, Cancelled }
+public sealed record PosOrderResult(Guid OrderId, PosOrderStatus Status, decimal TotalAmount, string Currency, bool CardTokenRequired = false, PosOrderPricing? Pricing = null);
+public sealed record PosOrderPricing(long PolicyVersion, decimal TaxPercent, bool TaxInclusive,
+    decimal ServiceChargePercent, decimal MenuAmount, decimal SubtotalAmount, decimal ServiceChargeAmount,
+    decimal TaxAmount, decimal TotalAmount)
+{
+    public string Summary => $"Subtotal THB {SubtotalAmount:N2} | Service charge THB {ServiceChargeAmount:N2} | Tax THB {TaxAmount:N2} | Total THB {TotalAmount:N2}";
+}
+public sealed record PosOrderQuote(string Fingerprint, PosOrderPricing Pricing, IReadOnlyList<PosQuoteLine> Lines);
+public sealed record PosQuoteLine(Guid ProductId, string Name, decimal UnitPrice, int Quantity);
+public sealed class PosPricingChangedException : Exception;
 public sealed record ManualTenderResult(Guid SettlementId, Guid OrderId, string Status, string Method,
     decimal Amount, string Currency, DateTimeOffset OccurredAtUtc, bool Replayed);
+public sealed record PosOrderCancellationResult(Guid OrderId, Guid OperationId, string Status, bool Replayed);
 public sealed record CashSessionResult(Guid CashSessionId, string OpenedBy);
 public sealed record PosCashMovementSummary(Guid MovementId, string MovementType, decimal Amount,
     string? ReasonCode, DateTimeOffset OccurredAtUtc);
@@ -33,22 +43,132 @@ public sealed record PosCashReviewDetail(PosCashReviewListItem Session,
     IReadOnlyList<PosCashMovementSummary> Movements, IReadOnlyList<PosCashReviewHistoryEntry> History);
 public sealed record PosCashReviewPage(IReadOnlyList<PosCashReviewListItem> Items, string? NextCursor);
 
+public sealed record PosReceiptLine(Guid ProductId, string Name, decimal UnitPrice, int Quantity, decimal Total);
+public sealed record PosReceipt(int Version, string ReceiptNumber, Guid OrderId, Guid OrganizationId,
+    Guid RestaurantId, Guid BranchId, string OrderNumber, DateTimeOffset PaidAtUtc, string Currency, string Tender,
+    IReadOnlyList<PosReceiptLine> Lines, PosOrderPricing? Pricing, decimal SubtotalAmount,
+    decimal ServiceChargeAmount, decimal TaxAmount, decimal TotalAmount)
+{
+    public string Render()
+    {
+        static string Money(decimal value) => value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+        static string Safe(string value) => new(value.Select(c => char.IsControl(c) ? ' ' : c).ToArray());
+        return "SALES RECEIPT — PAID\n" + Safe(ReceiptNumber) + "\nOrder: " + Safe(OrderNumber)
+            + "\nOrder ID: " + OrderId.ToString("D") + "\nBranch: " + BranchId.ToString("D")
+            + "\nPaid (UTC): " + PaidAtUtc.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)
+            + "\nTender: " + Safe(Tender) + "\n\n"
+            + string.Join("\n", Lines.Select(l => $"{l.Quantity} × {Safe(l.Name)} @ {Money(l.UnitPrice)} = {Money(l.Total)}"))
+            + $"\n\nSubtotal {Currency} {Money(SubtotalAmount)}\nService charge {Currency} {Money(ServiceChargeAmount)}"
+            + $"\nTax {Currency} {Money(TaxAmount)}\nTOTAL {Currency} {Money(TotalAmount)}"
+            + (Pricing?.TaxInclusive == true ? "\nMenu prices include tax." : "")
+            + (Pricing is null ? "\nLegacy order: tax breakdown unavailable." : "")
+            + "\n\nOrdinary sales receipt. Not a tax invoice.";
+    }
+}
+public sealed record PosRefundReceipt(string ReceiptNumber, Guid RefundId, Guid PaymentIntentId, Guid OrderId,
+    decimal Amount, string Currency, string ReasonCode, DateTimeOffset RefundedAtUtc,
+    decimal CapturedAmount, decimal CumulativeRefundedAmount)
+{
+    public string Render() => $"REFUND RECEIPT\n{ReceiptNumber}\nOrder ID: {OrderId:D}\nPayment ID: {PaymentIntentId:D}\nRefunded (UTC): {RefundedAtUtc:yyyy-MM-dd HH:mm:ss}\nReason: {ReasonCode}\n\nREFUND {Currency} {Amount:F2}\nCumulative refunded {Currency} {CumulativeRefundedAmount:F2}\nOriginal captured {Currency} {CapturedAmount:F2}";
+}
+public sealed record PosPaymentRefund(Guid Id, Guid OrganizationId, Guid RestaurantId, Guid BranchId, Guid OrderId,
+    Guid PaymentIntentId, Guid OperationId, decimal Amount, string Currency, string ReasonCode, string Status,
+    DateTimeOffset RequestedAtUtc, DateTimeOffset? CompletedAtUtc,
+    string? FailureCode, PosRefundReceipt? Receipt);
+
 public sealed class PosApiClient : IDisposable
 {
     private readonly PosClientConfiguration _configuration;
     private readonly HttpClient _httpClient;
     private readonly HttpClient _orderHttpClient;
     private readonly HttpClient _catalogHttpClient;
+    private readonly HttpClient _paymentHttpClient;
     private readonly ILoggerFactory loggerFactory = NexaConnectObservabilityExtensions.CreateClientLoggerFactory("nexaconnect-pos-client");
 
     public PosApiClient(PosClientConfiguration configuration, HttpMessageHandler? posHandler = null,
-        HttpMessageHandler? orderHandler = null, HttpMessageHandler? catalogHandler = null)
+        HttpMessageHandler? orderHandler = null, HttpMessageHandler? catalogHandler = null, HttpMessageHandler? paymentHandler = null)
     {
         _configuration = configuration;
         configuration.ValidateCheckout();
         _httpClient = new HttpClient(posHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.PosApi) };
         _orderHttpClient = new HttpClient(orderHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.OrderApi) };
         _catalogHttpClient = new HttpClient(catalogHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.CatalogApi) };
+        _paymentHttpClient = new HttpClient(paymentHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(
+            string.IsNullOrWhiteSpace(configuration.PaymentApi) ? configuration.OrderApi : configuration.PaymentApi) };
+    }
+
+    public async Task<PosPaymentRefund> CreateRefundAsync(PosTokenSet token, Guid paymentIntentId, Guid operationId,
+        decimal amount, string reasonCode, CancellationToken cancellationToken = default)
+    {
+        if (paymentIntentId == Guid.Empty || operationId == Guid.Empty || amount <= 0 || decimal.Round(amount, 4) != amount
+            || reasonCode is not ("customer_request" or "duplicate_charge" or "item_unavailable" or "service_issue" or "other"))
+            throw new ArgumentException("Enter a valid payment, amount, and refund reason.");
+        using var request = CreateRequest(HttpMethod.Post, $"api/payment/v1/intents/{paymentIntentId:D}/refunds", token);
+        AddTenantContext(request, _configuration.OrganizationId);
+        request.Content = JsonContent.Create(new { operationId, amount, currency = _configuration.Currency, reasonCode });
+        using HttpResponseMessage response = await SendCheckoutAsync(_paymentHttpClient, request, "payment.refund", operationId, cancellationToken);
+        await EnsureSuccessAsync(response, "Refund could not be accepted. Verify the existing operation before retrying.");
+        PosPaymentRefund refund = await response.Content.ReadFromJsonAsync<PosPaymentRefund>(cancellationToken)
+            ?? throw new InvalidDataException("Payment returned an empty refund response.");
+        ValidateRefund(refund, paymentIntentId, operationId); return refund;
+    }
+
+    public async Task<PosPaymentRefund> GetRefundAsync(PosTokenSet token, Guid paymentIntentId, Guid refundId,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Get, $"api/payment/v1/intents/{paymentIntentId:D}/refunds/{refundId:D}", token);
+        AddTenantContext(request, _configuration.OrganizationId);
+        using HttpResponseMessage response = await SendCheckoutAsync(_paymentHttpClient, request, "payment.refund.read", refundId, cancellationToken);
+        await EnsureSuccessAsync(response, "Refund receipt could not be loaded.");
+        PosPaymentRefund refund = await response.Content.ReadFromJsonAsync<PosPaymentRefund>(cancellationToken)
+            ?? throw new InvalidDataException("Payment returned an empty refund response.");
+        ValidateRefund(refund, paymentIntentId, refund.OperationId); return refund;
+    }
+
+    public async Task<PosPaymentRefund> GetRefundByOperationAsync(PosTokenSet token, Guid paymentIntentId, Guid operationId,
+        CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Get, $"api/payment/v1/intents/{paymentIntentId:D}/refunds/by-operation/{operationId:D}", token);
+        AddTenantContext(request, _configuration.OrganizationId);
+        using HttpResponseMessage response = await SendCheckoutAsync(_paymentHttpClient, request, "payment.refund.read", operationId, cancellationToken);
+        await EnsureSuccessAsync(response, "Pending refund could not be verified.");
+        PosPaymentRefund refund = await response.Content.ReadFromJsonAsync<PosPaymentRefund>(cancellationToken)
+            ?? throw new InvalidDataException("Payment returned an empty refund response.");
+        ValidateRefund(refund, paymentIntentId, operationId); return refund;
+    }
+
+    private void ValidateRefund(PosPaymentRefund refund, Guid paymentIntentId, Guid operationId)
+    {
+        if (refund.OrganizationId != _configuration.OrganizationId || refund.RestaurantId != _configuration.RestaurantId
+            || refund.BranchId != _configuration.BranchId || refund.PaymentIntentId != paymentIntentId
+            || refund.OperationId != operationId || refund.Amount <= 0 || refund.Currency != _configuration.Currency
+            || refund.Status is not ("processing" or "refund_unknown" or "review_required" or "completed" or "failed")
+            || refund.RequestedAtUtc == default
+            || (refund.Status == "completed") != (refund.Receipt is not null)
+            || refund.Receipt is { } receipt && (receipt.RefundId != refund.Id || receipt.PaymentIntentId != paymentIntentId
+                || receipt.OrderId != refund.OrderId || receipt.Amount != refund.Amount || receipt.Currency != refund.Currency
+                || receipt.ReceiptNumber != $"RF-{refund.Id:N}".ToUpperInvariant()))
+            throw new InvalidDataException("Refund response does not match this terminal scope and request.");
+    }
+
+    public async Task<PosReceipt> GetReceiptAsync(PosTokenSet token, Guid orderId, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Get, $"api/order/v1/orders/{orderId:D}/receipt?branchId={_configuration.BranchId:D}", token);
+        AddTenantContext(request, _configuration.OrganizationId);
+        using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.receipt.read", Guid.NewGuid(), cancellationToken);
+        await EnsureSuccessAsync(response, "Receipt unavailable. Payment is unchanged; verify access or retry receipt retrieval.");
+        var receipt = await response.Content.ReadFromJsonAsync<PosReceipt>(cancellationToken)
+            ?? throw new InvalidDataException("Empty receipt response.");
+        if (receipt.Version != 1 || receipt.OrderId != orderId || receipt.OrganizationId != _configuration.OrganizationId
+            || receipt.RestaurantId != _configuration.RestaurantId || receipt.BranchId != _configuration.BranchId
+            || receipt.Currency != _configuration.Currency || receipt.PaidAtUtc == default
+            || receipt.ReceiptNumber != $"R-{orderId:N}".ToUpperInvariant() || string.IsNullOrWhiteSpace(receipt.Tender)
+            || receipt.Lines is null || receipt.Lines.Count == 0 || receipt.Lines.Any(l => l.Quantity <= 0 || l.UnitPrice < 0 || l.Total != l.UnitPrice * l.Quantity)
+            || receipt.TotalAmount < 0 || receipt.SubtotalAmount + receipt.ServiceChargeAmount + receipt.TaxAmount != receipt.TotalAmount
+            || (receipt.Pricing is { } p && (p.TotalAmount != receipt.TotalAmount || p.SubtotalAmount != receipt.SubtotalAmount
+                || p.ServiceChargeAmount != receipt.ServiceChargeAmount || p.TaxAmount != receipt.TaxAmount)))
+            throw new InvalidDataException("Receipt does not match this order and terminal scope.");
+        return receipt;
     }
 
     public async Task<PosShift> OpenShiftAsync(
@@ -99,6 +219,30 @@ public sealed class PosApiClient : IDisposable
         return await response.Content.ReadFromJsonAsync<IReadOnlyCollection<PosMenuItem>>(cancellationToken) ?? [];
     }
 
+    public async Task<PosOrderQuote> QuoteAsync(PosTokenSet token, PendingCheckout checkout, CancellationToken cancellationToken = default)
+    {
+        checkout.Validate(_configuration);
+        using var request = CreateRequest(HttpMethod.Post, "api/order/v1/workflows/quote", token);
+        AddTenantContext(request, checkout.OrganizationId);
+        request.Content = JsonContent.Create(new
+        {
+            checkout.RestaurantId, checkout.OrganizationId, checkout.BranchId, checkout.Currency,
+            checkout.PaymentMethod, IdempotencyKey = checkout.OrderId.ToString("N"), checkout.Lines
+        });
+        using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.quote", checkout.OrderId, cancellationToken);
+        await EnsureSuccessAsync(response, "Pricing could not be loaded.");
+        var quote = await response.Content.ReadFromJsonAsync<PosOrderQuote>(cancellationToken)
+            ?? throw new InvalidDataException("Order quote was empty.");
+        if (quote.Fingerprint is null || !System.Text.RegularExpressions.Regex.IsMatch(quote.Fingerprint, "\\A[0-9A-F]{64}\\z")
+            || quote.Pricing is null || quote.Lines is null
+            || quote.Pricing.TotalAmount <= 0 || quote.Pricing.SubtotalAmount < 0 || quote.Pricing.ServiceChargeAmount < 0 || quote.Pricing.TaxAmount < 0
+            || quote.Pricing.TotalAmount != quote.Pricing.SubtotalAmount + quote.Pricing.ServiceChargeAmount + quote.Pricing.TaxAmount
+            || !quote.Lines.OrderBy(l => l.ProductId).Select(l => (l.ProductId, l.Quantity))
+                .SequenceEqual(checkout.Lines.OrderBy(l => l.ProductId).Select(l => (l.ProductId, l.Quantity))))
+            throw new InvalidDataException("Order quote does not match checkout.");
+        return quote;
+    }
+
     public async Task<PosOrderResult> PlaceOrderAsync(PosTokenSet token, PendingCheckout checkout, CancellationToken cancellationToken = default)
         => await PlaceOrderAsync(token, checkout, null, cancellationToken);
 
@@ -115,12 +259,15 @@ public sealed class PosApiClient : IDisposable
             restaurantId = checkout.RestaurantId, organizationId = checkout.OrganizationId, branchId = checkout.BranchId,
             currency = checkout.Currency, paymentMethod = checkout.PaymentMethod, idempotencyKey = checkout.OrderId.ToString("N"),
             orderId = checkout.OrderId, correlationId = checkout.OrderId,
-            cardToken,
+            cardToken, pricingFingerprint = checkout.PricingFingerprint,
             lines = checkout.Lines.Select(line => new { productId = line.ProductId, quantity = line.Quantity }).ToArray()
         });
         using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.place", checkout.OrderId, cancellationToken);
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
+            using (var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken)))
+                if (body.RootElement.TryGetProperty("code", out var code) && code.GetString() == "pricing_changed")
+                    throw new PosPricingChangedException();
             try
             {
                 PosOrderResult? rejected = await response.Content.ReadFromJsonAsync<PosOrderResult>(cancellationToken);
@@ -146,6 +293,9 @@ public sealed class PosApiClient : IDisposable
     {
         if (result.OrderId != checkout.OrderId || result.Currency != checkout.Currency || result.TotalAmount <= 0)
             throw new InvalidDataException("Order response does not match the pending checkout.");
+        if (result.Pricing is {} pricing && (pricing.TotalAmount != result.TotalAmount
+            || pricing.TotalAmount != pricing.SubtotalAmount + pricing.ServiceChargeAmount + pricing.TaxAmount))
+            throw new InvalidDataException("Order pricing does not match its total.");
         if (result.CardTokenRequired && (checkout.PaymentMethod != "card_omise_test"
             || result.Status is not (PosOrderStatus.KitchenAccepted or PosOrderStatus.PaymentPending)))
             throw new InvalidDataException("Card-token action does not match the original checkout state.");
@@ -182,6 +332,39 @@ public sealed class PosApiClient : IDisposable
         await EnsureSuccessAsync(response, "Manual settlement could not be confirmed.");
         return await response.Content.ReadFromJsonAsync<ManualTenderResult>(cancellationToken)
             ?? throw new InvalidDataException("The Order API returned an empty settlement response.");
+    }
+
+    public async Task<PosOrderCancellationResult> CancelOrderAsync(PosTokenSet token, Guid orderId,
+        Guid operationId, string reason, CancellationToken cancellationToken = default)
+    {
+        if (orderId == Guid.Empty || operationId == Guid.Empty || string.IsNullOrWhiteSpace(reason)
+            || reason.Trim().Length > 200 || reason.Any(char.IsControl))
+            throw new ArgumentException("Enter a printable cancellation reason of at most 200 characters.");
+        using var request = CreateRequest(HttpMethod.Post, $"api/order/v1/orders/{orderId:D}/cancellations", token);
+        AddTenantContext(request, _configuration.OrganizationId);
+        request.Content = JsonContent.Create(new { organizationId = _configuration.OrganizationId,
+            branchId = _configuration.BranchId, operationId, reason = reason.Trim(), correlationId = operationId });
+        using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.cancel", operationId, cancellationToken);
+        if (response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.Accepted or HttpStatusCode.Conflict))
+            await EnsureSuccessAsync(response, "Order cancellation could not be accepted.");
+        PosOrderCancellationResult? result = null;
+        try { result = await response.Content.ReadFromJsonAsync<PosOrderCancellationResult>(cancellationToken); }
+        catch (JsonException) when (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            await EnsureSuccessAsync(response, "Order cancellation conflicted with current order state.");
+        }
+        if (result is null && response.StatusCode == HttpStatusCode.Conflict)
+            await EnsureSuccessAsync(response, "Order cancellation conflicted with current order state.");
+        if (result is null)
+            throw new InvalidDataException("The Order API returned an empty cancellation response.");
+        if (result.OrderId != orderId || result.OperationId != operationId
+            || result.Status is not ("pending" or "completed" or "blocked"))
+        {
+            if (response.StatusCode == HttpStatusCode.Conflict)
+                await EnsureSuccessAsync(response, "Order cancellation conflicted with current order state.");
+            throw new InvalidDataException("Cancellation response does not match the original order request.");
+        }
+        return result;
     }
 
     public async Task<CashSessionResult> OpenCashSessionAsync(PosTokenSet token, Guid shiftId, Guid storeId, string currency, decimal openingAmount, CancellationToken cancellationToken = default)
@@ -447,6 +630,7 @@ public sealed class PosApiClient : IDisposable
         _httpClient.Dispose();
         _orderHttpClient.Dispose();
         _catalogHttpClient.Dispose();
+        _paymentHttpClient.Dispose();
         loggerFactory.Dispose();
     }
 

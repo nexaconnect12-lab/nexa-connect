@@ -10,7 +10,10 @@ public enum OrderStatus
     PaymentFailed = 5,
     Rejected = 6,
     PaymentPending = 7,
-    PaymentReview = 8
+    PaymentReview = 8,
+    CancellationPending = 9,
+    CancellationReview = 10,
+    Cancelled = 11
 }
 
 public sealed record OrderLine(
@@ -39,12 +42,17 @@ public sealed class OrderAggregate
         string? orderNumber = null,
         string? idempotencyKey = null,
         string? workflowPaymentMethod = null,
-        Guid? workflowCorrelationId = null)
+        Guid? workflowCorrelationId = null, OrderPricing? pricing = null, string? pricingFingerprint = null)
     {
         Id = id;
         OrganizationId = organizationId;
         BranchId = branchId;
         this.lines = lines.ToList();
+        if (pricing is not null && (pricing != OrderPricing.Calculate(lines, currency, new(pricing.PolicyVersion, pricing.TaxPercent, pricing.TaxInclusive, pricing.ServiceChargePercent))
+            || pricingFingerprint is null || pricingFingerprint.Length != 64))
+            throw new ArgumentException("Invalid accepted pricing snapshot.");
+        Pricing = pricing;
+        PricingFingerprint = pricingFingerprint;
         Currency = currency;
         RestaurantId = restaurantId ?? organizationId;
         Channel = channel;
@@ -69,8 +77,29 @@ public sealed class OrderAggregate
     public Guid? WorkflowCorrelationId { get; }
     public Guid? PaymentIntentId { get; private set; }
     public OrderStatus Status { get; private set; }
-    public IReadOnlyList<OrderLine> Lines => lines;
-    public decimal TotalAmount => lines.Sum(line => line.Total);
+    public IReadOnlyList<OrderLine> Lines => lines.AsReadOnly();
+    public OrderPricing? Pricing { get; }
+    public string? PricingFingerprint { get; }
+    public PaidOrderReceipt? Receipt { get; private set; }
+    public void IssueReceipt(DateTimeOffset paidAtUtc, string tender) => Receipt ??= PaidOrderReceipt.Create(this, paidAtUtc, tender);
+    public void RestoreReceipt(PaidOrderReceipt? receipt)
+    {
+        if (receipt is null) return;
+        if (Receipt is not null || Status != OrderStatus.Paid || receipt.OrderId != Id
+            || receipt.OrganizationId != OrganizationId || receipt.RestaurantId != RestaurantId
+            || receipt.BranchId != BranchId || receipt.Currency != Currency || receipt.TotalAmount != TotalAmount
+            || receipt.Version != 1 || receipt.ReceiptNumber != $"R-{Id:N}".ToUpperInvariant()
+            || receipt.OrderNumber != OrderNumber || receipt.PaidAtUtc == default || string.IsNullOrWhiteSpace(receipt.Tender)
+            || receipt.SubtotalAmount != (Pricing?.SubtotalAmount ?? TotalAmount)
+            || receipt.ServiceChargeAmount != (Pricing?.ServiceChargeAmount ?? 0)
+            || receipt.TaxAmount != (Pricing?.TaxAmount ?? 0)
+            || receipt.Pricing != Pricing
+            || !receipt.Lines.SequenceEqual(lines.Select(line =>
+                new ReceiptLine(line.ProductId, line.Name, line.UnitPrice, line.Quantity, line.Total))))
+            throw new InvalidOperationException("Receipt does not match the paid order.");
+        Receipt = receipt with { Lines = Array.AsReadOnly(receipt.Lines.ToArray()) };
+    }
+    public decimal TotalAmount => Pricing?.TotalAmount ?? lines.Sum(line => line.Total);
 
     public static OrderAggregate Create(
         Guid id,
@@ -84,13 +113,13 @@ public sealed class OrderAggregate
         string? orderNumber = null,
         string? idempotencyKey = null,
         string? workflowPaymentMethod = null,
-        Guid? workflowCorrelationId = null)
+        Guid? workflowCorrelationId = null, OrderPricing? pricing = null, string? pricingFingerprint = null)
     {
         if (lines.Count == 0) throw new ArgumentException("An order requires at least one line.", nameof(lines));
         if (lines.Any(line => line.Quantity <= 0 || line.UnitPrice < 0))
             throw new ArgumentException("Order lines must have a positive quantity and non-negative price.", nameof(lines));
         if (string.IsNullOrWhiteSpace(currency)) throw new ArgumentException("Currency is required.", nameof(currency));
-        return new OrderAggregate(id, organizationId, branchId, lines, currency.ToUpperInvariant(), restaurantId, channel, serviceType, orderNumber, idempotencyKey, workflowPaymentMethod, workflowCorrelationId);
+        return new OrderAggregate(id, organizationId, branchId, lines, currency.ToUpperInvariant(), restaurantId, channel, serviceType, orderNumber, idempotencyKey, workflowPaymentMethod, workflowCorrelationId, pricing, pricingFingerprint);
     }
 
     public void Submit() => Transition(OrderStatus.Draft, OrderStatus.Submitted);
@@ -110,6 +139,7 @@ public sealed class OrderAggregate
         if (PaymentIntentId is not null)
             throw new InvalidOperationException("An order bound to a provider payment intent cannot be manually settled.");
         MarkPaid();
+        IssueReceipt(settlement.OccurredAtUtc, settlement.Method == ManualTenderMethod.Cash ? "cash" : "promptpay_manual");
     }
     public void MarkPaymentPending(Guid? paymentIntentId = null)
     {
@@ -121,6 +151,19 @@ public sealed class OrderAggregate
     public void ResolvePaymentReviewAsVoided() => Transition(OrderStatus.PaymentReview, OrderStatus.PaymentFailed);
     public void ResumePaymentPending() => Transition(OrderStatus.PaymentReview, OrderStatus.PaymentPending);
     public void Reject() => Status = OrderStatus.Rejected;
+    public OrderStatus BeginCancellation()
+    {
+        if (Status is not (OrderStatus.Submitted or OrderStatus.InventoryReserved or OrderStatus.KitchenAccepted))
+            throw new InvalidOperationException($"Order {Id} cannot be cancelled from {Status}.");
+        OrderStatus previous = Status;
+        Status = OrderStatus.CancellationPending;
+        return previous;
+    }
+    public void CompleteCancellation() => Transition(OrderStatus.CancellationPending, OrderStatus.Cancelled);
+    public void RequireCancellationReview() => Transition(OrderStatus.CancellationPending, OrderStatus.CancellationReview);
+    public void RestoreCancellationPending() { if (Status != OrderStatus.Draft) throw new InvalidOperationException(); Status = OrderStatus.CancellationPending; }
+    public void RestoreCancellationReview() { if (Status != OrderStatus.Draft) throw new InvalidOperationException(); Status = OrderStatus.CancellationReview; }
+    public void RestoreCancelled() { if (Status != OrderStatus.Draft) throw new InvalidOperationException(); Status = OrderStatus.Cancelled; }
 
     public void RestorePaymentIntent(Guid? paymentIntentId) => BindPaymentIntent(paymentIntentId);
 

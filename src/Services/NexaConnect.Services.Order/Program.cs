@@ -13,6 +13,7 @@ using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Observability;
 using NexaConnect.Services.Order.Application.PaymentReviews;
 using NexaConnect.Services.Order.Application.ManualTenders;
+using NexaConnect.Services.Order.Application.Cancellations;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-order");
@@ -41,6 +42,8 @@ if (usePostgres)
     var connectionString = builder.Configuration.GetConnectionString("Order") ?? throw new InvalidOperationException("ConnectionStrings:Order is required for PostgreSQL persistence.");
     builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(connectionString).Build());
     builder.Services.AddSingleton<PostgresOrderRepository>();
+    builder.Services.AddSingleton<PostgresOrderCancellationRepository>();
+    builder.Services.AddSingleton<IOrderCancellationRepository>(services => services.GetRequiredService<PostgresOrderCancellationRepository>());
     builder.Services.AddSingleton<IOrderRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
     builder.Services.AddSingleton<IOrderWorkflowRecoveryRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
     builder.Services.AddSingleton<IManualTenderRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
@@ -53,15 +56,20 @@ else
     builder.Services.AddSingleton<InMemoryOrderApplicationService>();
     builder.Services.AddSingleton<IOrderApplicationService>(services => services.GetRequiredService<InMemoryOrderApplicationService>());
     builder.Services.AddSingleton<IOrderRepository>(services => services.GetRequiredService<InMemoryOrderApplicationService>());
+    builder.Services.AddSingleton<IOrderCancellationRepository, InMemoryOrderCancellationRepository>();
 }
 builder.Services.AddSingleton<InMemoryIntegrationEventPublisher>();
 builder.Services.AddSingleton<IIntegrationEventPublisher>(services =>
     services.GetRequiredService<InMemoryIntegrationEventPublisher>());
 builder.Services.AddScoped<PlaceOrderWorkflow>();
+builder.Services.AddScoped<OrderPricingService>();
+builder.Services.AddScoped<OrderReceiptService>();
+builder.Services.AddSingleton<IOrderReceiptRepository>(services => (IOrderReceiptRepository)services.GetRequiredService<IOrderRepository>());
 builder.Services.AddScoped<OrderWorkflowRecoveryService>();
 builder.Services.AddScoped<PaymentReconciliationApplicationService>();
 builder.Services.AddScoped<PaymentReviewApplicationService>();
 builder.Services.AddScoped<ManualTenderApplicationService>();
+builder.Services.AddScoped<OrderCancellationApplicationService>();
 if (usePostgres)
 {
     builder.Services.AddPostgresOutbox(builder.Configuration, "Order");
@@ -73,11 +81,14 @@ if (builder.Configuration.GetValue<bool>("PaymentReconciliationConsumer:Enabled"
         throw new InvalidOperationException("Payment reconciliation consumption requires PostgreSQL Order persistence and HTTP workflow adapters.");
     builder.Services.AddPaymentReconciliationConsumer(builder.Configuration);
 }
+builder.Services.AddTransient<OutboundTokenHandler>();
+builder.Services.AddSingleton<IOutboundAccessTokenProvider, KeycloakClientCredentialsTokenProvider>();
+builder.Services.AddHttpClient<IBranchPricingPort, HttpBranchPricingPort>(client =>
+    client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")))
+    .AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
 if (builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
 {
-    builder.Services.AddTransient<OutboundTokenHandler>();
     builder.Services.AddTransient<RetryingHttpMessageHandler>();
-    builder.Services.AddSingleton<IOutboundAccessTokenProvider, KeycloakClientCredentialsTokenProvider>();
     builder.Services.AddHttpClient("keycloak-token");
     builder.Services.AddHttpClient<IMenuCatalogPort, HttpMenuCatalogPort>(client =>
         client.BaseAddress = new Uri(builder.Configuration["Services:Catalog"] ?? throw new InvalidOperationException("Services:Catalog is required.")))
@@ -106,8 +117,14 @@ if (builder.Configuration.GetValue<bool>("WorkflowRecovery:Enabled"))
     builder.Services.AddHostedService<OrderWorkflowRecoveryWorker>();
 }
 
+if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
+{
+    builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.IOrderDayReader, NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderDayReader>();
+}
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderDayRead>();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
+app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/order/v1/customer/end-of-day", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

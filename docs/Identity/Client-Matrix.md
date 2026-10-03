@@ -1,5 +1,11 @@
 # Keycloak Client Matrix
 
+Pre-payment cancellation reuses the public `nexaconnect-pos` client and stable user `sub`; no client, scope, redirect, or secret changes. Authorization migration 8 grants branch `order.cancel` to tenant-admin, store-manager, and cashier roles. Order requires a live decision and stores its decision UUID with the immutable cancellation operation. Trusted workload identity cannot invoke the operator route. See [cancellation contract](../API/Order-Cancellation.md).
+
+Paid receipt retrieval reuses the WPF POS public client and existing `order.read` permission. The Order receipt route always requires a customer bearer plus live branch authorization and deliberately does not accept the usual trusted-workload shortcut. No client, role, scope or secret is added. See [receipt contract](../API/Paid-Order-Receipts.md).
+
+[Authoritative pricing](../API/Order-Pricing.md) reuses `nexaconnect-order-service`: Restaurant's branch-pricing endpoint requires the service-workload policy and exact `azp`, organization context and `nexa_connect` application. No new client, secret or product permission is introduced. Customer quote/place retains `order.place`; branch tax edits retain existing Restaurant configuration permissions.
+
 | Client | Owner | Client type | Enabled flow | Local redirect URI |
 |---|---|---|---|---|
 | `nexaconnect-web-bff` | NexaConnect | Confidential | Authorization Code | `https://localhost:7100/signin-oidc` |
@@ -8,6 +14,7 @@
 | `nexaconnect-pos` | NexaConnect | Public | Authorization Code + PKCE S256 | `nexaconnect-pos://oauth/callback` |
 | `platform-admin-bff` | Shared platform | Confidential | Authorization Code | Shared-platform value; local fixture uses `https://localhost:58627/signin-oidc` |
 | `platform-directory-admin` | Shared platform directory | Confidential service account | Client Credentials | None |
+| `nexaconnect-reporting-service` | Reporting | Confidential service account | Client Credentials; Restaurant branch scope and business calendar only | None |
 | Workload clients (`nexaconnect-*-service`, including Kitchen and Media) | Owning workload | Confidential | Client Credentials | None |
 
 ## Rules
@@ -23,7 +30,7 @@ The [joined Payment Review browser acceptance](../../src/Frontend/e2e/payment-re
 - Create one service-account client per concrete workload rather than sharing a machine credential.
 - Do not use NexaConnect-managed configuration as the production source of truth for `platform-admin-bff`; the checked-in realm entry is a local integration fixture only.
 
-The checked-in development realm implements the four NexaConnect interactive clients, the `nexaconnect-api` bearer-only audience, dedicated POS, Catalog, Order, Inventory, Kitchen, Payment, and Media workload clients, a local `platform-admin-bff` client with the `roles` scope enabled for role-claim testing, and the `platform-directory-admin` service account. POS, Catalog and Order carry explicit client-level API audience mappers because their tokens cross service boundaries. The administration account has only `view-users`, `manage-users`, and `view-realm` from Keycloak `realm-management`. Each workload client uses a separately managed secret. Production registration and ownership of the platform clients remain with the shared platform.
+The checked-in development realm implements the four NexaConnect interactive clients, the `nexaconnect-api` bearer-only audience, dedicated POS, Catalog, Order, Inventory, Kitchen, Payment, Media, and Reporting workload clients, a local `platform-admin-bff` client with the `roles` scope enabled for role-claim testing, and the `platform-directory-admin` service account. POS, Catalog, Order, Payment and Reporting carry explicit client-level API audience mappers because their tokens cross service boundaries. The administration account has only `view-users`, `manage-users`, and `view-realm` from Keycloak `realm-management`. Each workload client uses a separately managed secret. Production registration and ownership of the platform clients remain with the shared platform.
 
 The local realm also defines the Phase 2 platform roles (`platform-owner`, `platform-admin`, `platform-support`, `platform-auditor`) and customer roles (`customer-owner`, `customer-admin`, `customer-manager`, `customer-user`, `customer-viewer`). Product roles such as cashier or store manager remain separate. The legacy `system-admin` role is retained only for compatibility with older non-portal administration paths and must not be assigned as a substitute for the platform role model.
 
@@ -36,3 +43,9 @@ POS browser sign-in has a client-side three-minute wait limit and an explicit Ca
 The Cash Review workspace reuses this same `nexaconnect-pos` user token. Authorization migration 7 provisions `pos.cash-review.read`/`resolve` for tenant-admin and store-manager assignments and read only for accountant assignments. No new Keycloak client, confidential secret, direct-access grant, or additional token audience is required.
 
 Existing realms need an explicit reviewed update for the POS workload API audience mapper and a fresh workload token (or cached-token expiry). Restarting Keycloak does not re-import an existing realm; token validation is unchanged.
+
+Reporting's workload token permits Restaurant branch authorization-scope and business-calendar lookup through `BranchScopeReader`; generic `ServiceWorkload` APIs continue to exclude it. It emits the `nexaconnect-api` audience and uses the distinct `NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET`. Customer report authorization still uses the customer bearer and a full organization/restaurant/branch decision. Provision this client and mapper explicitly in existing persisted realms before deploying corrected Reporting reads; see [Reporting configuration](../../src/Services/NexaConnect.Services.Reporting/README.md).
+
+The [hosted refund acceptance gate](../Deployment/Hosted-Refund-Acceptance.md) uses generated disposable identity/infrastructure and existing service-owned schemas. Simulator evidence and the credentialed Omise test-account gate are separate from production readiness. The acceptance-only password-grant client and fixture approval limits do not change production provisioning.
+
+Payment's confidential workload client now explicitly emits the nexaconnect-api audience for Order/Restaurant ownership lookup during refunds. Existing persisted realms require a reviewed audience-mapper update; restarting Keycloak does not re-import this change. The client remains credentials-only, with its existing distinct secret and unchanged endpoint authorization policies.

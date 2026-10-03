@@ -22,11 +22,13 @@ public sealed record PosClientConfiguration(
     int SessionIdleTimeoutMinutes = 5,
     int SessionAbsoluteTimeoutHours = 10,
     int TokenRefreshLeadSeconds = 60,
-    bool EnableOmiseTestCheckout = false)
+    bool EnableOmiseTestCheckout = false,
+    string PaymentApi = "")
 {
     public void ValidateCheckout()
     {
-        foreach (var (name, value) in new[] { ("Authority", Authority), ("PosApi", PosApi), ("OrderApi", OrderApi), ("CatalogApi", CatalogApi) })
+        foreach (var (name, value) in new[] { ("Authority", Authority), ("PosApi", PosApi), ("OrderApi", OrderApi), ("CatalogApi", CatalogApi) }
+            .Concat(string.IsNullOrWhiteSpace(PaymentApi) ? [] : [("PaymentApi", PaymentApi)]))
             if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
                 (uri.Scheme != "https" && !(uri.Scheme == "http" && uri.IsLoopback)) ||
                 !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
@@ -77,7 +79,8 @@ public sealed record PosClientConfiguration(
             GetInt32(session, "IdleTimeoutMinutes", 5),
             GetInt32(session, "AbsoluteTimeoutHours", 10),
             GetInt32(session, "TokenRefreshLeadSeconds", 60),
-            root.GetProperty("Pos").TryGetProperty("EnableOmiseTestCheckout", out var cardEnabled) && cardEnabled.GetBoolean());
+            root.GetProperty("Pos").TryGetProperty("EnableOmiseTestCheckout", out var cardEnabled) && cardEnabled.GetBoolean(),
+            services.TryGetProperty("PaymentApi", out var payment) ? payment.GetString() ?? "" : "");
         configuration.ValidateCheckout();
         return configuration;
     }

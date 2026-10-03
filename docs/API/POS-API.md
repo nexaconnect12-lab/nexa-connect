@@ -1,5 +1,7 @@
 # POS API
 
+`GET /api/pos/v1/customer/end-of-day` adds an authorized branch read summary for the reconciliation draft: current open work, pending reviews and movement-derived closed-session variance. It requires customer roles, live branch `pos.cash-review.read` and Restaurant owner validation; it does not resolve reviews. See [source window, states and failures](End-Of-Day-Draft.md).
+
 ## Order manual-tender projection
 
 This is an asynchronous integration boundary, not a public POS endpoint. With `OrderSettlementConsumer` enabled after POS migration 4, POS consumes `order.manual-tender-settled.v1`. It verifies restaurant, branch, terminal, and the shift/session time window containing the event. Cash records one Order-linked sale; late delivery updates the historical closed session and recomputes variance. PromptPay never changes drawer totals. Matching delivery is replay; invalid identity/scope contracts dead-letter and infrastructure failures retry.

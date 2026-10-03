@@ -11,6 +11,7 @@ public static class NexaAuthenticationDefaults
 
 public static class NexaAuthorizationPolicies
 {
+    public const string BranchScopeReader = "BranchScopeReader";
     public const string SystemAdministrator = "SystemAdministrator";
     public const string PlatformAdministrator = "PlatformAdministrator";
     public const string ProductRoleAdministrator = "ProductRoleAdministrator";

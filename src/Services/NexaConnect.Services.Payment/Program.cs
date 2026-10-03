@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.RateLimiting;
 using NexaConnect.Services.Payment.Application.Webhooks;
 using NexaConnect.Services.Payment.Infrastructure.Webhooks;
+using NexaConnect.Services.Payment.Application.Refunds;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-payment");
@@ -78,6 +79,10 @@ builder.Services.AddOptions<PaymentProviderOptions>()
         "PaymentProvider:BaseUrl must be an absolute HTTPS URI when GenericHttp is selected.")
     .Validate(options => options.RequestTimeout > TimeSpan.Zero && options.RequestTimeout <= TimeSpan.FromMinutes(2),
         "PaymentProvider:RequestTimeout must be greater than zero and no more than two minutes.")
+    .Validate(options => options.MaximumRefundRecoveryAttempts is >= 1 and <= 100
+        && options.RecoveryInterval >= TimeSpan.FromSeconds(1) && options.RecoveryInterval <= TimeSpan.FromMinutes(10)
+        && options.LeaseDuration >= options.RequestTimeout + TimeSpan.FromSeconds(5),
+        "Refund recovery attempts, interval, and lease bounds are invalid.")
     .Validate(options => options.Adapter != "Omise" || options.LeaseDuration >= options.RequestTimeout * 4 + TimeSpan.FromSeconds(10),
         "Omise leases must cover two bounded header/body exchanges plus ten seconds.")
     .ValidateOnStart();
@@ -94,6 +99,8 @@ builder.Services.AddScoped<IPaymentCaptureService, PaymentCaptureService>();
 builder.Services.AddScoped<PaymentCaptureRecoveryService>();
 builder.Services.AddScoped<IPaymentVoidService, PaymentVoidService>();
 builder.Services.AddScoped<PaymentVoidRecoveryService>();
+builder.Services.AddScoped<IPaymentRefundService, PaymentRefundService>();
+builder.Services.AddScoped<PaymentRefundRecoveryService>();
 builder.Services.AddTransient<RetryingHttpMessageHandler>();
 builder.Services.AddHttpClient<HttpPaymentProvider>((services, client) =>
 {
@@ -125,6 +132,7 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Payment")
         ?? throw new InvalidOperationException("ConnectionStrings:Payment is required.")));
     builder.Services.AddSingleton<IPaymentIntents, PostgresPaymentIntents>();
+    builder.Services.AddSingleton<IPaymentRefunds, PostgresPaymentRefunds>();
     healthChecks.AddCheck<PaymentDatabaseReadinessHealthCheck>("payment_database", tags: ["ready"]);
     builder.Services.Configure<PaymentOperationalMetricsOptions>(builder.Configuration.GetSection("OperationalMetrics"));
     builder.Services.AddHostedService<PaymentOperationalMetricsWorker>();
@@ -135,6 +143,8 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
         builder.Services.AddPaymentCaptureRecoveryWorker(builder.Configuration);
         if (builder.Configuration.GetValue("PaymentProvider:VoidRecoveryEnabled", true))
             builder.Services.AddHostedService<PaymentVoidRecoveryWorker>();
+        if (builder.Configuration.GetValue("PaymentProvider:RefundRecoveryEnabled", true))
+            builder.Services.AddHostedService<PaymentRefundRecoveryWorker>();
     }
     if (builder.Configuration.GetValue<bool>("Outbox:Enabled"))
         builder.Services.AddPostgresOutbox(builder.Configuration, "Payment");
@@ -142,6 +152,7 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
 else
 {
     builder.Services.AddSingleton<IPaymentIntents, InMemoryPaymentIntents>();
+    builder.Services.AddSingleton<IPaymentRefunds, InMemoryPaymentRefunds>();
 }
 
 if (builder.Configuration.GetValue<bool>("OmiseWebhooks:Enabled"))
@@ -164,8 +175,14 @@ if (builder.Configuration.GetValue<bool>("OmiseWebhooks:Enabled"))
     builder.Services.AddHostedService<OmiseWebhookWorker>();
 }
 
+if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
+{
+    builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.IPaymentDayReader, NexaConnect.Services.Payment.Infrastructure.PostgresPaymentDayReader>();
+}
+builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.PaymentDayRead>();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
+app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/payment/v1/customer/end-of-day", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

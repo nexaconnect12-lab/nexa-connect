@@ -9,6 +9,29 @@ namespace NexaConnect.UnitTests;
 public sealed class PosCheckoutIntegrationTests
 {
     [Fact]
+    public async Task Quote_and_submission_preserve_pricing_identity_and_changed_response_is_explicit()
+    {
+        var config = Configuration();
+        var checkout = PendingCheckout.Create(config, [new CheckoutLine(Guid.NewGuid(), 1)]);
+        string fingerprint = new('A', 64);
+        var pricing = new PosOrderPricing(1, 7, false, 10, 100, 100, 10, 7.7m, 117.7m);
+        using var api = new PosApiClient(config, orderHandler: new Handler(async request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/quote"))
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new PosOrderQuote(fingerprint, pricing,
+                    [new(checkout.Lines[0].ProductId, "Item", 100, 1)])) };
+            using var json = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(fingerprint, json.RootElement.GetProperty("pricingFingerprint").GetString());
+            return new HttpResponseMessage(HttpStatusCode.Conflict) { Content = JsonContent.Create(new { code = "pricing_changed" }) };
+        }));
+        var quote = await api.QuoteAsync(Token(), checkout);
+        Assert.Equal(pricing, quote.Pricing);
+        var confirmed = checkout with { PricingFingerprint = quote.Fingerprint };
+        Assert.Equal(confirmed, JsonSerializer.Deserialize<PendingCheckout>(JsonSerializer.Serialize(confirmed))! with { Lines = confirmed.Lines });
+        await Assert.ThrowsAsync<PosPricingChangedException>(() => api.PlaceOrderAsync(Token(), confirmed));
+    }
+
+    [Fact]
     public async Task Omise_token_is_transient_and_not_part_of_saved_checkout()
     {
         var config = Configuration() with { PaymentMethod = "card_omise_test", EnableOmiseTestCheckout = true };
@@ -272,6 +295,52 @@ public sealed class PosCheckoutIntegrationTests
         Assert.Throws<InvalidDataException>(() => (config with { Currency = "SGD" }).ValidateCheckout());
         Assert.Throws<InvalidDataException>(() => (config with { CatalogApi = "http://untrusted.example/" }).ValidateCheckout());
         Assert.Throws<InvalidDataException>(() => (config with { BranchId = Guid.Empty }).ValidateCheckout());
+    }
+
+    [Fact]
+    public async Task Receipt_reads_are_scoped_gets_and_reprints_preserve_the_bill()
+    {
+        var config = Configuration(); Guid orderId = Guid.NewGuid(); int calls = 0;
+        var receipt = new PosReceipt(1, $"R-{orderId:N}".ToUpperInvariant(), orderId, config.OrganizationId,
+            config.RestaurantId, config.BranchId, "123", DateTimeOffset.UtcNow, "THB", "cash",
+            [new(Guid.NewGuid(), "Rice", 100, 1, 100)], new(1,7,false,10,100,100,10,7.7m,117.7m),100,10,7.7m,117.7m);
+        using var api = new PosApiClient(config, orderHandler: new Handler(request =>
+        {
+            calls++;
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.Contains($"branchId={config.BranchId:D}", request.RequestUri!.Query);
+            Assert.NotNull(request.Headers.Authorization);
+            Assert.True(request.Headers.Contains("X-Correlation-ID"));
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(receipt) });
+        }));
+        Assert.Equal((await api.GetReceiptAsync(Token(),orderId)).Render(), (await api.GetReceiptAsync(Token(),orderId)).Render());
+        Assert.Equal(2,calls);
+        Assert.Contains("TOTAL THB 117.70",receipt.Render());
+        receipt = receipt with { BranchId = Guid.NewGuid() };
+        await Assert.ThrowsAsync<InvalidDataException>(() => api.GetReceiptAsync(Token(),orderId));
+    }
+
+    [Fact]
+    public async Task Refund_command_preserves_operation_identity_and_validates_immutable_receipt()
+    {
+        var config = Configuration() with { PaymentApi = "http://localhost:5235/" };
+        Guid intent = Guid.NewGuid(), operation = Guid.NewGuid(), refundId = Guid.NewGuid(), order = Guid.NewGuid();
+        var receipt = new PosRefundReceipt($"RF-{refundId:N}".ToUpperInvariant(), refundId, intent, order,
+            25m, "THB", "customer_request", DateTimeOffset.UtcNow, 100m, 25m);
+        var result = new PosPaymentRefund(refundId, config.OrganizationId, config.RestaurantId, config.BranchId,
+            order, intent, operation, 25m, "THB", "customer_request", "completed",
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, receipt);
+        using var api = new PosApiClient(config, paymentHandler: new Handler(async request =>
+        {
+            Assert.Equal(5235, request.RequestUri!.Port);
+            Assert.Equal(config.OrganizationId.ToString("D"), request.Headers.GetValues("X-Nexa-Organization-Id").Single());
+            using JsonDocument body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(operation, body.RootElement.GetProperty("operationId").GetGuid());
+            return new(HttpStatusCode.Created) { Content = JsonContent.Create(result) };
+        }));
+
+        PosPaymentRefund actual = await api.CreateRefundAsync(Token(), intent, operation, 25m, "customer_request");
+        Assert.Equal(receipt.Render(), actual.Receipt!.Render());
     }
 
     private sealed class Handler(Func<HttpRequestMessage, Task<HttpResponseMessage>> send) : HttpMessageHandler

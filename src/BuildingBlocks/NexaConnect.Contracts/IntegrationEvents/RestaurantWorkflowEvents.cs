@@ -119,6 +119,19 @@ public sealed record PaymentVoidUncertainV1(Guid EventId, Guid CorrelationId, Da
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string FailureCode) : IIntegrationEvent;
 public sealed record PaymentVoidReconciledV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Status, string? FailureCode) : IIntegrationEvent;
+public sealed record PaymentRefundRequestedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid RestaurantId, Guid BranchId, Guid OrderId, Guid PaymentIntentId, Guid RefundId,
+    decimal Amount, string Currency, string ReasonCode, Guid AuthorizationDecisionId) : IIntegrationEvent;
+public sealed record PaymentRefundedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid RestaurantId, Guid BranchId, Guid OrderId, Guid PaymentIntentId, Guid RefundId,
+    decimal Amount, string Currency, string ReasonCode, decimal CumulativeRefundedAmount, decimal CapturedAmount,
+    string ReceiptNumber) : IIntegrationEvent;
+public sealed record PaymentRefundFailedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, Guid RefundId, string FailureCode) : IIntegrationEvent;
+public sealed record PaymentRefundUncertainV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, Guid RefundId, string FailureCode) : IIntegrationEvent;
+public sealed record PaymentRefundReviewRequiredV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, Guid RefundId, string FailureCode) : IIntegrationEvent;
 public sealed record OrderPaymentReviewRequiredV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
     Guid OrganizationId, Guid OrderId, Guid PaymentIntentId, string Reason) : IIntegrationEvent;
 
@@ -169,3 +182,9 @@ public sealed record InventoryStockSetV1(Guid EventId, Guid CorrelationId, DateT
 public sealed record InventoryReservationCreatedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc, Guid OrganizationId, Guid BranchId, Guid OrderId, Guid ReservationId, IReadOnlyCollection<InventoryReservationLineV1> Lines) : IIntegrationEvent;
 public sealed record InventoryReservationReleasedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc, Guid OrganizationId, Guid OrderId) : IIntegrationEvent;
 public sealed record InventoryReservationLineV1(Guid ProductId, decimal Quantity);
+public sealed record OrderCancellationRequestedV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrderId, Guid OrganizationId, Guid BranchId, Guid OperationId, string FromStatus) : IIntegrationEvent;
+public sealed record OrderCancelledV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrderId, Guid OrganizationId, Guid BranchId, Guid OperationId) : IIntegrationEvent;
+public sealed record OrderCancellationReviewRequiredV1(Guid EventId, Guid CorrelationId, DateTimeOffset OccurredAtUtc,
+    Guid OrderId, Guid OrganizationId, Guid BranchId, Guid OperationId, string FailureCategory) : IIntegrationEvent;
