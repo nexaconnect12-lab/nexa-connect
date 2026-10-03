@@ -2,7 +2,7 @@
 
 Restaurant configuration now includes taxPercent and taxInclusive, plus currency in reads. PUT omits tax fields to preserve them; explicit zero/false resets them. Rates support at most two decimals. These settings affect newly confirmed THB checkout only; historical orders preserve accepted prices. See [pricing contract and rollout](Order-Pricing.md).
 
-All routes require an authenticated Customer session. The BFF derives `organizationId` from its protected active `nexa_connect` tenant selection, forwards the server-held bearer token, query/body, status, and JSON, and never accepts organization from browser input. Missing context returns `401`; owning-service denial returns `403`; dependency/database failures propagate.
+BFF routes require an authenticated Customer session. The BFF derives `organizationId` from its protected active `nexa_connect` tenant selection, forwards the server-held bearer token, query/body, status, and JSON, and never accepts organization from browser input. Missing context returns `401`; owning-service denial returns `403`; dependency/database failures propagate.
 
 ## Product configuration
 
@@ -11,6 +11,8 @@ Restaurant owns `GET/PUT /api/restaurant/v1/customer/organizations/{organization
 At least one service mode is required, table requirement needs dine-in, and service charge is 0–100. GET returns `404` for missing, cross-tenant, closed, or inactive hierarchy. Invalid PUT returns `400`; unavailable/cross-tenant/closed/stale writes collapse to `409`; success returns `200`. Lifecycle and configuration edits share the branch concurrency token. Writes append `branch.configuration.updated` transactionally.
 
 ## Reporting
+
+Current financial recovery deployment requires Payment 10 and Reporting 20/application 0.23.0, with Order 11. The direct Reporting route `GET /api/reporting/v1/customer/organizations/{organizationId}/reports/financial-completeness` requires a customer bearer, current organization/product access and live branch `reporting.sales.read`. Branch and a positive closed half-open UTC window of at most 31 days are mandatory. It returns no-store latest recorded exact-window observations, or `not_checked` when absent; invalid input is 400, denial 403 and unexpected dependency/database failures sanitized 503. Reads do not reconcile or repair; privileged operator tooling records observations. No Customer BFF route or portal completeness UI is added. Observed completeness is bounded source/projection evidence, not a global watermark or settlement authorization. See [contract](Financial-Reporting-Completeness.md) and [operator runbook](../Deployment/Financial-Reporting-Recovery.md).
 
 The separate [cash-close report](Cash-Close-Reporting.md) uses `/bff/customer/reports/cash-close`, a required exact branch/store and UTC range of at most 31 days. It reuses live POS `pos.cash-review.read`, returns keyset pages with row capture/projection times, and supplies no aggregate totals or completeness guarantee. Its Reporting-15 consumer is separate from the activity feed below.
 

@@ -39,30 +39,7 @@ public sealed class PostgresSaleReplay(NpgsqlDataSource dataSource)
             {
                 await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
                 if (await PostgresSalePublication.EnsureAsync(connection, transaction, id, cancellationToken)) published++;
-                await using var replay = new NpgsqlCommand("""
-                    INSERT INTO outbox_messages(id,event_type,contract_version,aggregate_type,aggregate_id,payload,correlation_id,occurred_at_utc)
-                    SELECT event_id,'order.sale-completed.v1',1,'Order',order_id,payload,payload->>'CorrelationId',paid_at_utc
-                    FROM order_sale_publications WHERE order_id=$1 AND organization_id=$2 AND branch_id=$3
-                    ON CONFLICT(id) DO UPDATE SET published_at_utc=NULL,retry_count=0,next_attempt_at_utc=NULL,last_error_category=NULL
-                    WHERE outbox_messages.event_type='order.sale-completed.v1' AND outbox_messages.payload=EXCLUDED.payload
-                    """, connection, transaction);
-                replay.Parameters.AddWithValue(id); replay.Parameters.AddWithValue(organization); replay.Parameters.AddWithValue(branch);
-                int affected = await replay.ExecuteNonQueryAsync(cancellationToken);
-                if (affected == 0)
-                {
-                    await using var retained = new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM order_sale_publications WHERE order_id=$1)", connection, transaction);
-                    retained.Parameters.AddWithValue(id);
-                    if ((bool)(await retained.ExecuteScalarAsync(cancellationToken))!)
-                        throw new InvalidOperationException("Retained sale publication conflicts with outbox evidence.");
-                }
-                requeued += affected;
-                if (affected > 0)
-                {
-                    await using var audit = new NpgsqlCommand("INSERT INTO order_sale_replay_audit(run_id,order_id,organization_id,branch_id,actor) VALUES($1,$2,$3,$4,$5)", connection, transaction);
-                    audit.Parameters.AddWithValue(runId); audit.Parameters.AddWithValue(id);
-                    audit.Parameters.AddWithValue(organization); audit.Parameters.AddWithValue(branch); audit.Parameters.AddWithValue(actor!);
-                    await audit.ExecuteNonQueryAsync(cancellationToken);
-                }
+                requeued += await PostgresSalePublication.RequeueAsync(connection, transaction, id, organization, branch, runId, actor!, cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
             }
         }

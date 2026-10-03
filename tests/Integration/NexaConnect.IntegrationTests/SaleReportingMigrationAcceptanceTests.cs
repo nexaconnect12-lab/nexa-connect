@@ -27,8 +27,8 @@ public sealed class SaleReportingMigrationAcceptanceTests
             while (!File.Exists(Path.Combine(root.FullName,"NexaConnect.sln"))) root = root.Parent!;
             string scripts = Path.Combine(root.FullName,"src/Tools/NexaConnect.DataMigration/Scripts");
             Task<int> Run(int target,bool down=false) => MIGRATIONS::MigrationApplication.RunAsync(
-                ["--service","Reporting","--scripts-root",scripts,"--target",target.ToString(),"--application-version","0.22.0","--confirm",..(down ? new[] {"--allow-destructive","--backup-verified"} : [])]);
-            Assert.Equal(0,await Run(19)); Assert.Equal(0,await Run(18,true)); Assert.Equal(0,await Run(19));
+                ["--service","Reporting","--scripts-root",scripts,"--target",target.ToString(),"--application-version","0.23.0","--confirm",..(down ? new[] {"--allow-destructive","--backup-verified"} : [])]);
+            Assert.Equal(0,await Run(20)); Assert.Equal(0,await Run(19,true)); Assert.Equal(0,await Run(20));
             await using var source = NpgsqlDataSource.Create(db);
             var service = new REPORTING::NexaConnect.Services.Reporting.Application.SaleFinancialReporting(
                 new REPORTING::NexaConnect.Services.Reporting.Infrastructure.Persistence.PostgresSaleFinancialFactRepository(source));
@@ -37,7 +37,14 @@ public sealed class SaleReportingMigrationAcceptanceTests
                 Guid.NewGuid(),Guid.NewGuid(),"manual_settlement","cash","THB","pos","takeaway",now.AddMinutes(-1),now,"R-TEST",10,0,0,10);
             Assert.True(await service.ProjectAsync(value,default));
             Assert.NotEqual(0,await Run(18,true));
+            Assert.Equal(0,await Run(20)); // The runner committed the safe empty-history 20->19 step before 19 refused.
             Assert.False(await service.ProjectAsync(value,default));
+            var completeness=new REPORTING::NexaConnect.Services.Reporting.Application.FinancialCompleteness(new REPORTING::NexaConnect.Services.Reporting.Infrastructure.Persistence.PostgresFinancialCompletenessRepository(source));
+            var range=new REPORTING::NexaConnect.Services.Reporting.Application.ReportingRange(value.OrganizationId,value.BranchId,now.AddHours(-1),now.AddSeconds(1));
+            await Task.Delay(1100);
+            var check=await completeness.CheckAsync(new(range,DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,1,0,0,0,0,0,[REPORTING::NexaConnect.Services.Reporting.Application.SaleFinancialReporting.Translate(value)],[]),default);
+            await completeness.RecordAsync(check,"migration-acceptance",default);
+            Assert.NotEqual(0,await Run(19,true));
         }
         finally
         {

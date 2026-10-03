@@ -91,6 +91,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaConnect.CashClosePortal
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaConnect.SaleReportingRecovery", "src\Tools\NexaConnect.SaleReportingRecovery\NexaConnect.SaleReportingRecovery.csproj", "{3C44DD31-593F-4B5A-8C1E-45106170C3D1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaConnect.FinancialReportingRecovery", "src\Tools\NexaConnect.FinancialReportingRecovery\NexaConnect.FinancialReportingRecovery.csproj", "{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -497,6 +499,18 @@ Global
 		{3C44DD31-593F-4B5A-8C1E-45106170C3D1}.Release|x64.Build.0 = Release|Any CPU
 		{3C44DD31-593F-4B5A-8C1E-45106170C3D1}.Release|x86.ActiveCfg = Release|Any CPU
 		{3C44DD31-593F-4B5A-8C1E-45106170C3D1}.Release|x86.Build.0 = Release|Any CPU
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}.Debug|x64.Build.0 = Debug|Any CPU
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}.Debug|x86.Build.0 = Debug|Any CPU
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}.Release|x64.ActiveCfg = Release|Any CPU
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}.Release|x64.Build.0 = Release|Any CPU
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}.Release|x86.ActiveCfg = Release|Any CPU
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -543,5 +557,6 @@ Global
 		{E39F592F-8E86-47C3-A200-E764F296644E} = {DCB6FCB8-FF92-AC57-0842-1F72A354D6B1}
 		{4E09AEA1-20C8-418F-A699-C7274A26C6E7} = {DCB6FCB8-FF92-AC57-0842-1F72A354D6B1}
 		{3C44DD31-593F-4B5A-8C1E-45106170C3D1} = {DCB6FCB8-FF92-AC57-0842-1F72A354D6B1}
+		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3} = {DCB6FCB8-FF92-AC57-0842-1F72A354D6B1}
 	EndGlobalSection
 EndGlobal

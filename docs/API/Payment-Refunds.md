@@ -1,5 +1,7 @@
 # Payment refunds
 
+Payment 10/application 0.23.0 now retains original refund completion events atomically and supports bounded attributed replay; missing pre-ledger originals remain gaps. See [financial completeness contract](Financial-Reporting-Completeness.md) and [recovery runbook](../Deployment/Financial-Reporting-Recovery.md).
+
 Payment owns post-capture refunds. The customer API requires `X-Nexa-Organization-Id`, `X-Nexa-Application-Code: nexa_connect`, a bearer token, exact Order/branch ownership, and a live product authorization decision. `payment.refund.create` is granted only to `tenant-admin` and `store-manager`; `payment.refund.read` also permits cashiers and accountants to retrieve receipts. Create sends amount and currency to Authorization. Permission alone is insufficient: an active approval limit for the subject or matching role, restaurant, `payment.refund.create` action, and currency must cover the amount. The evaluated decision ID is stored with the refund but is not returned by the customer API.
 
 `POST /api/payment/v1/intents/{paymentIntentId}/refunds` accepts:

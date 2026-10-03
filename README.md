@@ -1,5 +1,7 @@
 # NexaConnect
 
+Payment 10 / Reporting 20 (application 0.23.0), with Order 11, add retained original refund events, scoped attributed replay and combined sales/payment/refund reconciliation. A live-authorized Reporting API reads exact-window recorded completeness observations; lost historical originals remain explicit gaps. See [contract and limitations](docs/API/Financial-Reporting-Completeness.md) and [recovery runbook](docs/Deployment/Financial-Reporting-Recovery.md).
+
 Order 11 / Reporting 19 (application 0.22.0) implement receipt-backed sale/payment facts, atomic durable consumption, scoped historical replay and evidence reconciliation. Configure the Order sale queue before publication; historical rows without receipts remain gaps. See [sale financial reporting](docs/API/Sale-Financial-Reporting.md).
 
 Refund financial reporting now projects `payment.refunded.v1` through opt-in Reporting 18 consumption (application 0.21.0). Dashboard and sales APIs/portal show refund-period amounts and net sales as gross sales minus refunds; existing net paid retains its payment-fact semantics. Atomic hash receipts protect replay and destructive downgrade requires retained-source replay. Receipt-backed sales/payment consumers and scoped replay/reconciliation are implemented in Reporting 19; complete accounting reconciliation remains planned, so these totals do not certify production completeness. See [contract, rollout and verification](docs/API/Refund-Financial-Reporting.md).

@@ -15,6 +15,8 @@ builder.Services.AddOpenApi();
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "reporting");
 builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Reporting") ?? throw new InvalidOperationException("ConnectionStrings:Reporting is required.")));
+builder.Services.AddScoped<FinancialCompleteness>();
+builder.Services.AddScoped<IFinancialCompletenessRepository, PostgresFinancialCompletenessRepository>();
 builder.Services.AddScoped<ReportingQueries>();
 builder.Services.AddScoped<IReportingReadRepository, PostgresReportingReadRepository>();
 builder.Services.AddScoped<SaleFinancialReporting>();

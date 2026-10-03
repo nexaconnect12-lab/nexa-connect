@@ -1,5 +1,7 @@
 # Identity Claims Contract
 
+Financial completeness reads reuse the existing Customer Reporting boundary and live `reporting.sales.read` decision for the explicit organization and branch on every request. The route organization, current product access and the existing customer roles remain required; there is no workload bypass, new claim, client or permission grant. The direct Reporting route returns no-store observations and excludes stored operator attribution. The privileged recovery CLI uses separately controlled operational database credentials; its bounded actor string is self-asserted audit attribution, not an authenticated user or product authorization decision. Keep those credentials out of customer/BFF settings. See [the read contract](../API/Financial-Reporting-Completeness.md) and [operator authority](../Deployment/Financial-Reporting-Recovery.md).
+
 Cash-close Reporting reuses `pos.cash-review.read` through a live POS access probe for the exact organization/branch/store. It introduces no new grant, claim or client. The Customer BFF revalidates current product membership and protected tenant subject; Reporting requires matching tenant headers and independently calls POS with the user's bearer token. POS resolves Restaurant hierarchy and its store before requesting Authorization. Generic Reporting permissions do not grant this financial read. See [cash-close authorization](../API/Cash-Close-Reporting.md).
 
 ## Purpose
