@@ -1,10 +1,12 @@
 # NexaConnect Project Architecture
 
+Reporting now orchestrates a read-only single-branch end-of-day draft through owning Order/Payment/POS customer APIs and Restaurant business-calendar metadata. Each operational owner validates live customer permission and scope; Reporting workload credentials are used only for branch metadata. Source local snapshots, projection aggregates and recorded exact-window checks remain independent observations. Configured local day boundaries and separate sales/Paid/refund/close time bases are explicit; the result never approves or locks settlement. Reporting adds Order/Payment HTTPS dependencies, with bounded deadlines and shared correlation telemetry. See [ADR-020](Decisions/ADR-020-branch-end-of-day-draft.md) and [API](../API/End-Of-Day-Draft.md).
+
 A guarded [hosted refund acceptance gate](../Deployment/Hosted-Refund-Acceptance.md) now exercises real customer authentication, live amount/currency approval limits, Payment HTTP refunds, immutable receipt/audit/outbox boundaries, provider response-loss restart recovery and actual Reporting propagation. Simulator and separately guarded Omise test-account modes retain distinct evidence; checkout/POS and target-production acceptance remain separate. No schema or product permission changes are introduced. Payment receives version-column-only migration-history SELECT for readiness, with checksums/history writes still denied; existing databases require the documented explicit grant. Its existing workload client now explicitly emits the API audience; persisted realms require a reviewed mapper update. Local simulator acceptance passed 17/17 hosted and 6/6 Authorization checks with cleanup on 2026-10-03; the separate 15-case Omise gate is implemented but unexecuted.
 
 The acceptance-only `NexaConnect.RefundAcceptance` tool provisions sources through owning repositories and invokes the real Payment HTTP workflow; it never inserts refunds or report facts. The hosted topology adds Order and Payment to Platform Directory, Authorization, Restaurant and Reporting, plus the Testing-only HTTPS simulator. Payment terminates and restarts independently while provider state and PostgreSQL evidence remain intact. Actual Order/Payment outbox workers and Reporting consumers establish financial propagation. This topology is disposable and does not introduce a deployable provider or a distributed transaction.
 
-Payment 10 and Reporting 20 (minimum application 0.23.0), with Order 11, add immutable original refund publications/replay audits and scoped financial completeness observations. The privileged recovery CLI calls independently owned Infrastructure adapters; Reporting compares source contracts with a repeatable-read local inventory and exposes the latest exact-window recorded result through live sales authorization. The Customer BFF adds a read-only forwarding route with protected tenant/session and live membership checks; the Customer Portal Sales report requests fresh totals and recorded observations independently for identical closed UTC filters. It displays separate financial inventories and provenance, clears results on reload/filter/tenant changes and guards late responses. Historical observations can differ from fresh totals; neither call runs repair or queries source databases. Repairs commit per aggregate, not through a distributed transaction; source snapshots are separate and late changes require rechecking. Lost historical originals are gaps, and observed completeness is not a settlement watermark. The joined financial portal acceptance topology adds disposable identity/broker infrastructure, six independent owning databases and five HTTP hosts (Platform Directory, Authorization, Restaurant, Reporting and Customer BFF). Order/Payment repositories create synthetic retained evidence; test-owned dispatchers and actual Reporting consumers deliver it, and the existing CLI records checks. Browser fault injection uses an owned loopback TCP proxy, with bounded evidence and verified teardown. No persistence ownership changes. See [joined runbook](../Deployment/Financial-Completeness-Portal-Acceptance.md). See [ADR-019](Decisions/ADR-019-scoped-financial-completeness.md), [API](../API/Financial-Reporting-Completeness.md) and [operations](../Deployment/Financial-Reporting-Recovery.md). Joined acceptance exposed and fixes Reporting's missing Restaurant hierarchy in customer permission evaluation. A dedicated Reporting workload client reads branch scope, Application validates ownership, and the customer decision includes the restaurant/branch hierarchy without widening grants. Restaurant accepts this identity only on the scope endpoint; deploy the explicit client/audience and Reporting dependency configuration together.
+Payment 10 and Reporting 20 (minimum application 0.23.0), with Order 11, add immutable original refund publications/replay audits and scoped financial completeness observations. The privileged recovery CLI calls independently owned Infrastructure adapters; Reporting compares source contracts with a repeatable-read local inventory and exposes the latest exact-window recorded result through live sales authorization. The Customer BFF adds a read-only forwarding route with protected tenant/session and live membership checks; the Customer Portal Sales report requests fresh totals and recorded observations independently for identical closed UTC filters. It displays separate financial inventories and provenance, clears results on reload/filter/tenant changes and guards late responses. Historical observations can differ from fresh totals; neither call runs repair or queries source databases. Repairs commit per aggregate, not through a distributed transaction; source snapshots are separate and late changes require rechecking. Lost historical originals are gaps, and observed completeness is not a settlement watermark. The joined financial portal acceptance topology adds disposable identity/broker infrastructure, six independent owning databases and five HTTP hosts (Platform Directory, Authorization, Restaurant, Reporting and Customer BFF). Order/Payment repositories create synthetic retained evidence; test-owned dispatchers and actual Reporting consumers deliver it, and the existing CLI records checks. Browser fault injection uses an owned loopback TCP proxy, with bounded evidence and verified teardown. No persistence ownership changes. See [joined runbook](../Deployment/Financial-Completeness-Portal-Acceptance.md). See [ADR-019](Decisions/ADR-019-scoped-financial-completeness.md), [API](../API/Financial-Reporting-Completeness.md) and [operations](../Deployment/Financial-Reporting-Recovery.md). Joined acceptance exposed and fixes Reporting's missing Restaurant hierarchy in customer permission evaluation. A dedicated Reporting workload client reads branch scope, Application validates ownership, and the customer decision includes the restaurant/branch hierarchy without widening grants. Restaurant accepts this identity only on scope and business-calendar metadata endpoints; deploy the explicit client/audience and Reporting dependency configuration together.
 
 Order migration 11 retains immutable receipt-backed `order.sale-completed.v1` publications and operator-attributed replay audit in its transaction/outbox boundary. Reporting 19 atomically projects sales/payment facts, event hashes and checkpoints through an opt-in durable consumer. Provider intent and manual settlement identities are explicit; original Order/receipt time and pricing survive retries. Bounded scoped replay/reconciliation is implemented; global completeness and settlement accounting remain open. See [contract and rollout](../API/Sale-Financial-Reporting.md) and [ADR-018](Decisions/ADR-018-receipt-backed-sale-projection.md).
 
@@ -88,7 +90,7 @@ The detailed restaurant domains, branch-edge topology, offline failure model, ki
 8. **Incremental microservices** â€” avoid splitting services until a clear deployment, scaling, ownership, or reliability requirement exists.
 9. **Branch resilience** â€” restaurant ordering, kitchen routing, cash payment, and receipt printing must not depend on continuous WAN connectivity.
 10. **One order lifecycle** â€” POS, waiter, kiosk, and customer QR channels converge into the same Ordering capability.
-11. **Reporting projections** â€” reporting consumes business events and never becomes a cross-service transactional query layer.
+11. **Reporting projections** â€” Reporting consumes business events into owned projections. Read-only reconciliation may combine independently authorized owning-service API summaries; it never joins operational databases or establishes a distributed financial transaction.
 12. **Domain-driven design** â€” bounded contexts own their language, models, persistence, and integration contracts; tactical patterns are applied where business complexity justifies them.
 
 ## 3. High-level architecture
@@ -124,6 +126,11 @@ flowchart TB
     GW --> KITCHEN[Kitchen Service]
     GW --> POSSVC[POS Service]
     GW --> DIRECTORY[Platform Directory]
+    GW --> REPORTING[Reporting Service]
+    REPORTING -->|Customer-authorized day reads| ORDER
+    REPORTING -->|Customer-authorized day reads| PAYMENT
+    REPORTING -->|Customer-authorized day reads| POSSVC
+    REPORTING -->|Workload calendar metadata| RESTAURANT[Restaurant Service]
 
     ORDER --> BUS[(RabbitMQ)]
     ORDER --> KITCHEN
@@ -131,6 +138,7 @@ flowchart TB
     PAYMENT --> BUS
     POSSVC --> BUS
     BUS --> NOTIFY[Notification Service]
+    BUS --> REPORTING
 
     CATALOG --> CATALOGDB[(Catalog DB)]
     INVENTORY --> INVENTORYDB[(Inventory DB)]
@@ -140,6 +148,8 @@ flowchart TB
     KITCHEN --> KITCHENDB[(Kitchen DB)]
     POSSVC --> POSDB[(POS DB)]
     DIRECTORY --> DIRECTORYDB[(Platform Directory DB)]
+    REPORTING --> REPORTINGDB[(Reporting DB)]
+    RESTAURANT --> RESTAURANTDB[(Restaurant DB)]
 
     POS --> SQLITE[(Local SQLite)]
 ```
@@ -324,6 +334,10 @@ Its durable integration slice owns `NotificationRequestedV1` consumption, inbox/
 ### 5.11 Data Generation Tool
 
 `NexaConnect.DataGeneration` imports deterministic CSV sample-data packages into one service-owned database at a time only when an explicitly named Development or test environment is configured. Repository SQL sample inserts are not supported; CSV imports require the owning service's restricted runtime credentials and cannot target reserved operational tables.
+
+### 5.12 Reporting Service
+
+Reporting owns event-derived financial/activity projections and immutable exact-window completeness observations. Its end-of-day Application use case also obtains current branch timezone/currency from Restaurant and customer-authorized branch summaries from Order, Payment and POS. Each source retains its own persistence and financial permissions; Reporting has no operational database credentials. Independent local snapshots and observation times remain a read-only draft, never a settlement cutoff or distributed transaction. Mixed currencies and dependency failures reject the whole draft. Recorded checks remain historical even when aggregate totals match. See the end-of-day contract linked above for time bases, deadlines, issues and verification limitations.
 
 ## 6. Internal service layout
 
@@ -638,7 +652,7 @@ Each service should be independently buildable, configurable, deployable, and ro
 8. Test the slice through WAN loss, restart, retry, duplication, and recovery scenarios.
 9. Add QR ordering after its online and offline availability requirements are decided.
 10. Add kiosk ordering after its device, payment, peripheral, and offline requirements are decided.
-11. Add reporting projections and validate replay, reconciliation, and data freshness.
+11. Reporting projections, bounded replay/completeness checks and the single-branch end-of-day read draft are implemented. Validate joined owning-host/identity acceptance next; durable settlement approval, locking and verified cutoffs remain planned.
 12. Expand Menu, Inventory, Payment, Customer, Media, and Notification capabilities incrementally.
 
 ## 17. Architecture decisions to document later

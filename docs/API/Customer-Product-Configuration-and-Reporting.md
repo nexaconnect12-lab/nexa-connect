@@ -1,5 +1,7 @@
 # Customer product configuration, reporting, and media
 
+The Customer Portal adds a read-only end-of-day draft through `/bff/customer/reports/end-of-day` and the Reporting organization route. A completed local business date uses Restaurant-owned timezone metadata; customer-authorized Order/Payment/POS reads supply source amounts and unresolved work, alongside separate Reporting projection/check evidence. No settlement approval or repair occurs. See [contract and owning permissions](End-Of-Day-Draft.md).
+
 Restaurant configuration now includes taxPercent and taxInclusive, plus currency in reads. PUT omits tax fields to preserve them; explicit zero/false resets them. Rates support at most two decimals. These settings affect newly confirmed THB checkout only; historical orders preserve accepted prices. See [pricing contract and rollout](Order-Pricing.md).
 
 BFF routes require an authenticated Customer session. The BFF derives `organizationId` from its protected active `nexa_connect` tenant selection, forwards the server-held bearer token, query/body, status, and JSON, and never accepts organization from browser input. Missing context returns `401`; owning-service denial returns `403`; dependency/database failures propagate.

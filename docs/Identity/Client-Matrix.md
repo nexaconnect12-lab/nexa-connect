@@ -14,7 +14,7 @@ Paid receipt retrieval reuses the WPF POS public client and existing `order.read
 | `nexaconnect-pos` | NexaConnect | Public | Authorization Code + PKCE S256 | `nexaconnect-pos://oauth/callback` |
 | `platform-admin-bff` | Shared platform | Confidential | Authorization Code | Shared-platform value; local fixture uses `https://localhost:58627/signin-oidc` |
 | `platform-directory-admin` | Shared platform directory | Confidential service account | Client Credentials | None |
-| `nexaconnect-reporting-service` | Reporting | Confidential service account | Client Credentials; Restaurant branch scope only | None |
+| `nexaconnect-reporting-service` | Reporting | Confidential service account | Client Credentials; Restaurant branch scope and business calendar only | None |
 | Workload clients (`nexaconnect-*-service`, including Kitchen and Media) | Owning workload | Confidential | Client Credentials | None |
 
 ## Rules
@@ -44,7 +44,7 @@ The Cash Review workspace reuses this same `nexaconnect-pos` user token. Authori
 
 Existing realms need an explicit reviewed update for the POS workload API audience mapper and a fresh workload token (or cached-token expiry). Restarting Keycloak does not re-import an existing realm; token validation is unchanged.
 
-Reporting's workload token permits Restaurant branch authorization-scope lookup through `BranchScopeReader`; generic `ServiceWorkload` APIs continue to exclude it. It emits the `nexaconnect-api` audience and uses the distinct `NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET`. Customer report authorization still uses the customer bearer and a full organization/restaurant/branch decision. Provision this client and mapper explicitly in existing persisted realms before deploying corrected Reporting reads; see [Reporting configuration](../../src/Services/NexaConnect.Services.Reporting/README.md).
+Reporting's workload token permits Restaurant branch authorization-scope and business-calendar lookup through `BranchScopeReader`; generic `ServiceWorkload` APIs continue to exclude it. It emits the `nexaconnect-api` audience and uses the distinct `NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET`. Customer report authorization still uses the customer bearer and a full organization/restaurant/branch decision. Provision this client and mapper explicitly in existing persisted realms before deploying corrected Reporting reads; see [Reporting configuration](../../src/Services/NexaConnect.Services.Reporting/README.md).
 
 The [hosted refund acceptance gate](../Deployment/Hosted-Refund-Acceptance.md) uses generated disposable identity/infrastructure and existing service-owned schemas. Simulator evidence and the credentialed Omise test-account gate are separate from production readiness. The acceptance-only password-grant client and fixture approval limits do not change production provisioning.
 

@@ -8,7 +8,7 @@ public sealed class PostgresAuthorizationScopeReader(NpgsqlDataSource dataSource
     public async Task<AuthorizationScope?> GetAsync(Guid branchId, CancellationToken cancellationToken)
     {
         const string sql = """
-            SELECT restaurant.organization_id, restaurant.id, branch.id
+            SELECT restaurant.organization_id, restaurant.id, branch.id, branch.time_zone, btrim(branch.currency)
             FROM branches branch
             JOIN restaurants restaurant ON restaurant.id = branch.restaurant_id
             WHERE branch.id = $1 AND branch.status = 'active' AND restaurant.status = 'active';
@@ -18,7 +18,7 @@ public sealed class PostgresAuthorizationScopeReader(NpgsqlDataSource dataSource
         command.Parameters.AddWithValue(branchId);
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken)
-            ? new AuthorizationScope(reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2))
+            ? new AuthorizationScope(reader.GetGuid(0), reader.GetGuid(1), reader.GetGuid(2), reader.GetString(3), reader.GetString(4))
             : null;
     }
 }

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Services.Payment.Application.Tenant;
 using NexaConnect.Infrastructure.Authorization;
+using NexaConnect.Contracts.Platform;
 
 namespace NexaConnect.Services.Payment.Infrastructure;
 
@@ -11,6 +12,24 @@ public sealed class HttpPaymentTenantAuthorizer(
     IServiceWorkloadTokenProvider tokens,
     ProductAuthorizationClient authorization) : IPaymentTenantAuthorizer
 {
+    public async Task<bool> CanReadBranchFinancialsAsync(Guid organizationId, Guid restaurantId, Guid branchId,
+        string authorizationHeader, CancellationToken ct)
+    {
+        if (organizationId == Guid.Empty || restaurantId == Guid.Empty || branchId == Guid.Empty
+            || !AuthenticationHeaderValue.TryParse(authorizationHeader, out var bearer) || !bearer.Scheme.Equals("Bearer", StringComparison.OrdinalIgnoreCase)) return false;
+        using var access = new HttpRequestMessage(HttpMethod.Get, $"api/platform-directory/v1/organizations/{organizationId:D}/access");
+        access.Headers.Authorization = bearer;
+        using var accessResponse = await clients.CreateClient("PaymentPlatformDirectory").SendAsync(access, ct);
+        if (!accessResponse.IsSuccessStatusCode) return false;
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"api/restaurant/v1/branches/{branchId:D}/authorization-scope");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await tokens.GetAsync(ct));
+        using var response = await clients.CreateClient("PaymentRestaurant").SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        var scope = await response.Content.ReadFromJsonAsync<BranchScope>(cancellationToken: ct);
+        return scope is not null && scope.OrganizationId == organizationId && scope.RestaurantId == restaurantId && scope.BranchId == branchId
+            && await authorization.IsGrantedAsync(organizationId, restaurantId, branchId, ProductPermissions.PaymentIntentRead, authorizationHeader, ct)
+            && await authorization.IsGrantedAsync(organizationId, restaurantId, branchId, ProductPermissions.PaymentRefundRead, authorizationHeader, ct);
+    }
     public async Task<bool> CanAccessAsync(Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, string permission,
         string authorizationHeader, CancellationToken cancellationToken) =>
         (await DecideAsync(organizationId, restaurantId, branchId, orderId, permission, authorizationHeader, cancellationToken)).Granted;

@@ -4,6 +4,8 @@ namespace NexaConnect.Services.Payment.Application.Tenant;
 
 public interface IPaymentTenantAuthorizer
 {
+    Task<bool> CanReadBranchFinancialsAsync(Guid organizationId, Guid restaurantId, Guid branchId,
+        string authorizationHeader, CancellationToken cancellationToken) => Task.FromResult(false);
     Task<bool> CanAccessAsync(Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId, string permission,
         string authorizationHeader, CancellationToken cancellationToken);
     async Task<PaymentAccessDecision> DecideAsync(Guid organizationId, Guid restaurantId, Guid branchId, Guid orderId,

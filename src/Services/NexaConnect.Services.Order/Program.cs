@@ -117,8 +117,14 @@ if (builder.Configuration.GetValue<bool>("WorkflowRecovery:Enabled"))
     builder.Services.AddHostedService<OrderWorkflowRecoveryWorker>();
 }
 
+if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
+{
+    builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.IOrderDayReader, NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderDayReader>();
+}
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderDayRead>();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
+app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/order/v1/customer/end-of-day", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

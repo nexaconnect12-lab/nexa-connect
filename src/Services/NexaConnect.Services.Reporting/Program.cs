@@ -40,8 +40,20 @@ builder.Services.AddHttpClient<ICashCloseAccess, HttpCashCloseAccess>(c => { c.B
 if (builder.Configuration.GetValue<bool>("CashCloseConsumer:Enabled")) builder.Services.AddHostedService<CashCloseConsumer>();
 if (builder.Configuration.GetValue<bool>("PaymentRefundConsumer:Enabled")) builder.Services.AddHostedService<PaymentRefundFinancialConsumer>();
 if (builder.Configuration.GetValue<bool>("OrderSaleConsumer:Enabled")) builder.Services.AddHostedService<OrderSaleFinancialConsumer>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<EndOfDayDraft>();
+builder.Services.AddScoped<IEndOfDaySources, HttpEndOfDaySources>();
+foreach (string service in new[] { "Order", "Payment", "POS" })
+{
+    builder.Services.AddHttpClient("EndOfDay" + service, c =>
+    {
+        c.BaseAddress = new Uri(builder.Configuration["Services:" + service] ?? throw new InvalidOperationException("Services:" + service + " is required."));
+        c.Timeout = TimeSpan.FromSeconds(15);
+    }).AddNexaConnectCorrelationPropagation();
+}
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
+app.Use(async (context, next) => { if (context.Request.Path.Value?.EndsWith("/reports/end-of-day", StringComparison.OrdinalIgnoreCase) == true) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
 app.UseAuthentication();

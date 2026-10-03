@@ -1,8 +1,10 @@
 # NexaConnect Restaurant POS Architecture
 
+A single-branch end-of-day reconciliation draft is implemented through Reporting, Customer BFF and Portal. Restaurant owns current timezone/currency, Order owns sale and receipt-tender totals, Payment owns refunds/uncertain financial work, and POS owns current drawer variance/review state. Local completed dates convert to half-open UTC windows; source reads are independently authorized and never distributed settlement transactions. Older unresolved work, missing retained evidence, delayed projections and historical checks remain explicit. Approval/locking, exports and production-like joined acceptance remain planned. See [draft contract](../API/End-Of-Day-Draft.md) and [ADR-020](Decisions/ADR-020-branch-end-of-day-draft.md).
+
 A guarded [hosted refund acceptance gate](../Deployment/Hosted-Refund-Acceptance.md) now exercises real customer authentication, live amount/currency approval limits, Payment HTTP refunds, immutable receipt/audit/outbox boundaries, provider response-loss restart recovery and actual Reporting propagation. Simulator and separately guarded Omise test-account modes retain distinct evidence; checkout/POS and target-production acceptance remain separate. No schema or product permission changes are introduced. Payment receives version-column-only migration-history SELECT for readiness, with checksums/history writes still denied; existing databases require the documented explicit grant. Its existing workload client now explicitly emits the API audience; persisted realms require a reviewed mapper update. Local simulator acceptance passed 17/17 hosted and 6/6 Authorization checks with cleanup on 2026-10-03; the separate 15-case Omise gate is implemented but unexecuted.
 
-Scoped sales/payment/refund reconciliation and original refund-event retention are implemented through Payment 10 / Reporting 20 with Order 11. Attributed replay preserves original financial identity/time; lost older refund originals remain gaps. Immutable exact-window observations are available through a live-authorized Reporting API and the read-only Customer BFF/Portal Sales report. The UI displays source/check timestamps and separate sales/payment/refund gaps for explicit closed UTC windows; loading never runs reconciliation or authorizes settlement. The [joined financial portal harness](../Deployment/Financial-Completeness-Portal-Acceptance.md) exercises real reads, retained synthetic source delivery and operator records; provider, cashier and production acceptance remain separate. See [completeness boundary](../API/Financial-Reporting-Completeness.md) and [ADR-019](Decisions/ADR-019-scoped-financial-completeness.md). Joined acceptance exposed and fixes Reporting's missing Restaurant hierarchy in customer permission evaluation. A dedicated Reporting workload client reads branch scope, Application validates ownership, and the customer decision includes the restaurant/branch hierarchy without widening grants. Restaurant accepts this identity only on the scope endpoint; deploy the explicit client/audience and Reporting dependency configuration together.
+Scoped sales/payment/refund reconciliation and original refund-event retention are implemented through Payment 10 / Reporting 20 with Order 11. Attributed replay preserves original financial identity/time; lost older refund originals remain gaps. Immutable exact-window observations are available through a live-authorized Reporting API and the read-only Customer BFF/Portal Sales report. The UI displays source/check timestamps and separate sales/payment/refund gaps for explicit closed UTC windows; loading never runs reconciliation or authorizes settlement. The [joined financial portal harness](../Deployment/Financial-Completeness-Portal-Acceptance.md) exercises real reads, retained synthetic source delivery and operator records; provider, cashier and production acceptance remain separate. See [completeness boundary](../API/Financial-Reporting-Completeness.md) and [ADR-019](Decisions/ADR-019-scoped-financial-completeness.md). Joined acceptance exposed and fixes Reporting's missing Restaurant hierarchy in customer permission evaluation. A dedicated Reporting workload client reads branch scope, Application validates ownership, and the customer decision includes the restaurant/branch hierarchy without widening grants. Restaurant accepts this identity only on scope and business-calendar metadata endpoints; deploy the explicit client/audience and Reporting dependency configuration together.
 
 Receipt-backed Order sale/payment reporting is implemented through Order 11 and Reporting 19, including durable projection and bounded attributed replay/reconciliation. Refund-time reporting remains separate; original sale evidence never changes on a refund. Global accounting completeness, manual refunds and settlement reconciliation remain planned. See [sale reporting](../API/Sale-Financial-Reporting.md).
 
@@ -66,7 +68,7 @@ flowchart LR
     ORDER[Ordering]
     KITCHEN[Kitchen Execution]
     PAYMENT[Payment]
-    REPORTING[Reporting Projections]
+    REPORTING[Reporting Projections and Day Draft]
 
     POS --> ORDER
     WAITER --> ORDER
@@ -139,7 +141,7 @@ Owns upload lifecycle, image metadata, processing state, generated variants, and
 
 Owns read-optimized projections for sales, payments, tax, shifts, cash, items, categories, order channels, cancellations, voids, and kitchen performance.
 
-Reporting consumes integration events and does not become the owner of operational business facts.
+Reporting consumes integration events and does not become the owner of operational business facts. The end-of-day draft adds authorized owning-service API read orchestration for one branch; operational status and amount authority remain with Order, Payment and POS, while Restaurant owns calendar metadata. The draft remains online-only and does not supply branch-offline reports or settlement approval.
 
 ## 5. Branch-resilient deployment model
 
@@ -150,7 +152,7 @@ flowchart TB
     subgraph Cloud[Cloud platform]
         CLOUDAPI[Cloud Services]
         CLOUDDB[(Service-owned PostgreSQL Databases)]
-        REPORTING[Reporting Projections]
+        REPORTING[Reporting Projections and Day Draft]
         IDP[Shared Identity Platform]
     end
 
@@ -174,6 +176,7 @@ flowchart TB
     EDGE <-->|Outbox, synchronization and acknowledgements| CLOUDAPI
     CLOUDAPI --> CLOUDDB
     CLOUDAPI -. Events .-> REPORTING
+    REPORTING -->|Authorized day-summary and calendar API reads| CLOUDAPI
     CLOUDAPI -. OIDC and OAuth 2.0 .-> IDP
 ```
 
@@ -292,6 +295,8 @@ Kiosk requirements:
 The implementation platform remains undecided. A Windows-native client is appropriate when deep payment-terminal, printer, scanner, or device-control integration is required. A browser or PWA remains an option for simpler hardware profiles.
 
 ## 12. Reporting architecture
+
+The implemented end-of-day draft combines current authorized Order/Payment/POS API summaries with Reporting-owned projections and recorded checks. Restaurant supplies current branch timezone/currency. Completed branch-local days become half-open UTC windows; unsupported midnight/date-line histories fail closed. Order creation-time sales, receipt Paid-time tenders, refund completion-time totals and drawer close-time variance retain distinct meanings. Current unresolved work originating before day end includes older items; this is not a historical midnight reconstruction. Each owner controls scope, permissions and local snapshots. Source unavailability rejects the whole draft, and matching totals or historical checks never certify settlement. Approval/locking and verified cutoffs remain planned. See [draft contract](../API/End-Of-Day-Draft.md).
 
 Operational recovery now includes a manifest-pinned retained-event replay CLI and POS-7 append-only run/attempt audit. Original snapshot identities and source cash/checkpoints remain unchanged. The disposable process/broker recovery runner and backlog/retry alerts are implemented; local Windows recovery/restricted replay and synthetic alert evaluation passed on 2026-09-24. Remote CI, production acceptance and receiver delivery remain release gates. See [evidence](Evidence/Cash-Close-Recovery-Acceptance.md). See [recovery procedure and authority](../Deployment/Cash-Close-Recovery.md).
 

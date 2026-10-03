@@ -1,3 +1,4 @@
+import { EndOfDayPanel } from "./EndOfDayPanel";
 import { SalesReportPanel } from "./SalesReportPanel";
 import { CashCloseReportPanel } from "./CashCloseReportPanel";
 import { KitchenQueuePanel } from "./KitchenQueuePanel";
@@ -250,7 +251,7 @@ function FeaturePanel({
 }: {
   section: Exclude<
     PortalSection,
-    "profile" | "products" | "users" | "configuration" | "branches" | "dashboards" | "reports" | "media" | "activity" | "payment-reviews" | "kitchen" | "cash-close-reports"
+    "profile" | "products" | "users" | "configuration" | "branches" | "dashboards" | "reports" | "media" | "activity" | "payment-reviews" | "kitchen" | "cash-close-reports" | "end-of-day"
   >;
 }) {
   const state = useRequest<FeatureResponse>(scopedFeaturePath(section));
@@ -306,8 +307,9 @@ function App() {
     "payment-reviews": "Payment Reviews",
     kitchen: "Kitchen queue",
     "cash-close-reports": "Cash-close report",
+    "end-of-day": "End-of-day draft",
   };
-  const nav = sections.filter(key=>(key!=="payment-reviews"&&key!=="kitchen"&&key!=="cash-close-reports")||tenant?.applicationCode==="nexa_connect").map((key) => ({
+  const nav = sections.filter(key=>(key!=="payment-reviews"&&key!=="kitchen"&&key!=="cash-close-reports"&&key!=="end-of-day")||tenant?.applicationCode==="nexa_connect").map((key) => ({
     key,
     label: labels[key],
     onSelect: () => {
@@ -364,6 +366,9 @@ function App() {
     : <Alert type="warning" message="Sales reports require the NexaConnect workspace."/>;
   else if (section === "media") panel = <MediaPanel />;
   else if (section === "activity") panel = <ActivityPanel />;
+  else if (section === "end-of-day") panel = tenant.applicationCode === "nexa_connect"
+    ? <EndOfDayPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} organizationId={tenant.organizationId} />
+    : <Alert type="warning" message="End-of-day drafts require the NexaConnect workspace."/>;
   else if (section === "cash-close-reports") panel = tenant.applicationCode==="nexa_connect"
     ? <CashCloseReportPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} />
     : <Alert type="warning" message="Cash-close reports require the NexaConnect workspace."/>;

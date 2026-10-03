@@ -1,5 +1,7 @@
 # Shared Contracts
 
+`Reporting/EndOfDaySources.cs` contains version-one owning-service read DTOs for an explicit UTC owner/window, tender totals and Order/Payment/POS summaries. It contains no business policy, domain entities or persistence models. Financial amounts and summary bodies are restricted data and never logged. See [end-of-day contract](../../../docs/API/End-Of-Day-Draft.md).
+
 This project contains stable cross-context contracts only. `IntegrationEvents/RestaurantWorkflowEvents.cs` defines versioned events for the first restaurant workflow:
 
 - `OrderSubmittedV1`

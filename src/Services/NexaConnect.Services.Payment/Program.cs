@@ -175,8 +175,14 @@ if (builder.Configuration.GetValue<bool>("OmiseWebhooks:Enabled"))
     builder.Services.AddHostedService<OmiseWebhookWorker>();
 }
 
+if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
+{
+    builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.IPaymentDayReader, NexaConnect.Services.Payment.Infrastructure.PostgresPaymentDayReader>();
+}
+builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.PaymentDayRead>();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
+app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/payment/v1/customer/end-of-day", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

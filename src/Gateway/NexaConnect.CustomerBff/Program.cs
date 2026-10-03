@@ -122,6 +122,8 @@ builder.Services.AddAuthorization(options => options.AddPolicy("CustomerSession"
 
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Reporting.CustomerCashCloseReports>();
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Reporting.CustomerFinancialCompleteness>();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Reporting.CustomerEndOfDay>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Reporting.ICustomerEndOfDayPort, NexaConnect.CustomerBff.Infrastructure.Reporting.HttpCustomerEndOfDayPort>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:Reporting"] ?? throw new InvalidOperationException("Services:Reporting is required.")); c.Timeout = TimeSpan.FromSeconds(30); }).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Reporting.ICustomerFinancialCompletenessPort, NexaConnect.CustomerBff.Infrastructure.Reporting.HttpCustomerFinancialCompletenessPort>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:Reporting"] ?? throw new InvalidOperationException("Services:Reporting is required.")); c.Timeout = TimeSpan.FromSeconds(20); }).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Reporting.ICustomerCashClosePort, NexaConnect.CustomerBff.Infrastructure.Reporting.HttpCustomerCashClosePort>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:Reporting"] ?? throw new InvalidOperationException("Services:Reporting is required.")); c.Timeout = TimeSpan.FromSeconds(20); }).AddNexaConnectCorrelationPropagation();
 var app = builder.Build();
@@ -130,7 +132,7 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/bff/customer/reports/financial-completeness", StringComparison.OrdinalIgnoreCase))
+    if ((context.Request.Path.StartsWithSegments("/bff/customer/reports/financial-completeness", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/reports/end-of-day", StringComparison.OrdinalIgnoreCase)))
         context.Response.Headers.CacheControl = "no-store";
     context.Response.Headers.ContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
     context.Response.Headers.XContentTypeOptions = "nosniff";

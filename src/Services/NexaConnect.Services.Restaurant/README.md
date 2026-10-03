@@ -1,5 +1,7 @@
 # Restaurant Service
 
+`GET /api/restaurant/v1/branches/{branchId}/business-calendar` returns active owner IDs and current configured timezone/currency under the same `BranchScopeReader` workload policy. Reporting uses its existing dedicated workload client; this gives no financial command or generic mutation access. The authorization-scope HTTP response remains its original three IDs. Calendar reads use no-store responses and existing `nexaconnect-restaurant` request/correlation telemetry. No schema or identity provisioning change is added. See [end-of-day contract](../../../docs/API/End-Of-Day-Draft.md).
+
 Branch configuration now includes taxPercent/taxInclusive and currency in reads; omitted tax fields preserve existing settings. The exact Order-workload pricing route returns only active THB branch settings within the requested organization. Existing configuration versions and audit/outbox apply; no new Restaurant schema is required. Service name: nexaconnect-restaurant; query logs for Branch pricing. See [pricing contract and rollout](../../../docs/API/Order-Pricing.md).
 
 Owns restaurant and branch hierarchy used by tenant authorization. Operational telemetry uses service name `nexaconnect-restaurant`; request logs exclude query strings, bodies, authorization headers, cookies, and arbitrary headers.

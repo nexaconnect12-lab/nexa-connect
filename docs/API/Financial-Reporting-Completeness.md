@@ -1,5 +1,7 @@
 # Scoped financial reporting completeness
 
+The [end-of-day draft](End-Of-Day-Draft.md) reads the latest exact-window observation alongside independent fresh source summaries and flags every recorded result as historical. It never invokes the privileged check/record/replay paths and cannot certify settlement from aggregate matches.
+
 Payment 10 and Reporting 20 (minimum application 0.23.0), with Order 11, add original refund-event retention, attributed replay and combined sales/payment/refund reconciliation. This is a bounded observation of available source evidence, not a financial certification or durable completeness watermark. See [ADR-019](../Architecture/Decisions/ADR-019-scoped-financial-completeness.md) and the [recovery runbook](../Deployment/Financial-Reporting-Recovery.md).
 
 ## Evidence and time boundaries
