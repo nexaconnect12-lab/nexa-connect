@@ -42,8 +42,21 @@ public sealed class PostgresOrderDayReader(NpgsqlDataSource source) : IOrderDayR
         Add(tenders, window); var totals = new List<TenderTotal>();
         await using (var rows = await tenders.ExecuteReaderAsync(ct))
             while (await rows.ReadAsync(ct)) totals.Add(new(rows.GetString(0), rows.GetString(1), rows.GetDecimal(2)));
+        await using var evidence=new NpgsqlCommand("""
+            SELECT jsonb_build_array(o.id,o.status,o.created_at_utc,o.completed_at_utc,o.updated_at_utc,
+              o.total_amount,o.currency,o.receipt_snapshot,p.event_id,p.payload)::text
+            FROM orders o LEFT JOIN order_sale_publications p ON p.order_id=o.id
+            WHERE o.organization_id=$1 AND o.restaurant_id=$2 AND o.branch_id=$3
+              AND ((o.created_at_utc<$5 AND o.status NOT IN ('completed','cancelled'))
+                OR (o.status='completed' AND ((o.created_at_utc>=$4 AND o.created_at_utc<$5)
+                OR ((o.receipt_snapshot->>'PaidAtUtc')::timestamptz>=$4 AND (o.receipt_snapshot->>'PaidAtUtc')::timestamptz<$5))))
+            ORDER BY o.id LIMIT 10001
+            """,connection,transaction);
+        Add(evidence,window);
+        string? version=await NexaConnect.Infrastructure.Persistence.BoundedEvidenceHash.ReadAsync(evidence,
+            $"order-day-v1|{window.OrganizationId:D}|{window.RestaurantId:D}|{window.BranchId:D}|{window.FromUtc.UtcTicks}|{window.ToUtc.UtcTicks}",ct);
         await transaction.CommitAsync(ct);
-        return new(window, DateTimeOffset.UtcNow, gross, completed, unresolved, gaps, totals, currencies);
+        return new(window, DateTimeOffset.UtcNow, gross, completed, unresolved, gaps, totals, currencies,version);
     }
     private static void Add(NpgsqlCommand command, EndOfDayWindow window)
     {

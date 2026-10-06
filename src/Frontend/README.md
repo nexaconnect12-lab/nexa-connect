@@ -1,5 +1,9 @@
 # NexaConnect frontend foundations
 
+The [joined day-close suite](e2e/day-close-live/README.md) implements eleven real-OIDC scenarios through the guarded disposable launcher. Run `npm run test:day-close:guards` for its four configuration/evidence checks; `test:e2e:day-close:live` requires the complete launcher environment and runner-owned POS restart control. Local Windows acceptance passed eleven browser and six Authorization persistence cases without skips/retries, with verified cleanup on 2026-10-06; remote CI and production acceptance remain separate.
+
+Day-close preparation browser contracts run with `npm run test:e2e:day-close`. The actual Customer Portal uses synthetic BFF replies to verify CSRF/version/operation payloads, readiness invalidation, accountant controls, uncertain replay, restart-resume and stale filter/tenant/malformed response handling. See [scope and verification](../../docs/Deployment/Day-Close-Preparation.md); live joined preparation acceptance remains separate.
+
 The [joined financial suite](e2e/financial-completeness-live/README.md) adds real OIDC/BFF/Reporting validation through the disposable launcher. Run `npm run test:financial-completeness:guards` for fail-closed settings/evidence checks; live execution requires that launcher environment.
 
 Financial completeness browser contracts run with `npm run test:e2e:financial-completeness`. The Customer Sales report displays recorded reconciliation status, provenance and separate financial inventories using the same explicit closed UTC filters as fresh totals. It clears stale evidence on filters/tenant/reload/denial and sends no financial mutation. See [test setup and evidence boundaries](e2e/financial-completeness/README.md).

@@ -25,7 +25,8 @@ string stage="options";
 try
 {
     var options=FixtureOptions.Read();
-    if(args.Length!=1 || args[0] is not ("provision" or "record" or "deliver" or "revoke" or "revoke-source" or "membership")) return 2;
+    if(args.Length!=1 || args[0] is not ("provision" or "record" or "deliver" or "revoke" or "revoke-source" or "membership" or "resolve-day-close" or "same-total-evidence" or "late-cash" or "approve-cash" or "preparation-proof" or "stop-pos" or "start-pos" or "revoke-day-close-read" or "revoke-day-close-prepare" or "revoke-manager-source" or "restore-manager-source" or "membership-second")) return 2;
+    if(args[0] is not("provision" or "record" or "deliver" or "revoke" or "revoke-source" or "membership") && !options.DayClose)return 2;
     using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(3));var ct=timeout.Token;
     await using var platformDb=NpgsqlDataSource.Create(options.Connection("platform"));
     await using var restaurantDb=NpgsqlDataSource.Create(options.Connection("restaurant"));
@@ -52,7 +53,7 @@ try
         foreach(Guid id in new[]{org.OrganizationId,other.OrganizationId})
         {
             if(!await platform.ChangeProductAccessAsync(id,new("nexa_connect","enabled"),actor,ct))throw new InvalidOperationException();
-            foreach(string subject in new[]{options.Reader,options.Resolver})
+            foreach(string subject in options.Subjects)
                 if(!await platform.ChangeMembershipAsync(id,subject,new(subject,"active"),actor,ct))throw new InvalidOperationException();
         }
         var restaurant=new RestaurantProvisioningService(restaurantRepository);
@@ -62,6 +63,7 @@ try
         var assignments=new AuthorizationAssignmentService(assignmentsRepository);
         await assignments.AssignAsync(new(options.Reader,org.OrganizationId,r.RestaurantId,branch.BranchId,"accountant"),actor,ct);
         await assignments.AssignAsync(new(options.Resolver,org.OrganizationId,r.RestaurantId,null,"store-manager"),actor,ct);
+        if(options.DayClose)await assignments.AssignAsync(new(options.SecondManager!,org.OrganizationId,r.RestaurantId,null,"store-manager"),actor,ct);
         stage="retained-sources";
         bool day=options.EndOfDay;
         var zone=TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
@@ -88,6 +90,7 @@ try
         // UI has minute precision: close the window only after the retained sources exist.
         if(day)
         {
+            if(!options.DayClose){
             intents.Create(org.OrganizationId,new(r.RestaurantId,branch.BranchId,Guid.NewGuid(),Guid.NewGuid().ToString("D"),20,"THB","card"),context);
             var uncertain=refunds.Begin(org.OrganizationId,intent.Id,new(Guid.NewGuid(),10,"THB","customer_request",Guid.NewGuid()),context);
             refunds.Complete(org.OrganizationId,uncertain.Refund.Id,uncertain.Refund.ConcurrencyVersion,ProviderRefundOutcome.Unknown,null,null,context);
@@ -95,9 +98,10 @@ try
             pending.Submit();pending.MarkInventoryReserved();pending.MarkKitchenAccepted();await orders.SaveAsync(pending,ct);
             await store.SetUnpaidOrderTimeAsync(orderDb,pending.Id,from.AddDays(-1),ct);
 
+            }
             await using var posDb=NpgsqlDataSource.Create(options.Connection("pos"));
-            await store.CreateHistoricalCashAsync(posDb,r.RestaurantId,branch.BranchId,options.Resolver,from,ct);
-            var dayState=new FixtureState(options.RunId,org.OrganizationId,other.OrganizationId,r.RestaurantId,branch.BranchId,denied.BranchId,from,until,businessDate.ToString("yyyy-MM-dd"));
+            var posIds=await store.CreateHistoricalCashAsync(posDb,r.RestaurantId,branch.BranchId,options.Resolver,from,ct);
+            var dayState=new FixtureState(options.RunId,org.OrganizationId,other.OrganizationId,r.RestaurantId,branch.BranchId,denied.BranchId,from,until,businessDate.ToString("yyyy-MM-dd"),options.DayClose?posIds:null);
             await File.WriteAllTextAsync(options.StatePath,JsonSerializer.Serialize(dayState,json),ct);
             return 0;
         }
@@ -112,6 +116,7 @@ try
         var state=JsonSerializer.Deserialize<FixtureState>(await File.ReadAllTextAsync(options.StatePath,ct),json)??throw new InvalidOperationException();
         if(state.RunId!=options.RunId||state.OrganizationId==Guid.Empty||state.BranchId==Guid.Empty)throw new InvalidOperationException();
         stage=args[0];
+        if(options.DayClose && await DayCloseFixture.ExecuteAsync(options,state,args[0],authorizationDb,platform,ct))return 0;
         if(args[0]=="revoke")await store.RevokeReadAsync(options.Reader,ct);
         else if(args[0]=="revoke-source")
         {
@@ -162,11 +167,14 @@ try
 }
 catch(Exception exception){Console.Error.WriteLine($"Financial portal fixture failed at {stage} ({exception.GetType().Name}, SQLSTATE={(exception as PostgresException)?.SqlState??"none"}); sensitive details suppressed.");return 1;}
 
-internal sealed record FixtureState(string RunId,Guid OrganizationId,Guid OtherOrganizationId,Guid RestaurantId,Guid BranchId,Guid DeniedBranchId,DateTimeOffset FromUtc,DateTimeOffset ToUtc,string? BusinessDate=null);
+internal sealed record FixtureState(string RunId,Guid OrganizationId,Guid OtherOrganizationId,Guid RestaurantId,Guid BranchId,Guid DeniedBranchId,DateTimeOffset FromUtc,DateTimeOffset ToUtc,string? BusinessDate=null,PosFixtureIds? Pos=null);
 internal sealed class FixtureClock(DateTimeOffset now):TimeProvider { public override DateTimeOffset GetUtcNow()=>now; }
 internal sealed record FixtureOptions(string RunId,string Reader,string Resolver,string StatePath)
 {
     private static string Required(string key)=>Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_"+key)??throw new ArgumentException();
+    public bool DayClose=>Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_DAY_CLOSE")=="1";
+    public string? SecondManager=>DayClose?Required("SECOND_MANAGER_SUBJECT"):null;
+    public IEnumerable<string> Subjects=>DayClose?[Reader,Resolver,SecondManager!]:[Reader,Resolver];
     public bool EndOfDay=>Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_END_OF_DAY")=="1";
     public static FixtureOptions Read()
     {
@@ -176,7 +184,9 @@ internal sealed record FixtureOptions(string RunId,string Reader,string Resolver
         if(!Guid.TryParse(reader,out _)||!Guid.TryParse(resolver,out _)||reader==resolver)throw new ArgumentException();
         string path=Path.GetFullPath(Required("STATE_PATH"));
         if(Path.GetFileName(path)!="fixture.json"||new DirectoryInfo(Path.GetDirectoryName(path)!).Name!=run)throw new ArgumentException();
-        return new(run,reader,resolver,path);
+        var options=new FixtureOptions(run,reader,resolver,path);
+        if(options.DayClose && (!options.EndOfDay || !Guid.TryParse(options.SecondManager,out var other) || other==Guid.Parse(reader) || other==Guid.Parse(resolver)))throw new ArgumentException();
+        return options;
     }
     public string Connection(string suffix)
     {

@@ -51,9 +51,12 @@ if (builder.Configuration.GetValue<bool>("CashClosePublication:Enabled") || buil
 if (builder.Configuration.GetValue<bool>("Outbox:Enabled")) NexaConnect.Infrastructure.Messaging.OutboxServiceCollectionExtensions.AddPostgresOutbox(builder.Services, builder.Configuration, "POS");
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.PosDayRead>();
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPosDayReader, NexaConnect.Services.POS.Infrastructure.Persistence.PostgresPosDayReader>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IDayCloseStore, NexaConnect.Services.POS.Infrastructure.DayClose.PostgresDayCloseStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayClosePreparation>();
+builder.Services.AddHttpClient<NexaConnect.Services.POS.Application.DayClose.IDayCloseEvidenceReader, NexaConnect.Services.POS.Infrastructure.DayClose.HttpDayCloseEvidenceReader>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:Reporting"] ?? "https://reporting.invalid/"); c.Timeout = TimeSpan.FromSeconds(15); }).AddNexaConnectCorrelationPropagation();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
-app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/pos/v1/customer/end-of-day", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
+app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/pos/v1/customer", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing"))

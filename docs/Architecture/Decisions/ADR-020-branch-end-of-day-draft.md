@@ -23,3 +23,7 @@ No migration, new product permission or expanded role is introduced. Reporting g
 ## Validation follow-up — 2026-10-03
 
 The [joined disposable acceptance gate](../../Deployment/End-Of-Day-Portal-Acceptance.md) is now implemented for actual OIDC, owning-service read APIs, retained-event delivery and live revocation. The preceding follow-up list records the original draft decision. Repository historical clock inputs and fixture-only initial POS snapshots do not change production clocks, financial contracts or persistence ownership. [Execution evidence](../Evidence/End-Of-Day-Joined-Acceptance.md) is separate from settlement approval/locking and target-production acceptance.
+
+## Preparation follow-up — 2026-10-03
+
+[ADR-021](ADR-021-branch-day-close-preparation.md) adds POS-owned durable preparation while preserving this Reporting read boundary. Owner totals and newly added bounded fingerprints now share local repeatable-read transactions in Order, Payment and POS; this supersedes the statement-only Payment/POS snapshot description above. POS preparation GET may invalidate its own Ready record and append audit; Reporting GET still creates no preparation or financial state.

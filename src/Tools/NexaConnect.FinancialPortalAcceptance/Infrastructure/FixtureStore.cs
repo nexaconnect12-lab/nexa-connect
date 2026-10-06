@@ -12,7 +12,7 @@ internal sealed class FixtureStore(NpgsqlDataSource authorization,NpgsqlDataSour
         command.Parameters.AddWithValue(at);command.Parameters.AddWithValue(id);
         if(await command.ExecuteNonQueryAsync(ct)!=1)throw new InvalidOperationException();
     }
-    public async Task CreateHistoricalCashAsync(NpgsqlDataSource pos,Guid restaurant,Guid branch,string subject,DateTimeOffset from,CancellationToken ct)
+    public async Task<PosFixtureIds> CreateHistoricalCashAsync(NpgsqlDataSource pos,Guid restaurant,Guid branch,string subject,DateTimeOffset from,CancellationToken ct)
     {
         // Fresh synthetic historical snapshot, never a rewrite of existing financial history.
         await using var connection=await pos.OpenConnectionAsync(ct);
@@ -26,11 +26,12 @@ internal sealed class FixtureStore(NpgsqlDataSource authorization,NpgsqlDataSour
         await Insert("INSERT INTO terminals(id,restaurant_id,store_id,code,device_type,registration_status,registered_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'fixture','pos','active',$4,$4,$4)",terminal,restaurant,store,from);
         await Insert("INSERT INTO shifts(id,store_id,terminal_id,employee_identity_subject_id,shift_number,authorization_decision_id,close_authorization_decision_id,status,opened_at_utc,closed_at_utc,opened_by,closed_by,created_at_utc,updated_at_utc) VALUES($1,$2,$3,$4,'DAY',$7,$8,'closed',$5,$6,$4,$4,$5,$6)",shift,store,terminal,subject,from.AddHours(8),from.AddHours(18),Guid.NewGuid(),Guid.NewGuid());
         await Insert("INSERT INTO cash_sessions(id,store_id,shift_id,currency,opening_amount,expected_closing_amount,actual_closing_amount,variance_amount,status,opened_at_utc,closed_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'THB',100,100,95,-5,'closed',$4,$5,$4,$5)",session,store,shift,from.AddHours(8),from.AddHours(18));
-        Guid openShift=Guid.NewGuid(),olderTerminal=Guid.NewGuid();
+        Guid openShift=Guid.NewGuid(),olderTerminal=Guid.NewGuid(),olderSession=Guid.NewGuid();
         await Insert("INSERT INTO terminals(id,restaurant_id,store_id,code,device_type,registration_status,registered_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'older','pos','active',$4,$4,$4)",olderTerminal,restaurant,store,from.AddDays(-1));
         await Insert("INSERT INTO shifts(id,store_id,terminal_id,employee_identity_subject_id,shift_number,authorization_decision_id,status,opened_at_utc,opened_by,created_at_utc,updated_at_utc) VALUES($1,$2,$3,$4,'OLDER',$6,'open',$5,$4,$5,$5)",openShift,store,olderTerminal,subject,from.AddDays(-1),Guid.NewGuid());
-        await Insert("INSERT INTO cash_sessions(id,store_id,shift_id,currency,opening_amount,status,opened_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'THB',100,'open',$4,$4,$4)",Guid.NewGuid(),store,openShift,from.AddDays(-1));
+        await Insert("INSERT INTO cash_sessions(id,store_id,shift_id,currency,opening_amount,status,opened_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'THB',100,'open',$4,$4,$4)",olderSession,store,openShift,from.AddDays(-1));
         await tx.CommitAsync(ct);
+        return new(store,terminal,session,openShift,olderTerminal,olderSession);
     }
     public async Task<bool> SourcesEmptyAsync(NpgsqlDataSource order,NpgsqlDataSource payment,CancellationToken ct)
     {
@@ -70,3 +71,5 @@ internal sealed class FixtureStore(NpgsqlDataSource authorization,NpgsqlDataSour
         }
     }
 }
+
+internal sealed record PosFixtureIds(Guid StoreId,Guid TerminalId,Guid ClosedSessionId,Guid OpenShiftId,Guid OlderTerminalId,Guid OpenSessionId);

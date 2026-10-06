@@ -1,5 +1,7 @@
 # NexaConnect Infrastructure
 
+`Persistence/BoundedEvidenceHash` supplies length-delimited SHA-256 over a caller-owned SQL string-row stream and owner/window prefix. It returns null beyond 10,000 rows or 16 MiB of UTF-8 evidence; it never emits a partial version or logs evidence. Owning Infrastructure selects rows and shares its local repeatable-read transaction with totals. No financial/readiness policy lives in this primitive. See [fingerprint contract](../../../docs/API/Day-Close-Preparation.md).
+
 This project contains narrowly scoped infrastructure registration shared by API hosts.
 
 `AddNexaConnectApiAuthentication` configures strict Keycloak JWT bearer validation and a fallback authorization policy that denies anonymous access unless an endpoint is explicitly marked `AllowAnonymous`.

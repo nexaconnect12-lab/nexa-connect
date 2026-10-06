@@ -38,8 +38,19 @@ public sealed class EndOfDaySourcePostgresTests:IAsyncLifetime
         await Save(900,to,to,organization,branch);
         await Save(800,from,from,Guid.NewGuid(),Guid.NewGuid());
         var db=new OrderDb.PostgresOrderDayReader(order!);var summary=await db.ReadAsync(Window(to),default);
-        Assert.Equal(100,summary.GrossSales);Assert.Equal(1,summary.CompletedOrders);Assert.Equal(140,Assert.Single(summary.Tenders).Amount);Assert.Equal(0,summary.EvidenceGaps);
+        Assert.Equal(100,summary.GrossSales);Assert.Equal(1,summary.CompletedOrders);Assert.Equal(140,Assert.Single(summary.Tenders).Amount);Assert.Equal(0,summary.EvidenceGaps); Assert.Matches("^[a-f0-9]{64}$",summary.EvidenceVersion!); Assert.Equal(summary.EvidenceVersion,(await db.ReadAsync(Window(to),default)).EvidenceVersion);
         Assert.Equal(0,(await db.ReadAsync(Window(to) with{OrganizationId=Guid.NewGuid()},default)).GrossSales);
+        var drafts=new List<Guid>();
+        for(int i=0;i<2;i++){
+            var draft=Orders.OrderAggregate.Create(Guid.NewGuid(),organization,branch,[new Orders.OrderLine(Guid.NewGuid(),"Rice",5,1,"kitchen")],"THB",restaurantId:restaurant,workflowPaymentMethod:"card");
+            await new OrderDb.PostgresOrderRepository(order!).SaveAsync(draft,default);drafts.Add(draft.Id);
+            await Sql(order!,"UPDATE orders SET created_at_utc=$1,status=$2 WHERE id=$3",from,i==0?"draft":"cancelled",draft.Id);
+        }
+        var identityBefore=await db.ReadAsync(Window(to),default);
+        await Sql(order!,"UPDATE orders SET status=CASE WHEN id=$1 THEN 'cancelled' ELSE 'draft' END WHERE id=$1 OR id=$2",drafts[0],drafts[1]);
+        var identityAfter=await db.ReadAsync(Window(to),default);
+        Assert.Equal(identityBefore.GrossSales,identityAfter.GrossSales);Assert.Equal(identityBefore.UnresolvedOrders,identityAfter.UnresolvedOrders);
+        Assert.NotEqual(identityBefore.EvidenceVersion,identityAfter.EvidenceVersion);
         Assert.Empty((await db.ReadAsync(Window(to) with{RestaurantId=Guid.NewGuid()},default)).Tenders);
         Assert.Equal(0,(await db.ReadAsync(Window(to) with{BranchId=Guid.NewGuid()},default)).GrossSales);
     }
@@ -62,7 +73,10 @@ public sealed class EndOfDaySourcePostgresTests:IAsyncLifetime
         intents.Create(organization,new(restaurant,branch,Guid.NewGuid(),Guid.NewGuid().ToString(),20,"THB","card"),actor);
         var to=DateTimeOffset.UtcNow;var db=new PaymentDb.PostgresPaymentDayReader(payment!);
         var result=await db.ReadAsync(Window(to),default);
-        Assert.Equal(25,result.CompletedRefunds);Assert.Equal(1,result.UnresolvedPayments);Assert.Equal(1,result.UnresolvedRefunds);Assert.Equal(0,result.EvidenceGaps);
+        Assert.Equal(25,result.CompletedRefunds);Assert.Equal(1,result.UnresolvedPayments);Assert.Equal(1,result.UnresolvedRefunds);Assert.Equal(0,result.EvidenceGaps); Assert.Matches("^[a-f0-9]{64}$",result.EvidenceVersion!); Assert.Equal(result.EvidenceVersion,(await db.ReadAsync(Window(to),default)).EvidenceVersion);
+        var recovery=refunds.ClaimExpired(organization,uncertain.Refund.Id,actor);
+        refunds.Reconcile(organization,uncertain.Refund.Id,recovery.Refund.ConcurrencyVersion,Providers.ProviderRefundOutcome.Unknown,null,null,actor);
+        var changed=await db.ReadAsync(Window(to),default); Assert.Equal(result.CompletedRefunds,changed.CompletedRefunds); Assert.NotEqual(result.EvidenceVersion,changed.EvidenceVersion);
         Assert.Equal(0,(await db.ReadAsync(Window(completed.CompletedAtUtc!.Value),default)).CompletedRefunds);
         Assert.Equal(0,(await db.ReadAsync(Window(to) with{OrganizationId=Guid.NewGuid()},default)).UnresolvedRefunds);
         Assert.Equal(0,(await db.ReadAsync(Window(to) with{RestaurantId=Guid.NewGuid()},default)).CompletedRefunds);
@@ -84,14 +98,27 @@ public sealed class EndOfDaySourcePostgresTests:IAsyncLifetime
         var scope=new POS::NexaConnect.Services.POS.Application.CashReviews.CashReviewScope(organization,restaurant,branch,store);
         await reviews.ResolveAsync(scope,session,POS::NexaConnect.Services.POS.Domain.CashReviews.CashReviewDecision.Create("approve","checked"),"supervisor",Guid.NewGuid(),2,0,Guid.NewGuid(),new string('a',64),DateTimeOffset.UtcNow,default);
         var db=new PosDb.PostgresPosDayReader(pos!);
-        var before=await db.ReadAsync(Window(DateTimeOffset.UtcNow),default);
+        var stableWindow=Window(DateTimeOffset.UtcNow);
+        var before=await db.ReadAsync(stableWindow,default);
+        Assert.Matches("^[a-f0-9]{64}$",before.EvidenceVersion!); Assert.Equal(before.EvidenceVersion,(await db.ReadAsync(stableWindow,default)).EvidenceVersion);
         Assert.Equal(-5,before.CashVariance);Assert.Equal(0,before.PendingCashReviews);Assert.Equal(1,before.OpenShifts);
         var late=new OrderManualTenderSettledV1(Guid.NewGuid(),Guid.NewGuid(),occurred,organization,restaurant,branch,Guid.NewGuid(),Guid.NewGuid(),terminal,"cash",10,"THB");
         await new PosDb.PostgresOrderSettlementProjectionStore(pos!).ProjectAsync(late,default);
-        var after=await db.ReadAsync(Window(DateTimeOffset.UtcNow),default);
+        var after=await db.ReadAsync(stableWindow,default); Assert.NotEqual(before.EvidenceVersion,after.EvidenceVersion);
         Assert.Equal(-15,after.CashVariance);Assert.Equal(1,after.PendingCashReviews);
         Assert.Equal(0,(await db.ReadAsync(Window(DateTimeOffset.UtcNow) with{RestaurantId=Guid.NewGuid()},default)).OpenShifts);
         Assert.Equal(0,(await db.ReadAsync(Window(DateTimeOffset.UtcNow) with{BranchId=Guid.NewGuid()},default)).PendingCashReviews);
+    }
+
+    [ReportingDatabaseFact]
+    public async Task Evidence_hash_never_certifies_a_truncated_row_or_byte_inventory()
+    {
+        await using var valid=order!.CreateCommand("SELECT n::text FROM generate_series(1,10000) n");
+        Assert.Matches("^[a-f0-9]{64}$",(await NexaConnect.Infrastructure.Persistence.BoundedEvidenceHash.ReadAsync(valid,"test-scope",default))!);
+        await using var overflow=order.CreateCommand("SELECT n::text FROM generate_series(1,10001) n");
+        Assert.Null(await NexaConnect.Infrastructure.Persistence.BoundedEvidenceHash.ReadAsync(overflow,"test-scope",default));
+        await using var oversized=order.CreateCommand("SELECT repeat('x',16777217)");
+        Assert.Null(await NexaConnect.Infrastructure.Persistence.BoundedEvidenceHash.ReadAsync(oversized,"test-scope",default));
     }
 
     public async Task InitializeAsync()

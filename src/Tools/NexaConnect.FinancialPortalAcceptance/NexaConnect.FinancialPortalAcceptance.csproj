@@ -6,5 +6,6 @@
     <ProjectReference Include="../../Services/NexaConnect.Services.Authorization/NexaConnect.Services.Authorization.csproj" />
     <ProjectReference Include="../../Services/NexaConnect.Services.Order/NexaConnect.Services.Order.csproj" Aliases="ORDER" />
     <ProjectReference Include="../../Services/NexaConnect.Services.Payment/NexaConnect.Services.Payment.csproj" Aliases="PAYMENT" />
+    <ProjectReference Include="../../Services/NexaConnect.Services.POS/NexaConnect.Services.POS.csproj" Aliases="POS" />
   </ItemGroup>
 </Project>

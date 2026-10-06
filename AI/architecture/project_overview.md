@@ -1,5 +1,9 @@
 # NexaConnect Project Architecture
 
+The [joined preparation gate](../../docs/Deployment/Day-Close-Portal-Acceptance.md) now implements eleven real-OIDC browser scenarios through actual BFF/POS/Reporting/source HTTP, with two managers, process restart/resume/replacement and live revocation. It reuses seven disposable owning databases with POS 8 / Authorization 10; synthetic repository source transitions remain distinct from financial-command acceptance. The runner owns bounded process control, exact cleanup and safe evidence. Local Windows acceptance passed eleven browser and six Authorization persistence cases without skips/retries, with verified cleanup on 2026-10-06. Remote CI and production acceptance remain separate.
+
+POS now owns durable single-branch day-close preparation, independently of read-only Reporting. A BranchDayClose aggregate freezes reviewed source evidence, transitions Preparing→Blocked/Ready for review, revalidates saved readiness on reads, and supports version-fenced/idempotent commands with durable lease/claim recovery and append-only audit. Source owners supply bounded fingerprints in local repeatable-read snapshots; matching amounts alone do not preserve readiness after identity changes. POS 8 / Authorization 10 require compatibility 0.24.0. Customer BFF adds a CSRF-protected POS adapter and Portal load/prepare/refresh/resume controls. This observation introduces no settlement approval, source lock or distributed cutoff. See [ADR-021](../../docs/Architecture/Decisions/ADR-021-branch-day-close-preparation.md), [contract](../../docs/API/Day-Close-Preparation.md) and [rollout](../../docs/Deployment/Day-Close-Preparation.md).
+
 The [joined end-of-day gate](../../docs/Deployment/End-Of-Day-Portal-Acceptance.md) passed eight real-OIDC browser and six Authorization persistence cases without skips, with verified cleanup locally on Windows on 2026-10-03. Actual owning Order/Payment/POS APIs and Reporting prove retained-event delivery and live source permission/membership boundaries. Its disposable lifecycle adds a POS-owned database to the financial portal topology. [Execution evidence](../../docs/Architecture/Evidence/End-Of-Day-Joined-Acceptance.md) remains separate from remote CI and production settlement approval/locking.
 
 The single-branch end-of-day draft is implemented as a read-only Reporting Application orchestrator over customer-authorized Order/Payment/POS APIs and Restaurant workload calendar metadata. Current configured timezone defines completed local days; sales, tender, refund and drawer measures retain distinct time bases. Separate source snapshots and historical completeness checks cannot certify settlement. No database ownership, schema, permission or role expansion is added. Reporting gains Order/Payment dependencies. See [contract](../../docs/API/End-Of-Day-Draft.md) and [ADR-020](../../docs/Architecture/Decisions/ADR-020-branch-end-of-day-draft.md).
@@ -321,7 +325,7 @@ The single-store cash-close report is implemented through the Customer Portal/BF
 
 The guarded [joined cash-close portal acceptance](../../docs/Deployment/Cash-Close-Portal-Acceptance.md) now provisions disposable Keycloak/PostgreSQL/RabbitMQ and the real BFF/service graph. Five serial browser cases cover snapshot propagation, exact-scope and tenant denial, POS dependency failure, read-only access and existing-session permission revocation. Source fixture changes use POS repositories; the real scanner/outbox/consumer deliver Reporting rows. Local Windows acceptance passed six Authorization database and five browser cases with cleanup on 2026-09-27; remote CI and production acceptance remain separate gates.
 
-Owns terminals, stores, shifts, cash sessions, device registration, synchronization state, and server-side processing of offline POS operations.
+Owns terminals, stores, shifts, cash sessions, device registration, synchronization state, and server-side processing of offline POS operations. Online branch day-close preparation adds a POS-owned reviewed snapshot, durable operation/lease state and immutable audit. Its Reporting adapter obtains authorized evidence without approving settlement or locking sources; see [ADR-021](../../docs/Architecture/Decisions/ADR-021-branch-day-close-preparation.md).
 
 ### 5.9 Notification Service
 
@@ -678,7 +682,7 @@ Each service should be independently buildable, configurable, deployable, and ro
 8. Test the slice through WAN loss, restart, retry, duplication, and recovery scenarios.
 9. Add QR ordering after its online and offline availability requirements are decided.
 10. Add kiosk ordering after its device, payment, peripheral, and offline requirements are decided.
-11. Reporting projections, bounded replay/completeness checks and the single-branch end-of-day read draft are implemented. The joined owning-host/identity gate is implemented; durable settlement approval, locking and verified cutoffs remain planned.
+11. Reporting projections, bounded replay/completeness checks, the single-branch end-of-day read draft and POS-owned durable preparation are implemented. Separate joined read and preparation gates are implemented; preparation passed locally with verified cleanup; remote CI, settlement approval, locking and verified cutoffs require verification.
 12. Expand Menu, Inventory, Payment, Customer, Media, and Notification capabilities incrementally.
 
 ## 17. Architecture decisions to document later

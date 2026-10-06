@@ -1,5 +1,7 @@
 # NexaConnect Unit Tests
 
+`DayClosePreparationTests` cover aggregate readiness/blocker policy, same-total version drift, immutable exported evidence, expired restart/resume fencing, live permissions/hierarchy, source outage invalidation and cancellation. The source-interface fake does not replace PostgreSQL/HTTP/browser acceptance; see [verification](../../../docs/Deployment/Day-Close-Preparation.md).
+
 OrderPricingTests verifies inclusive/exclusive calculations, decimal rounding, changed-price confirmation, snapshot replay, scope/content conflicts, tamper rejection and provider totals. ProductConfigurationTests bounds tax precision; PosCheckoutIntegrationTests covers quote identity and explicit reconfirmation responses.
 
 `AuthorizationPolicyTests` supplies 12 cases covering explicit override precedence, unknown-effect denial, nonnegative bounded amounts, missing limits and audit-write failure. These passed for policy version 2; persistence scope selection is covered separately by live PostgreSQL tests.

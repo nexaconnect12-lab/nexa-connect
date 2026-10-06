@@ -3,6 +3,7 @@ import {Alert,Button,Descriptions,Form,Input,List,Space,Table,Typography} from "
 import {createApiClient} from "@nexaconnect/api-client";
 import {DayDraft,dayRequest,readDayDraft} from "./endOfDay";
 
+import {DayClosePreparationPanel} from "./DayClosePreparationPanel";
 const api=createApiClient({onUnauthorized:()=>location.assign("/bff/customer/login")});
 const issueNames:Record<string,string>={unresolved_orders:"Unresolved orders",unresolved_payments:"Unresolved payments",unresolved_refunds:"Unresolved refunds",open_shifts:"Open shifts",open_cash_sessions:"Open cash sessions",pending_cash_reviews:"Pending cash reviews",missing_source_evidence:"Missing receipt or retained publication evidence",projection_totals_differ:"Reporting totals differ from source totals",financial_evidence_not_checked:"No financial evidence check recorded for this exact day",recorded_check_is_historical:"Recorded financial check is historical; request a fresh check before closing",recorded_financial_gaps:"Recorded financial check contains gaps",cash_variance:"Cash variance requires review"};
 export function EndOfDayPanel({organizationId}:{organizationId:string}){
@@ -30,6 +31,7 @@ export function EndOfDayPanel({organizationId}:{organizationId:string}){
       <Form.Item label="Business date (branch local)"><Input aria-label="End-of-day business date" type="date" value={date} onChange={e=>{clear();setDate(e.target.value);}}/></Form.Item>
       <Button htmlType="submit" disabled={!input||busy} loading={busy}>Load day draft</Button>
     </Space></Form>
+    {input&&<DayClosePreparationPanel key={`${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate}/>}
     {error&&<Alert role="status" type="error" message={error}/>}
     {report&&<>
       <Descriptions bordered column={1}>

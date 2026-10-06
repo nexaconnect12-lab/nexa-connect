@@ -6,10 +6,10 @@ public sealed record EndOfDayWindow(Guid OrganizationId, Guid RestaurantId, Guid
 public sealed record TenderTotal(string Method, string Currency, decimal Amount);
 public sealed record OrderDaySummary(EndOfDayWindow Window, DateTimeOffset ObservedAtUtc,
     decimal GrossSales, int CompletedOrders, int UnresolvedOrders, int EvidenceGaps,
-    IReadOnlyList<TenderTotal> Tenders, IReadOnlyList<string> Currencies);
+    IReadOnlyList<TenderTotal> Tenders, IReadOnlyList<string> Currencies, string? EvidenceVersion = null);
 public sealed record PaymentDaySummary(EndOfDayWindow Window, DateTimeOffset ObservedAtUtc,
     decimal CompletedRefunds, int UnresolvedPayments, int UnresolvedRefunds, int EvidenceGaps,
-    IReadOnlyList<string> Currencies);
+    IReadOnlyList<string> Currencies, string? EvidenceVersion = null);
 public sealed record PosDaySummary(EndOfDayWindow Window, DateTimeOffset ObservedAtUtc,
     int OpenShifts, int OpenCashSessions, int PendingCashReviews, decimal CashVariance,
-    IReadOnlyList<string> Currencies);
+    IReadOnlyList<string> Currencies, string? EvidenceVersion = null);
