@@ -44,18 +44,18 @@ test(scenarios[0],async({browser})=>{
  cashier=await token(browser,s.reader);manager=await token(browser,s.resolver);secondManager=await token(browser,s.secondManager);
  process.stdout.write('acceptance-stage: reference-commands\n');const open={branchId:f.branchId,storeId:r.storeId,terminalId:r.terminalId,shiftNumber:'COMMAND-'+s.runId.slice(0,8)};
  expect((await send('pos','/api/pos/v1/shifts/open',null,open)).status).toBe(401);
- expect((await send('pos','/api/pos/v1/terminals/enroll',cashier,{branchId:f.branchId,storeId:r.storeId,terminalId:r.terminalId,code:'ACCEPTANCE',deviceType:'pos'})).status).toBe(403);
- expect((await send('pos','/api/pos/v1/terminals/enroll',manager,{branchId:f.branchId,storeId:r.storeId,terminalId:r.terminalId,code:'ACCEPTANCE',deviceType:'pos'})).status).toBe(201);
+ expect((await send('pos','/api/pos/v1/terminals/enroll',cashier,{branchId:f.branchId,storeId:r.storeId,terminalId:r.terminalId,code:'acceptance',deviceType:'pos'})).status).toBe(403);
+ expect((await send('pos','/api/pos/v1/terminals/enroll',manager,{branchId:f.branchId,storeId:r.storeId,terminalId:r.terminalId,code:'acceptance',deviceType:'pos'})).status).toBe(201);
  expect((await send('pos','/api/pos/v1/shifts/open',cashier,{...open,branchId:f.deniedBranchId})).status).toBe(403);
  const opened=await send('pos','/api/pos/v1/shifts/open',cashier,open);expect(opened.status).toBe(200);shift=opened.data.shiftId;
  const drawer=await send('pos','/api/pos/v1/cash-sessions/open',cashier,{shiftId:shift,storeId:r.storeId,currency:'THB',openingAmount:100});expect(drawer.status).toBe(200);session=drawer.data.cashSessionId;
  expect((await send('catalog',`/api/catalog/v1/branches/${f.branchId}/menu-items`,manager,{productId:r.productId,name:'Acceptance meal',unitPrice:100,currency:'THB',preparationStation:'kitchen'})).status).toBe(201);
  expect((await send('inventory',`/api/inventory/v1/branches/${f.branchId}/stock/${r.productId}`,manager,{quantity:10},'PUT')).status).toBe(200);
  const checkout={organizationId:f.organizationId,restaurantId:f.restaurantId,branchId:f.branchId,currency:'THB',paymentMethod:'cash_manual',idempotencyKey:randomUUID(),lines:[{productId:r.productId,quantity:1}]};
- expect((await send('order','/api/order/v1/orders/quote',cashier,checkout,'POST',f.otherOrganizationId)).status).toBe(403);
- process.stdout.write('acceptance-stage: quote-place\n');const quote=await send('order','/api/order/v1/orders/quote',cashier,checkout);expect(quote.status).toBe(200);amount=quote.data.pricing.totalAmount;expect(amount).toBeGreaterThan(0);
- const placed=await send('order','/api/order/v1/orders/place',cashier,{...checkout,pricingFingerprint:quote.data.fingerprint});expect(placed.status).toBe(200);order=placed.data.orderId;expect(placed.data.totalAmount).toBe(amount);
- const replay=await send('order','/api/order/v1/orders/place',cashier,{...checkout,pricingFingerprint:quote.data.fingerprint});expect(replay.status).toBe(200);expect(replay.data.orderId).toBe(order);
+ expect((await send('order','/api/order/v1/workflows/quote',cashier,checkout,'POST',f.otherOrganizationId)).status).toBe(403);
+ process.stdout.write('acceptance-stage: quote-place\n');const quote=await send('order','/api/order/v1/workflows/quote',cashier,checkout);expect(quote.status).toBe(200);amount=quote.data.pricing.totalAmount;expect(amount).toBeGreaterThan(0);
+ const placed=await send('order','/api/order/v1/workflows/place',cashier,{...checkout,pricingFingerprint:quote.data.fingerprint});expect(placed.status).toBe(200);order=placed.data.orderId;expect(placed.data.totalAmount).toBe(amount);
+ const replay=await send('order','/api/order/v1/workflows/place',cashier,{...checkout,pricingFingerprint:quote.data.fingerprint});expect(replay.status).toBe(200);expect(replay.data.orderId).toBe(order);
  const stock=await send('inventory',`/api/inventory/v1/branches/${f.branchId}/stock`,manager);expect(stock.status).toBe(200);expect(stock.data.find(item=>item.productId===r.productId).availableQuantity).toBe(9);
 });
 test(scenarios[1],async()=>{
@@ -96,5 +96,6 @@ test(scenarios[4],async({page})=>{
  expect((await send('order',`/api/order/v1/orders/${order}/manual-settlement`,cashier,settlement)).status).toBe(200);
  expect((await send('order',`/api/order/v1/orders/${order}/receipt?branchId=${f.branchId}`,cashier)).data).toEqual(receipt);
  const summary=await send('pos',`/api/pos/v1/cash-sessions/${session}/summary`,cashier);expect(summary.data.movements).toHaveLength(1);expect(summary.data.netMovementAmount).toBe(amount);expect(summary.data.status).toBe('closed');
+ await expect(fixture('deliver')).rejects.toThrow('Acceptance fixture failed');await expect(fixture('late-cash')).rejects.toThrow('Acceptance fixture failed');
  expect(JSON.parse(await fixture('cashier-proof')).verified).toBe(true);
 });

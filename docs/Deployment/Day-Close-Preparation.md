@@ -1,6 +1,8 @@
 # Day-close preparation rollout and verification
 
-Deploy POS migration 8 (`0008_day_close_preparations`) and Authorization 10 (`0010_day_close_permissions`), both minimum application 0.24.0, before enabling preparation. The standard migration launcher defaults to 0.24.0. Retain Order 11, Payment 10, Reporting 20 and Restaurant 3. Use independently owned database runtime credentials with only required schema/table privileges; do not deploy with migration-owner credentials.
+Deploy POS migration 8 (`0008_day_close_preparations`) and Authorization 10 (`0010_day_close_permissions`), both minimum application 0.24.0, before enabling preparation. The standard migration launcher defaults to 0.25.0 for the additional retained-cutoff migrations. Retain Order 11, Payment 10, Reporting 20 and Restaurant 3. Use independently owned database runtime credentials with only required schema/table privileges; do not deploy with migration-owner credentials.
+
+Those versions are the original preparation minimum. Current cutoff-capable binaries additionally require Order 12 / Payment 11 / POS 9 and the coordinated [cutoff rollout](Day-Close-Cutoffs.md); deploy that catalog when exposing the new controls.
 
 POS runtime needs SELECT/INSERT/UPDATE on `branch_day_closes` and `branch_day_close_operations`, and SELECT/INSERT on `branch_day_close_audit`; it needs no schema creation or audit rewrite privilege. Audit triggers reject UPDATE/DELETE/TRUNCATE even if accidentally granted. Its primary key is organization/branch/date and all repository reads additionally predicate Restaurant ownership. Source reads keep existing owning-table SELECT. State transition, operation status and audit are atomic; no network call occurs under the POS transaction.
 

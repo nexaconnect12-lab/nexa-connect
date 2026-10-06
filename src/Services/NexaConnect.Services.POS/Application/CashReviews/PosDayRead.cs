@@ -11,6 +11,11 @@ public sealed class PosDayRead(IPosDayReader reader, IRestaurantScopeReader scop
 {
     public async Task<PosDaySummary> ReadAsync(EndOfDayWindow window, PosUserContext user, CancellationToken ct)
     {
+        await AuthorizeAsync(window, user, ct);
+        return await reader.ReadAsync(window, ct);
+    }
+    public async Task AuthorizeAsync(EndOfDayWindow window, PosUserContext user, CancellationToken ct)
+    {
         if (window.OrganizationId == Guid.Empty || window.RestaurantId == Guid.Empty || window.BranchId == Guid.Empty
             || window.FromUtc == default || window.ToUtc <= window.FromUtc
             || window.ToUtc - window.FromUtc > TimeSpan.FromHours(27) || window.ToUtc > DateTimeOffset.UtcNow)
@@ -20,6 +25,5 @@ public sealed class PosDayRead(IPosDayReader reader, IRestaurantScopeReader scop
             || string.IsNullOrWhiteSpace(user.Subject) || string.IsNullOrWhiteSpace(user.AccessToken)
             || !(await authorization.DecideAsync(user, scope, CashReviewPermissions.Read, ct)).Granted)
             throw new UnauthorizedAccessException();
-        return await reader.ReadAsync(window, ct);
     }
 }

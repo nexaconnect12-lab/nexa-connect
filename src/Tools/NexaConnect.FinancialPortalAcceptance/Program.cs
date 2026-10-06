@@ -139,7 +139,11 @@ try
         var state=JsonSerializer.Deserialize<FixtureState>(await File.ReadAllTextAsync(options.StatePath,ct),json)??throw new InvalidOperationException();
         if(state.RunId!=options.RunId||state.OrganizationId==Guid.Empty||state.BranchId==Guid.Empty)throw new InvalidOperationException();
         stage=args[0];
-        if(options.DayClose && await DayCloseFixture.ExecuteAsync(options,state,args[0],authorizationDb,platform,ct))return 0;
+        if(state.Cashier is not null)
+        {
+            if(!options.DayClose || Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CLOSE")!="1" || args[0]!="record")throw new ArgumentException();
+        }
+        else if(options.DayClose && await DayCloseFixture.ExecuteAsync(options,state,args[0],authorizationDb,platform,ct))return 0;
         if(args[0]=="revoke")await store.RevokeReadAsync(options.Reader,ct);
         else if(args[0]=="revoke-source")
         {

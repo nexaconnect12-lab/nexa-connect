@@ -133,7 +133,11 @@ try{
             }
             if($DayClose -and $name-eq'POS'){$posConfiguration=$config.Clone();$posDirectory=$dir;$posAssembly=Join-Path $dir 'bin/Debug/net10.0/NexaConnect.Services.POS.dll'}
             if($CashierDayClose){
-                if($name-eq'Order'){$config.Outbox__BatchSize='100';foreach($capability in @('Catalog','Inventory','Kitchen')){$config['Services__'+$capability]=$urls[$capability]}}
+                if($name-eq'Order'){
+                    $config.Outbox__BatchSize='100';foreach($capability in @('Catalog','Inventory','Kitchen')){$config['Services__'+$capability]=$urls[$capability]}
+                    $config.Authentication__TokenEndpoint="$authority/protocol/openid-connect/token"
+                    $config.Authentication__ClientId='nexaconnect-order-service';$config.Authentication__ClientSecret=$env:NEXACONNECT_JOINED_CLIENT_SECRET
+                }
                 if($name-eq'POS'){$config.OrderSettlementConsumer__Enabled='true';$config.OrderSettlementConsumer__ConnectionString=$broker}
                 if($name-in@('Order','POS')){foreach($e in @{RunId=$runId;ConfirmDisposable='1';ClockPath=(Join-Path $run 'clock.json');Port=$ports[6+$i]}.GetEnumerator()){$config['Acceptance__'+$e.Key]=[string]$e.Value}}
                 if($name-eq'POS'){$posConfiguration=$config.Clone()}

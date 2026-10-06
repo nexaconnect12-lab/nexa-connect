@@ -54,8 +54,19 @@ builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPos
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IDayCloseStore, NexaConnect.Services.POS.Infrastructure.DayClose.PostgresDayCloseStore>();
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayClosePreparation>();
 builder.Services.AddHttpClient<NexaConnect.Services.POS.Application.DayClose.IDayCloseEvidenceReader, NexaConnect.Services.POS.Infrastructure.DayClose.HttpDayCloseEvidenceReader>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:Reporting"] ?? "https://reporting.invalid/"); c.Timeout = TimeSpan.FromSeconds(15); }).AddNexaConnectCorrelationPropagation();
+
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.PosCutoffs>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPosCutoffStore, NexaConnect.Services.POS.Infrastructure.Persistence.PostgresPosCutoffStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ICutoffPreparationStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresDayCutoffStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ICutoffEvidenceReader,NexaConnect.Services.POS.Infrastructure.DayClose.HttpCutoffEvidenceReader>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayCloseCutoff>();
+foreach (string service in new[]{"Order","Payment","POS","Reporting"})
+{
+    builder.Services.AddHttpClient("DayCutoff"+service,c=>{ c.BaseAddress=new Uri(builder.Configuration["Services:"+service]??"https://cutoff-dependency.invalid/");c.Timeout=TimeSpan.FromSeconds(15); }).AddNexaConnectCorrelationPropagation();
+}
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
+app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/pos/v1/customer/day-cutoffs")) context.Response.Headers.CacheControl="no-store"; await next(); });
 app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/pos/v1/customer", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.

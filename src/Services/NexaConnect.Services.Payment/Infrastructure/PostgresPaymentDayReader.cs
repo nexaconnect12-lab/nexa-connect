@@ -10,6 +10,11 @@ public sealed class PostgresPaymentDayReader(NpgsqlDataSource source) : IPayment
     {
         await using var connection = await source.OpenConnectionAsync(ct);
         await using var tx=await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead,ct);
+        var result = await QueryAsync(window, connection, tx, ct);
+        await tx.CommitAsync(ct); return result;
+    }
+    public static async Task<PaymentDaySummary> QueryAsync(EndOfDayWindow window, NpgsqlConnection connection, NpgsqlTransaction tx, CancellationToken ct, Action<string[]>? retain = null)
+    {
         await using var command = new NpgsqlCommand("""
             WITH scoped_refunds AS (
               SELECT * FROM refunds WHERE organization_id=$1 AND restaurant_id=$2 AND branch_id=$3
@@ -45,7 +50,7 @@ public sealed class PostgresPaymentDayReader(NpgsqlDataSource source) : IPayment
             """,connection,tx);
         foreach(var value in new object[]{window.OrganizationId,window.RestaurantId,window.BranchId,window.FromUtc.ToUniversalTime(),window.ToUtc.ToUniversalTime()})evidence.Parameters.AddWithValue(value);
         string? version=await NexaConnect.Infrastructure.Persistence.BoundedEvidenceHash.ReadAsync(evidence,
-            $"payment-day-v1|{window.OrganizationId:D}|{window.RestaurantId:D}|{window.BranchId:D}|{window.FromUtc.UtcTicks}|{window.ToUtc.UtcTicks}",ct);
-        await tx.CommitAsync(ct);return result with{ObservedAtUtc=DateTimeOffset.UtcNow,EvidenceVersion=version};
+            $"payment-day-v1|{window.OrganizationId:D}|{window.RestaurantId:D}|{window.BranchId:D}|{window.FromUtc.UtcTicks}|{window.ToUtc.UtcTicks}",ct,retain);
+        return result with{ObservedAtUtc=DateTimeOffset.UtcNow,EvidenceVersion=version};
     }
 }

@@ -10,6 +10,11 @@ public sealed class PostgresOrderDayReader(NpgsqlDataSource source) : IOrderDayR
     {
         await using var connection = await source.OpenConnectionAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct);
+        var result = await QueryAsync(window, connection, transaction, ct);
+        await transaction.CommitAsync(ct); return result;
+    }
+    public static async Task<OrderDaySummary> QueryAsync(EndOfDayWindow window, NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken ct, Action<string[]>? retain = null)
+    {
         await using var command = new NpgsqlCommand("""
             WITH scoped_orders AS (
               SELECT *, COALESCE((receipt_snapshot->>'PaidAtUtc')::timestamptz,completed_at_utc,updated_at_utc) AS paid_at
@@ -54,8 +59,8 @@ public sealed class PostgresOrderDayReader(NpgsqlDataSource source) : IOrderDayR
             """,connection,transaction);
         Add(evidence,window);
         string? version=await NexaConnect.Infrastructure.Persistence.BoundedEvidenceHash.ReadAsync(evidence,
-            $"order-day-v1|{window.OrganizationId:D}|{window.RestaurantId:D}|{window.BranchId:D}|{window.FromUtc.UtcTicks}|{window.ToUtc.UtcTicks}",ct);
-        await transaction.CommitAsync(ct);
+            $"order-day-v1|{window.OrganizationId:D}|{window.RestaurantId:D}|{window.BranchId:D}|{window.FromUtc.UtcTicks}|{window.ToUtc.UtcTicks}",ct,retain);
+
         return new(window, DateTimeOffset.UtcNow, gross, completed, unresolved, gaps, totals, currencies,version);
     }
     private static void Add(NpgsqlCommand command, EndOfDayWindow window)

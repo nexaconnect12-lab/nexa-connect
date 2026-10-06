@@ -1,5 +1,9 @@
 # NexaConnect frontend foundations
 
+Customer Portal adds [retained day-cutoff evidence](../../docs/API/Day-Close-Cutoffs.md) controls and strict generation/currentness/gap validation. Run the frontend checks/tests/build and deploy the coordinated source/POS migrations before exposing controls. Preparation remains separate; full joined browser acceptance of these new controls remains a release gate.
+
+`npm run test:e2e:day-cutoff` runs eight [synthetic browser contracts](e2e/day-cutoff/README.md) against the actual Customer Portal and intercepted BFF responses. They cover capture/refresh, read-only accountant controls, exact-operation retry/resume/replacement, stale responses, tenant clearing and malformed readiness. All eight passed locally on 2026-10-06 without skips/retries; screenshots, video and traces are disabled. This pass does not establish joined real-OIDC/source-service acceptance.
+
 The [joined cashier-to-day-close gate](../../docs/Deployment/Cashier-Day-Close-Acceptance.md) implements real cashier PKCE, authorized shift/cash/checkout/manual-settlement/receipt/review commands, actual Order→POS/Reporting publication and Customer Portal preparation with manager contention and POS restart. Its reference-only fixture seeds no financial transitions. An acceptance-only host injects historical command time into actual Order/POS applications; production uses the system clock with no configurable clock switch. Five browser scenarios, six Authorization persistence cases and verified cleanup are required; execution evidence remains separate from production settlement/cutoff certification.
 
 Frontend dependency hardening pins Vitest 4.1.11 and SourceMap.js 1.2.2, removes Tinypool, and requires Node 22.12+ (22.x) or 24+. CI separately audits production and full dependency trees, rejecting moderate-or-higher findings; the frontend compatibility job checks Node 22 and 24. See [runtime, audit and verification policy](../../docs/Deployment/Frontend-Dependency-Hardening.md).
@@ -50,3 +54,5 @@ Telemetry attributes are allow-by-construction primitives and keys that suggest 
 Kitchen queue browser contracts run with `npm run test:e2e:kitchen`; see [fixtures and evidence boundaries](e2e/kitchen/README.md). The tenant-scoped screen uses the Customer BFF and existing Kitchen permissions; it is an online ticket-level surface.
 
 For the separate five-case real-OIDC/service/broker suite, use the [joined cash-close portal launcher](../../docs/Deployment/Cash-Close-Portal-Acceptance.md). It provisions disposable infrastructure and requires all scenarios and cleanup; the synthetic browser command above does not run it.
+
+Local Windows cashier-to-day-close acceptance passed all five real-command browser scenarios and six Authorization persistence cases without skips/retries, with verified cleanup on 2026-10-06. See [exact working-tree execution evidence](../../docs/Architecture/Evidence/Cashier-Day-Close-Acceptance.md). Remote CI and production acceptance remain separate.

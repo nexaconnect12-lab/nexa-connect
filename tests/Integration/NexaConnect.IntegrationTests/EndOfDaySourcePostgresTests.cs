@@ -47,10 +47,24 @@ public sealed class EndOfDaySourcePostgresTests:IAsyncLifetime
             await Sql(order!,"UPDATE orders SET created_at_utc=$1,status=$2 WHERE id=$3",from,i==0?"draft":"cancelled",draft.Id);
         }
         var identityBefore=await db.ReadAsync(Window(to),default);
+        var cutoffs=new OrderDb.PostgresOrderCutoffStore(order!);
+        var cutoffCommand=new SourceCutoffCommand(Guid.NewGuid(),Window(to));
+        var captured=await cutoffs.CaptureAsync(cutoffCommand,"manager",default);
+        Assert.Equal(2,captured.Sales.Count);Assert.NotEmpty(captured.OwnerEvidence!);
+        Assert.True((await cutoffs.ReadAsync(Window(to),captured.ManifestId,default))!.Current);
+        Assert.Equal(captured.ManifestId,(await new OrderDb.PostgresOrderCutoffStore(order!).CaptureAsync(cutoffCommand,"manager",default)).ManifestId);
+        await Assert.ThrowsAsync<NexaConnect.Infrastructure.Persistence.SnapshotOperationConflictException>(()=>cutoffs.CaptureAsync(cutoffCommand,"other-manager",default));
         await Sql(order!,"UPDATE orders SET status=CASE WHEN id=$1 THEN 'cancelled' ELSE 'draft' END WHERE id=$1 OR id=$2",drafts[0],drafts[1]);
         var identityAfter=await db.ReadAsync(Window(to),default);
         Assert.Equal(identityBefore.GrossSales,identityAfter.GrossSales);Assert.Equal(identityBefore.UnresolvedOrders,identityAfter.UnresolvedOrders);
         Assert.NotEqual(identityBefore.EvidenceVersion,identityAfter.EvidenceVersion);
+        Assert.False((await cutoffs.ReadAsync(Window(to),captured.ManifestId,default))!.Current);
+        var revised=await cutoffs.CaptureAsync(cutoffCommand with{OperationId=Guid.NewGuid()},"manager",default);
+        Assert.Equal(2,revised.Generation);Assert.NotEqual(captured.ManifestId,revised.ManifestId);
+        Assert.Null(await cutoffs.ReadAsync(Window(to) with{OrganizationId=Guid.NewGuid()},captured.ManifestId,default));
+        foreach(string statement in new[]{"UPDATE source_day_cutoffs SET actor='rewrite'","DELETE FROM source_day_cutoffs","TRUNCATE source_day_cutoffs"})
+            await Assert.ThrowsAsync<PostgresException>(()=>Sql(order!,statement));
+        await Assert.ThrowsAsync<PostgresException>(()=>Sql(order!,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/Order/0012_day_cutoffs/down.sql"))));
         Assert.Empty((await db.ReadAsync(Window(to) with{RestaurantId=Guid.NewGuid()},default)).Tenders);
         Assert.Equal(0,(await db.ReadAsync(Window(to) with{BranchId=Guid.NewGuid()},default)).GrossSales);
     }
@@ -73,10 +87,17 @@ public sealed class EndOfDaySourcePostgresTests:IAsyncLifetime
         intents.Create(organization,new(restaurant,branch,Guid.NewGuid(),Guid.NewGuid().ToString(),20,"THB","card"),actor);
         var to=DateTimeOffset.UtcNow;var db=new PaymentDb.PostgresPaymentDayReader(payment!);
         var result=await db.ReadAsync(Window(to),default);
+        var cutoffs=new PaymentDb.PostgresPaymentCutoffStore(payment!);
+        var command=new SourceCutoffCommand(Guid.NewGuid(),Window(to));
+        var captured=await cutoffs.CaptureAsync(command,"manager",default);
+        Assert.Single(captured.Refunds);Assert.NotEmpty(captured.OwnerEvidence!);
+        Assert.True((await cutoffs.ReadAsync(Window(to),captured.ManifestId,default))!.Current);
         Assert.Equal(25,result.CompletedRefunds);Assert.Equal(1,result.UnresolvedPayments);Assert.Equal(1,result.UnresolvedRefunds);Assert.Equal(0,result.EvidenceGaps); Assert.Matches("^[a-f0-9]{64}$",result.EvidenceVersion!); Assert.Equal(result.EvidenceVersion,(await db.ReadAsync(Window(to),default)).EvidenceVersion);
         var recovery=refunds.ClaimExpired(organization,uncertain.Refund.Id,actor);
         refunds.Reconcile(organization,uncertain.Refund.Id,recovery.Refund.ConcurrencyVersion,Providers.ProviderRefundOutcome.Unknown,null,null,actor);
         var changed=await db.ReadAsync(Window(to),default); Assert.Equal(result.CompletedRefunds,changed.CompletedRefunds); Assert.NotEqual(result.EvidenceVersion,changed.EvidenceVersion);
+        Assert.False((await cutoffs.ReadAsync(Window(to),captured.ManifestId,default))!.Current);
+        Assert.Equal(captured.ManifestId,(await cutoffs.CaptureAsync(command,"manager",default)).ManifestId);
         Assert.Equal(0,(await db.ReadAsync(Window(completed.CompletedAtUtc!.Value),default)).CompletedRefunds);
         Assert.Equal(0,(await db.ReadAsync(Window(to) with{OrganizationId=Guid.NewGuid()},default)).UnresolvedRefunds);
         Assert.Equal(0,(await db.ReadAsync(Window(to) with{RestaurantId=Guid.NewGuid()},default)).CompletedRefunds);
@@ -100,12 +121,16 @@ public sealed class EndOfDaySourcePostgresTests:IAsyncLifetime
         var db=new PosDb.PostgresPosDayReader(pos!);
         var stableWindow=Window(DateTimeOffset.UtcNow);
         var before=await db.ReadAsync(stableWindow,default);
+        var cutoffs=new PosDb.PostgresPosCutoffStore(pos!);
+        var captured=await cutoffs.CaptureAsync(new(Guid.NewGuid(),stableWindow),"manager",default);
+        Assert.NotEmpty(captured.OwnerEvidence!);Assert.True((await cutoffs.ReadAsync(stableWindow,captured.ManifestId,default))!.Current);
         Assert.Matches("^[a-f0-9]{64}$",before.EvidenceVersion!); Assert.Equal(before.EvidenceVersion,(await db.ReadAsync(stableWindow,default)).EvidenceVersion);
         Assert.Equal(-5,before.CashVariance);Assert.Equal(0,before.PendingCashReviews);Assert.Equal(1,before.OpenShifts);
         var late=new OrderManualTenderSettledV1(Guid.NewGuid(),Guid.NewGuid(),occurred,organization,restaurant,branch,Guid.NewGuid(),Guid.NewGuid(),terminal,"cash",10,"THB");
         await new PosDb.PostgresOrderSettlementProjectionStore(pos!).ProjectAsync(late,default);
         var after=await db.ReadAsync(stableWindow,default); Assert.NotEqual(before.EvidenceVersion,after.EvidenceVersion);
         Assert.Equal(-15,after.CashVariance);Assert.Equal(1,after.PendingCashReviews);
+        Assert.False((await cutoffs.ReadAsync(stableWindow,captured.ManifestId,default))!.Current);
         Assert.Equal(0,(await db.ReadAsync(Window(DateTimeOffset.UtcNow) with{RestaurantId=Guid.NewGuid()},default)).OpenShifts);
         Assert.Equal(0,(await db.ReadAsync(Window(DateTimeOffset.UtcNow) with{BranchId=Guid.NewGuid()},default)).PendingCashReviews);
     }

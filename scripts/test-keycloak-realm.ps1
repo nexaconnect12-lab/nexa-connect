@@ -168,6 +168,14 @@ if ($catalogClient.Count -ne 1 -or $catalogAudience.Count -ne 1 -or
 }
 
 $publicClients = @($realm.clients | Where-Object publicClient)
+$inventoryClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-inventory-service')
+$inventoryAudience = @($inventoryClient.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api'
+})
+if ($inventoryClient.Count -ne 1 -or $inventoryAudience.Count -ne 1 -or
+    $inventoryAudience[0].config.'access.token.claim' -ne 'true') {
+    throw 'The Inventory workload client must emit the nexaconnect-api audience in access tokens.'
+}
 foreach ($client in $publicClients) {
     if ($client.attributes.'pkce.code.challenge.method' -ne 'S256') {
         throw "Public client '$($client.clientId)' does not require PKCE S256."

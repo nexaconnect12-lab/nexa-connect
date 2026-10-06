@@ -1,5 +1,7 @@
 # Shared Contracts
 
+`Reporting/DayCutoffs.cs` defines source-manifest, original-event and reconciliation integration DTOs for [retained cutoff evidence](../../../docs/API/Day-Close-Cutoffs.md). No shared aggregate or database model is introduced; each source selects and validates its own evidence, and Reporting translates versioned events into local facts.
+
 Day source summaries now include optional nullable `evidenceVersion`: an owner/window-scoped SHA-256 observation fingerprint, not a monotonic revision or completeness watermark. Null/older adapters remain compatible with the draft but block POS preparation. See [selection, limits and readiness semantics](../../../docs/API/Day-Close-Preparation.md).
 
 `Reporting/EndOfDaySources.cs` contains version-one owning-service read DTOs for an explicit UTC owner/window, tender totals and Order/Payment/POS summaries. It contains no business policy, domain entities or persistence models. Financial amounts and summary bodies are restricted data and never logged. See [end-of-day contract](../../../docs/API/End-Of-Day-Draft.md).

@@ -14,3 +14,5 @@ Migration 5 downgrade removes audit history and the simplified-table reservation
 
 Structured logs use service name `nexaconnect-inventory`; correlation IDs propagate to Platform Directory, Restaurant, and Authorization.
 JSON stdout is always enabled. Enable OTLP with `Observability__OtlpEnabled=true`; use the [observability guide](../../../docs/Deployment/Observability.md) for the endpoint and queries.
+
+Inventory's existing confidential workload client must explicitly emit the nexaconnect-api audience when reading Restaurant branch scope. The realm template and validation guard now enforce that mapper; JWT validation, client identity, secret and role grants are unchanged. Persisted realms require an explicit reviewed mapper update, followed by a new token (restart Inventory or let its cached token expire); Keycloak restart does not re-import existing realms. The [joined cashier acceptance](../../../docs/Deployment/Cashier-Day-Close-Acceptance.md) exposed this prerequisite through actual Inventory-to-Restaurant HTTP; production rollout remains separate.

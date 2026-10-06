@@ -7,10 +7,10 @@ namespace NexaConnect.Infrastructure.Persistence;
 // Low-level hashing only. Owning Infrastructure chooses the evidence rows and snapshot.
 public static class BoundedEvidenceHash
 {
-    public static async Task<string?> ReadAsync(NpgsqlCommand command, string scope, CancellationToken ct)
+    public static async Task<string?> ReadAsync(NpgsqlCommand command, string scope, CancellationToken ct, Action<string[]>? retain = null)
     {
         using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        Append(scope);int count=0,total=0;
+        Append(scope);int count=0,total=0;List<string>? rows=retain is null?null:[];
         await using var reader=await command.ExecuteReaderAsync(ct);
         while(await reader.ReadAsync(ct))
         {
@@ -18,7 +18,9 @@ public static class BoundedEvidenceHash
             string row=reader.GetString(0);total+=Encoding.UTF8.GetByteCount(row);
             if(total>16*1024*1024)return null;
             Append(row);
+            rows?.Add(row);
         }
+        if(rows is not null)retain!(rows.ToArray());
         return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
         void Append(string value)
         {

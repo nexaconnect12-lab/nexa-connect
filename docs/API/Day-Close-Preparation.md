@@ -1,5 +1,7 @@
 # Branch day-close preparation
 
+The separate [retained day-cutoff evidence workflow](Day-Close-Cutoffs.md) captures immutable source generations and runs fresh Reporting identity/hash reconciliation. It has independent POS state/history and Customer Portal controls; existing preparation continues to use its original draft evidence and historical completeness checks. Neither workflow supplies settlement approval or source-write fences.
+
 The [joined preparation acceptance gate](../Deployment/Day-Close-Portal-Acceptance.md) implements actual Customer authentication and owning HTTP preparation/recovery verification. Synthetic source repository transitions are explicit fixture boundaries; eleven browser scenarios, six Authorization persistence cases and verified cleanup are required before recording a pass.
 
 POS owns durable preparation for one organization, Restaurant-resolved branch and business date. Reporting remains a read-only source of reconciliation evidence. This workflow observes readiness for review; it does not approve settlement, lock a day, freeze source writes, run repair, publish a settlement event or prove a distributed financial cutoff. See [ADR-021](../Architecture/Decisions/ADR-021-branch-day-close-preparation.md) and [rollout](../Deployment/Day-Close-Preparation.md).

@@ -1,5 +1,7 @@
 # NexaConnect Infrastructure
 
+Low-level bounded evidence hashing may return the complete selected rows to the owning adapter for immutable retention. `PostgresSnapshotRetention<T>` supplies scoped operation/window serialization, repeatable-read transaction, bounded JSON persistence and exact replay for independently owned `source_day_cutoffs` tables. It contains no source selection, authorization or readiness policy. `BoundedJson` bounds streamed dependency bodies. See [retained cutoff evidence](../../../docs/API/Day-Close-Cutoffs.md).
+
 `Persistence/BoundedEvidenceHash` supplies length-delimited SHA-256 over a caller-owned SQL string-row stream and owner/window prefix. It returns null beyond 10,000 rows or 16 MiB of UTF-8 evidence; it never emits a partial version or logs evidence. Owning Infrastructure selects rows and shares its local repeatable-read transaction with totals. No financial/readiness policy lives in this primitive. See [fingerprint contract](../../../docs/API/Day-Close-Preparation.md).
 
 This project contains narrowly scoped infrastructure registration shared by API hosts.

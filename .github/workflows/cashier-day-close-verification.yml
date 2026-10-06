@@ -31,7 +31,9 @@ jobs:
       - name: Restore solution dependencies
         run: dotnet restore NexaConnect.sln
       - name: Validate workload audience configuration
-        run: ./scripts/test-keycloak-realm.ps1
+        run: |
+          ./scripts/test-keycloak-realm.ps1
+          ./tests/Scripts/Test-InventoryAudiencePreflight.ps1
       - name: Verify financial workflow and authorization invariants
         run: dotnet test tests/Unit/NexaConnect.UnitTests --filter "FullyQualifiedName~AuthorizationPolicyTests|FullyQualifiedName~ReportingTenantAuthorizationTests|FullyQualifiedName~ManualTender|FullyQualifiedName~DayClosePreparation|FullyQualifiedName~PosCashSession|FullyQualifiedName~PosShift" --verbosity minimal
       - name: Verify authorization domain boundaries

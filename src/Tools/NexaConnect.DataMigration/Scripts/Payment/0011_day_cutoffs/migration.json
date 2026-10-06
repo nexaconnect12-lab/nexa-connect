@@ -1,0 +1,1 @@
+{"version": 11, "name": "day_cutoffs", "transactional": true, "downgradeSafety": "destructive", "minimumApplicationVersion": "0.25.0"}

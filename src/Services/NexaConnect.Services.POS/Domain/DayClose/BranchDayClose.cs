@@ -2,13 +2,16 @@ namespace NexaConnect.Services.POS.Domain.DayClose;
 
 public sealed record DayIdentity(Guid OrganizationId, Guid RestaurantId, Guid BranchId, DateOnly BusinessDate);
 public sealed record DayTender(string Method, string Currency, decimal Amount);
+public sealed record CutoffReference(Guid ManifestId, long Generation, string EvidenceVersion);
+public sealed record DayCutoffEvidence(CutoffReference Order, CutoffReference Payment, CutoffReference Pos,
+    Guid CheckId, bool SourcesCurrent, int FinancialGaps);
 public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffset FromUtc, DateTimeOffset ToUtc,
     decimal GrossSales, decimal CompletedRefunds, decimal NetSales, decimal CashVariance,
     DayTender[] Tenders, string? OrderVersion, string? PaymentVersion, string? PosVersion,
     int UnresolvedOrders, int UnresolvedPayments, int UnresolvedRefunds, int OpenShifts, int OpenCashSessions,
     int PendingCashReviews, string[] Issues, DateTimeOffset ObservedAtUtc, DateTimeOffset? OrderObservedAtUtc = null,
     DateTimeOffset? PaymentObservedAtUtc = null, DateTimeOffset? PosObservedAtUtc = null,
-    Guid? RecordedCheckId = null, DateTimeOffset? RecordedCheckedAtUtc = null)
+    Guid? RecordedCheckId = null, DateTimeOffset? RecordedCheckedAtUtc = null, DayCutoffEvidence? Cutoff = null)
 {
     public bool IsValid(DateTimeOffset now) => !string.IsNullOrWhiteSpace(TimeZone) && TimeZone.Length<=100
         && Currency is { Length:3 } && Currency.All(c=>c is >= 'A' and <= 'Z')
@@ -18,12 +21,17 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
         && new[]{OrderObservedAtUtc,PaymentObservedAtUtc,PosObservedAtUtc}.All(t=>t is null || t>=ToUtc && t<=now)
         && new[]{UnresolvedOrders,UnresolvedPayments,UnresolvedRefunds,OpenShifts,OpenCashSessions,PendingCashReviews}.All(n=>n>=0)
         && Tenders is not null && Tenders.All(t=>!string.IsNullOrWhiteSpace(t.Method) && t.Amount>=0 && t.Currency==Currency)
-        && Issues is not null && Issues.Length<=32 && Issues.All(x=>!string.IsNullOrWhiteSpace(x) && x.Length<=100);
+        && Issues is not null && Issues.Length<=32 && Issues.All(x=>!string.IsNullOrWhiteSpace(x) && x.Length<=100)
+        && (Cutoff is null || Cutoff.CheckId != Guid.Empty && Cutoff.FinancialGaps >= 0
+            && new[]{Cutoff.Order,Cutoff.Payment,Cutoff.Pos}.All(r=>r is not null && r.ManifestId!=Guid.Empty
+                && r.Generation>0 && r.EvidenceVersion.Length==64 && r.EvidenceVersion.All(char.IsAsciiHexDigit)));
     public string[] Blockers() => Issues.Where(x => x != "recorded_check_is_historical"
         && !(x == "cash_variance" && PendingCashReviews == 0))
         .Concat(new (int Count,string Code)[]{(UnresolvedOrders,"unresolved_orders"),(UnresolvedPayments,"unresolved_payments"),(UnresolvedRefunds,"unresolved_refunds"),(OpenShifts,"open_shifts"),(OpenCashSessions,"open_cash_sessions"),(PendingCashReviews,"pending_cash_reviews")}.Where(x=>x.Count>0).Select(x=>x.Code))
         .Concat(new[] { OrderVersion, PaymentVersion, PosVersion }.Any(x => x is null || x.Length != 64 || x.Any(c => !char.IsAsciiHexDigit(c)))
-            ? ["source_evidence_unavailable"] : Array.Empty<string>()).Distinct().Order().ToArray();
+            ? ["source_evidence_unavailable"] : Array.Empty<string>())
+        .Concat(Cutoff is { SourcesCurrent:false } ? ["cutoff_superseded"] : Array.Empty<string>())
+        .Concat(Cutoff is { FinancialGaps:>0 } ? ["cutoff_financial_gaps"] : Array.Empty<string>()).Distinct().Order().ToArray();
     // Observation timestamps do not participate in evidence equality.
     public bool SameEvidence(DayEvidence other) => TimeZone == other.TimeZone && Currency == other.Currency
         && FromUtc == other.FromUtc && ToUtc == other.ToUtc && GrossSales == other.GrossSales
@@ -33,7 +41,10 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
         && UnresolvedOrders == other.UnresolvedOrders && UnresolvedPayments == other.UnresolvedPayments
         && UnresolvedRefunds == other.UnresolvedRefunds && OpenShifts == other.OpenShifts
         && OpenCashSessions == other.OpenCashSessions && PendingCashReviews == other.PendingCashReviews
-        && Blockers().SequenceEqual(other.Blockers());
+        && Blockers().SequenceEqual(other.Blockers())
+        && (Cutoff is null ? other.Cutoff is null : other.Cutoff is not null
+            && Cutoff.Order==other.Cutoff.Order && Cutoff.Payment==other.Cutoff.Payment && Cutoff.Pos==other.Cutoff.Pos
+            && Cutoff.SourcesCurrent==other.Cutoff.SourcesCurrent && Cutoff.FinancialGaps==other.Cutoff.FinancialGaps);
 }
 public sealed record PreparationCommand(Guid BranchId, DateOnly BusinessDate, Guid OperationId, long ExpectedVersion, string ReasonCode);
 public sealed record PreparationState(DayIdentity Identity, long Version, string Status, DayEvidence? Snapshot,

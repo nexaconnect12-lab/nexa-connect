@@ -122,8 +122,12 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.IOrderDayReader, NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderDayReader>();
 }
 builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderDayRead>();
+
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderCutoffs>();
+if (usePostgres) builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.IOrderCutoffStore, NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderCutoffStore>();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
+app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/order/v1/customer/day-cutoffs")) context.Response.Headers.CacheControl="no-store"; await next(); });
 app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/order/v1/customer/end-of-day", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.

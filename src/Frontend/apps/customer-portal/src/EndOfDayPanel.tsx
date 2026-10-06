@@ -32,6 +32,7 @@ export function EndOfDayPanel({organizationId}:{organizationId:string}){
       <Button htmlType="submit" disabled={!input||busy} loading={busy}>Load day draft</Button>
     </Space></Form>
     {input&&<DayClosePreparationPanel key={`${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate}/>}
+    {input&&<DayClosePreparationPanel cutoff key={`cutoff|${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate}/>}
     {error&&<Alert role="status" type="error" message={error}/>}
     {report&&<>
       <Descriptions bordered column={1}>
@@ -45,7 +46,7 @@ export function EndOfDayPanel({organizationId}:{organizationId:string}){
         <Descriptions.Item label="Source evidence gaps">Orders {report.order.evidenceGaps}; refunds {report.payment.evidenceGaps}</Descriptions.Item>
         <Descriptions.Item label="Source observation times (UTC)">Order {report.order.observedAtUtc}; Payment {report.payment.observedAtUtc}; POS {report.pos.observedAtUtc}</Descriptions.Item>
       </Descriptions>
-      <Typography.Paragraph>Gross sales use order time; tenders use receipt paid time; refunds use completion time; drawer variance uses close time. Outstanding work includes earlier items originating before the selected day ended, using their current status. Tender totals are gross receipts, before refunds. Historical dates use the branch’s current timezone configuration.</Typography.Paragraph>
+      <Typography.Paragraph>Gross sales use order time; tenders use receipt paid time; refunds use completion time; drawer variance uses close time. Outstanding work includes earlier items originating before the selected day ended, using their current status. Tender totals are gross receipts, before refunds. Historical dates use the branchâ€™s current timezone configuration.</Typography.Paragraph>
       <Table rowKey={r=>`${r.method}|${r.currency}`} pagination={false} dataSource={report.tenders} columns={[{title:"Tender",dataIndex:"method"},{title:"Currency",dataIndex:"currency"},{title:"Received",dataIndex:"amount"}]}/>
       <List header="Items to investigate" dataSource={report.issues} renderItem={item=><List.Item>{issueNames[item]??"Additional source issue requires investigation"}</List.Item>}/>
     </>}
