@@ -121,3 +121,5 @@ Review history retains the reviewer subject and Authorization decision identifie
 Supported device types are `pos`, `kiosk`, `kds`, and `edge`. A successful enrollment returns `201 Created`, sets `Location` to `api/pos/v1/terminals/{terminalId}`, and returns `{ "terminalId": "..." }`. Enrollment is an online administrative operation and is not performed from an offline client.
 
 Invalid enrollment input returns `400`, denied branch scope or authorization returns `403`, an active matching store that cannot be found returns `404`, and unavailable Restaurant or Authorization dependencies return `503` without exposing provider details.
+
+Cash-session open/close persistence obtains UTC timestamps from the service's TimeProvider. Normal deployment uses TimeProvider.System; these timestamps now originate from the application host rather than PostgreSQL `now()`. Align service/database clocks because session windows route financial events. An acceptance-only host can inject a historical provider; production has no environment clock switch. See [command acceptance and clock limits](../Deployment/Cashier-Day-Close-Acceptance.md).

@@ -9,7 +9,7 @@ using NexaConnect.Services.Order.Domain;
 
 namespace NexaConnect.Services.Order.Infrastructure.Persistence;
 
-public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
+public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource, TimeProvider? timeProvider = null)
     : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderWorkflowRecoveryRepository, IOrderLookup, IPaymentReviewRepository, IPaymentReviewHistoryRepository, IManualTenderRepository, IOrderReceiptRepository
 {
     public async Task<PaidOrderReceipt?> GetReceiptAsync(Guid organizationId, Guid branchId, Guid orderId, CancellationToken cancellationToken)
@@ -222,7 +222,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
         return order;
     }
 
-    private static async Task SaveOrderAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, OrderAggregate order,
+    private async Task SaveOrderAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, OrderAggregate order,
         CancellationToken cancellationToken, Guid? recoveryClaimId = null)
     {
         await using var command = new NpgsqlCommand("""
@@ -241,7 +241,7 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource)
               AND NOT (orders.status IN('payment_pending','payment_review') AND EXCLUDED.status IN('submitted','inventory_reserved','kitchen_accepted'))
             """, connection, transaction);
         command.Parameters.AddWithValue("receipt", NpgsqlTypes.NpgsqlDbType.Text, (object?)(order.Receipt is null ? null : JsonSerializer.Serialize(order.Receipt)) ?? DBNull.Value);
-        var now = DateTime.UtcNow;
+        var now = (timeProvider ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         command.Parameters.AddWithValue("id", order.Id); command.Parameters.AddWithValue("organization", order.OrganizationId); command.Parameters.AddWithValue("restaurant", order.RestaurantId); command.Parameters.AddWithValue("branch", order.BranchId);
         command.Parameters.AddWithValue("payment_intent", NpgsqlTypes.NpgsqlDbType.Uuid, (object?)order.PaymentIntentId ?? DBNull.Value);
         command.Parameters.AddWithValue("number", order.OrderNumber); command.Parameters.AddWithValue("currency", order.Currency); command.Parameters.AddWithValue("channel", order.Channel); command.Parameters.AddWithValue("service", order.ServiceType);

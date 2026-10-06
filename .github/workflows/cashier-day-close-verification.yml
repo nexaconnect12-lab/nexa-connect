@@ -1,0 +1,71 @@
+name: Cashier-to-day-close verification
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cashier-day-close-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portal:
+    name: Joined cashier-to-day-close gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore solution dependencies
+        run: dotnet restore NexaConnect.sln
+      - name: Validate workload audience configuration
+        run: ./scripts/test-keycloak-realm.ps1
+      - name: Verify financial workflow and authorization invariants
+        run: dotnet test tests/Unit/NexaConnect.UnitTests --filter "FullyQualifiedName~AuthorizationPolicyTests|FullyQualifiedName~ReportingTenantAuthorizationTests|FullyQualifiedName~ManualTender|FullyQualifiedName~DayClosePreparation|FullyQualifiedName~PosCashSession|FullyQualifiedName~PosShift" --verbosity minimal
+      - name: Verify authorization domain boundaries
+        run: dotnet test tests/Architecture/NexaConnect.ArchitectureTests --filter FullyQualifiedName~AuthorizationDomainDependencyTests --verbosity minimal
+      - name: Verify POS and BFF HTTP boundaries
+        run: dotnet test tests/Integration/NexaConnect.IntegrationTests --filter "FullyQualifiedName~PosShiftApiTests|FullyQualifiedName~DayCloseHttpTests|FullyQualifiedName~CustomerDayCloseBoundaryTests" --verbosity minimal
+      - name: Verify command-host preflight without infrastructure
+        run: |
+          dotnet build src/Tools/NexaConnect.FinancialPortalAcceptance --no-restore --verbosity minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tests/Scripts/Test-CashierDayCloseHostPreflight.ps1
+      - name: Prepare browser and validate acceptance guards
+        working-directory: src/Frontend
+        run: |
+          npm ci --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run audit:production
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run audit:all
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test e2e/cashier-day-close-live/settings.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx playwright install --with-deps chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run real OIDC portal matrix without skips
+        run: ./scripts/test-cashier-day-close.ps1 -ConfirmDisposableInfrastructure
+      - name: Retain bounded portal verification only
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cashier-day-close-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .runstate/cashier-day-close/*/verification.json
+            src/Frontend/test-results/cashier-day-close-live/*/summary.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

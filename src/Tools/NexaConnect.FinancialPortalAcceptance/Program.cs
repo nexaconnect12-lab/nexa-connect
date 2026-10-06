@@ -24,9 +24,20 @@ using PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers;
 string stage="options";
 try
 {
+    if (args.Length > 0 && args[0] is "host-pos" or "host-order")
+    {
+        stage="command-host"; await CashierCommandHost.RunAsync(args[0]); return 0;
+    }
     var options=FixtureOptions.Read();
-    if(args.Length!=1 || args[0] is not ("provision" or "record" or "deliver" or "revoke" or "revoke-source" or "membership" or "resolve-day-close" or "same-total-evidence" or "late-cash" or "approve-cash" or "preparation-proof" or "stop-pos" or "start-pos" or "revoke-day-close-read" or "revoke-day-close-prepare" or "revoke-manager-source" or "restore-manager-source" or "membership-second")) return 2;
-    if(args[0] is not("provision" or "record" or "deliver" or "revoke" or "revoke-source" or "membership") && !options.DayClose)return 2;
+    if (args.Length == 1 && args[0] == "cashier-proof")
+    {
+        if(!options.DayClose || Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CLOSE")!="1") throw new ArgumentException();
+        using var proofTimeout=new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await CashierReferenceFixture.ProofAsync(options,proofTimeout.Token); return 0;
+    }
+    if(args.Length==1 && args[0]=="provision-cashier" && (!options.DayClose || Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CLOSE")!="1")) throw new ArgumentException();
+    if(args.Length!=1 || args[0] is not ("provision" or "provision-cashier" or "record" or "deliver" or "revoke" or "revoke-source" or "membership" or "resolve-day-close" or "same-total-evidence" or "late-cash" or "approve-cash" or "preparation-proof" or "stop-pos" or "start-pos" or "revoke-day-close-read" or "revoke-day-close-prepare" or "revoke-manager-source" or "restore-manager-source" or "membership-second")) return 2;
+    if(args[0] is not("provision" or "provision-cashier" or "record" or "deliver" or "revoke" or "revoke-source" or "membership") && !options.DayClose)return 2;
     using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(3));var ct=timeout.Token;
     await using var platformDb=NpgsqlDataSource.Create(options.Connection("platform"));
     await using var restaurantDb=NpgsqlDataSource.Create(options.Connection("restaurant"));
@@ -39,7 +50,7 @@ try
     var platformRepository=new PostgresPlatformDirectoryManagementRepository(platformDb);
     var platform=new PlatformDirectoryManagementService(platformRepository);
     string actor="financial-fixture:"+options.RunId;
-    if(args[0]=="provision")
+    if(args[0] is "provision" or "provision-cashier")
     {
         stage="empty-check";
         var restaurantRepository=new PostgresRestaurantProvisioningRepository(restaurantDb);
@@ -61,9 +72,21 @@ try
         var branch=await restaurant.CreateBranchAsync(r.RestaurantId,new("allowed","Allowed Branch","THB",options.EndOfDay ? "Asia/Bangkok" : "Etc/UTC"),actor,ct)??throw new InvalidOperationException();
         var denied=await restaurant.CreateBranchAsync(r.RestaurantId,new("denied","Denied Branch","THB","Etc/UTC"),actor,ct)??throw new InvalidOperationException();
         var assignments=new AuthorizationAssignmentService(assignmentsRepository);
-        await assignments.AssignAsync(new(options.Reader,org.OrganizationId,r.RestaurantId,branch.BranchId,"accountant"),actor,ct);
+        await assignments.AssignAsync(new(options.Reader,org.OrganizationId,r.RestaurantId,branch.BranchId,args[0]=="provision-cashier"?"cashier":"accountant"),actor,ct);
         await assignments.AssignAsync(new(options.Resolver,org.OrganizationId,r.RestaurantId,null,"store-manager"),actor,ct);
         if(options.DayClose)await assignments.AssignAsync(new(options.SecondManager!,org.OrganizationId,r.RestaurantId,null,"store-manager"),actor,ct);
+        if(args[0]=="provision-cashier")
+        {
+            if(!options.DayClose || Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CLOSE")!="1") throw new ArgumentException();
+            var reference=await CashierReferenceFixture.CreateAsync(options,org.OrganizationId,r.RestaurantId,branch.BranchId,ct);
+            var cashierZone=TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
+            var date=DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,cashierZone).DateTime).AddDays(-1);
+            var start=new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(date.ToDateTime(TimeOnly.MinValue),cashierZone));
+            var cashierState=new FixtureState(options.RunId,org.OrganizationId,other.OrganizationId,r.RestaurantId,branch.BranchId,denied.BranchId,start,start.AddDays(1),date.ToString("yyyy-MM-dd"),Cashier:reference);
+            await File.WriteAllTextAsync(options.StatePath,JsonSerializer.Serialize(cashierState,json),ct);
+            await File.WriteAllTextAsync(Path.Combine(Path.GetDirectoryName(options.StatePath)!,"clock.json"),JsonSerializer.Serialize(new{runId=options.RunId,mode="historical",atUtc=start.AddHours(10)},json),ct);
+            return 0;
+        }
         stage="retained-sources";
         bool day=options.EndOfDay;
         var zone=TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
@@ -167,7 +190,7 @@ try
 }
 catch(Exception exception){Console.Error.WriteLine($"Financial portal fixture failed at {stage} ({exception.GetType().Name}, SQLSTATE={(exception as PostgresException)?.SqlState??"none"}); sensitive details suppressed.");return 1;}
 
-internal sealed record FixtureState(string RunId,Guid OrganizationId,Guid OtherOrganizationId,Guid RestaurantId,Guid BranchId,Guid DeniedBranchId,DateTimeOffset FromUtc,DateTimeOffset ToUtc,string? BusinessDate=null,PosFixtureIds? Pos=null);
+internal sealed record FixtureState(string RunId,Guid OrganizationId,Guid OtherOrganizationId,Guid RestaurantId,Guid BranchId,Guid DeniedBranchId,DateTimeOffset FromUtc,DateTimeOffset ToUtc,string? BusinessDate=null,PosFixtureIds? Pos=null,CashierReference? Cashier=null);
 internal sealed class FixtureClock(DateTimeOffset now):TimeProvider { public override DateTimeOffset GetUtcNow()=>now; }
 internal sealed record FixtureOptions(string RunId,string Reader,string Resolver,string StatePath)
 {

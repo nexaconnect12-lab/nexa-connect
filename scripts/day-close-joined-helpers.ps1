@@ -5,7 +5,7 @@ function Invoke-DayCloseJoinedBrowser {
     $info=[Diagnostics.ProcessStartInfo]::new((Get-Command node).Source);$info.UseShellExecute=$false;$info.CreateNoWindow=$true
     $info.WorkingDirectory=Join-Path $root 'src/Frontend';$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true
     $info.ArgumentList.Add((Join-Path $info.WorkingDirectory 'node_modules/@playwright/test/cli.js'))
-    $info.ArgumentList.Add('test');$info.ArgumentList.Add('--config');$info.ArgumentList.Add('playwright.day-close-live.config.mjs')
+    $info.ArgumentList.Add('test');$info.ArgumentList.Add('--config');$info.ArgumentList.Add($(if($CashierDayClose){'playwright.cashier-day-close-live.config.mjs'}else{'playwright.day-close-live.config.mjs'}))
     $browser=[Diagnostics.Process]::Start($info)
     $browserState=@{Process=$browser;Out=$browser.StandardOutput.ReadToEndAsync();Error=$browser.StandardError.ReadToEndAsync();Name='Browser'}
     $script:processes+=$browserState;$limit=[DateTimeOffset]::UtcNow.AddMinutes(12);$restartNumber=0
