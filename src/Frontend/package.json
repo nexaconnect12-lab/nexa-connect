@@ -2,12 +2,14 @@
   "name": "@nexaconnect/frontend",
   "private": true,
   "version": "0.1.0",
-  "engines": { "node": ">=20.19.0" },
+  "engines": { "node": "^22.12.0 || >=24.0.0" },
   "workspaces": ["packages/*", "apps/*"],
   "scripts": {
     "build": "tsc -b && npm run build --workspace @nexaconnect/product-owner-portal && npm run build --workspace @nexaconnect/customer-portal",
     "check": "tsc -b --pretty false",
     "test": "vitest run",
+    "audit:production": "npm audit --omit=dev --audit-level=moderate",
+    "audit:all": "npm audit --include=dev --audit-level=moderate",
     "test:e2e:day-close:live": "playwright test --config playwright.day-close-live.config.mjs",
     "test:day-close:guards": "node --test e2e/day-close-live/settings.test.mjs",
     "test:e2e:day-close": "playwright test --config playwright.day-close.config.mjs",
@@ -34,7 +36,7 @@
     "jsdom": "24.0.0",
     "typescript": "5.4.5",
     "vite": "7.3.6",
-    "vitest": "3.2.6"
+    "vitest": "4.1.11"
   },
   "dependencies": {
     "antd": "5.16.5",

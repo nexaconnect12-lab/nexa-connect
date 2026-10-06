@@ -1,5 +1,7 @@
 # Deployment Guide
 
+Frontend dependency hardening pins Vitest 4.1.11 and SourceMap.js 1.2.2, removes Tinypool, and requires Node 22.12+ (22.x) or 24+. CI separately audits production and full dependency trees, rejecting moderate-or-higher findings; the frontend compatibility job checks Node 22 and 24. See [runtime, audit and verification policy](Frontend-Dependency-Hardening.md).
+
 The [joined day-close preparation gate](Day-Close-Portal-Acceptance.md) now provides a guarded disposable validation path for actual OIDC/BFF/POS/Reporting/source HTTP and POS restart/resume/replacement. Its fixture source transitions remain synthetic; require eleven browser cases, six Authorization persistence cases and verified cleanup before recording a pass. The CI workflow uploads only bounded summaries; a local pass does not certify the production target.
 
 Current day-close preparation additionally requires POS 8 / Authorization 10 and application compatibility 0.24.0 before new routes/controls are enabled. Configure POS `Services__Reporting` and Customer BFF `Services__POS` against the actual HTTPS hosts, keep existing Reporting source dependencies, and grant only required POS state/operation writes plus audit append/read. Retained preparation history prevents POS downgrade. The read-only draft and financial pipelines remain independently owned. See [rollout, timeout/lease recovery and verification](Day-Close-Preparation.md).

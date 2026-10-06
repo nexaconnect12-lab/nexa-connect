@@ -41,6 +41,10 @@ jobs:
         run: |
           npm ci --ignore-scripts
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run audit:production
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run audit:all
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test e2e/end-of-day-live/settings.test.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx playwright install --with-deps chromium

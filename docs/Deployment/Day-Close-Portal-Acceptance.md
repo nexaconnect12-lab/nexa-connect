@@ -4,7 +4,7 @@ The guarded runner joins real Keycloak Customer sessions, the published Customer
 
 ## Run and topology
 
-Prepare .NET 10/Node 20.19+ dependencies and Chromium, then run from repository root:
+Prepare .NET 10/Node 22.12+ (22.x) or 24+ dependencies and Chromium, then run from repository root:
 
 ```powershell
 ./scripts/test-day-close-portal.ps1 -ConfirmDisposableInfrastructure
@@ -63,3 +63,5 @@ Local publish preparation reported four npm dependency advisories (one moderate,
 Windows run `14f563dc51d44f929d9bb2bcef37ee60` passed all eleven named browser scenarios without skips/retries and all six Authorization persistence regressions. Its bounded `verification.json` records `passed=true`, `authorizationPassed=true`, `cleanupVerified=true` and `productionVerified=false`; browser summary records `verified=true`, `passed=11` and `total=11`. Verification completed at `2026-10-06T03:14:52.9504923Z` against base commit `31f2476e46bf8b46212b9997a8425fa4bf0e4161` with `sourceDirty=true`: this is working-tree evidence, not a committed-release or production pass. The matching local files use the exact run paths described above. Remote CI remains unexecuted.
 
 See [the joined acceptance evidence handoff](../Architecture/Evidence/Day-Close-Joined-Acceptance.md) for the exact preparation and read-regression run records, broader verification, documentation inventory and remaining release gates.
+
+The joined CI job runs both production and full-tree npm audits before acceptance, rejecting moderate-or-higher advisories. Use Node 22.12+ (22.x) or 24+; see [frontend dependency policy](Frontend-Dependency-Hardening.md).

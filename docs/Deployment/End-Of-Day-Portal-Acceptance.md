@@ -4,7 +4,7 @@ The guarded launcher joins actual Keycloak login, Customer Portal/BFF, Platform 
 
 ## Run
 
-Requires PowerShell 7, .NET 10, Node 20.19+, installed Chromium and a local Docker socket. Prepare dependencies first:
+Requires PowerShell 7, .NET 10, Node 22.12+ (22.x) or 24+, installed Chromium and a local Docker socket. Prepare dependencies first:
 
 ```powershell
 dotnet restore NexaConnect.sln
@@ -52,3 +52,5 @@ Require successful launcher exit plus `passed`, `authorizationPassed` and `clean
 Local Windows acceptance on 2026-10-03 passed all eight browser and six Authorization persistence cases without skips; the successful launcher verified cleanup. The `Joined end-of-day portal gate` CI workflow is configured to run the matrix with Ubuntu, .NET 10 and Node 22 and upload only bounded summary files for 14 days. Remote execution and required branch protection remain separate evidence. See [execution evidence](../Architecture/Evidence/End-Of-Day-Joined-Acceptance.md).
 
 This gate proves joined authenticated reads, live authorization and actual retained-event propagation. It excludes cashier/payment/refund command HTTP, external providers, physical terminals, DST joined execution (covered separately by unit tests), concurrent financial cutoff certification, durable settlement approval/locking, and target-production TLS/clock/privilege/latency acceptance. Production clock alignment and current timezone metadata limitations remain in the [draft rollout](End-Of-Day-Draft.md).
+
+The joined CI job runs both production and full-tree npm audits before acceptance, rejecting moderate-or-higher advisories. Use Node 22.12+ (22.x) or 24+; see [frontend dependency policy](Frontend-Dependency-Hardening.md).

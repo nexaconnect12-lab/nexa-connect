@@ -77,3 +77,5 @@ This proves actual authenticated preparation HTTP, source reads, durable state/r
 Remote CI execution and required branch protection, production TLS/least privilege/clock/timezone/capacity/latency, offline POS, financial cutoff/delivery-watermark certification and settlement approval/locking remain open. Both runs set `productionVerified=false`.
 
 `npm ci` reported four existing dependency advisories (one moderate, one high, two critical); Vite reports existing large chunks. This slice changed no package versions or lockfile. Dependency triage and bundle optimization remain follow-up work; these observations do not determine production exploitability.
+
+Dated follow-up, 2026-10-06: [frontend dependency hardening](Frontend-Dependency-Hardening.md) resolves the dependency advisories above and introduces separate production/full-tree CI audits. The earlier run's install warnings remain historical evidence; bundle optimization remains open.

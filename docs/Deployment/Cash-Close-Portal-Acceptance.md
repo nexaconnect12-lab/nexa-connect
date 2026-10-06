@@ -4,7 +4,7 @@ The opt-in runner joins the real Customer Portal, Customer BFF, Reporting, POS, 
 
 ## Run locally
 
-Requires PowerShell 7, the repository's .NET SDK, Node/npm, Playwright Chromium and a local Docker socket. Run from the repository root:
+Requires PowerShell 7, the repository's .NET SDK, Node 22.12+ (22.x) or 24+ with npm, Playwright Chromium and a local Docker socket. Run from the repository root:
 
 ```powershell
 Push-Location src/Frontend
@@ -46,3 +46,5 @@ The `Joined cash-close portal gate` GitHub job runs this matrix on Ubuntu with .
 ## POS workload audience prerequisite
 
 The development realm explicitly maps `nexaconnect-api` into POS workload access tokens so the scanner can resolve Restaurant hierarchy. Existing realms need an explicit reviewed mapper update; realm import skips existing realms. Obtain a new workload token after updating the mapper (restart the local POS host or allow its cached token to expire). Token validation remains unchanged. This requirement also applies outside the disposable harness.
+
+The joined CI job runs both production and full-tree npm audits before acceptance, rejecting moderate-or-higher advisories. Use Node 22.12+ (22.x) or 24+; see [frontend dependency policy](Frontend-Dependency-Hardening.md).

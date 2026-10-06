@@ -1,5 +1,7 @@
 # NexaConnect frontend foundations
 
+Frontend dependency hardening pins Vitest 4.1.11 and SourceMap.js 1.2.2, removes Tinypool, and requires Node 22.12+ (22.x) or 24+. CI separately audits production and full dependency trees, rejecting moderate-or-higher findings; the frontend compatibility job checks Node 22 and 24. See [runtime, audit and verification policy](../../docs/Deployment/Frontend-Dependency-Hardening.md).
+
 The [joined day-close suite](e2e/day-close-live/README.md) implements eleven real-OIDC scenarios through the guarded disposable launcher. Run `npm run test:day-close:guards` for its four configuration/evidence checks; `test:e2e:day-close:live` requires the complete launcher environment and runner-owned POS restart control. Local Windows acceptance passed eleven browser and six Authorization persistence cases without skips/retries, with verified cleanup on 2026-10-06; remote CI and production acceptance remain separate.
 
 Day-close preparation browser contracts run with `npm run test:e2e:day-close`. The actual Customer Portal uses synthetic BFF replies to verify CSRF/version/operation payloads, readiness invalidation, accountant controls, uncertain replay, restart-resume and stale filter/tenant/malformed response handling. See [scope and verification](../../docs/Deployment/Day-Close-Preparation.md); live joined preparation acceptance remains separate.
@@ -12,7 +14,7 @@ Single-store cash-close Reporting browser contracts run with `npm run test:e2e:c
 
 Payment Review now has an opt-in real-OIDC suite: `npm run test:e2e:payment-review:live`, with `npm run test:payment-review:guards` for fail-closed configuration/evidence checks. See [live prerequisites and evidence limits](e2e/payment-review-live/README.md). It is not provisioned by the isolated infrastructure matrix and has not been live-executed here.
 
-This npm workspace contains the versioned, browser-safe foundations shared by NexaConnect portals. It requires Node.js 20.19 or later.
+This npm workspace contains the versioned, browser-safe foundations shared by NexaConnect portals. It requires Node.js 22.12+ (22.x) or 24+.
 
 Customer Portal Payment Review browser contract tests run with `npm run test:e2e:payment-review`; see [setup and evidence boundaries](e2e/payment-review/README.md). They use synthetic BFF responses, not live OIDC or provider credentials.
 
@@ -31,7 +33,7 @@ The Phase 7 Product Owner Portal is implemented in `apps/product-owner-portal`. 
 | `@nexaconnect/authorization-ui` | Presentation-only capability checks and conditional rendering. |
 | `@nexaconnect/telemetry` | Portal-named UI events, correlation IDs, and sensitive-attribute filtering. |
 
-Run `npm install`, `npm run check`, and `npm test` from this directory. Package output is generated into each package's ignored `dist` directory. Consumers import only public package exports.
+Run `npm ci --ignore-scripts`, both audit scripts, `npm run check`, and `npm test` from this directory. Package output is generated into each package's ignored `dist` directory. Consumers import only public package exports.
 
 The opt-in [Phase 8 joined browser acceptance](e2e/phase8/README.md) uses Playwright against the real local Customer Portal stack. It covers OIDC sign-in, tenant selection and cross-tenant denial, direct Media upload, safety completion, generated-variant downloads, and deletion. Missing credentials and seed identifiers skip the suite; normal frontend checks never contact external services.
 

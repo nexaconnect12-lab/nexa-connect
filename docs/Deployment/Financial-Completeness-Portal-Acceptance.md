@@ -4,7 +4,7 @@ The guarded runner joins real Keycloak login, Customer BFF/portal, Platform Dire
 
 ## Run
 
-Requires PowerShell 7, the repository .NET SDK, Node 20.19 or later, installed Playwright Chromium and a local Docker socket:
+Requires PowerShell 7, the repository .NET SDK, Node 22.12+ (22.x) or 24+, installed Playwright Chromium and a local Docker socket:
 
 ```powershell
 Push-Location src/Frontend
@@ -46,3 +46,5 @@ The `Joined financial-completeness portal gate` GitHub workflow repeats the matr
 Existing JSON/correlation telemetry remains on `nexaconnect-customer-bff` and `nexaconnect-reporting`. Query `{service_name="nexaconnect-customer-bff"} |= "Financial completeness BFF"` or Reporting's consumer/authorization outcomes; see [read contract](../API/Financial-Reporting-Completeness.md). Historical observations do not certify settlement/global accounting, all historical source evidence, provider capture/refund acceptance, or cashier UI.
 
 The joined matrix exposed a missing Restaurant hierarchy in Reporting's customer authorization decision. Deploy the corrected Reporting authorization adapter with `Services__Restaurant`, `WorkloadIdentity__Authority`, `WorkloadIdentity__ClientId=nexaconnect-reporting-service` and a distinct secret-managed `WorkloadIdentity__ClientSecret`. Provision the dedicated client/audience in persisted Keycloak realms through a reviewed update; restart/import does not apply it. Restaurant's endpoint-specific branch-scope policy permits this read without granting Reporting generic workload access. Coordinate Restaurant policy and identity configuration before enabling corrected Reporting reads. No schema or customer permission widening is required; see [Reporting setup](../../src/Services/NexaConnect.Services.Reporting/README.md).
+
+The joined CI job runs both production and full-tree npm audits before acceptance, rejecting moderate-or-higher advisories. Use Node 22.12+ (22.x) or 24+; see [frontend dependency policy](Frontend-Dependency-Hardening.md).
