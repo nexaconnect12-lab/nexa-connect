@@ -46,7 +46,8 @@ public sealed class PostgresPaymentCutoffStore(NpgsqlDataSource source) : IPayme
         return new(Guid.Empty,Guid.Empty,0,w,DateTimeOffset.UtcNow,summary.EvidenceVersion??"",summary,[],events,retainedRows,revision,2);
     }
     public Task<SourceSealRead<PaymentDaySummary>?> ReadSealAsync(EndOfDayWindow window,Guid id,CancellationToken ct)=>
-        new PostgresEvidenceSeals<PaymentDaySummary>(source).ReadAsync(window,id,ct);
+        new PostgresEvidenceSeals<PaymentDaySummary>(source).ReadAsync(window,id,ct,json=>FinancialChangeAttribution.Classify(json,window.ToUtc),
+            (c,t,token)=>PostgresPaymentDayReader.QueryAsync(window,c,t,token));
     public Task<SourceDaySeal> SealAsync(SourceSealCommand command,string actor,CancellationToken ct)=>
         new PostgresEvidenceSeals<PaymentDaySummary>(source).RetainAsync(command,actor,(m,r)=>
         {

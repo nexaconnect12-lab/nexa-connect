@@ -28,7 +28,7 @@ jobs:
         run: dotnet restore NexaConnect.sln
       - name: Verify financial and HTTP boundaries
         run: |
-          dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter "FullyQualifiedName~DaySealTests|FullyQualifiedName~DayCutoffTests|FullyQualifiedName~DayClosePreparationTests|FullyQualifiedName~EndOfDayDraftTests|FullyQualifiedName~FinancialCompletenessTests" --verbosity minimal
+          dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter "FullyQualifiedName~DayChangeAttributionTests|FullyQualifiedName~MigrationRunnerTests|FullyQualifiedName~DaySealTests|FullyQualifiedName~DayCutoffTests|FullyQualifiedName~DayClosePreparationTests|FullyQualifiedName~EndOfDayDraftTests|FullyQualifiedName~FinancialCompletenessTests" --verbosity minimal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter "FullyQualifiedName~CustomerDaySealBoundaryTests|FullyQualifiedName~CustomerDayCutoffBoundaryTests|FullyQualifiedName~DayCloseHttpTests" --verbosity minimal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

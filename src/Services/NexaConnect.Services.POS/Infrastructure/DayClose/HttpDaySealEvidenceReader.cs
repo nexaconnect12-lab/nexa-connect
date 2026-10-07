@@ -46,14 +46,26 @@ public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySea
         var paymentAfter=await Source<PaymentDaySummary>("Payment",w,null,cutoff.Payment,payment.Seal.SealId,token,ct);
         var posAfter=await Source<PosDaySummary>("POS",w,null,cutoff.Pos,pos.Seal.SealId,token,ct);
         Validate(orderAfter,w,cutoff.Order);Validate(paymentAfter,w,cutoff.Payment);Validate(posAfter,w,cutoff.Pos);
+        if(orderAfter.CurrentSummary!.Window!=w || paymentAfter.CurrentSummary!.Window!=w || posAfter.CurrentSummary!.Window!=w
+            || new[]{orderAfter.CurrentSummary.EvidenceVersion,paymentAfter.CurrentSummary.EvidenceVersion,posAfter.CurrentSummary.EvidenceVersion}.Any(v=>v is null || v.Length!=64 || v.Any(c=>!char.IsAsciiHexDigit(c)))
+            || orderAfter.CurrentSummary.GrossSales<0 || paymentAfter.CurrentSummary.CompletedRefunds<0
+            || orderAfter.CurrentSummary.Tenders.Any(t=>t.Currency!="THB" || t.Amount<0)
+            || orderAfter.CurrentSummary.Currencies.Concat(paymentAfter.CurrentSummary.Currencies).Concat(posAfter.CurrentSummary.Currencies).Any(c=>c!="THB"))
+            throw new InvalidOperationException("Current source comparison invalid.");
         if(orderAfter.Seal!=order.Seal || paymentAfter.Seal!=payment.Seal || posAfter.Seal!=pos.Seal
-            || orderAfter.PendingChanges<order.PendingChanges || paymentAfter.PendingChanges<payment.PendingChanges || posAfter.PendingChanges<pos.PendingChanges)
+            || orderAfter.PendingChanges<order.PendingChanges || paymentAfter.PendingChanges<payment.PendingChanges || posAfter.PendingChanges<pos.PendingChanges
+            || orderAfter.ObservedChanges<order.ObservedChanges || paymentAfter.ObservedChanges<payment.ObservedChanges || posAfter.ObservedChanges<pos.ObservedChanges)
             throw new InvalidOperationException("Source seal identity changed.");
         static DaySealReference Ref(SourceDaySeal s)=>new(s.SealId,s.ManifestId,s.SourceRevision.Epoch,s.SourceRevision.Revision);
         long pending=checked(orderAfter.PendingChanges+paymentAfter.PendingChanges+posAfter.PendingChanges);
         return basis with{ObservedAtUtc=clock.GetUtcNow(),Cutoff=cutoff with{CheckId=check.CheckId,DeliveryComplete=check.DeliveryComplete,FinancialGaps=checked((int)gaps)},
             Seals=new(Ref(order.Seal),Ref(payment.Seal),Ref(pos.Seal),pending,
-                order.JournalComplete&&payment.JournalComplete&&pos.JournalComplete&&orderAfter.JournalComplete&&paymentAfter.JournalComplete&&posAfter.JournalComplete,check.DeliveryComplete)};
+                order.JournalComplete&&payment.JournalComplete&&pos.JournalComplete&&orderAfter.JournalComplete&&paymentAfter.JournalComplete&&posAfter.JournalComplete
+                && orderAfter.UnknownChanges==0&&paymentAfter.UnknownChanges==0&&posAfter.UnknownChanges==0,check.DeliveryComplete),
+            SealComparison=new(orderAfter.CurrentSummary!.GrossSales,paymentAfter.CurrentSummary!.CompletedRefunds,
+                orderAfter.CurrentSummary.GrossSales-paymentAfter.CurrentSummary.CompletedRefunds,posAfter.CurrentSummary!.CashVariance,
+                orderAfter.CurrentSummary.Tenders.Select(t=>new DayTender(t.Method,t.Currency,t.Amount)).ToArray(),
+                checked(orderAfter.UnknownChanges+paymentAfter.UnknownChanges+posAfter.UnknownChanges),clock.GetUtcNow())};
     }
     private void Validate<T>(SourceSealRead<T> s,EndOfDayWindow w,CutoffReference reviewed)
     {
@@ -62,6 +74,8 @@ public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySea
             || s.Manifest.Generation!=reviewed.Generation || s.Manifest.EvidenceVersion!=reviewed.EvidenceVersion
             || s.Seal.SourceRevision!=s.Manifest.SourceRevision || s.Seal.SourceRevision.Epoch!=reviewed.RevisionEpoch
             || s.Seal.SourceRevision.Revision!=reviewed.SourceRevision || s.PendingChanges<0 || s.Manifest.EvidenceProtocolVersion!=2
+            || s.AttributionProtocolVersion!=1 || s.UnknownChanges<0 || s.UnknownChanges>s.PendingChanges
+            || s.ObservedChanges<s.PendingChanges || s.CurrentSummary is null
             || s.Seal.SealedAtUtc<s.Manifest.CapturedAtUtc || s.Seal.SealedAtUtc>clock.GetUtcNow())
             throw new InvalidOperationException("Source seal invalid.");
     }

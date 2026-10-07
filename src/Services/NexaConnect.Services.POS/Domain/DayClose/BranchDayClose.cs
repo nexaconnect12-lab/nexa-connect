@@ -9,13 +9,16 @@ public sealed record DayCutoffEvidence(CutoffReference Order, CutoffReference Pa
 public sealed record DaySealReference(Guid SealId,Guid ManifestId,Guid RevisionEpoch,long SourceRevision);
 public sealed record DaySealEvidence(DaySealReference Order,DaySealReference Payment,DaySealReference Pos,
     long PendingChanges,bool JournalComplete,bool DeliveryComplete);
+public sealed record DaySealComparison(decimal GrossSales,decimal CompletedRefunds,decimal NetSales,decimal CashVariance,
+    DayTender[] Tenders,long UnknownChanges,DateTimeOffset CheckedAtUtc);
 public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffset FromUtc, DateTimeOffset ToUtc,
     decimal GrossSales, decimal CompletedRefunds, decimal NetSales, decimal CashVariance,
     DayTender[] Tenders, string? OrderVersion, string? PaymentVersion, string? PosVersion,
     int UnresolvedOrders, int UnresolvedPayments, int UnresolvedRefunds, int OpenShifts, int OpenCashSessions,
     int PendingCashReviews, string[] Issues, DateTimeOffset ObservedAtUtc, DateTimeOffset? OrderObservedAtUtc = null,
     DateTimeOffset? PaymentObservedAtUtc = null, DateTimeOffset? PosObservedAtUtc = null,
-    Guid? RecordedCheckId = null, DateTimeOffset? RecordedCheckedAtUtc = null, DayCutoffEvidence? Cutoff = null,DaySealEvidence? Seals=null)
+    Guid? RecordedCheckId = null, DateTimeOffset? RecordedCheckedAtUtc = null, DayCutoffEvidence? Cutoff = null,DaySealEvidence? Seals=null,
+    DaySealComparison? SealComparison=null)
 {
     public bool IsValid(DateTimeOffset now) => !string.IsNullOrWhiteSpace(TimeZone) && TimeZone.Length<=100
         && Currency is { Length:3 } && Currency.All(c=>c is >= 'A' and <= 'Z')
@@ -25,6 +28,10 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
         && new[]{OrderObservedAtUtc,PaymentObservedAtUtc,PosObservedAtUtc}.All(t=>t is null || t>=ToUtc && t<=now)
         && new[]{UnresolvedOrders,UnresolvedPayments,UnresolvedRefunds,OpenShifts,OpenCashSessions,PendingCashReviews}.All(n=>n>=0)
         && Tenders is not null && Tenders.All(t=>!string.IsNullOrWhiteSpace(t.Method) && t.Amount>=0 && t.Currency==Currency)
+        && (SealComparison is null || SealComparison.GrossSales>=0 && SealComparison.CompletedRefunds>=0
+            && SealComparison.NetSales==SealComparison.GrossSales-SealComparison.CompletedRefunds
+            && SealComparison.UnknownChanges>=0 && SealComparison.CheckedAtUtc>=ToUtc && SealComparison.CheckedAtUtc<=now
+            && SealComparison.Tenders is not null && SealComparison.Tenders.All(t=>!string.IsNullOrWhiteSpace(t.Method) && t.Amount>=0 && t.Currency==Currency))
         && Issues is not null && Issues.Length<=32 && Issues.All(x=>!string.IsNullOrWhiteSpace(x) && x.Length<=100)
         && (Cutoff is null || Cutoff.CheckId != Guid.Empty && Cutoff.FinancialGaps >= 0
             && new[]{Cutoff.Order,Cutoff.Payment,Cutoff.Pos}.All(r=>r is not null && r.ManifestId!=Guid.Empty
@@ -67,7 +74,8 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
 public sealed record PreparationCommand(Guid BranchId, DateOnly BusinessDate, Guid OperationId, long ExpectedVersion, string ReasonCode,long? ReviewedCutoffVersion=null);
 public sealed record PreparationState(DayIdentity Identity, long Version, string Status, DayEvidence? Snapshot,
     string[] Blockers, DateTimeOffset UpdatedAtUtc, Guid? OperationId = null, Guid? ClaimId = null,
-    DateTimeOffset? LeaseUntilUtc = null, string? PreparingSubject = null, PreparationCommand? PendingCommand = null,long? PendingSealChanges=null);
+    DateTimeOffset? LeaseUntilUtc = null, string? PreparingSubject = null, PreparationCommand? PendingCommand = null,long? PendingSealChanges=null,
+    DaySealComparison? LatestSealComparison=null);
 public sealed class DayCloseConflictException(string code) : Exception(code);
 
 /// <summary>Preparation observes a day; it never approves settlement or fences source writes.</summary>
@@ -96,17 +104,19 @@ public sealed class BranchDayClose
         var blockers = evidence?.Blockers() ?? ["source_unavailable"];
         state = state with { Version = state.Version + 1, Status = blockers.Length == 0 ? "ready_for_review" : "blocked",
             Snapshot = evidence is null ? null : evidence with { Tenders = [..evidence.Tenders], Issues = [..evidence.Issues] }, Blockers = blockers, UpdatedAtUtc = now, OperationId = null, ClaimId = null,
-            LeaseUntilUtc = null, PreparingSubject = null, PendingCommand = null,PendingSealChanges=evidence?.Seals?.PendingChanges };
+            LeaseUntilUtc = null, PreparingSubject = null, PendingCommand = null,PendingSealChanges=evidence?.Seals?.PendingChanges,LatestSealComparison=evidence?.SealComparison };
     }
     public bool Validate(DayEvidence? evidence, DateTimeOffset now)
     {
         if (state.Status != "ready_for_review") return false;
         if(evidence is not null && !evidence.IsValid(now))evidence=null;
         if (evidence is not null && state.Snapshot!.SameEvidence(evidence) && evidence.Blockers().Length == 0) return false;
-        state = state with { Version = state.Version + 1, Status = "blocked", UpdatedAtUtc = now,PendingSealChanges=evidence?.Seals?.PendingChanges,
+        state = state with { Version = state.Version + 1, Status = "blocked", UpdatedAtUtc = now,PendingSealChanges=evidence?.Seals?.PendingChanges,LatestSealComparison=evidence?.SealComparison,
             Blockers = evidence is null ? ["source_unavailable"] : new[] { "source_evidence_changed" }.Concat(evidence.Blockers()).Distinct().Order().ToArray() };
         return true;
     }
     private static PreparationState Copy(PreparationState value) => value with { Blockers = [..value.Blockers],
-        Snapshot = value.Snapshot is null ? null : value.Snapshot with { Tenders = [..value.Snapshot.Tenders], Issues = [..value.Snapshot.Issues] } };
+        LatestSealComparison=value.LatestSealComparison is null?null:value.LatestSealComparison with{Tenders=[..value.LatestSealComparison.Tenders]},
+        Snapshot = value.Snapshot is null ? null : value.Snapshot with { Tenders = [..value.Snapshot.Tenders], Issues = [..value.Snapshot.Issues],
+            SealComparison=value.Snapshot.SealComparison is null?null:value.Snapshot.SealComparison with{Tenders=[..value.Snapshot.SealComparison.Tenders]} } };
 }

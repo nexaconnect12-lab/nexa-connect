@@ -53,7 +53,8 @@ public sealed class PostgresEvidenceSeals<T>(NpgsqlDataSource source)
         }
         finally{await Unlock(c,operation);}
     }
-    public async Task<SourceSealRead<T>?> ReadAsync(EndOfDayWindow w,Guid id,CancellationToken ct)
+    public async Task<SourceSealRead<T>?> ReadAsync(EndOfDayWindow w,Guid id,CancellationToken ct,
+        Func<string?,bool?> classify, Func<NpgsqlConnection,NpgsqlTransaction,CancellationToken,Task<T>> readCurrent)
     {
         await using var c=await source.OpenConnectionAsync(ct);
         await using var t=await c.BeginTransactionAsync(IsolationLevel.RepeatableRead,ct);
@@ -69,12 +70,30 @@ public sealed class PostgresEvidenceSeals<T>(NpgsqlDataSource source)
         await using var count=new NpgsqlCommand("SELECT count(*) FROM source_financial_changes WHERE restaurant_id=$1 AND branch_id=$2 AND epoch=$3 AND revision>$4",c,t);
         Add(count,w.RestaurantId,w.BranchId,seal.SourceRevision.Epoch,seal.SourceRevision.Revision);
         long observed=(long)(await count.ExecuteScalarAsync(ct))!;
-        await using var changes=new NpgsqlCommand("SELECT revision,recorded_at_utc FROM source_financial_changes WHERE restaurant_id=$1 AND branch_id=$2 AND epoch=$3 AND revision>$4 ORDER BY revision LIMIT 256",c,t);
+        await using var changes=new NpgsqlCommand("SELECT revision,recorded_at_utc,attribution::text FROM source_financial_changes WHERE restaurant_id=$1 AND branch_id=$2 AND epoch=$3 AND revision>$4 ORDER BY revision LIMIT 10001",c,t);
         Add(changes,w.RestaurantId,w.BranchId,seal.SourceRevision.Epoch,seal.SourceRevision.Revision);
         var entries=new List<SourceSealChange>();
-        await using(var rows=await changes.ExecuteReaderAsync(ct))while(await rows.ReadAsync(ct))entries.Add(new(rows.GetInt64(0),rows.GetFieldValue<DateTimeOffset>(1)));
+        long relevant=0,unknown=0,processed=0,bytes=0;
+        bool complete=pending>=0&&observed==pending;
+        await using(var rows=await changes.ExecuteReaderAsync(ct))while(await rows.ReadAsync(ct))
+        {
+            var attribution=rows.IsDBNull(2)?null:rows.GetString(2);
+            bytes+=attribution is null?0:System.Text.Encoding.UTF8.GetByteCount(attribution);
+            if(processed>=10000 || bytes>16*1024*1024){complete=false;break;}
+            if(rows.GetInt64(0)!=seal.SourceRevision.Revision+processed+1)complete=false;
+            processed++;
+            var impact=classify(attribution);
+            if(impact==false)continue;
+            relevant++;
+            if(impact is null)unknown++;
+            if(entries.Count<256)entries.Add(new(rows.GetInt64(0),rows.GetFieldValue<DateTimeOffset>(1),impact is null?"unknown":"historical_change"));
+        }
+        complete&=processed==observed;
+        unknown+=observed-processed;
+        relevant+=observed-processed;
+        var current=await readCurrent(c,t,ct);
         await t.CommitAsync(ct);
-        return new(seal,manifest,Math.Max(0,pending),pending>=0&&observed==pending,entries,observed>entries.Count);
+        return new(seal,manifest,relevant,complete,entries,relevant>entries.Count || processed<observed,1,unknown,observed,current);
     }
     private static async Task<SourceCutoff<T>?> Manifest(NpgsqlConnection c,NpgsqlTransaction t,EndOfDayWindow w,Guid id,CancellationToken ct)
     {

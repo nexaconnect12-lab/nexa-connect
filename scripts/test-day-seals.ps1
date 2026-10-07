@@ -32,7 +32,7 @@ try {
     [xml]$testResult=Get-Content -LiteralPath (Join-Path $evidenceDirectory 'seals.trx') -Raw
     $counters=$testResult.TestRun.ResultSummary.Counters
     $caseCount=[int]$counters.total
-    if($caseCount -lt 31 -or [int]$counters.passed -ne $caseCount -or [int]$counters.executed -ne $caseCount){throw 'The complete database/Application matrix must pass without skips.'}
+    if($caseCount -lt 37 -or [int]$counters.passed -ne $caseCount -or [int]$counters.executed -ne $caseCount){throw 'The complete database/Application matrix must pass without skips.'}
     $passed=$true
 } finally {
     foreach($name in $variables){[Environment]::SetEnvironmentVariable($name,$prior[$name])}

@@ -52,6 +52,95 @@ public sealed class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICutoffSour
     {
         var id=Guid.NewGuid();await Sql(pos,"INSERT INTO stores(id,restaurant_id,branch_id,code,name,operational_status,created_at_utc,created_by,updated_at_utc,updated_by) VALUES($1,$2,$3,'test','Test','active',now(),'test',now(),'test')",id,restaurant,branch);return id;
     }
+    private async Task<Guid> Drawer(Guid store,DateTimeOffset opened,bool closed)
+    {
+        var terminal=Guid.NewGuid();var shift=Guid.NewGuid();var drawer=Guid.NewGuid();
+        await Sql(pos,"INSERT INTO terminals(id,restaurant_id,store_id,code,device_type,registration_status,registered_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'test','pos','active',now(),now(),now())",terminal,restaurant,store);
+        await Sql(pos,"INSERT INTO shifts(id,store_id,terminal_id,employee_identity_subject_id,shift_number,status,opened_at_utc,closed_at_utc,opened_by,created_at_utc,updated_at_utc,authorization_decision_id) VALUES($1,$2,$3,'manager','test',$4,$5,$6,'manager',now(),now(),gen_random_uuid())",shift,store,terminal,closed?"closed":"open",opened,closed?(object)opened.AddHours(1):DBNull.Value);
+        await Sql(pos,"INSERT INTO cash_sessions(id,store_id,shift_id,currency,opening_amount,actual_closing_amount,expected_closing_amount,variance_amount,status,opened_at_utc,closed_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'THB',0,0,0,0,$4,$5,$6,now(),now())",drawer,store,shift,closed?"closed":"open",opened,closed?(object)opened.AddHours(1):DBNull.Value);
+        return drawer;
+    }
+    [ReportingDatabaseFact]
+    public async Task Next_day_trading_in_all_three_sources_preserves_older_seals_and_backdating_still_blocks()
+    {
+        var store=await Store();var reviewed=await Reviewed();var sealedDay=await Sealing.SealAsync(organization,SealCommand(reviewed.Version),new("manager","token"),default);
+        var aggregate=OrderDomain.OrderAggregate.Create(Guid.NewGuid(),organization,branch,[new OrderDomain.OrderLine(Guid.NewGuid(),"Rice",10,1,"kitchen")],"THB",restaurantId:restaurant);
+        await new OrderDb.PostgresOrderRepository(order).SaveAsync(aggregate,default);
+        var intents=new PaymentDb.PostgresPaymentIntents(payment,Microsoft.Extensions.Options.Options.Create(new PAYMENT::NexaConnect.Services.Payment.Infrastructure.Providers.PaymentProviderOptions()));
+        var intent=intents.Create(organization,new(restaurant,branch,Guid.NewGuid(),Guid.NewGuid().ToString(),100,"THB","card"),new PAYMENT::NexaConnect.Services.Payment.Application.Intents.PaymentMutationContext("manager",Guid.NewGuid()));
+        var drawer=await Drawer(store,Window.ToUtc.AddHours(1),false);
+        await Sql(pos,"INSERT INTO cash_movements(id,cash_session_id,movement_type,amount,occurred_at_utc,recorded_by) VALUES($1,$2,'pay_in',10,now(),'manager')",Guid.NewGuid(),drawer);
+        var fresh=await Sealing.ReadAsync(organization,branch,Date,new("manager","token"),default);
+        Assert.Equal("ready_for_review",fresh.Status);Assert.Equal(0,fresh.PendingSealChanges);Assert.Equal(sealedDay.Snapshot!.Seals,fresh.Snapshot!.Seals);
+        foreach(var read in new[]{(await OrderSealAsync(Window,fresh.Snapshot.Seals!.Order.SealId,"token",default)).ObservedChanges,
+            (await PaymentSealAsync(Window,fresh.Snapshot.Seals.Payment.SealId,"token",default)).ObservedChanges,
+            (await new PosDb.PostgresPosCutoffStore(pos).ReadSealAsync(Window,fresh.Snapshot.Seals.Pos.SealId,default))!.ObservedChanges})Assert.True(read>0);
+        await Sql(payment,"UPDATE payment_intents SET created_at_utc=$1 WHERE id=$2",Window.FromUtc.AddHours(1),intent.Id);
+        var blocked=await Sealing.ReadAsync(organization,branch,Date,new("manager","token"),default);
+        Assert.Equal("blocked",blocked.Status);Assert.True(blocked.PendingSealChanges>0);Assert.Equal(0,blocked.LatestSealComparison!.CompletedRefunds);
+    }
+    [ReportingDatabaseFact]
+    public async Task A_late_cash_movement_uses_its_historical_drawer_and_compares_with_the_preserved_baseline()
+    {
+        var store=await Store();var drawer=await Drawer(store,Window.FromUtc.AddHours(1),true);
+        var reviewed=await Reviewed();var sealedDay=await Sealing.SealAsync(organization,SealCommand(reviewed.Version),new("manager","token"),default);
+        await Sql(pos,"INSERT INTO cash_movements(id,cash_session_id,movement_type,amount,occurred_at_utc,recorded_by) VALUES($1,$2,'pay_in',10,now(),'manager')",Guid.NewGuid(),drawer);
+        var blocked=await Sealing.ReadAsync(organization,branch,Date,new("manager","token"),default);
+        Assert.Equal("blocked",blocked.Status);Assert.True(blocked.PendingSealChanges>0);
+        Assert.Equal(0,blocked.Snapshot!.CashVariance);Assert.Equal(-10,blocked.LatestSealComparison!.CashVariance);Assert.Equal(0,blocked.LatestSealComparison.UnknownChanges);
+        Assert.Equal(sealedDay.Snapshot!.Seals,blocked.Snapshot.Seals);
+    }
+    [ReportingDatabaseFact]
+    public async Task Legacy_unattributed_changes_are_not_reconstructed_and_block_readiness()
+    {
+        var reviewed=await Reviewed();var sealedDay=await Sealing.SealAsync(organization,SealCommand(reviewed.Version),new("manager","token"),default);
+        var dir=Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/Order/0015_day_change_attribution");
+        await Sql(order,File.ReadAllText(Path.Combine(dir,"down.sql")));
+        var aggregate=OrderDomain.OrderAggregate.Create(Guid.NewGuid(),organization,branch,[new OrderDomain.OrderLine(Guid.NewGuid(),"Rice",10,1,"kitchen")],"THB",restaurantId:restaurant);
+        await new OrderDb.PostgresOrderRepository(order).SaveAsync(aggregate,default);
+        await Sql(order,File.ReadAllText(Path.Combine(dir,"up.sql")));
+        var read=await OrderSealAsync(Window,sealedDay.Snapshot!.Seals!.Order.SealId,"token",default);
+        Assert.Equal(1,read.UnknownChanges);Assert.Equal(1,read.PendingChanges);Assert.True(read.JournalComplete);
+        var blocked=await Sealing.ReadAsync(organization,branch,Date,new("manager","token"),default);
+        Assert.Equal("blocked",blocked.Status);Assert.Contains("seal_journal_unavailable",blocked.Blockers);Assert.Equal(1,blocked.LatestSealComparison!.UnknownChanges);
+    }
+    [ReportingDatabaseFact]
+    public async Task Ownership_drift_and_evaluation_overflow_fail_closed_without_dropping_revision_coverage()
+    {
+        var id=await Store();var reviewed=await Reviewed();var source=new PosDb.PostgresPosCutoffStore(pos);
+        var seal=await source.SealAsync(SourceCommand(Window,reviewed.Snapshot!.Cutoff!.Pos),"manager",default);
+        await Sql(pos,"DO $$ BEGIN FOR i IN 1..10001 LOOP UPDATE stores SET name=i::text; END LOOP; END; $$");
+        var read=(await source.ReadSealAsync(Window,seal.SealId,default))!;
+        Assert.Equal(10001,read.PendingChanges);Assert.Equal(10001,read.UnknownChanges);Assert.False(read.JournalComplete);Assert.True(read.ChangesTruncated);Assert.Equal(256,read.Changes.Count);
+        await Sql(pos,"UPDATE stores SET branch_id=$1 WHERE id=$2",Guid.NewGuid(),id);
+        read=(await source.ReadSealAsync(Window,seal.SealId,default))!;Assert.Equal(10002,read.ObservedChanges);Assert.False(read.JournalComplete);
+        await Assert.ThrowsAsync<PostgresException>(()=>Sql(pos,"UPDATE source_financial_changes SET attribution='{}'::jsonb"));
+    }
+    [ReportingDatabaseFact]
+    public async Task An_equal_count_with_a_missing_revision_cannot_certify_journal_integrity()
+    {
+        var reviewed=await Reviewed();var sealedDay=await Sealing.SealAsync(organization,SealCommand(reviewed.Version),new("manager","token"),default);
+        var aggregate=OrderDomain.OrderAggregate.Create(Guid.NewGuid(),organization,branch,[new OrderDomain.OrderLine(Guid.NewGuid(),"Rice",10,1,"kitchen")],"THB",restaurantId:restaurant);
+        await new OrderDb.PostgresOrderRepository(order).SaveAsync(aggregate,default);
+        // Owner-only corruption fixture; ordinary runtime writes are guarded in the separate privilege tests.
+        await Sql(order,"ALTER TABLE source_financial_changes DISABLE TRIGGER source_financial_changes_guard");
+        try{await Sql(order,"UPDATE source_financial_changes SET revision=revision+1");}
+        finally{await Sql(order,"ALTER TABLE source_financial_changes ENABLE TRIGGER source_financial_changes_guard");}
+        var source=await OrderSealAsync(Window,sealedDay.Snapshot!.Seals!.Order.SealId,"token",default);
+        Assert.Equal(1,source.ObservedChanges);Assert.Equal(0,source.PendingChanges);Assert.False(source.JournalComplete);
+        var blocked=await Sealing.ReadAsync(organization,branch,Date,new("manager","token"),default);
+        Assert.Equal("blocked",blocked.Status);Assert.Contains("seal_journal_unavailable",blocked.Blockers);
+    }
+    [ReportingDatabaseFact]
+    public async Task A_store_reassignment_is_unknown_even_when_current_totals_equal_the_baseline()
+    {
+        var id=await Store();var reviewed=await Reviewed();var sealedDay=await Sealing.SealAsync(organization,SealCommand(reviewed.Version),new("manager","token"),default);
+        await Sql(pos,"UPDATE stores SET branch_id=$1 WHERE id=$2",Guid.NewGuid(),id);
+        var source=(await new PosDb.PostgresPosCutoffStore(pos).ReadSealAsync(Window,sealedDay.Snapshot!.Seals!.Pos.SealId,default))!;
+        Assert.True(source.JournalComplete);Assert.Equal(1,source.UnknownChanges);Assert.Equal(1,source.PendingChanges);
+        var blocked=await Sealing.ReadAsync(organization,branch,Date,new("manager","token"),default);
+        Assert.Equal("blocked",blocked.Status);Assert.Equal(1,blocked.LatestSealComparison!.UnknownChanges);Assert.Equal(blocked.Snapshot!.CashVariance,blocked.LatestSealComparison.CashVariance);
+    }
     [ReportingDatabaseFact]
     public async Task Seals_remain_immutable_after_late_changes_and_new_review_creates_a_new_set()
     {
@@ -61,11 +150,13 @@ public sealed class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICutoffSour
         var original=sealedDay.Snapshot!.Seals!;
         var late=OrderDomain.OrderAggregate.Create(Guid.NewGuid(),organization,branch,[new OrderDomain.OrderLine(Guid.NewGuid(),"Rice",10,1,"kitchen")],"THB",restaurantId:restaurant);
         await new OrderDb.PostgresOrderRepository(order).SaveAsync(late,default);
+        await Sql(order,"UPDATE orders SET created_at_utc=$1 WHERE id=$2",Window.FromUtc.AddHours(1),late.Id);
         var changed=await Sealing.ReadAsync(organization,branch,Date,new("manager","token"),default);
         Assert.Equal("blocked",changed.Status);Assert.Contains("sealed_changes_pending",changed.Blockers);
         Assert.Equal(original,changed.Snapshot!.Seals);Assert.True(changed.PendingSealChanges>0);
         var source=await OrderSealAsync(Window,original.Order.SealId,"token",default);
         Assert.True(source.JournalComplete);Assert.NotEmpty(source.Changes);Assert.True(source.PendingChanges>0);
+        await Sql(order,"UPDATE orders SET created_at_utc=$1 WHERE id=$2",Window.ToUtc.AddHours(1),late.Id);
         var refreshed=await Workflow.PrepareAsync(organization,Command(reviewed.Version),new("manager","token"),default);
         var resealed=await Sealing.SealAsync(organization,SealCommand(refreshed.Version,changed.Version),new("manager","token"),default);
         Assert.Equal("ready_for_review",resealed.Status);Assert.NotEqual(original.Order.SealId,resealed.Snapshot!.Seals!.Order.SealId);
@@ -137,7 +228,7 @@ public sealed class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICutoffSour
         try{Assert.NotEqual(writing,await Task.WhenAny(writing,Task.Delay(100)));}
         finally{release.Set();}
         var seal=await sealing;await writing;
-        var read=await OrderSealAsync(Window,seal.SealId,"token",default);Assert.True(read.PendingChanges>0);Assert.True(read.JournalComplete);
+        var read=await OrderSealAsync(Window,seal.SealId,"token",default);Assert.Equal(0,read.PendingChanges);Assert.True(read.ObservedChanges>0);Assert.True(read.JournalComplete);
     }
     [ReportingDatabaseFact]
     public async Task Change_lists_are_bounded_but_full_revision_coverage_and_seal_history_are_preserved()
@@ -196,8 +287,11 @@ public sealed class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICutoffSour
         foreach(var(owner,db)in new[]{("Order",order),("Payment",payment),("POS",pos)})
         {
             var directory=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_day_seals").Single();
+            var attribution=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_day_change_attribution").Single();
             await using var epochQuery=db.CreateCommand("SELECT epoch FROM source_financial_epoch");var epoch=await epochQuery.ExecuteScalarAsync();
+            await Sql(db,await File.ReadAllTextAsync(Path.Combine(attribution,"down.sql")));
             await Sql(db,await File.ReadAllTextAsync(Path.Combine(directory,"down.sql")));await Sql(db,await File.ReadAllTextAsync(Path.Combine(directory,"up.sql")));
+            await Sql(db,await File.ReadAllTextAsync(Path.Combine(attribution,"up.sql")));
             Assert.Equal(epoch,await epochQuery.ExecuteScalarAsync());
         }
     }

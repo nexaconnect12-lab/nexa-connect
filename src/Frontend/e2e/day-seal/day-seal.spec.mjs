@@ -19,13 +19,24 @@ async function setup(page){
     state.status="ready_for_review";state.version+=2;
    }
    const saved=state.version?{...snapshot(),seals:{order:seal,payment:seal,pos:seal,pendingChanges:0,journalComplete:!state.bad,deliveryComplete:true}}:null;
-   json={identity:{organizationId:org,restaurantId:restaurant,branchId:branch,businessDate:"2026-09-01"},version:state.version,status:state.status,snapshot:saved,blockers:state.status==="blocked"?["sealed_changes_pending"]:[],validatedAtUtc:state.status==="ready_for_review"?"2026-09-03T00:00:00Z":null,canPrepare:state.canPrepare,pendingCommand:null,pendingSealChanges:state.pending};
+   json={identity:{organizationId:org,restaurantId:restaurant,branchId:branch,businessDate:"2026-09-01"},version:state.version,status:state.status,snapshot:saved,blockers:state.status==="blocked"?["sealed_changes_pending"]:[],validatedAtUtc:state.status==="ready_for_review"?"2026-09-03T00:00:00Z":null,canPrepare:state.canPrepare,pendingCommand:null,pendingSealChanges:state.pending,latestSealComparison:state.comparison??null};
   }else return route.fulfill({status:404});
   return route.fulfill({json});
  });
  await page.goto("/#end-of-day");await page.getByLabel("End-of-day branch ID").fill(branch);await page.getByLabel("End-of-day business date").fill("2026-09-01");return state;
 }
 async function load(page){await page.getByRole("button",{name:"Load cutoff evidence",exact:true}).click();await page.getByRole("button",{name:"Load sealed evidence",exact:true}).click();}
+test("shows the sealed baseline beside historical source corrections",async({page})=>{
+ const state=await setup(page);await load(page);await page.getByRole("button",{name:"Seal reviewed evidence",exact:true}).click();
+ await expect(page.getByText("sealed evidence",{exact:true})).toBeVisible();
+ state.status="blocked";state.pending=2;state.comparison={grossSales:120,completedRefunds:5,netSales:115,cashVariance:-10,tenders:[{method:"cash",currency:"THB",amount:120}],unknownChanges:0,checkedAtUtc:"2026-09-03T01:00:00Z"};
+ await page.getByRole("button",{name:"Load sealed evidence",exact:true}).click();
+ await expect(page.getByRole("columnheader",{name:"Sealed baseline",exact:true})).toBeVisible();
+ await expect(page.getByRole("row").filter({has:page.getByText("Gross sales",{exact:true})})).toContainText("120");
+ await expect(page.getByRole("row").filter({has:page.getByText("Cash variance",{exact:true})})).toContainText("-10");
+ await expect(page.getByRole("row").filter({has:page.getByText("Tender: cash",{exact:true})})).toContainText("120");
+ await expect(page.getByText(/Saved evidence: THB gross 100/)).toHaveCount(2);
+});
 test("seals a reviewed version with CSRF and clears readiness when late changes are observed",async({page})=>{
  const state=await setup(page);await load(page);await page.getByRole("button",{name:"Seal reviewed evidence",exact:true}).click();
  await expect(page.getByText("sealed evidence",{exact:true})).toBeVisible();

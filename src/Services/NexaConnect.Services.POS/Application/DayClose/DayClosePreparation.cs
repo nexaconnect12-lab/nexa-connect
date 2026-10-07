@@ -5,7 +5,8 @@ namespace NexaConnect.Services.POS.Application.DayClose;
 public sealed record PreparationActor(string Subject, Guid DecisionId);
 public sealed record PreparationLease(PreparationState State, Guid? ClaimId);
 public sealed record PreparationView(DayIdentity Identity, long Version, string Status, DayEvidence? Snapshot,
-    string[] Blockers, DateTimeOffset? ValidatedAtUtc, bool CanPrepare, PreparationCommand? PendingCommand,long? PendingSealChanges=null);
+    string[] Blockers, DateTimeOffset? ValidatedAtUtc, bool CanPrepare, PreparationCommand? PendingCommand,long? PendingSealChanges=null,
+    DaySealComparison? LatestSealComparison=null);
 public interface IDayCloseStore
 {
     Task<PreparationState?> ReadAsync(DayIdentity day, CancellationToken ct);
@@ -55,6 +56,7 @@ public sealed class DayClosePreparation(IDayCloseStore store, IDayCloseEvidenceR
             catch (Exception e) when (e is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException || e is OperationCanceledException && !ct.IsCancellationRequested)
             { logger.LogWarning("Day-close validation source unavailable; category {Category}", e.GetType().Name); }
             state = await store.ValidateAsync(day, state.Version, latest, actor, clock.GetUtcNow(), ct);
+            if(sealing)state=state with{LatestSealComparison=latest?.SealComparison};
         }
         return View(state, canPrepare, validated, user.Subject);
     }
@@ -71,5 +73,5 @@ public sealed class DayClosePreparation(IDayCloseStore store, IDayCloseEvidenceR
     }
     private static PreparationView View(PreparationState state, bool canPrepare, DateTimeOffset? validated, string subject) =>
         new(state.Identity, state.Version, state.Status, state.Snapshot, state.Blockers, validated, canPrepare,
-            state.PreparingSubject == subject && canPrepare ? state.PendingCommand : null,state.PendingSealChanges);
+            state.PreparingSubject == subject && canPrepare ? state.PendingCommand : null,state.PendingSealChanges,state.LatestSealComparison);
 }

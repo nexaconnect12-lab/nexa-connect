@@ -58,7 +58,8 @@ public sealed class PostgresOrderCutoffStore(NpgsqlDataSource source) : IOrderCu
         return new(Guid.Empty,Guid.Empty,0,w,DateTimeOffset.UtcNow,summary.EvidenceVersion??"",summary,events,[],retainedRows,revision,2);
     }
     public Task<SourceSealRead<OrderDaySummary>?> ReadSealAsync(EndOfDayWindow window,Guid id,CancellationToken ct)=>
-        new PostgresEvidenceSeals<OrderDaySummary>(source).ReadAsync(window,id,ct);
+        new PostgresEvidenceSeals<OrderDaySummary>(source).ReadAsync(window,id,ct,json=>FinancialChangeAttribution.Classify(json,window.ToUtc),
+            (c,t,token)=>PostgresOrderDayReader.QueryAsync(window,c,t,token));
     public Task<SourceDaySeal> SealAsync(SourceSealCommand command,string actor,CancellationToken ct)=>
         new PostgresEvidenceSeals<OrderDaySummary>(source).RetainAsync(command,actor,(m,r)=>
         {

@@ -16,6 +16,8 @@ Every subsequent tracked revision has an immutable `source_financial_changes` en
 
 ## Affected dates and calendar ownership
 
+The policy in this section is historical and superseded by [ADR-025](ADR-025-window-aware-sealed-change-reconciliation.md): proven later-day changes are now excluded; historical/unknown changes remain blocking.
+
 The explicit affected-date policy remains conservative: a changed source branch affects **all sealed windows for that branch**, including older unresolved work, current/future-day writes and metadata changes on watched tables. We do not assign a mutation to a local date from its recording timestamp. That timestamp is audit timing, not a financial effective date. Independent branches remain isolated. The watched tables are unchanged from ADR-023.
 
 Each seal binds its original half-open UTC window and original manifest. POS freezes the reviewed Restaurant calendar/timezone/currency in coordinator evidence. Current calendar drift blocks validation without rewriting the old window. A targeted historical-day policy, immutable Restaurant calendar ledger and monetary adjustment attribution are future work; this slice supplies change evidence, not fiscal corrections or a restated financial ledger.

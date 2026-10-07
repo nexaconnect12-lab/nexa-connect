@@ -1,6 +1,6 @@
 # Portal implementation phases
 
-The source day-seal slice is implemented: local revision-serialized retention, immutable later-change journals, durable reviewed-cutoff coordination, Reporting sealed-set reconciliation and separate manager portal controls. It extends Phases 10/11 without completing production finalization. Current source schemas are Order 14 / Payment 13 / POS 11 at compatibility 0.27.0; see [ADR-024](Decisions/ADR-024-source-day-seals-and-late-change-journals.md).
+The source day-seal slice is implemented: local revision-serialized retention, immutable later-change journals, durable reviewed-cutoff coordination, Reporting sealed-set reconciliation and separate manager portal controls. It extends Phases 10/11 without completing production finalization. Current source schemas are Order 15 / Payment 14 / POS 12 at compatibility 0.28.0; sources exclude proven next-day writes and managers compare preserved baseline/current totals; see [ADR-025](Decisions/ADR-025-window-aware-sealed-change-reconciliation.md).
 
 The Phase 10/11 revision-bound day-close foundation supplies owning branch revisions, version-two retained manifests, exact-set Reporting delivery proof and POS/portal readiness checks. It was introduced in Order 13 / Payment 12 / POS 10 at compatibility 0.26.0; current deployment uses the seal versions above. Branch changes invalidate all retained windows conservatively. Production finalization/approval and financial write prohibition remain later slices; see [ADR-023](Decisions/ADR-023-revision-fenced-day-close-evidence.md).
 

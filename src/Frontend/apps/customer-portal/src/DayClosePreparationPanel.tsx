@@ -1,5 +1,5 @@
 import React,{useEffect,useRef,useState} from "react";
-import {Alert,Button,Descriptions,List,Select,Space,Typography} from "antd";
+import {Alert,Button,Descriptions,List,Select,Space,Table,Typography} from "antd";
 import {createApiClient} from "@nexaconnect/api-client";
 import {Preparation,PreparationCommand,readPreparation,readCutoffPreparation,readSealedPreparation} from "./dayClosePreparation";
 const api=createApiClient({onUnauthorized:()=>location.assign("/bff/customer/login")});
@@ -37,6 +37,12 @@ export function DayClosePreparationPanel({organizationId,branchId,businessDate,c
       {value.snapshot&&<Typography.Paragraph>Saved evidence: {value.snapshot.currency} gross {value.snapshot.grossSales}, refunds {value.snapshot.completedRefunds}, net {value.snapshot.netSales}, cash variance {value.snapshot.cashVariance}; {value.snapshot.timeZone}, {value.snapshot.fromUtc} to {value.snapshot.toUtc}. Observed {value.snapshot.observedAtUtc}. This snapshot is retained until an explicit refresh.</Typography.Paragraph>}
       {cutoff&&value.snapshot?.cutoff&&<Typography.Paragraph>Retained source generations: Order {value.snapshot.cutoff.order.generation}, Payment {value.snapshot.cutoff.payment.generation}, POS {value.snapshot.cutoff.pos.generation}. Saved source revisions: Order {value.snapshot.cutoff.order.sourceRevision??"unavailable"}, Payment {value.snapshot.cutoff.payment.sourceRevision??"unavailable"}, POS {value.snapshot.cutoff.pos.sourceRevision??"unavailable"}. Saved financial gaps: {value.snapshot.cutoff.financialGaps}. {value.status==="ready_for_review"?"Sources unchanged at this validation.":"Retained evidence is blocked or not freshly validated; resolve blockers and refresh."}</Typography.Paragraph>}
       {seal&&<Typography.Paragraph>Pending source changes at the last check: {value.pendingSealChanges??"not checked"}. {value.status==="ready_for_review"?"The saved event set was reconciled and no changes were pending when checked.":"Retained seals are not freshly validated. Resolve blockers, refresh cutoff evidence and reseal."}</Typography.Paragraph>}
+      {seal&&value.snapshot&&value.latestSealComparison&&<>
+        <Typography.Paragraph>Comparison checked {value.latestSealComparison.checkedAtUtc}. Unattributed changes: {value.latestSealComparison.unknownChanges}. Historical changes still require review when totals are unchanged.</Typography.Paragraph>
+        <Table pagination={false} rowKey="label" columns={[{title:"Amount",dataIndex:"label"},{title:"Sealed baseline",dataIndex:"baseline"},{title:"Current source totals",dataIndex:"current"},{title:"Change",dataIndex:"delta"}]}
+          dataSource={([['Gross sales','grossSales'],['Refunds','completedRefunds'],['Net sales','netSales'],['Cash variance','cashVariance']] as const).map(([label,key])=>({label:String(label),baseline:value.snapshot![key],current:value.latestSealComparison![key],delta:value.latestSealComparison![key]-value.snapshot![key]})).concat(
+            [...new Set([...value.snapshot.tenders,...value.latestSealComparison.tenders].map(t=>t.method))].map(method=>{const baseline=value.snapshot!.tenders.filter(t=>t.method===method).reduce((n,t)=>n+t.amount,0),current=value.latestSealComparison!.tenders.filter(t=>t.method===method).reduce((n,t)=>n+t.amount,0);return {label:`Tender: ${method}`,baseline,current,delta:current-baseline};}))}/>
+      </>}
       <List header={cutoff?"Cutoff blockers":"Preparation blockers"} dataSource={value.blockers} renderItem={item=><List.Item>{item.replaceAll("_"," ")}</List.Item>}/>
     </>}
   </Space>;

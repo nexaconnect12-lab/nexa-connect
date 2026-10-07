@@ -1,6 +1,8 @@
 # Migration scripts
 
-Order 14 / Payment 13 / POS 11 add day seals, append-only branch change journals and (in POS) separate durable coordination. Compatibility is 0.27.0. Existing revision epochs survive empty new-migration downgrade/reapply; retained history requires forward recovery. See [ADR-024](../../../../docs/Architecture/Decisions/ADR-024-source-day-seals-and-late-change-journals.md).
+Window-aware sealed reconciliation is implemented in Order 15 / Payment 14 / POS 12 (compatibility 0.28.0). Owning sources atomically retain safe before/after effective timestamps with journal revisions. Proven unrelated next-day trading no longer invalidates older seals; historical, ownership-uncertain and unattributed changes remain blocking. Managers compare current sales, tenders, refunds and cash variance with the preserved sealed baseline. Approval/finalization and exact historical-day attribution remain planned. See [attribution and comparison policy](../../../../docs/Architecture/Decisions/ADR-025-window-aware-sealed-change-reconciliation.md).
+
+The preceding Order 14 / Payment 13 / POS 11 migrations add day seals, append-only branch change journals and (in POS) separate durable coordination. Compatibility is 0.27.0. Existing revision epochs survive empty new-migration downgrade/reapply; retained history requires forward recovery. See [ADR-024](../../../../docs/Architecture/Decisions/ADR-024-source-day-seals-and-late-change-journals.md).
 
 Order 13 / Payment 12 / POS 10 add source financial epochs, transactionally advanced branch revisions and guarded downgrade after protocol-two manifests. Compatibility is 0.26.0. Counts below are distinct CREATE TABLE names in the current owning up-script catalog. See [ADR-023](../../../../docs/Architecture/Decisions/ADR-023-revision-fenced-day-close-evidence.md).
 
@@ -15,12 +17,12 @@ Create one directory per owning service and one subdirectory per sequential migr
 | Restaurant | 3 | 8 |
 | Catalog | 4 | 22 |
 | Inventory | 5 | 11 |
-| Order | 14 | 21 |
+| Order | 15 | 21 |
 | Kitchen | 3 | 8 |
 | Customer | 2 | 6 |
-| Payment | 13 | 14 |
+| Payment | 14 | 14 |
 | Notification | 3 | 5 |
-| POS | 11 | 28 |
+| POS | 12 | 28 |
 | Media | 4 | 6 |
 | Reporting | 20 | 15 |
 

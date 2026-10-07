@@ -19,3 +19,11 @@ it("resumed commands must retain their reviewed cutoff version",()=>{
  expect(()=>readSealedPreparation({...f,status:"preparing",pendingCommand},org,branch,date)).toThrow();
  expect(readSealedPreparation({...f,status:"preparing",pendingCommand:{...pendingCommand,reviewedCutoffVersion:2}},org,branch,date).pendingCommand?.reviewedCutoffVersion).toBe(2);
 });
+it("keeps the baseline and validates current reconciliation money and unattributed changes",()=>{
+ const f=fixture(),latestSealComparison={grossSales:120,completedRefunds:5,netSales:115,cashVariance:-10,tenders:[{method:"cash",currency:"THB",amount:120}],unknownChanges:0,checkedAtUtc:"2026-09-03T00:00:01Z"};
+ const result=readSealedPreparation({...f,status:"blocked",pendingSealChanges:1,latestSealComparison},org,branch,date);
+ expect(result.snapshot?.grossSales).toBe(100);expect(result.latestSealComparison?.grossSales).toBe(120);
+ expect(()=>readSealedPreparation({...f,latestSealComparison:{...latestSealComparison,unknownChanges:1}},org,branch,date)).toThrow();
+ expect(()=>readSealedPreparation({...f,latestSealComparison:{...latestSealComparison,netSales:116}},org,branch,date)).toThrow();
+ expect(()=>readSealedPreparation({...f,latestSealComparison:{...latestSealComparison,tenders:[{method:"cash",currency:"USD",amount:120}]}},org,branch,date)).toThrow();
+});
