@@ -152,6 +152,21 @@ test(scenarios[7],async({page,browser})=>{
   await expire();const result=await prepareUi(other,'Replace interrupted cutoff');expect(result.status).toBe(200);expect(result.data.status).toBe('ready_for_review');expect(result.command.operationId).not.toBe(partial.cmd.operationId);expect(result.data.snapshot.cutoff.order.manifestId).not.toBe(partial.manifest.manifestId);expect((await bff(page,root,partial.cmd)).status).toBe(409);expect((await proof()).abandoned).toBe(1);
  }finally{payment.release();await context.close();}
 });
+let sealedDay;
+test(scenarios[12],async({page})=>{
+ await signIn(page,s.resolver);const reviewed=await ready(page);
+ const load=page.waitForResponse(r=>r.url().includes('/bff/customer/day-close-seals?')&&r.request().method()==='GET');
+ await page.getByRole('button',{name:'Load sealed evidence',exact:true}).click();expect((await load).status()).toBe(200);
+ const response=page.waitForResponse(r=>r.url().endsWith('/bff/customer/day-close-seals')&&r.request().method()==='POST');
+ await page.getByRole('button',{name:'Seal reviewed evidence',exact:true}).click();const result=await response;expect(result.status()).toBe(200);sealedDay=await result.json();
+ expect(result.request().postDataJSON().reviewedCutoffVersion).toBe(reviewed.version);expect(sealedDay.status).toBe('ready_for_review');expect(sealedDay.pendingSealChanges).toBe(0);
+ await expect(page.getByText('sealed evidence',{exact:true})).toBeVisible();
+ for(const owner of ['order','payment','pos']){
+  const ref=sealedDay.snapshot.seals[owner];expect(ref.manifestId).toBe(reviewed.snapshot.cutoff[owner].manifestId);
+  const read=await send(owner,`/api/${owner}/v1/customer/day-cutoffs/seals/${ref.sealId}?${new URLSearchParams(window())}`,manager);
+  expect(read.status).toBe(200);expect(read.data.journalComplete).toBe(true);expect(read.data.pendingChanges).toBe(0);expect(read.data.manifest.manifestId).toBe(ref.manifestId);
+ }
+});
 test(scenarios[8],async({page,browser})=>{
  cashier=await token(browser,s.reader);manager=await token(browser,s.resolver);await signIn(page,s.resolver);const before=await ready(page);clock('historical');
  try{
@@ -163,6 +178,8 @@ test(scenarios[8],async({page,browser})=>{
  await expect.poll(async()=> (await send('pos',`/api/pos/v1/cash-sessions/${session}/summary`,cashier)).data?.netMovementAmount).toBe(2*amount);await expect.poll(reportingTotal).toBe(2*amount);
  const invalid=await loadUi(page);expect(invalid.status).toBe('blocked');expect(invalid.blockers).toContain('cutoff_superseded');expect(invalid.snapshot).toEqual(before.snapshot);await expect(page.getByText('ready for review',{exact:true})).toHaveCount(0);
  const old=await send('order',sourcePath('order',before.snapshot.cutoff.order.manifestId),manager);expect(old.status).toBe(200);expect(old.data.current).toBe(false);expect(old.data.manifest.sales).toHaveLength(1);
+ const sealRead=await page.request.get(`/bff/customer/day-close-seals?branchId=${f.branchId}&businessDate=${f.businessDate}`);expect(sealRead.status()).toBe(200);
+ const changedSeal=await sealRead.json();expect(changedSeal.status).toBe('blocked');expect(changedSeal.blockers).toContain('sealed_changes_pending');expect(changedSeal.pendingSealChanges).toBeGreaterThan(0);expect(changedSeal.snapshot.seals).toEqual(sealedDay.snapshot.seals);
  expect((await review()).varianceAmount).toBe(-amount-5);const fresh=await refresh(page);expect(fresh.snapshot.grossSales).toBe(2*amount);expect(fresh.snapshot.cutoff.order.manifestId).not.toBe(before.snapshot.cutoff.order.manifestId);
 });
 test(scenarios[9],async({page})=>{

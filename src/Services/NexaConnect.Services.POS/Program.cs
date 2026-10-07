@@ -60,6 +60,9 @@ builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPos
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ICutoffPreparationStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresDayCutoffStore>();
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ICutoffEvidenceReader,NexaConnect.Services.POS.Infrastructure.DayClose.HttpCutoffEvidenceReader>();
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayCloseCutoff>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IDaySealStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresDaySealStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IDaySealEvidenceReader,NexaConnect.Services.POS.Infrastructure.DayClose.HttpDaySealEvidenceReader>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayCloseSealing>();
 foreach (string service in new[]{"Order","Payment","POS","Reporting"})
 {
     builder.Services.AddHttpClient("DayCutoff"+service,c=>{ c.BaseAddress=new Uri(builder.Configuration["Services:"+service]??"https://cutoff-dependency.invalid/");c.Timeout=TimeSpan.FromSeconds(15); }).AddNexaConnectCorrelationPropagation();

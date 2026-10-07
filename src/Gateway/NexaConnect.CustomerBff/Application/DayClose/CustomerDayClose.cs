@@ -1,7 +1,7 @@
 using System.Net;
 using NexaConnect.Contracts.Platform;
 namespace NexaConnect.CustomerBff.Application.DayClose;
-public sealed record DayCloseRequest(Guid BranchId,DateOnly BusinessDate,Guid OperationId=default,long ExpectedVersion=0,string? ReasonCode=null);
+public sealed record DayCloseRequest(Guid BranchId,DateOnly BusinessDate,Guid OperationId=default,long ExpectedVersion=0,string? ReasonCode=null,long? ReviewedCutoffVersion=null);
 public interface ICustomerDayClosePort
 {
     Task<CurrentPlatformAccessResponse?> GetAccessAsync(string token,CancellationToken ct);

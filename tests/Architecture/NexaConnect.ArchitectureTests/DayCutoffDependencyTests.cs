@@ -8,7 +8,7 @@ public sealed class DayCutoffDependencyTests
     [Fact]
     public void Cutoff_domain_models_depend_only_on_their_context_and_system_types()
     {
-        Type[] models=[typeof(BranchDayClose),typeof(BranchDayCutoff),typeof(DayIdentity),typeof(DayTender),typeof(DayEvidence),typeof(CutoffReference),
+        Type[] models=[typeof(BranchDayClose),typeof(BranchDayCutoff),typeof(BranchDaySeal),typeof(DaySealEvidence),typeof(DaySealReference),typeof(DayIdentity),typeof(DayTender),typeof(DayEvidence),typeof(CutoffReference),
             typeof(DayCutoffEvidence),typeof(PreparationCommand),typeof(PreparationState)];
         foreach(var model in models)
         {

@@ -5,7 +5,7 @@ namespace NexaConnect.Services.POS.Application.DayClose;
 public sealed record PreparationActor(string Subject, Guid DecisionId);
 public sealed record PreparationLease(PreparationState State, Guid? ClaimId);
 public sealed record PreparationView(DayIdentity Identity, long Version, string Status, DayEvidence? Snapshot,
-    string[] Blockers, DateTimeOffset? ValidatedAtUtc, bool CanPrepare, PreparationCommand? PendingCommand);
+    string[] Blockers, DateTimeOffset? ValidatedAtUtc, bool CanPrepare, PreparationCommand? PendingCommand,long? PendingSealChanges=null);
 public interface IDayCloseStore
 {
     Task<PreparationState?> ReadAsync(DayIdentity day, CancellationToken ct);
@@ -16,7 +16,7 @@ public interface IDayCloseStore
 public interface IDayCloseEvidenceReader { Task<DayEvidence> ReadAsync(DayIdentity day, string token, CancellationToken ct); }
 public sealed class DayClosePreparation(IDayCloseStore store, IDayCloseEvidenceReader evidence,
     IRestaurantScopeReader scopes, IAuthorizationDecisionClient authorization, TimeProvider clock,
-    ILogger<DayClosePreparation> logger)
+    ILogger<DayClosePreparation> logger,bool sealing=false)
 {
     public const string ReadPermission = "pos.day-close.read", PreparePermission = "pos.day-close.prepare";
     public async Task<PreparationView> ReadAsync(Guid organization, Guid branch, DateOnly date, PosUserContext user, CancellationToken ct)
@@ -28,7 +28,8 @@ public sealed class DayClosePreparation(IDayCloseStore store, IDayCloseEvidenceR
     }
     public async Task<PreparationView> PrepareAsync(Guid organization, PreparationCommand command, PosUserContext user, CancellationToken ct)
     {
-        if (command.OperationId == Guid.Empty || command.ExpectedVersion < 0 || command.ReasonCode is not ("routine_close" or "recheck")) throw new ArgumentException();
+        if (command.OperationId == Guid.Empty || command.ExpectedVersion < 0 || command.ReasonCode is not ("routine_close" or "recheck")
+            || !sealing && command.ReviewedCutoffVersion is not null) throw new ArgumentException();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct); deadline.CancelAfter(TimeSpan.FromSeconds(25));
         var (day, actor, _) = await Authorize(organization, command.BranchId, command.BusinessDate, user, PreparePermission, deadline.Token);
         var lease = await store.BeginAsync(day, command, actor, clock.GetUtcNow(), deadline.Token);
@@ -70,5 +71,5 @@ public sealed class DayClosePreparation(IDayCloseStore store, IDayCloseEvidenceR
     }
     private static PreparationView View(PreparationState state, bool canPrepare, DateTimeOffset? validated, string subject) =>
         new(state.Identity, state.Version, state.Status, state.Snapshot, state.Blockers, validated, canPrepare,
-            state.PreparingSubject == subject && canPrepare ? state.PendingCommand : null);
+            state.PreparingSubject == subject && canPrepare ? state.PendingCommand : null,state.PendingSealChanges);
 }

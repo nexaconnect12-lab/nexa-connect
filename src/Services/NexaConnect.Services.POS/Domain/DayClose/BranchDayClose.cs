@@ -6,13 +6,16 @@ public sealed record CutoffReference(Guid ManifestId, long Generation, string Ev
     Guid? RevisionEpoch = null, long? SourceRevision = null);
 public sealed record DayCutoffEvidence(CutoffReference Order, CutoffReference Payment, CutoffReference Pos,
     Guid CheckId, bool SourcesCurrent, int FinancialGaps, bool DeliveryComplete = false, int EvidenceProtocolVersion = 1);
+public sealed record DaySealReference(Guid SealId,Guid ManifestId,Guid RevisionEpoch,long SourceRevision);
+public sealed record DaySealEvidence(DaySealReference Order,DaySealReference Payment,DaySealReference Pos,
+    long PendingChanges,bool JournalComplete,bool DeliveryComplete);
 public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffset FromUtc, DateTimeOffset ToUtc,
     decimal GrossSales, decimal CompletedRefunds, decimal NetSales, decimal CashVariance,
     DayTender[] Tenders, string? OrderVersion, string? PaymentVersion, string? PosVersion,
     int UnresolvedOrders, int UnresolvedPayments, int UnresolvedRefunds, int OpenShifts, int OpenCashSessions,
     int PendingCashReviews, string[] Issues, DateTimeOffset ObservedAtUtc, DateTimeOffset? OrderObservedAtUtc = null,
     DateTimeOffset? PaymentObservedAtUtc = null, DateTimeOffset? PosObservedAtUtc = null,
-    Guid? RecordedCheckId = null, DateTimeOffset? RecordedCheckedAtUtc = null, DayCutoffEvidence? Cutoff = null)
+    Guid? RecordedCheckId = null, DateTimeOffset? RecordedCheckedAtUtc = null, DayCutoffEvidence? Cutoff = null,DaySealEvidence? Seals=null)
 {
     public bool IsValid(DateTimeOffset now) => !string.IsNullOrWhiteSpace(TimeZone) && TimeZone.Length<=100
         && Currency is { Length:3 } && Currency.All(c=>c is >= 'A' and <= 'Z')
@@ -25,7 +28,12 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
         && Issues is not null && Issues.Length<=32 && Issues.All(x=>!string.IsNullOrWhiteSpace(x) && x.Length<=100)
         && (Cutoff is null || Cutoff.CheckId != Guid.Empty && Cutoff.FinancialGaps >= 0
             && new[]{Cutoff.Order,Cutoff.Payment,Cutoff.Pos}.All(r=>r is not null && r.ManifestId!=Guid.Empty
-                && r.Generation>0 && r.EvidenceVersion.Length==64 && r.EvidenceVersion.All(char.IsAsciiHexDigit)));
+                && r.Generation>0 && r.EvidenceVersion.Length==64 && r.EvidenceVersion.All(char.IsAsciiHexDigit)))
+        && (Seals is null || Cutoff is not null && Seals.PendingChanges>=0
+            && new[]{Seals.Order,Seals.Payment,Seals.Pos}.All(r=>r is not null && r.SealId!=Guid.Empty && r.ManifestId!=Guid.Empty && r.RevisionEpoch!=Guid.Empty && r.SourceRevision>=0)
+            && Seals.Order.ManifestId==Cutoff.Order.ManifestId && Seals.Payment.ManifestId==Cutoff.Payment.ManifestId && Seals.Pos.ManifestId==Cutoff.Pos.ManifestId
+            && Seals.Order.RevisionEpoch==Cutoff.Order.RevisionEpoch && Seals.Payment.RevisionEpoch==Cutoff.Payment.RevisionEpoch && Seals.Pos.RevisionEpoch==Cutoff.Pos.RevisionEpoch
+            && Seals.Order.SourceRevision==Cutoff.Order.SourceRevision && Seals.Payment.SourceRevision==Cutoff.Payment.SourceRevision && Seals.Pos.SourceRevision==Cutoff.Pos.SourceRevision);
     public string[] Blockers() => Issues.Where(x => x != "recorded_check_is_historical"
         && !(x == "cash_variance" && PendingCashReviews == 0))
         .Concat(new (int Count,string Code)[]{(UnresolvedOrders,"unresolved_orders"),(UnresolvedPayments,"unresolved_payments"),(UnresolvedRefunds,"unresolved_refunds"),(OpenShifts,"open_shifts"),(OpenCashSessions,"open_cash_sessions"),(PendingCashReviews,"pending_cash_reviews")}.Where(x=>x.Count>0).Select(x=>x.Code))
@@ -36,7 +44,10 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
             || new[]{Cutoff.Order,Cutoff.Payment,Cutoff.Pos}.Any(r=>r.RevisionEpoch is null || r.RevisionEpoch==Guid.Empty || r.SourceRevision is null or <0))
             ? ["source_revision_unavailable"] : Array.Empty<string>())
         .Concat(Cutoff is { DeliveryComplete:false } ? ["cutoff_delivery_unproven"] : Array.Empty<string>())
-        .Concat(Cutoff is { FinancialGaps:>0 } ? ["cutoff_financial_gaps"] : Array.Empty<string>()).Distinct().Order().ToArray();
+        .Concat(Cutoff is { FinancialGaps:>0 } ? ["cutoff_financial_gaps"] : Array.Empty<string>())
+        .Concat(Seals is {PendingChanges:>0} ? ["sealed_changes_pending"] : Array.Empty<string>())
+        .Concat(Seals is {JournalComplete:false} ? ["seal_journal_unavailable"] : Array.Empty<string>())
+        .Concat(Seals is {DeliveryComplete:false} ? ["seal_delivery_unproven"] : Array.Empty<string>()).Distinct().Order().ToArray();
     // Observation timestamps do not participate in evidence equality.
     public bool SameEvidence(DayEvidence other) => TimeZone == other.TimeZone && Currency == other.Currency
         && FromUtc == other.FromUtc && ToUtc == other.ToUtc && GrossSales == other.GrossSales
@@ -50,12 +61,13 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
         && (Cutoff is null ? other.Cutoff is null : other.Cutoff is not null
             && Cutoff.Order==other.Cutoff.Order && Cutoff.Payment==other.Cutoff.Payment && Cutoff.Pos==other.Cutoff.Pos
             && Cutoff.SourcesCurrent==other.Cutoff.SourcesCurrent && Cutoff.FinancialGaps==other.Cutoff.FinancialGaps
-            && Cutoff.DeliveryComplete==other.Cutoff.DeliveryComplete && Cutoff.EvidenceProtocolVersion==other.Cutoff.EvidenceProtocolVersion);
+            && Cutoff.DeliveryComplete==other.Cutoff.DeliveryComplete && Cutoff.EvidenceProtocolVersion==other.Cutoff.EvidenceProtocolVersion)
+        && Seals==other.Seals;
 }
-public sealed record PreparationCommand(Guid BranchId, DateOnly BusinessDate, Guid OperationId, long ExpectedVersion, string ReasonCode);
+public sealed record PreparationCommand(Guid BranchId, DateOnly BusinessDate, Guid OperationId, long ExpectedVersion, string ReasonCode,long? ReviewedCutoffVersion=null);
 public sealed record PreparationState(DayIdentity Identity, long Version, string Status, DayEvidence? Snapshot,
     string[] Blockers, DateTimeOffset UpdatedAtUtc, Guid? OperationId = null, Guid? ClaimId = null,
-    DateTimeOffset? LeaseUntilUtc = null, string? PreparingSubject = null, PreparationCommand? PendingCommand = null);
+    DateTimeOffset? LeaseUntilUtc = null, string? PreparingSubject = null, PreparationCommand? PendingCommand = null,long? PendingSealChanges=null);
 public sealed class DayCloseConflictException(string code) : Exception(code);
 
 /// <summary>Preparation observes a day; it never approves settlement or fences source writes.</summary>
@@ -84,14 +96,14 @@ public sealed class BranchDayClose
         var blockers = evidence?.Blockers() ?? ["source_unavailable"];
         state = state with { Version = state.Version + 1, Status = blockers.Length == 0 ? "ready_for_review" : "blocked",
             Snapshot = evidence is null ? null : evidence with { Tenders = [..evidence.Tenders], Issues = [..evidence.Issues] }, Blockers = blockers, UpdatedAtUtc = now, OperationId = null, ClaimId = null,
-            LeaseUntilUtc = null, PreparingSubject = null, PendingCommand = null };
+            LeaseUntilUtc = null, PreparingSubject = null, PendingCommand = null,PendingSealChanges=evidence?.Seals?.PendingChanges };
     }
     public bool Validate(DayEvidence? evidence, DateTimeOffset now)
     {
         if (state.Status != "ready_for_review") return false;
         if(evidence is not null && !evidence.IsValid(now))evidence=null;
         if (evidence is not null && state.Snapshot!.SameEvidence(evidence) && evidence.Blockers().Length == 0) return false;
-        state = state with { Version = state.Version + 1, Status = "blocked", UpdatedAtUtc = now,
+        state = state with { Version = state.Version + 1, Status = "blocked", UpdatedAtUtc = now,PendingSealChanges=evidence?.Seals?.PendingChanges,
             Blockers = evidence is null ? ["source_unavailable"] : new[] { "source_evidence_changed" }.Concat(evidence.Blockers()).Distinct().Order().ToArray() };
         return true;
     }

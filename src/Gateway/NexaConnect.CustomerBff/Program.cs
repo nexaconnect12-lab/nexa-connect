@@ -129,6 +129,8 @@ builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Reporting.ICu
 builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Reporting.ICustomerFinancialCompletenessPort, NexaConnect.CustomerBff.Infrastructure.Reporting.HttpCustomerFinancialCompletenessPort>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:Reporting"] ?? throw new InvalidOperationException("Services:Reporting is required.")); c.Timeout = TimeSpan.FromSeconds(20); }).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Reporting.ICustomerCashClosePort, NexaConnect.CustomerBff.Infrastructure.Reporting.HttpCustomerCashClosePort>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:Reporting"] ?? throw new InvalidOperationException("Services:Reporting is required.")); c.Timeout = TimeSpan.FromSeconds(20); }).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerDayCutoff>();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerDaySeal>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerDaySealPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerDaySealPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerDayCutoffPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerDayCutoffPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
@@ -136,7 +138,7 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
 app.Use(async (context, next) =>
 {
-    if ((context.Request.Path.StartsWithSegments("/bff/customer/day-close-cutoffs", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-preparations", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/reports/financial-completeness", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/reports/end-of-day", StringComparison.OrdinalIgnoreCase)))
+    if ((context.Request.Path.StartsWithSegments("/bff/customer/day-close-seals", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-cutoffs", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-preparations", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/reports/financial-completeness", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/reports/end-of-day", StringComparison.OrdinalIgnoreCase)))
         context.Response.Headers.CacheControl = "no-store";
     context.Response.Headers.ContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
     context.Response.Headers.XContentTypeOptions = "nosniff";

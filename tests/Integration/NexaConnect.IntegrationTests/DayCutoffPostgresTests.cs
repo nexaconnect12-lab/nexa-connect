@@ -55,8 +55,12 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
     }
     [PosPostgresFact]public async Task Empty_migration_can_downgrade_and_reapply()
     {
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0011_day_seals/down.sql")));
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0010_financial_revisions/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0009_day_cutoffs/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0009_day_cutoffs/up.sql")));
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0010_financial_revisions/up.sql")));
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0011_day_seals/up.sql")));
         Assert.Equal(0L,await Scalar("SELECT count(*) FROM branch_day_cutoff_audit"));
     }
     [PosPostgresFact]public async Task Authorization_migration_backfills_roles_and_fresh_assignments_preserve_reader_preparer_separation()

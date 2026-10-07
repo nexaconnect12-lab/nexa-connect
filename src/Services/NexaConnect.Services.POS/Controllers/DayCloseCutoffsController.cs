@@ -23,7 +23,7 @@ public sealed class DayCloseCutoffsController(DayCloseCutoff application,ILogger
         var subject=User.FindFirstValue("sub")??User.FindFirstValue(ClaimTypes.NameIdentifier);
         if(subject is null || !AuthenticationHeaderValue.TryParse(Request.Headers.Authorization,out var header)
             || !header.Scheme.Equals("Bearer",StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(header.Parameter))return Unauthorized();
-        try{return Ok(await action(new(subject,header.Parameter)));}
+        try{return Ok(DayCloseResponse.Legacy(await action(new(subject,header.Parameter))));}
         catch(ArgumentException){return BadRequest();}
         catch(UnauthorizedAccessException){logger.LogWarning("Day-close cutoff authorization denied");return Forbid();}
         catch(DayCloseConflictException e){logger.LogWarning("Day-close cutoff conflict");return Conflict(new{code=e.Message});}

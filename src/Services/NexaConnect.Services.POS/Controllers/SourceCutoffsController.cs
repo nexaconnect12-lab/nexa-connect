@@ -18,6 +18,12 @@ public sealed class SourceCutoffsController(PosCutoffs application, ILogger<Sour
     [HttpGet("{id:guid}")]
     public Task<IActionResult> Read(Guid id, [FromQuery] EndOfDayWindow window, CancellationToken ct) => Execute(async token =>
         await application.ReadAsync(window,id,UserContext(),token) is {} value ? Ok(value) : NotFound(), ct);
+    [HttpPost("seals"),RequestSizeLimit(4096)]
+    public Task<IActionResult> Seal(SourceSealCommand command,CancellationToken ct)=>Execute(async token=>
+        Ok(await application.SealAsync(command,UserContext(),Subject(),token)),ct);
+    [HttpGet("seals/{id:guid}")]
+    public Task<IActionResult> ReadSeal(Guid id,[FromQuery] EndOfDayWindow window,CancellationToken ct)=>Execute(async token=>
+        await application.ReadSealAsync(window,id,UserContext(),token) is {} value?Ok(value):NotFound(),ct);
     private string Subject() => User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
     private PosUserContext UserContext()
     {

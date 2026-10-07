@@ -24,7 +24,7 @@ public sealed class PostgresDayCloseStore(NpgsqlDataSource source) : IDayCloseSt
         await Execute(connection, tx, "INSERT INTO branch_day_closes(organization_id,restaurant_id,branch_id,business_date,version,state) VALUES($1,$2,$3,$4,0,$5::jsonb) ON CONFLICT DO NOTHING", ct,
             day.OrganizationId,day.RestaurantId,day.BranchId,day.BusinessDate,JsonSerializer.Serialize(initial,Json));
         var state = await Load(connection,tx,day,true,ct) ?? throw new UnauthorizedAccessException();
-        string fingerprint = Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { day, command, actor.Subject },Json)));
+        string fingerprint = Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new { day, command=new{command.BranchId,command.BusinessDate,command.OperationId,command.ExpectedVersion,command.ReasonCode}, actor.Subject },Json)));
         string? previousStatus = null;
         await using(var query = new NpgsqlCommand("SELECT fingerprint,status FROM branch_day_close_operations WHERE organization_id=$1 AND operation_id=$2",connection,tx))
         {

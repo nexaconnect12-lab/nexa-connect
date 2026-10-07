@@ -1,5 +1,7 @@
 # NexaConnect Unit Tests
 
+`DaySealTests` protect source Domain eligibility, pinned review/resume, stale completion fencing, immutable late-change evidence, journal/delivery blockers and sealed-set Reporting authorization/proof. Migration catalog tests now expect Order 14 / Payment 13 / POS 11. See [seal verification](../../../docs/Architecture/Evidence/Day-Close-Seals.md).
+
 `DayCutoffTests` additionally reject legacy/unproven delivery, preserve revision equality boundaries, require current revision-bound sources and reject changed retained revision identities. Migration catalog expectations include Order 13 / Payment 12 / POS 10. See [revision protocol](../../../docs/Architecture/Decisions/ADR-023-revision-fenced-day-close-evidence.md).
 
 `DayClosePreparationTests` cover aggregate readiness/blocker policy, same-total version drift, immutable exported evidence, expired restart/resume fencing, live permissions/hierarchy, source outage invalidation and cancellation. The source-interface fake does not replace PostgreSQL/HTTP/browser acceptance; see [verification](../../../docs/Deployment/Day-Close-Preparation.md).

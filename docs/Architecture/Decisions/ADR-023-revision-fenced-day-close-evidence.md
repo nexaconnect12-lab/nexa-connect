@@ -1,5 +1,7 @@
 # ADR-023: Revision-bound day-close evidence and exact-set delivery proof
 
+Seal addendum (2026-10-07): [ADR-024](ADR-024-source-day-seals-and-late-change-journals.md) extends revision-bound observations with source-local serialized seal retention and append-only change journals. The original revision decision below remains historical; global financial cuts, write prohibition and settlement finalization remain open.
+
 Status: Accepted. Date: 2026-10-07.
 
 ## Context

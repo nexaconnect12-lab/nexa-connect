@@ -13,12 +13,12 @@ public sealed class MigrationRunnerTests
             ["Restaurant"] = 3,
             ["Catalog"] = 4,
             ["Inventory"] = 5,
-            ["Order"] = 13,
+            ["Order"] = 14,
             ["Kitchen"] = 3,
             ["Customer"] = 2,
-            ["Payment"] = 12,
+            ["Payment"] = 13,
             ["Notification"] = 3,
-            ["POS"] = 10,
+            ["POS"] = 11,
             ["Media"] = 4,
             ["Reporting"] = 20
         };
@@ -189,18 +189,18 @@ public sealed class MigrationRunnerTests
         IReadOnlyList<AppliedMigration> applied = catalog.Migrations.Select(ToAppliedMigration).ToArray();
 
         IReadOnlyList<MigrationStep> rollback = catalog.CreatePlan(applied, 1);
-        Assert.Equal([12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2], rollback.Select(step => step.Migration.Version).ToArray());
+        Assert.Equal([13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2], rollback.Select(step => step.Migration.Version).ToArray());
         Assert.All(rollback, step => Assert.Equal(MigrationDirection.Down, step.Direction));
-        Assert.Contains("source_day_cutoffs", rollback[1].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("refund_financial_publications", rollback[2].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("receipt_snapshot", rollback[3].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("void_attempt_count", rollback[5].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("capture_attempt_count", rollback[6].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("provider_capture_id", rollback[7].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("provider_authorization_id", rollback[8].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("DROP TABLE payment_audit_records", rollback[10].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("DROP COLUMN organization_id", rollback[10].Migration.DownSql, StringComparison.Ordinal);
-        Assert.Contains("HAVING count(*)>1", rollback[10].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("source_day_cutoffs", rollback[2].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("refund_financial_publications", rollback[3].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("receipt_snapshot", rollback[4].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("void_attempt_count", rollback[6].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("capture_attempt_count", rollback[7].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("provider_capture_id", rollback[8].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("provider_authorization_id", rollback[9].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("DROP TABLE payment_audit_records", rollback[11].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("DROP COLUMN organization_id", rollback[11].Migration.DownSql, StringComparison.Ordinal);
+        Assert.Contains("HAVING count(*)>1", rollback[11].Migration.DownSql, StringComparison.Ordinal);
         Assert.All(rollback, step => Assert.DoesNotContain("DROP TABLE outbox_messages", step.Migration.DownSql, StringComparison.Ordinal));
     }
 

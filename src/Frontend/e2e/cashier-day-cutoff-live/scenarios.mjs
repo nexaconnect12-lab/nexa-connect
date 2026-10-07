@@ -10,5 +10,6 @@ export const scenarios=[
  'a second actual historical cash sale invalidates readiness and preserves the reviewed manifests',
  'owning source transport outage clears readiness until explicit recapture',
  'live owning source permission revocation blocks evidence without exposing upstream details',
- 'live prepare read and membership revocation preserve immutable private command proof'
+ 'live prepare read and membership revocation preserve immutable private command proof',
+ 'reviewed source seals reconcile actual events and later financial changes remain journaled'
 ];

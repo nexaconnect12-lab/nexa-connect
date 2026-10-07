@@ -1,6 +1,8 @@
 # Joined cashier-to-cutoff acceptance
 
-Current cutoff mode uses source revision protocol 2 (Order 13 / Payment 12 / POS 10, compatibility 0.26.0) and requires exact-set Reporting delivery proof. Prior 0.25.0 acceptance records remain historical. The original non-cutoff cashier/preparation modes retain their pinned schemas. New protocol execution is recorded separately in the revision evidence document under docs/Architecture/Evidence.
+Current cutoff mode uses Order 14 / Payment 13 / POS 11 and compatibility 0.27.0. It now requires thirteen distinct real-OIDC browser passes, including reviewed source sealing and verification that a subsequent actual historical sale invalidates readiness with journaled changes while preserving original seals. Six Authorization persistence cases and exact cleanup remain required. Earlier twelve-case runs are historical; current execution is recorded in docs/Architecture/Evidence/Day-Close-Seals.md. Original non-cutoff modes retain their schema targets.
+
+The earlier revision-protocol-two mode used Order 13 / Payment 12 / POS 10 at compatibility 0.26.0 and required exact-set Reporting delivery proof. Its twelve-case execution and prior 0.25.0 acceptance remain historical. Current seal execution is recorded in [seal evidence](../Architecture/Evidence/Day-Close-Seals.md).
 
 The guarded gate joins actual cashier PKCE and Customer BFF sessions with owning Catalog/Inventory/Kitchen/Order/Payment/POS/Reporting APIs, PostgreSQL and RabbitMQ. It verifies [retained cutoff evidence](../API/Day-Close-Cutoffs.md); it does not finalize settlement or provide source-write fences, delivery watermarks, provider certification, WPF/printing or offline acceptance.
 
@@ -20,9 +22,9 @@ Pop-Location
 ./scripts/test-cashier-day-cutoff.ps1 -ConfirmDisposableInfrastructure
 ```
 
-`-NoBuild` requires current Debug binaries. The runner still builds ancillary services/recovery tooling, publishes the BFF/portal and runs all six Authorization persistence cases. It requires twelve distinct browser passes with no skips/retries and verified cleanup. No missing setting permits a skip. CI retains only bounded verification/summary JSON for 14 days; local service logs and credentials are never uploaded.
+`-NoBuild` requires current Debug binaries. The runner still builds ancillary services/recovery tooling, publishes the BFF/portal and runs all six Authorization persistence cases. It requires thirteen distinct browser passes with no skips/retries and verified cleanup. No missing setting permits a skip. CI retains only bounded verification/summary JSON for 14 days; local service logs and credentials are never uploaded.
 
-The mode reuses the ten-context [cashier Docker topology](../../docker/cashier-day-close/README.md) under its own random `nexa-cashier-day-cutoff-<run>` project. It pins Order 13, Payment 12, POS 10, Reporting 20, Authorization 10 and compatibility 0.26.0. POS receives Order, Payment, self-source and Reporting addresses; its Payment dependency traverses the owned fault proxy. Older preparation/cashier launchers retain their pinned schemas and controls.
+The mode reuses the ten-context [cashier Docker topology](../../docker/cashier-day-close/README.md) under its own random `nexa-cashier-day-cutoff-<run>` project. It pins Order 14, Payment 13, POS 11, Reporting 20, Authorization 10 and compatibility 0.27.0. POS receives Order, Payment, self-source and Reporting addresses; its Payment dependency traverses the owned fault proxy. Older preparation/cashier launchers retain their pinned schemas and controls.
 
 ## Real commands and controlled faults
 
@@ -47,6 +49,7 @@ The owned Payment HTTP proxy can hold only its source-cutoff POST, while other r
 | Partial restart | One Order capture persists, Payment remains uncaptured, original command resumes after expiry |
 | Replacement | Second manager replaces expired partial work and old operation cannot complete |
 | Late actual sale | Second quote/place/settlement causes late cash/projection, invalidates readiness and preserves old manifests |
+| Source seals and late changes | Manager seals reviewed Ready cutoff; subsequent historical sale journals changes and blocks readiness while preserving original source seals |
 | Transport outage | Source failure clears displayed readiness; explicit recapture restores it |
 | Source revocation | Live Payment read denial blocks evidence; restored authority permits new capture |
 | Live revocation/proof | Prepare/read/membership revoked; no extra POS writes; durable private counts and granted decisions verified |
@@ -59,4 +62,4 @@ Services keep shared safe JSON/OTLP and validated correlation. Query `nexaconnec
 
 Four launcher/settings/evidence guards and nine cutoff-host preflight rejection cases accompany the browser matrix. Control preflight covers four owned actions, two old-mode Order denials and six malformed-request denials without infrastructure. The original eight host-preflight cases remain valid. Required checks include cutoff unit/domain/HTTP tests, the original cashier/preparation guard suites and the full joined execution. See [execution evidence](../Architecture/Evidence/Cashier-Day-Cutoff-Acceptance.md) for actual results, separately from the implemented CI workflow.
 
-Source fences, monotonic mutation revisions/watermarks, finalization/approval policy, production least privilege/TLS/backup/capacity, provider commands and physical/offline POS remain separate work. This gate validates the online manual-cash retained-observation foundation and its authenticated recovery paths.
+Monotonic source revisions, immutable seals and late-change journals are implemented. Financial write prohibition, global delivery watermarks, finalization/approval policy, production least privilege/TLS/backup/capacity, provider commands and physical/offline POS remain separate work. This gate validates online manual-cash retained evidence, source sealing and authenticated recovery paths.

@@ -1,6 +1,8 @@
 # Disposable cashier-to-day-close infrastructure
 
-Current cutoff mode uses source revision protocol 2 (Order 13 / Payment 12 / POS 10, compatibility 0.26.0) and requires exact-set Reporting delivery proof. Prior 0.25.0 acceptance records remain historical. The original non-cutoff cashier/preparation modes retain their pinned schemas. New protocol execution is recorded separately in the revision evidence document under docs/Architecture/Evidence.
+Current cutoff mode uses Order 14 / Payment 13 / POS 11 and compatibility 0.27.0. It now requires thirteen distinct real-OIDC browser passes, including reviewed source sealing and verification that a subsequent actual historical sale invalidates readiness with journaled changes while preserving original seals. Six Authorization persistence cases and exact cleanup remain required. Earlier twelve-case runs are historical; current execution is recorded in docs/Architecture/Evidence/Day-Close-Seals.md. Original non-cutoff modes retain their schema targets.
+
+The preceding cutoff-only mode used source revision protocol 2 (Order 13 / Payment 12 / POS 10, compatibility 0.26.0) and required exact-set Reporting delivery proof. Prior 0.25.0 acceptance records remain historical. The original non-cutoff cashier/preparation modes retain their pinned schemas. Revision-only execution remains historical; current seal execution is recorded separately under docs/Architecture/Evidence/Day-Close-Seals.md.
 
 The [joined cashier-to-cutoff launcher](../../docs/Deployment/Cashier-Day-Cutoff-Acceptance.md) reuses this ten-context topology under its own generated project and newer schema targets. It adds an optional generated accountant password to the disposable Keycloak environment; existing launchers default that unused setting. No production topology/permission change is introduced.
 

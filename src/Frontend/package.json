@@ -16,6 +16,7 @@
     "test:e2e:cashier-day-close:live": "playwright test --config playwright.cashier-day-close-live.config.mjs",
     "test:e2e:day-close:live": "playwright test --config playwright.day-close-live.config.mjs",
     "test:day-close:guards": "node --test e2e/day-close-live/settings.test.mjs",
+    "test:e2e:day-seal": "playwright test --config playwright.day-seal.config.mjs",
     "test:e2e:day-cutoff": "playwright test --config playwright.day-cutoff.config.mjs",
     "test:e2e:day-close": "playwright test --config playwright.day-close.config.mjs",
     "test:e2e:end-of-day": "playwright test --config playwright.end-of-day.config.mjs",

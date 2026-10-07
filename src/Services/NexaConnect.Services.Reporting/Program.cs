@@ -52,10 +52,12 @@ foreach (string service in new[] { "Order", "Payment", "POS" })
     }).AddNexaConnectCorrelationPropagation();
 }
 builder.Services.AddScoped<DayCutoffReconciliation>();
+builder.Services.AddScoped<SealedDayReconciliation>();
+builder.Services.AddScoped<ISealedSources,HttpCutoffSources>();
 builder.Services.AddScoped<ICutoffSources,HttpCutoffSources>();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
-app.Use(async(context,next)=>{if(context.Request.Path.StartsWithSegments("/api/reporting/v1/customer/day-cutoff-reconciliation"))context.Response.Headers.CacheControl="no-store";await next();});
+app.Use(async(context,next)=>{if((context.Request.Path.StartsWithSegments("/api/reporting/v1/customer/day-cutoff-reconciliation")||context.Request.Path.StartsWithSegments("/api/reporting/v1/customer/day-seal-reconciliation")))context.Response.Headers.CacheControl="no-store";await next();});
 app.Use(async (context, next) => { if (context.Request.Path.Value?.EndsWith("/reports/end-of-day", StringComparison.OrdinalIgnoreCase) == true) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();

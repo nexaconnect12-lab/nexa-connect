@@ -26,4 +26,17 @@ public sealed class PostgresPosCutoffStore(NpgsqlDataSource source) : IPosCutoff
         return new(saved,PostgresFinancialRevision.IsCurrent(saved,saved with
         {EvidenceVersion=summary.EvidenceVersion??"",SourceRevision=revision,EvidenceProtocolVersion=2}));
     }
+    public Task<SourceSealRead<PosDaySummary>?> ReadSealAsync(EndOfDayWindow window,Guid id,CancellationToken ct)=>
+        new PostgresEvidenceSeals<PosDaySummary>(source).ReadAsync(window,id,ct);
+    public Task<SourceDaySeal> SealAsync(SourceSealCommand command,string actor,CancellationToken ct)=>
+        new PostgresEvidenceSeals<PosDaySummary>(source).RetainAsync(command,actor,(m,r)=>
+        {
+            try
+            {
+                NexaConnect.Services.POS.Domain.FinancialDaySeal.Retain(command.ManifestId,command.ExpectedRevision.Epoch,
+                    command.ExpectedRevision.Revision,m.ManifestId,r.Epoch,r.Revision,PostgresFinancialRevision.IsCurrent(m,m with{SourceRevision=r}),
+                    m.Summary.Window==command.Window && m.Summary.Currencies.All(c=>c=="THB"),m.Summary.OpenShifts+m.Summary.OpenCashSessions+m.Summary.PendingCashReviews);
+            }
+            catch(InvalidOperationException){throw new SnapshotOperationConflictException();}
+        },ct);
 }

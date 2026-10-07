@@ -8,9 +8,10 @@ const api=createApiClient({onUnauthorized:()=>location.assign("/bff/customer/log
 const issueNames:Record<string,string>={unresolved_orders:"Unresolved orders",unresolved_payments:"Unresolved payments",unresolved_refunds:"Unresolved refunds",open_shifts:"Open shifts",open_cash_sessions:"Open cash sessions",pending_cash_reviews:"Pending cash reviews",missing_source_evidence:"Missing receipt or retained publication evidence",projection_totals_differ:"Reporting totals differ from source totals",financial_evidence_not_checked:"No financial evidence check recorded for this exact day",recorded_check_is_historical:"Recorded financial check is historical; request a fresh check before closing",recorded_financial_gaps:"Recorded financial check contains gaps",cash_variance:"Cash variance requires review"};
 export function EndOfDayPanel({organizationId}:{organizationId:string}){
   const [branch,setBranch]=useState("");const [date,setDate]=useState("");const [report,setReport]=useState<DayDraft>();
+  const [reviewed,setReviewed]=useState<{scope:string;version:number}>();
   const [busy,setBusy]=useState(false);const [error,setError]=useState<string>();
   const generation=useRef(0);const active=useRef<AbortController>();
-  const clear=()=>{generation.current++;active.current?.abort();setReport(undefined);setError(undefined);setBusy(false);};
+  const clear=()=>{generation.current++;active.current?.abort();setReport(undefined);setReviewed(undefined);setError(undefined);setBusy(false);};
   useEffect(()=>()=>{generation.current++;active.current?.abort();},[]);
   const input=dayRequest(branch,date);
   const load=async()=>{
@@ -32,7 +33,8 @@ export function EndOfDayPanel({organizationId}:{organizationId:string}){
       <Button htmlType="submit" disabled={!input||busy} loading={busy}>Load day draft</Button>
     </Space></Form>
     {input&&<DayClosePreparationPanel key={`${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate}/>}
-    {input&&<DayClosePreparationPanel cutoff key={`cutoff|${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate}/>}
+    {input&&<DayClosePreparationPanel cutoff key={`cutoff|${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate} onCutoffChange={value=>setReviewed(value?.status==="ready_for_review"?{scope:`${organizationId}|${input.branchId}|${input.businessDate}`,version:value.version}:undefined)}/>}
+    {input&&<DayClosePreparationPanel seal key={`seal|${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate} reviewedCutoffVersion={reviewed?.scope===`${organizationId}|${input.branchId}|${input.businessDate}`?reviewed.version:undefined}/>}
     {error&&<Alert role="status" type="error" message={error}/>}
     {report&&<>
       <Descriptions bordered column={1}>

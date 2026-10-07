@@ -45,4 +45,17 @@ public sealed class PostgresPaymentCutoffStore(NpgsqlDataSource source) : IPayme
         var revision=await PostgresFinancialRevision.ReadAsync(w,c,t,ct);
         return new(Guid.Empty,Guid.Empty,0,w,DateTimeOffset.UtcNow,summary.EvidenceVersion??"",summary,[],events,retainedRows,revision,2);
     }
+    public Task<SourceSealRead<PaymentDaySummary>?> ReadSealAsync(EndOfDayWindow window,Guid id,CancellationToken ct)=>
+        new PostgresEvidenceSeals<PaymentDaySummary>(source).ReadAsync(window,id,ct);
+    public Task<SourceDaySeal> SealAsync(SourceSealCommand command,string actor,CancellationToken ct)=>
+        new PostgresEvidenceSeals<PaymentDaySummary>(source).RetainAsync(command,actor,(m,r)=>
+        {
+            try
+            {
+                NexaConnect.Services.Payment.Domain.FinancialDaySeal.Retain(command.ManifestId,command.ExpectedRevision.Epoch,
+                    command.ExpectedRevision.Revision,m.ManifestId,r.Epoch,r.Revision,PostgresFinancialRevision.IsCurrent(m,m with{SourceRevision=r}),
+                    m.Summary.Window==command.Window && m.Summary.Currencies.All(c=>c=="THB"),m.Summary.UnresolvedPayments+m.Summary.UnresolvedRefunds+m.Summary.EvidenceGaps);
+            }
+            catch(InvalidOperationException){throw new SnapshotOperationConflictException();}
+        },ct);
 }

@@ -1,5 +1,7 @@
 # Day-close cutoff evidence
 
+Ready cutoff evidence can now be pinned by the separate [source day-seal workflow](Day-Close-Seals.md). Cutoff manifests and state remain independent; sealing requires the reviewed cutoff version and does not change their meaning or approve settlement.
+
 This online single-branch THB foundation retains source generations and freshly reconciles sales/payment/refund identities. It does not approve or finalize settlement, stop source writes or supply a distributed cutoff. [ADR-022](../Architecture/Decisions/ADR-022-retained-day-cutoff-evidence.md) defines that boundary. Existing [day-close preparation](Day-Close-Preparation.md) remains independently available.
 
 ## Customer workflow

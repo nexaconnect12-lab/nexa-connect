@@ -130,9 +130,13 @@ public sealed class SourceFinancialRevisionPostgresTests : IAsyncLifetime
             foreach(var sql in new[]{"UPDATE source_financial_epoch SET epoch=gen_random_uuid()","DELETE FROM source_financial_epoch","TRUNCATE source_financial_epoch",
                 "INSERT INTO source_financial_revisions VALUES($1,$2,1)","TRUNCATE source_financial_revisions"})
                 await Assert.ThrowsAsync<PostgresException>(()=>Sql(service,sql,sql.Contains('$')?[restaurant,branch]:[]));
-            var directory=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",service)).Order().Last();
+            var root=Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",service);
+            var directory=Directory.GetDirectories(root,"*_financial_revisions").Single();
+            var seals=Directory.GetDirectories(root,"*_day_seals").Single();
+            await Sql(service,await File.ReadAllTextAsync(Path.Combine(seals,"down.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(directory,"down.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(directory,"up.sql")));
+            await Sql(service,await File.ReadAllTextAsync(Path.Combine(seals,"up.sql")));
             Assert.NotEqual(before.Epoch,(await Revision(service)).Epoch);
             var window=Window;
             if(service=="Order")await new OrderDb.PostgresOrderCutoffStore(Db(service)).CaptureAsync(new(Guid.NewGuid(),window),"manager",default);
