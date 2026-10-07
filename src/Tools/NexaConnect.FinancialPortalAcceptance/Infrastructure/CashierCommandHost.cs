@@ -20,7 +20,9 @@ internal static class CashierCommandHost
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "NexaConnect.sln"))) directory = directory.Parent;
         string root = directory?.FullName ?? throw new ArgumentException();
         string path = Path.GetFullPath(Required("ClockPath"));
-        if (path != Path.GetFullPath(Path.Combine(root, ".runstate", "cashier-day-close", run, "clock.json"))) throw new ArgumentException();
+        string kind=Environment.GetEnvironmentVariable("Acceptance__Kind")??"cashier-day-close";
+        if(kind is not("cashier-day-close" or "cashier-day-cutoff"))throw new ArgumentException();
+        if (path != Path.GetFullPath(Path.Combine(root, ".runstate", kind, run, "clock.json"))) throw new ArgumentException();
         var db = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("ConnectionStrings__" + service));
         if (db.Host != "127.0.0.1" || db.Database != $"nexa_review_it_{run}_{service.ToLowerInvariant()}" || !string.IsNullOrEmpty(db.SearchPath)) throw new ArgumentException();
         var issuer = new Uri(Environment.GetEnvironmentVariable("Authentication__Authority") ?? throw new ArgumentException());

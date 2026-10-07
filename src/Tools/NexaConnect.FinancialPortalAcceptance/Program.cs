@@ -29,11 +29,12 @@ try
         stage="command-host"; await CashierCommandHost.RunAsync(args[0]); return 0;
     }
     var options=FixtureOptions.Read();
-    if (args.Length == 1 && args[0] == "cashier-proof")
+    if (args.Length == 1 && args[0] is "cashier-proof" or "cutoff-proof")
     {
         if(!options.DayClose || Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CLOSE")!="1") throw new ArgumentException();
         using var proofTimeout=new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await CashierReferenceFixture.ProofAsync(options,proofTimeout.Token); return 0;
+        if(args[0]=="cutoff-proof"){if(!options.Cutoff)throw new ArgumentException();await CutoffAcceptanceFixture.ProofAsync(options,proofTimeout.Token);}
+        else await CashierReferenceFixture.ProofAsync(options,proofTimeout.Token); return 0;
     }
     if(args.Length==1 && args[0]=="provision-cashier" && (!options.DayClose || Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CLOSE")!="1")) throw new ArgumentException();
     if(args.Length!=1 || args[0] is not ("provision" or "provision-cashier" or "record" or "deliver" or "revoke" or "revoke-source" or "membership" or "resolve-day-close" or "same-total-evidence" or "late-cash" or "approve-cash" or "preparation-proof" or "stop-pos" or "start-pos" or "revoke-day-close-read" or "revoke-day-close-prepare" or "revoke-manager-source" or "restore-manager-source" or "membership-second")) return 2;
@@ -75,6 +76,7 @@ try
         await assignments.AssignAsync(new(options.Reader,org.OrganizationId,r.RestaurantId,branch.BranchId,args[0]=="provision-cashier"?"cashier":"accountant"),actor,ct);
         await assignments.AssignAsync(new(options.Resolver,org.OrganizationId,r.RestaurantId,null,"store-manager"),actor,ct);
         if(options.DayClose)await assignments.AssignAsync(new(options.SecondManager!,org.OrganizationId,r.RestaurantId,null,"store-manager"),actor,ct);
+        if(options.Cutoff)await assignments.AssignAsync(new(options.Accountant!,org.OrganizationId,r.RestaurantId,branch.BranchId,"accountant"),actor,ct);
         if(args[0]=="provision-cashier")
         {
             if(!options.DayClose || Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CLOSE")!="1") throw new ArgumentException();
@@ -141,6 +143,7 @@ try
         stage=args[0];
         if(state.Cashier is not null)
         {
+            if(options.Cutoff && await CutoffAcceptanceFixture.ExecuteAsync(options,state,args[0],authorizationDb,platform,ct))return 0;
             if(!options.DayClose || Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CLOSE")!="1" || args[0]!="record")throw new ArgumentException();
         }
         else if(options.DayClose && await DayCloseFixture.ExecuteAsync(options,state,args[0],authorizationDb,platform,ct))return 0;
@@ -201,7 +204,9 @@ internal sealed record FixtureOptions(string RunId,string Reader,string Resolver
     private static string Required(string key)=>Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_"+key)??throw new ArgumentException();
     public bool DayClose=>Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_DAY_CLOSE")=="1";
     public string? SecondManager=>DayClose?Required("SECOND_MANAGER_SUBJECT"):null;
-    public IEnumerable<string> Subjects=>DayClose?[Reader,Resolver,SecondManager!]:[Reader,Resolver];
+    public bool Cutoff=>Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CUTOFF")=="1";
+    public string? Accountant=>Cutoff?Required("ACCOUNTANT_SUBJECT"):null;
+    public IEnumerable<string> Subjects=>Cutoff?[Reader,Resolver,SecondManager!,Accountant!]:DayClose?[Reader,Resolver,SecondManager!]:[Reader,Resolver];
     public bool EndOfDay=>Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_END_OF_DAY")=="1";
     public static FixtureOptions Read()
     {
@@ -213,6 +218,7 @@ internal sealed record FixtureOptions(string RunId,string Reader,string Resolver
         if(Path.GetFileName(path)!="fixture.json"||new DirectoryInfo(Path.GetDirectoryName(path)!).Name!=run)throw new ArgumentException();
         var options=new FixtureOptions(run,reader,resolver,path);
         if(options.DayClose && (!options.EndOfDay || !Guid.TryParse(options.SecondManager,out var other) || other==Guid.Parse(reader) || other==Guid.Parse(resolver)))throw new ArgumentException();
+        if(options.Cutoff && (!options.DayClose || !Guid.TryParse(options.Accountant,out _) || options.Subjects.Distinct().Count()!=4 || new DirectoryInfo(Path.GetDirectoryName(path)!).Parent!.Name!="cashier-day-cutoff"))throw new ArgumentException();
         return options;
     }
     public string Connection(string suffix)

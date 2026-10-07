@@ -1,14 +1,14 @@
 #requires -Version 7.0
 [CmdletBinding()]
-param([switch]$ConfirmDisposableInfrastructure,[switch]$NoBuild,[string]$DockerExecutable='docker',[switch]$EndOfDay,[switch]$DayClose,[switch]$CashierDayClose)
+param([switch]$ConfirmDisposableInfrastructure,[switch]$NoBuild,[string]$DockerExecutable='docker',[switch]$EndOfDay,[switch]$DayClose,[switch]$CashierDayClose,[switch]$CashierDayCutoff)
 $ErrorActionPreference='Stop'
-if($CashierDayClose){$DayClose=$true};if($DayClose){$EndOfDay=$true}
+if($CashierDayCutoff){$CashierDayClose=$true};if($CashierDayClose){$DayClose=$true};if($DayClose){$EndOfDay=$true}
 . (Join-Path $PSScriptRoot 'day-close-joined-helpers.ps1')
 if(-not $ConfirmDisposableInfrastructure){throw 'Pass -ConfirmDisposableInfrastructure to authorize generated local infrastructure, fixture writes and cleanup.'}
 if(-not(Get-Command $DockerExecutable -ErrorAction SilentlyContinue)){$DockerExecutable=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs/DockerDesktop/resources/bin/docker.exe'}
 . (Join-Path $PSScriptRoot 'payment-review-joined-helpers.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$runId=[Guid]::NewGuid().ToString('N');$kind=if($CashierDayClose){'cashier-day-close'}elseif($DayClose){'day-close-portal'}elseif($EndOfDay){'end-of-day-portal'}else{'financial-portal'};$projectName="nexa-$kind-$runId"
+$runId=[Guid]::NewGuid().ToString('N');$kind=if($CashierDayCutoff){'cashier-day-cutoff'}elseif($CashierDayClose){'cashier-day-close'}elseif($DayClose){'day-close-portal'}elseif($EndOfDay){'end-of-day-portal'}else{'financial-portal'};$projectName="nexa-$kind-$runId"
 $run=Join-Path $root ".runstate/$kind/$runId"
 $compose=@('compose','-f',(Join-Path $root "docker/$(if($CashierDayClose){'cashier-day-close'}elseif($DayClose){'end-of-day-portal'}else{$kind})/compose.yaml"),'-p',$projectName)
 $noRestore=@();if($EndOfDay){$noRestore=@('--no-restore')}
@@ -17,8 +17,8 @@ function Set-RunSetting([string]$key,[string]$value){if(-not $previous.ContainsK
 function Connection([string]$suffix,[string]$user,[string]$password){$b=[System.Data.Common.DbConnectionStringBuilder]::new();$b['Host']='127.0.0.1';$b['Port']=$pgPort;$b['Database']="nexa_review_it_${runId}_$suffix";$b['Username']=$user;$b['Password']=$password;return $b.ConnectionString}
 function Start-App($name,$assembly,$working,$settings,$port){
     $info=[Diagnostics.ProcessStartInfo]::new('dotnet');$info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.WorkingDirectory=$working
-        if($CashierDayClose -and $name -match '^(Order|POS(?:Restart[0-9]+)?)$'){
-        $info.ArgumentList.Add($fixtureDll);$info.ArgumentList.Add($(if($name-eq'Order'){'host-order'}else{'host-pos'}))
+        if($CashierDayClose -and $name -match '^(Order(?:Restart[0-9]+)?|POS(?:Restart[0-9]+)?)$'){
+        $info.ArgumentList.Add($fixtureDll);$info.ArgumentList.Add($(if($name-match'^Order'){'host-order'}else{'host-pos'}))
     }else{$info.ArgumentList.Add($assembly)};$info.ArgumentList.Add('--urls');$info.ArgumentList.Add("$(if($name-eq'Bff'){'https'}else{'http'})://127.0.0.1:$port")
     foreach($key in @($info.Environment.Keys)){if($key -match '^NEXACONNECT_' -or ($EndOfDay -and $key -match '__')){$info.Environment.Remove($key)|Out-Null}}
     foreach($e in $settings.GetEnumerator()){$info.Environment[$e.Key]=[string]$e.Value}
@@ -41,7 +41,7 @@ try{
     $ports=@(Get-ReviewJoinedFreePorts $(if($CashierDayClose){14}elseif($EndOfDay){10}else{6}));$bffPort=$ports[4]
     Set-RunSetting NEXACONNECT_JOINED_RUN_ID $runId
     Set-RunSetting NEXACONNECT_JOINED_BFF_PORT $bffPort
-    foreach($name in @('ADMIN_PASSWORD','MIGRATION_PASSWORD','RUNTIME_PASSWORD','KEYCLOAK_DB_PASSWORD','KEYCLOAK_ADMIN_PASSWORD','CLIENT_SECRET','READER_PASSWORD','RESOLVER_PASSWORD','SECONDMANAGER_PASSWORD','RABBITMQ_PASSWORD')){Set-RunSetting "NEXACONNECT_JOINED_$name" ('Aa1!'+[Guid]::NewGuid().ToString('N')+[Guid]::NewGuid().ToString('N'))}
+    foreach($name in @('ADMIN_PASSWORD','MIGRATION_PASSWORD','RUNTIME_PASSWORD','KEYCLOAK_DB_PASSWORD','KEYCLOAK_ADMIN_PASSWORD','CLIENT_SECRET','READER_PASSWORD','RESOLVER_PASSWORD','SECONDMANAGER_PASSWORD','ACCOUNTANT_PASSWORD','RABBITMQ_PASSWORD')){Set-RunSetting "NEXACONNECT_JOINED_$name" ('Aa1!'+[Guid]::NewGuid().ToString('N')+[Guid]::NewGuid().ToString('N'))}
     $existing=@(& $DockerExecutable @compose ps -aq);if($LASTEXITCODE-ne 0-or$existing.Count-ne 0){throw 'Generated project must be empty.'}
     $created=$true;& $DockerExecutable @compose up -d --wait --wait-timeout 180
     if($LASTEXITCODE-ne 0){throw 'Disposable infrastructure startup failed.'}
@@ -53,9 +53,10 @@ try{
     $targets=@{PlatformDirectory=@('platform',3);Restaurant=@('restaurant',3);Authorization=@('authorization',9);Order=@('order',11);Payment=@('payment',10);Reporting=@('reporting',20)}
     if($EndOfDay){$targets.POS=@('pos',$(if($DayClose){8}else{7}))}
     if($DayClose){$targets.Authorization=@('authorization',10)};if($CashierDayClose){$targets.Catalog=@('catalog',4);$targets.Inventory=@('inventory',5);$targets.Kitchen=@('kitchen',3)}
+    if($CashierDayCutoff){$targets.Order=@('order',12);$targets.Payment=@('payment',11);$targets.POS=@('pos',9)}
     foreach($e in $targets.GetEnumerator()){
         Set-RunSetting ('NEXACONNECT_'+$e.Key.ToUpperInvariant()+'_DB') (Connection $e.Value[0] nexaconnect_migration $env:NEXACONNECT_JOINED_MIGRATION_PASSWORD)
-        & dotnet run @noRestore --project (Join-Path $root 'src/Tools/NexaConnect.DataMigration') -- --service $e.Key --scripts-root (Join-Path $root 'src/Tools/NexaConnect.DataMigration/Scripts') --target $e.Value[1] --confirm --application-version $(if($DayClose){"0.24.0"}else{"0.23.0"})
+        & dotnet run @noRestore --project (Join-Path $root 'src/Tools/NexaConnect.DataMigration') -- --service $e.Key --scripts-root (Join-Path $root 'src/Tools/NexaConnect.DataMigration/Scripts') --target $e.Value[1] --confirm --application-version $(if($CashierDayCutoff){"0.25.0"}elseif($DayClose){"0.24.0"}else{"0.23.0"})
         if($LASTEXITCODE-ne 0){throw "Migration failed for $($e.Key)."}
     }
     Set-RunSetting NEXACONNECT_AUTHORIZATION_INTEGRATION_DB (Connection authorization nexaconnect_migration $env:NEXACONNECT_JOINED_MIGRATION_PASSWORD)
@@ -71,7 +72,7 @@ try{
     & $DockerExecutable @compose exec -T keycloak sh -c '/opt/keycloak/bin/kcadm.sh config credentials --server http://localhost:8080 --realm master --user acceptance-admin --password "$KC_BOOTSTRAP_ADMIN_PASSWORD" >/dev/null'
     if($LASTEXITCODE-ne 0){throw 'Identity administrator authentication failed.'}
     $realm="nexa-review-it-$runId";$subjects=@{};$users=@{}
-    foreach($role in $(if($DayClose){@('reader','resolver','secondmanager')}else{@('reader','resolver')})){
+    foreach($role in $(if($CashierDayCutoff){@('reader','resolver','secondmanager','accountant')}elseif($DayClose){@('reader','resolver','secondmanager')}else{@('reader','resolver')})){
         $users[$role]="cash-$role-$($runId.Substring(0,8))";$user=$users[$role];$passwordVariable='NEXACONNECT_'+$role.ToUpperInvariant()+'_PASSWORD'
         $subject=& $DockerExecutable @compose exec -T keycloak sh -c "/opt/keycloak/bin/kcadm.sh create users -r '$realm' -s username='$user' -s firstName='Cash' -s lastName='Acceptance' -s email='$user@nexa.invalid' -s emailVerified=true -s enabled=true -i && /opt/keycloak/bin/kcadm.sh set-password -r '$realm' --username '$user' --new-password `"`$$passwordVariable`" >/dev/null"
         if($LASTEXITCODE-ne 0){throw 'Identity creation failed.'};$subjects[$role]=$subject.Trim()
@@ -86,6 +87,8 @@ try{
     foreach($e in $runtime.GetEnumerator()){Set-RunSetting ('NEXACONNECT_FINANCIAL_PORTAL_DB_'+$e.Key.ToUpperInvariant()) (Connection $e.Key $e.Value $env:NEXACONNECT_JOINED_RUNTIME_PASSWORD)}
     $settings=@{ENABLED='1';CONFIRM_DISPOSABLE='1';RUN_ID=$runId;STATE_PATH=(Join-Path $run 'fixture.json');READER_SUBJECT=$subjects.reader;RESOLVER_SUBJECT=$subjects.resolver;FIXTURE_DLL=$fixtureDll;RECOVERY_DLL=(Join-Path $root "src/Tools/NexaConnect.FinancialReportingRecovery/bin/Debug/net10.0/NexaConnect.FinancialReportingRecovery.dll")}
     foreach($e in $settings.GetEnumerator()){Set-RunSetting "NEXACONNECT_FINANCIAL_PORTAL_$($e.Key)" $e.Value}
+    Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CUTOFF $(if($CashierDayCutoff){'1'}else{'0'})
+    if($CashierDayCutoff){Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_ACCOUNTANT_SUBJECT $subjects.accountant}
     Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_DAY_CLOSE $(if($DayClose){'1'}else{'0'})
     if($DayClose){Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_SECOND_MANAGER_SUBJECT $subjects.secondmanager}
     Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_END_OF_DAY $(if($EndOfDay){'1'}else{'0'})
@@ -142,6 +145,11 @@ try{
                 if($name-in@('Order','POS')){foreach($e in @{RunId=$runId;ConfirmDisposable='1';ClockPath=(Join-Path $run 'clock.json');Port=$ports[6+$i]}.GetEnumerator()){$config['Acceptance__'+$e.Key]=[string]$e.Value}}
                 if($name-eq'POS'){$posConfiguration=$config.Clone()}
             }
+            if($CashierDayCutoff){
+                if($name-in@('Order','POS')){$config.Acceptance__Kind='cashier-day-cutoff'}
+                if($name-eq'Order'){$config.Outbox__BatchSize='0';$orderConfiguration=$config.Clone();$orderDirectory=$dir;$orderAssembly=Join-Path $dir 'bin/Debug/net10.0/NexaConnect.Services.Order.dll'}
+                if($name-eq'POS'){$config.Services__POS=$urls.POS;$config.Services__Payment="http://127.0.0.1:$($ports[9])/";$posConfiguration=$config.Clone()}
+            }
             Start-App $name (Join-Path $dir "bin/Debug/net10.0/NexaConnect.Services.$name.dll") $dir $config $ports[6+$i]
         }
     }
@@ -173,11 +181,12 @@ try{
     if($EndOfDay){Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_SOURCE_PROXY_PORT $ports[9];Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_PAYMENT_PORT $ports[7]}
     if($DayClose){foreach($entry in @{SECOND_MANAGER_USERNAME=$users.secondmanager;SECOND_MANAGER_PASSWORD=$env:NEXACONNECT_JOINED_SECONDMANAGER_PASSWORD;POS_PORT=$ports[8]}.GetEnumerator()){Set-RunSetting ("NEXACONNECT_FINANCIAL_PORTAL_"+$entry.Key) ([string]$entry.Value)}}
     if($CashierDayClose){foreach($name in @('POS','Order','Catalog','Inventory','Kitchen')){Set-RunSetting ("NEXACONNECT_FINANCIAL_PORTAL_"+$name.ToUpperInvariant()+"_URL") $urls[$name]};Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_CALLBACK_PORT $ports[13]}
+    if($CashierDayCutoff){Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_ACCOUNTANT_USERNAME $users.accountant;Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_ACCOUNTANT_PASSWORD $env:NEXACONNECT_JOINED_ACCOUNTANT_PASSWORD}
     Push-Location (Join-Path $root 'src/Frontend')
-    $suite=if($CashierDayClose){'cashier-day-close-live'}elseif($DayClose){'day-close-live'}elseif($EndOfDay){'end-of-day-live'}else{'financial-completeness-live'}
+    $suite=if($CashierDayCutoff){'cashier-day-cutoff-live'}elseif($CashierDayClose){'cashier-day-close-live'}elseif($DayClose){'day-close-live'}elseif($EndOfDay){'end-of-day-live'}else{'financial-completeness-live'}
     try{if($DayClose){Invoke-DayCloseJoinedBrowser}else{& npx playwright test --config "playwright.$suite.config.mjs"};if(-not $DayClose -and $LASTEXITCODE-ne 0){throw 'Joined browser acceptance failed.'}}finally{Pop-Location}
     $summary=Get-Content (Join-Path $root "src/Frontend/test-results/$suite/$runId/summary.json") -Raw|ConvertFrom-Json
-    $expected=if($CashierDayClose){5}elseif($DayClose){11}elseif($EndOfDay){8}else{7}
+    $expected=if($CashierDayCutoff){12}elseif($CashierDayClose){5}elseif($DayClose){11}elseif($EndOfDay){8}else{7}
     if(-not $summary.verified-or$summary.passed-ne $expected-or$summary.total-ne $expected){throw 'All distinct scenarios must pass without skips.'};$passed=$true
 }
 finally{

@@ -10,6 +10,8 @@
     "test": "vitest run",
     "audit:production": "npm audit --omit=dev --audit-level=moderate",
     "audit:all": "npm audit --include=dev --audit-level=moderate",
+    "test:cashier-day-cutoff:guards": "node --test e2e/cashier-day-cutoff-live/settings.test.mjs",
+    "test:e2e:cashier-day-cutoff:live": "playwright test --config playwright.cashier-day-cutoff-live.config.mjs",
     "test:cashier-day-close:guards": "node --test e2e/cashier-day-close-live/settings.test.mjs",
     "test:e2e:cashier-day-close:live": "playwright test --config playwright.cashier-day-close-live.config.mjs",
     "test:e2e:day-close:live": "playwright test --config playwright.day-close-live.config.mjs",

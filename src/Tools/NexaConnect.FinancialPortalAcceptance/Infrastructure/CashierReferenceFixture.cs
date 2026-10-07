@@ -22,12 +22,16 @@ internal static class CashierReferenceFixture
             ["sales"]=await Count(report,"SELECT count(*) FROM sales_facts WHERE organization_id=$1",state.OrganizationId),
             ["payments"]=await Count(report,"SELECT count(*) FROM payment_facts WHERE organization_id=$1",state.OrganizationId)
         };
-        if(counts.Values.Any(n=>n!=1))throw new InvalidOperationException();
+        if(options.Cutoff)
+        {
+            foreach(var value in counts){long expected=value.Key=="drawers"?1:value.Key=="reviews"?3:2;if(value.Value!=expected)throw new InvalidOperationException();}
+        }
+        else if(counts.Values.Any(n=>n!=1))throw new InvalidOperationException();
         var decisions=new List<Guid>();
         async Task Decisions(NpgsqlDataSource source,string sql,Guid scope){await using var command=source.CreateCommand(sql);command.Parameters.AddWithValue(scope);await using var reader=await command.ExecuteReaderAsync(ct);while(await reader.ReadAsync(ct))decisions.Add(reader.GetGuid(0));}
         await Decisions(orders,"SELECT authorization_decision_id FROM order_manual_tender_settlements WHERE organization_id=$1",state.OrganizationId);
         await Decisions(pos,"SELECT authorization_decision_id FROM shifts WHERE store_id=$1 UNION ALL SELECT close_authorization_decision_id FROM shifts WHERE store_id=$1 UNION ALL SELECT h.authorization_decision_id FROM cash_session_review_history h JOIN cash_sessions c ON c.id=h.cash_session_id WHERE c.store_id=$1",state.Cashier.StoreId);
-        await Decisions(pos,"SELECT authorization_decision_id FROM branch_day_close_audit WHERE organization_id=$1",state.OrganizationId);
+        await Decisions(pos,options.Cutoff?"SELECT authorization_decision_id FROM branch_day_cutoff_audit WHERE organization_id=$1":"SELECT authorization_decision_id FROM branch_day_close_audit WHERE organization_id=$1",state.OrganizationId);
         await using var authority=auth.CreateCommand("SELECT count(*) FROM authorization_decisions WHERE id=ANY($1) AND granted AND organization_id=$2");
         authority.Parameters.AddWithValue(decisions.Distinct().ToArray());authority.Parameters.AddWithValue(state.OrganizationId);
         if(decisions.Count<8 || Convert.ToInt64(await authority.ExecuteScalarAsync(ct))!=decisions.Distinct().Count())throw new InvalidOperationException();

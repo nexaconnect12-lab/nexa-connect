@@ -1,5 +1,7 @@
 # Deployment Guide
 
+The [joined cashier-to-cutoff gate](Cashier-Day-Cutoff-Acceptance.md) is the disposable online acceptance path for the retained cutoff foundation. Its schema/identity/process/broker matrix and safe artifact boundaries are separate from target-production rollout and finalization.
+
 For [retained day-cutoff evidence](Day-Close-Cutoffs.md), deploy Order 12 / Payment 11 / POS 9 under compatibility 0.25.0 alongside current Reporting 20 / Authorization 10 and Customer BFF/Portal. POS additionally needs reachable HTTPS `Services__Order`, `Services__Payment`, `Services__POS`, plus existing Reporting. The source window is a retained observation, not a financial write fence or finalization. Follow the linked rollout, privilege, history and verification guidance.
 
 The [joined cashier-to-day-close gate](Cashier-Day-Close-Acceptance.md) implements real cashier PKCE, authorized shift/cash/checkout/manual-settlement/receipt/review commands, actual Order→POS/Reporting publication and Customer Portal preparation with manager contention and POS restart. Its reference-only fixture seeds no financial transitions. An acceptance-only host injects historical command time into actual Order/POS applications; production uses the system clock with no configurable clock switch. Five browser scenarios, six Authorization persistence cases and verified cleanup are required; execution evidence remains separate from production settlement/cutoff certification.
