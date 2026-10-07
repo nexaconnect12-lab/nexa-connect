@@ -48,11 +48,18 @@ public sealed class DayCutoffReconciliation(ICutoffSources sources, IReportingCu
         var paymentAfter=await sources.PaymentAsync(w,command.PaymentManifestId,bearer,ct);
         if(orderAfter.Manifest.ManifestId!=command.OrderManifestId || paymentAfter.Manifest.ManifestId!=command.PaymentManifestId
             || orderAfter.Manifest.Window!=w || paymentAfter.Manifest.Window!=w
-            || orderAfter.Manifest.EvidenceVersion!=order.Manifest.EvidenceVersion || paymentAfter.Manifest.EvidenceVersion!=payment.Manifest.EvidenceVersion)
+            || orderAfter.Manifest.EvidenceVersion!=order.Manifest.EvidenceVersion || paymentAfter.Manifest.EvidenceVersion!=payment.Manifest.EvidenceVersion
+            || orderAfter.Manifest.SourceRevision!=order.Manifest.SourceRevision || paymentAfter.Manifest.SourceRevision!=payment.Manifest.SourceRevision
+            || orderAfter.Manifest.EvidenceProtocolVersion!=order.Manifest.EvidenceProtocolVersion
+            || paymentAfter.Manifest.EvidenceProtocolVersion!=payment.Manifest.EvidenceProtocolVersion)
             throw new InvalidOperationException("Cutoff source identity changed.");
-        bool current=order.Current&&payment.Current&&orderAfter.Current&&paymentAfter.Current;
+        static bool RevisionBound<T>(SourceCutoff<T> value)=>value.EvidenceProtocolVersion==2
+            && value.SourceRevision is {Epoch:var epoch,Revision:>=0} && epoch!=Guid.Empty;
+        bool current=RevisionBound(order.Manifest)&&RevisionBound(payment.Manifest)
+            && order.Current&&payment.Current&&orderAfter.Current&&paymentAfter.Current;
         static CutoffFactCounts Counts(FinancialFactCounts c)=>new(c.Expected,c.Matched,c.Missing,c.Conflicting,c.Unexpected);
         return new(check.CheckId,w,command.OrderManifestId,command.PaymentManifestId,current,
-            current?check.Status:"sources_changed",check.CheckedAtUtc,Counts(check.Sales),Counts(check.Payments),Counts(check.Refunds));
+            current?check.Status:"sources_changed",check.CheckedAtUtc,Counts(check.Sales),Counts(check.Payments),Counts(check.Refunds),
+            order.Manifest.SourceRevision,payment.Manifest.SourceRevision,current&&check.Status=="observed_complete",2);
     }
 }

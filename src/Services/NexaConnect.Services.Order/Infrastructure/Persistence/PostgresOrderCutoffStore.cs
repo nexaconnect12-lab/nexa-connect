@@ -19,7 +19,7 @@ public sealed class PostgresOrderCutoffStore(NpgsqlDataSource source) : IOrderCu
         await using var c=await source.OpenConnectionAsync(ct);
         await using var t=await c.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead,ct);
         var current=await Snapshot(window,c,t,ct); await t.CommitAsync(ct);
-        return new(saved, saved.EvidenceVersion.Length==64 && saved.EvidenceVersion==current.EvidenceVersion);
+        return new(saved, PostgresFinancialRevision.IsCurrent(saved,current));
     }
     private static async Task<SourceCutoff<OrderDaySummary>> Snapshot(EndOfDayWindow w,NpgsqlConnection c,NpgsqlTransaction t,CancellationToken ct)
     {
@@ -54,6 +54,7 @@ public sealed class PostgresOrderCutoffStore(NpgsqlDataSource source) : IOrderCu
             catch(Exception e)when(e is JsonException or ArgumentException or InvalidOperationException or NullReferenceException){gaps++;}
         }
         summary=summary with{EvidenceGaps=Math.Max(summary.EvidenceGaps,gaps)};
-        return new(Guid.Empty,Guid.Empty,0,w,DateTimeOffset.UtcNow,summary.EvidenceVersion??"",summary,events,[],retainedRows);
+        var revision=await PostgresFinancialRevision.ReadAsync(w,c,t,ct);
+        return new(Guid.Empty,Guid.Empty,0,w,DateTimeOffset.UtcNow,summary.EvidenceVersion??"",summary,events,[],retainedRows,revision,2);
     }
 }

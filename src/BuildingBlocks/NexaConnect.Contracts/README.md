@@ -1,5 +1,7 @@
 # Shared Contracts
 
+`Reporting/DayCutoffs.cs` adds `SourceFinancialRevision` (database epoch UUID and nonnegative Int64 revision), nullable manifest revision provenance and evidence protocol version, and reconciliation revision echoes plus `deliveryComplete`. Defaults retain protocol-one deserialization; protocol-two readiness requires explicit valid provenance and delivery proof. These are transport contracts, not financial policy or database models. See [ADR-023](../../../docs/Architecture/Decisions/ADR-023-revision-fenced-day-close-evidence.md) and [wire compatibility and rollout](../../../docs/Deployment/Day-Close-Cutoffs.md). Revision evidence and financial payloads are not logged.
+
 `Reporting/DayCutoffs.cs` defines source-manifest, original-event and reconciliation integration DTOs for [retained cutoff evidence](../../../docs/API/Day-Close-Cutoffs.md). No shared aggregate or database model is introduced; each source selects and validates its own evidence, and Reporting translates versioned events into local facts.
 
 Day source summaries now include optional nullable `evidenceVersion`: an owner/window-scoped SHA-256 observation fingerprint, not a monotonic revision or completeness watermark. Null/older adapters remain compatible with the draft but block POS preparation. See [selection, limits and readiness semantics](../../../docs/API/Day-Close-Preparation.md).

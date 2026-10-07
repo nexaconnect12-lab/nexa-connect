@@ -1,5 +1,7 @@
 # Day-cutoff browser contracts
 
+Current intercepted fixtures carry evidence protocol 2, retained source epoch/revision references and selected-event delivery proof. Eight synthetic scenarios still validate portal controls and stale-response boundaries; source revision concurrency and real delivery are covered separately by the PostgreSQL and joined gates. See [verification](../../../../docs/Architecture/Evidence/Revision-Fenced-Day-Close.md).
+
 From `src/Frontend`, run `npm run test:e2e:day-cutoff` after installing the frontend dependencies and Playwright Chromium. `playwright.day-cutoff.config.mjs` starts the actual Customer Portal through a test-owned Vite server on loopback port 5181, uses one Chromium worker and closes that server at teardown. The port must be available. Screenshots, video and traces are disabled; the list reporter and `test-results/day-cutoff` retain ordinary test status only.
 
 Eight cases intercept BFF responses to verify capture/CSRF/version forwarding and refresh after invalidation, accountant read-only controls, exact-operation retry after uncertain POST, late-response clearing after filter changes, tenant clearing, malformed Ready rejection, browser-reload pending-operation resume and explicit replacement using the saved version. Fixtures contain synthetic identities and financial evidence. No actual identity provider, BFF, source service, broker or database runs in this suite.

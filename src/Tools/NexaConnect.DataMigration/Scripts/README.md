@@ -1,5 +1,7 @@
 # Migration scripts
 
+Order 13 / Payment 12 / POS 10 add source financial epochs, transactionally advanced branch revisions and guarded downgrade after protocol-two manifests. Compatibility is 0.26.0. Counts below are distinct CREATE TABLE names in the current owning up-script catalog. See [ADR-023](../../../../docs/Architecture/Decisions/ADR-023-revision-fenced-day-close-evidence.md).
+
 Create one directory per owning service and one subdirectory per sequential migration version. Each migration contains `migration.json`, `up.sql`, and `down.sql`.
 
 ## Current schema catalog
@@ -7,20 +9,20 @@ Create one directory per owning service and one subdirectory per sequential migr
 | Service | Version | Owned tables |
 | --- | ---: | ---: |
 | PlatformDirectory | 3 | 8 |
-| Authorization | 6 | 7 |
+| Authorization | 10 | 7 |
 | Restaurant | 3 | 8 |
 | Catalog | 4 | 22 |
 | Inventory | 5 | 11 |
-| Order | 5 | 13 |
+| Order | 13 | 19 |
 | Kitchen | 3 | 8 |
 | Customer | 2 | 6 |
-| Payment | 7 | 6 |
+| Payment | 12 | 12 |
 | Notification | 3 | 5 |
-| POS | 4 | 9 |
+| POS | 10 | 23 |
 | Media | 4 | 6 |
-| Reporting | 14 | 9 |
+| Reporting | 20 | 15 |
 
-The current 13-service catalog contains 118 tables. Counts include service-owned technical tables such as outboxes, inboxes, idempotency records, audit history, and projection checkpoints. Index counts should be generated from the packaged migration catalog when needed rather than maintained manually here.
+The current 13-service catalog contains 150 tables. Counts include service-owned technical tables such as outboxes, inboxes, idempotency records, audit history, and projection checkpoints. Index counts should be generated from the packaged migration catalog when needed rather than maintained manually here.
 
 Versions must be linear, sortable, immutable, independently owned by one service, and transactional. Non-transactional migrations are not supported because schema mutation and migration-history recording must remain atomic.
 

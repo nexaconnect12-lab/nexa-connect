@@ -29,7 +29,9 @@ public sealed class HttpCutoffEvidenceReader(IHttpClientFactory clients,ICutoffP
         var check=await Send<CutoffReconciliation>("Reporting",HttpMethod.Post,"api/reporting/v1/customer/day-cutoff-reconciliation",command,token,ct);
         if(check.Window!=w || check.OrderManifestId!=command.OrderManifestId || check.PaymentManifestId!=command.PaymentManifestId
             || check.CheckId==Guid.Empty || check.Status is not ("observed_complete" or "gaps_detected" or "sources_changed")
-            || check.CheckedAtUtc<w.ToUtc || check.CheckedAtUtc>clock.GetUtcNow())throw new InvalidOperationException("Cutoff reconciliation invalid.");
+            || check.CheckedAtUtc<w.ToUtc || check.CheckedAtUtc>clock.GetUtcNow()
+            || check.EvidenceProtocolVersion!=2 || check.OrderRevision!=order.Manifest.SourceRevision
+            || check.PaymentRevision!=payment.Manifest.SourceRevision)throw new InvalidOperationException("Cutoff reconciliation invalid.");
         int gaps=0;
         if(check.Sales.Expected!=order.Manifest.Sales.Count || check.Payments.Expected!=order.Manifest.Sales.Count
             || check.Refunds.Expected!=payment.Manifest.Refunds.Count)throw new InvalidOperationException("Cutoff inventory count invalid.");
@@ -41,18 +43,23 @@ public sealed class HttpCutoffEvidenceReader(IHttpClientFactory clients,ICutoffP
         }
         gaps=checked(gaps+o.EvidenceGaps+p.EvidenceGaps);
         if(check.Status=="observed_complete" && gaps!=0)throw new InvalidOperationException("Cutoff completeness invalid.");
+        if(check.DeliveryComplete && (check.Status!="observed_complete" || !check.SourcesCurrent || gaps!=0))
+            throw new InvalidOperationException("Cutoff delivery evidence invalid.");
         // A final POS read catches cash delivered while Reporting was taking its snapshot.
         var finalPos=await Source<PosDaySummary>("POS",w,null,pos.Manifest.ManifestId,token,ct);Validate(finalPos,w);
-        if(finalPos.Manifest.ManifestId!=pos.Manifest.ManifestId || finalPos.Manifest.EvidenceVersion!=pos.Manifest.EvidenceVersion)
+        if(finalPos.Manifest.ManifestId!=pos.Manifest.ManifestId || finalPos.Manifest.EvidenceVersion!=pos.Manifest.EvidenceVersion
+            || finalPos.Manifest.SourceRevision!=pos.Manifest.SourceRevision
+            || finalPos.Manifest.EvidenceProtocolVersion!=pos.Manifest.EvidenceProtocolVersion)
             throw new InvalidOperationException("Cutoff POS identity changed.");
         bool current=order.Current&&payment.Current&&pos.Current&&finalPos.Current&&check.SourcesCurrent&&check.Status!="sources_changed";
-        static CutoffReference Ref<T>(SourceCutoff<T> value)=>new(value.ManifestId,value.Generation,value.EvidenceVersion);
+        static CutoffReference Ref<T>(SourceCutoff<T> value)=>new(value.ManifestId,value.Generation,value.EvidenceVersion,
+            value.SourceRevision?.Epoch,value.SourceRevision?.Revision);
         string[] issues=check.Status=="gaps_detected"?["cutoff_financial_gaps"]:[];
         return new(context.TimeZone,"THB",w.FromUtc,w.ToUtc,o.GrossSales,p.CompletedRefunds,o.GrossSales-p.CompletedRefunds,drawer.CashVariance,
             o.Tenders.Select(x=>new DayTender(x.Method,x.Currency,x.Amount)).OrderBy(x=>x.Method,StringComparer.Ordinal).ThenBy(x=>x.Currency,StringComparer.Ordinal).ToArray(),
             order.Manifest.EvidenceVersion,payment.Manifest.EvidenceVersion,pos.Manifest.EvidenceVersion,o.UnresolvedOrders,p.UnresolvedPayments,p.UnresolvedRefunds,
             drawer.OpenShifts,drawer.OpenCashSessions,drawer.PendingCashReviews,issues,clock.GetUtcNow(),order.Manifest.CapturedAtUtc,payment.Manifest.CapturedAtUtc,pos.Manifest.CapturedAtUtc,
-            Cutoff:new(Ref(order.Manifest),Ref(payment.Manifest),Ref(pos.Manifest),check.CheckId,current,gaps));
+            Cutoff:new(Ref(order.Manifest),Ref(payment.Manifest),Ref(pos.Manifest),check.CheckId,current,gaps,check.DeliveryComplete,2));
     }
     private static void Validate<T>(SourceCutoffRead<T> value,EndOfDayWindow w)
     {
@@ -60,6 +67,9 @@ public sealed class HttpCutoffEvidenceReader(IHttpClientFactory clients,ICutoffP
             || value.Manifest.OperationId==Guid.Empty || value.Manifest.Generation<=0 || value.Manifest.EvidenceVersion.Length!=64
             || value.Manifest.EvidenceVersion.Any(x=>!char.IsAsciiHexDigit(x)) || value.Manifest.CapturedAtUtc<w.ToUtc || value.Manifest.CapturedAtUtc>DateTimeOffset.UtcNow)
             throw new InvalidOperationException("Cutoff manifest invalid.");
+        if(value.Manifest.EvidenceProtocolVersion is not (1 or 2)
+            || value.Manifest.EvidenceProtocolVersion==2 && (value.Manifest.SourceRevision is not {Epoch:var epoch,Revision:>=0} || epoch==Guid.Empty))
+            throw new InvalidOperationException("Cutoff revision invalid.");
     }
     private Task<SourceCutoffRead<T>> Source<T>(string service,EndOfDayWindow w,Guid? operation,Guid? id,string token,CancellationToken ct)
     {

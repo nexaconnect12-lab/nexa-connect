@@ -1,5 +1,7 @@
 # NexaConnect Unit Tests
 
+`DayCutoffTests` additionally reject legacy/unproven delivery, preserve revision equality boundaries, require current revision-bound sources and reject changed retained revision identities. Migration catalog expectations include Order 13 / Payment 12 / POS 10. See [revision protocol](../../../docs/Architecture/Decisions/ADR-023-revision-fenced-day-close-evidence.md).
+
 `DayClosePreparationTests` cover aggregate readiness/blocker policy, same-total version drift, immutable exported evidence, expired restart/resume fencing, live permissions/hierarchy, source outage invalidation and cancellation. The source-interface fake does not replace PostgreSQL/HTTP/browser acceptance; see [verification](../../../docs/Deployment/Day-Close-Preparation.md).
 
 OrderPricingTests verifies inclusive/exclusive calculations, decimal rounding, changed-price confirmation, snapshot replay, scope/content conflicts, tamper rejection and provider totals. ProductConfigurationTests bounds tax precision; PosCheckoutIntegrationTests covers quote identity and explicit reconfirmation responses.

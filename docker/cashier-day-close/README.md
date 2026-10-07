@@ -1,5 +1,7 @@
 # Disposable cashier-to-day-close infrastructure
 
+Current cutoff mode uses source revision protocol 2 (Order 13 / Payment 12 / POS 10, compatibility 0.26.0) and requires exact-set Reporting delivery proof. Prior 0.25.0 acceptance records remain historical. The original non-cutoff cashier/preparation modes retain their pinned schemas. New protocol execution is recorded separately in the revision evidence document under docs/Architecture/Evidence.
+
 The [joined cashier-to-cutoff launcher](../../docs/Deployment/Cashier-Day-Cutoff-Acceptance.md) reuses this ten-context topology under its own generated project and newer schema targets. It adds an optional generated accountant password to the disposable Keycloak environment; existing launchers default that unused setting. No production topology/permission change is introduced.
 
 Use [the guarded cashier-to-day-close launcher](../../scripts/test-cashier-day-close.ps1) or [the cutoff launcher](../../scripts/test-cashier-day-cutoff.ps1) with `-ConfirmDisposableInfrastructure`. This dedicated topology provisions ten application databases/runtime roles (Platform Directory, Restaurant, Authorization, Catalog, Inventory, Kitchen, Order, Payment, POS and Reporting), a separate Keycloak database and RabbitMQ. PostgreSQL 17 uses tmpfs, Keycloak 26.7.0 imports the generated realm, and RabbitMQ 4 carries actual Order publications. All published listeners bind to IPv4 loopback; run-owned credentials and identities are generated and removed with the exact project.

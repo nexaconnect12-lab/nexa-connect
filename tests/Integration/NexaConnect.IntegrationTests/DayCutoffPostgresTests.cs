@@ -13,7 +13,7 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
     private readonly A.PreparationActor manager=new("manager",Guid.NewGuid());
     private static readonly DateTimeOffset Now=new(2026,9,3,0,0,0,TimeSpan.Zero);
     private D.PreparationCommand Command(long version=0)=>new(day.BranchId,day.BusinessDate,Guid.NewGuid(),version,"routine_close");
-    private static D.DayEvidence Evidence()=>new("UTC","THB",Now.AddDays(-2),Now.AddDays(-1),100,25,75,0,[new("cash","THB",100)],new('a',64),new('b',64),new('c',64),0,0,0,0,0,0,[],Now,Cutoff:new(new(Guid.NewGuid(),1,new('a',64)),new(Guid.NewGuid(),1,new('b',64)),new(Guid.NewGuid(),1,new('c',64)),Guid.NewGuid(),true,0));
+    private static D.DayEvidence Evidence()=>new("UTC","THB",Now.AddDays(-2),Now.AddDays(-1),100,25,75,0,[new("cash","THB",100)],new('a',64),new('b',64),new('c',64),0,0,0,0,0,0,[],Now,Cutoff:new(new(Guid.NewGuid(),1,new('a',64),Guid.NewGuid(),0),new(Guid.NewGuid(),1,new('b',64),Guid.NewGuid(),0),new(Guid.NewGuid(),1,new('c',64),Guid.NewGuid(),0),Guid.NewGuid(),true,0,true,2));
     [PosPostgresFact]public async Task Exact_replay_restart_conflicting_payload_and_immutable_audit_are_durable()
     {
         var store=new Db.PostgresDayCutoffStore(source!);var command=Command();var started=await store.BeginAsync(day,command,manager,Now,default);
