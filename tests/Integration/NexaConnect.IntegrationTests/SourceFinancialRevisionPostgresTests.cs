@@ -135,6 +135,7 @@ public sealed class SourceFinancialRevisionPostgresTests : IAsyncLifetime
             var seals=Directory.GetDirectories(root,"*_day_seals").Single();
             var attribution=Directory.GetDirectories(root,"*_day_change_attribution").Single();
             var exact=Directory.GetDirectories(root,"*_exact_day_attribution").Single();
+            if(service=="POS")await Sql(service,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0014_day_approvals/down.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(exact,"down.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(attribution,"down.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(seals,"down.sql")));
@@ -143,6 +144,7 @@ public sealed class SourceFinancialRevisionPostgresTests : IAsyncLifetime
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(seals,"up.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(attribution,"up.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(exact,"up.sql")));
+            if(service=="POS")await Sql(service,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0014_day_approvals/up.sql")));
             Assert.NotEqual(before.Epoch,(await Revision(service)).Epoch);
             var window=Window;
             if(service=="Order")await new OrderDb.PostgresOrderCutoffStore(Db(service)).CaptureAsync(new(Guid.NewGuid(),window),"manager",default);

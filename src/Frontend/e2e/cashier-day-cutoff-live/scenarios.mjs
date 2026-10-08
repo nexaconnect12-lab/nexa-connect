@@ -11,5 +11,6 @@ export const scenarios=[
  'owning source transport outage clears readiness until explicit recapture',
  'live owning source permission revocation blocks evidence without exposing upstream details',
  'live prepare read and membership revocation preserve immutable private command proof',
- 'reviewed source seals reconcile actual events and later financial changes remain journaled'
+ 'reviewed source seals reconcile actual events and later financial changes remain journaled',
+ 'manager approval binds the reviewed seal and real accountant authority remains read only'
 ];

@@ -8,7 +8,7 @@ public sealed class DayCutoffDependencyTests
     [Fact]
     public void Cutoff_domain_models_depend_only_on_their_context_and_system_types()
     {
-        Type[] models=[typeof(BranchDayClose),typeof(BranchDayCutoff),typeof(BranchDaySeal),typeof(DaySealComparison),typeof(DaySealRecordChange),typeof(NexaConnect.Services.POS.Domain.FinancialRecord),typeof(NexaConnect.Services.POS.Domain.FinancialImpact),typeof(NexaConnect.Services.Order.Domain.FinancialRecord),typeof(NexaConnect.Services.Order.Domain.FinancialImpact),typeof(NexaConnect.Services.POS.Domain.FinancialChange),typeof(NexaConnect.Services.Order.Domain.FinancialChange),typeof(DaySealEvidence),typeof(DaySealReference),typeof(DayIdentity),typeof(DayTender),typeof(DayEvidence),typeof(CutoffReference),
+        Type[] models=[typeof(BranchDayClose),typeof(BranchDayApproval),typeof(ApprovalCommand),typeof(DayApprovalDecision),typeof(DayApprovalState),typeof(BranchDayCutoff),typeof(BranchDaySeal),typeof(DaySealComparison),typeof(DaySealRecordChange),typeof(NexaConnect.Services.POS.Domain.FinancialRecord),typeof(NexaConnect.Services.POS.Domain.FinancialImpact),typeof(NexaConnect.Services.Order.Domain.FinancialRecord),typeof(NexaConnect.Services.Order.Domain.FinancialImpact),typeof(NexaConnect.Services.POS.Domain.FinancialChange),typeof(NexaConnect.Services.Order.Domain.FinancialChange),typeof(DaySealEvidence),typeof(DaySealReference),typeof(DayIdentity),typeof(DayTender),typeof(DayEvidence),typeof(CutoffReference),
             typeof(DayCutoffEvidence),typeof(PreparationCommand),typeof(PreparationState)];
         foreach(var model in models)
         {

@@ -167,6 +167,24 @@ test(scenarios[12],async({page})=>{
   expect(read.status).toBe(200);expect(read.data.journalComplete).toBe(true);expect(read.data.pendingChanges).toBe(0);expect(read.data.manifest.manifestId).toBe(ref.manifestId);
  }
 });
+let approvedDay;
+test(scenarios[13],async({page,browser})=>{
+ await signIn(page,s.resolver);
+ const approvalRoot='/bff/customer/day-close-approvals',query=`?branchId=${f.branchId}&businessDate=${f.businessDate}`;
+ const loaded=page.waitForResponse(r=>r.url().includes(approvalRoot+'?')&&r.request().method()==='GET');
+ await page.getByRole('button',{name:'Load approval',exact:true}).click();const candidate=await(await loaded).json();
+ expect(candidate.status).toBe('not_approved');expect(candidate.canApprove).toBe(true);expect(candidate.sealVersion).toBe(sealedDay.version);
+ await expect(page.getByRole('button',{name:'Approve reviewed seal',exact:true})).toBeDisabled();
+ const sealLoad=page.waitForResponse(r=>r.url().includes('/bff/customer/day-close-seals?')&&r.request().method()==='GET');await page.getByRole('button',{name:'Load sealed evidence',exact:true}).click();expect((await sealLoad).status()).toBe(200);
+ const approved=page.waitForResponse(r=>r.url().endsWith(approvalRoot)&&r.request().method()==='POST');await page.getByRole('button',{name:'Approve reviewed seal',exact:true}).click();
+ const result=await approved;expect(result.status()).toBe(200);approvedDay=await result.json();expect(approvedDay.status).toBe('approved');
+ expect(approvedDay.decision.snapshot.seals).toEqual(sealedDay.snapshot.seals);const request=result.request().postDataJSON();expect(request.reviewedSealVersion).toBe(sealedDay.version);expect(request.organizationId).toBeUndefined();expect(request.actor).toBeUndefined();
+ const accounting=await browser.newContext({baseURL:s.baseURL,ignoreHTTPSErrors:true});try{
+  const other=await accounting.newPage();await signIn(other,s.accountant);
+  const response=await other.request.get(approvalRoot+query);expect(response.status()).toBe(200);expect((await response.json()).canApprove).toBe(false);
+  const csrf=await(await other.request.get(approvalRoot+'/csrf')).json();const denied=await other.request.post(approvalRoot,{headers:{'X-Nexa-CSRF':csrf.requestToken},data:{...request,operationId:randomUUID()}});expect(denied.status()).toBe(403);
+ }finally{await accounting.close();}
+});
 test(scenarios[8],async({page,browser})=>{
  cashier=await token(browser,s.reader);manager=await token(browser,s.resolver);await signIn(page,s.resolver);const before=await ready(page);clock('historical');
  try{
@@ -180,6 +198,8 @@ test(scenarios[8],async({page,browser})=>{
  const old=await send('order',sourcePath('order',before.snapshot.cutoff.order.manifestId),manager);expect(old.status).toBe(200);expect(old.data.current).toBe(false);expect(old.data.manifest.sales).toHaveLength(1);
  const sealRead=await page.request.get(`/bff/customer/day-close-seals?branchId=${f.branchId}&businessDate=${f.businessDate}`);expect(sealRead.status()).toBe(200);
  const changedSeal=await sealRead.json();expect(changedSeal.status).toBe('blocked');expect(changedSeal.blockers).toContain('sealed_changes_pending');expect(changedSeal.pendingSealChanges).toBeGreaterThan(0);expect(changedSeal.snapshot.seals).toEqual(sealedDay.snapshot.seals);
+ const approvalRead=await page.request.get(`/bff/customer/day-close-approvals?branchId=${f.branchId}&businessDate=${f.businessDate}`);expect(approvalRead.status()).toBe(200);
+ const superseded=await approvalRead.json();expect(superseded.status).toBe('superseded');expect(superseded.decision.approvalId).toBe(approvedDay.decision.approvalId);expect(superseded.decision.snapshot.seals).toEqual(sealedDay.snapshot.seals);
  expect((await review()).varianceAmount).toBe(-amount-5);const fresh=await refresh(page);expect(fresh.snapshot.grossSales).toBe(2*amount);expect(fresh.snapshot.cutoff.order.manifestId).not.toBe(before.snapshot.cutoff.order.manifestId);
 });
 test(scenarios[9],async({page})=>{

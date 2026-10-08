@@ -7,11 +7,20 @@ using NexaConnect.Services.POS.Domain.DayClose;
 namespace NexaConnect.Services.POS.Infrastructure.DayClose;
 
 public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySealStore store,
-    IDayCloseEvidenceReader calendar,TimeProvider clock):IDaySealEvidenceReader
+    IDayCloseEvidenceReader calendar,TimeProvider clock):IDaySealEvidenceReader,IApprovalSealEvidenceReader
 {
     public async Task<DayEvidence> ReadAsync(DayIdentity day,string token,CancellationToken ct)
     {
         var state=await store.ReadAsync(day,ct)??throw new InvalidOperationException("Seal coordination missing.");
+        return await ReadCore(day,state,token,ct);
+    }
+    public Task<DayEvidence> ReadRetainedAsync(DayIdentity day,DayEvidence reviewed,string token,CancellationToken ct)
+    {
+        if(reviewed.Seals is null)throw new InvalidOperationException("Retained seals missing.");
+        return ReadCore(day,new PreparationState(day,0,"ready_for_review",reviewed,[],clock.GetUtcNow()),token,ct);
+    }
+    private async Task<DayEvidence> ReadCore(DayIdentity day,PreparationState state,string token,CancellationToken ct)
+    {
         var basis=state.Snapshot??throw new InvalidOperationException("Reviewed cutoff missing.");
         var cutoff=basis.Cutoff??throw new InvalidOperationException("Reviewed cutoff missing.");
         var context=await calendar.ReadAsync(day,token,ct);

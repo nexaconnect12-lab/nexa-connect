@@ -55,6 +55,7 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
     }
     [PosPostgresFact]public async Task Empty_migration_can_downgrade_and_reapply()
     {
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0014_day_approvals/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0013_exact_day_attribution/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0012_day_change_attribution/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0011_day_seals/down.sql")));
@@ -65,6 +66,7 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0011_day_seals/up.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0012_day_change_attribution/up.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0013_exact_day_attribution/up.sql")));
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0014_day_approvals/up.sql")));
         Assert.Equal(0L,await Scalar("SELECT count(*) FROM branch_day_cutoff_audit"));
     }
     [PosPostgresFact]public async Task Authorization_migration_backfills_roles_and_fresh_assignments_preserve_reader_preparer_separation()
@@ -90,11 +92,20 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
             foreach(var managerRole in new[]{"store-manager","tenant-admin"}){Assert.True(await Granted(managerRole,"pos.day-close.read"));Assert.True(await Granted(managerRole,"pos.day-close.prepare"));}
             Assert.True(await Granted("accountant","pos.day-close.read"));Assert.False(await Granted("accountant","pos.day-close.prepare"));
             Assert.False(await Granted("cashier","pos.day-close.read"));Assert.False(await Granted("store-manager","pos.day-close.prepare",Guid.NewGuid()));
+            Assert.False(await Granted("store-manager","pos.day-close.approve"));
+            await Execute(await File.ReadAllTextAsync(Path.Combine(folders[10],"up.sql")));
+            Assert.True(await Granted("store-manager","pos.day-close.approve"));Assert.True(await Granted("tenant-admin","pos.day-close.approve"));
+            Assert.False(await Granted("accountant","pos.day-close.approve"));Assert.False(await Granted("cashier","pos.day-close.approve"));
             await assignments.AssignAsync(new("fresh-manager",day.OrganizationId,day.RestaurantId,day.BranchId,"store-manager"),"test-admin",default);
             await assignments.AssignAsync(new("fresh-accountant",day.OrganizationId,day.RestaurantId,day.BranchId,"accountant"),"test-admin",default);
             Assert.True(await Granted("fresh-manager","pos.day-close.prepare"));Assert.True(await Granted("fresh-accountant","pos.day-close.read"));Assert.False(await Granted("fresh-accountant","pos.day-close.prepare"));
+            Assert.True(await Granted("fresh-manager","pos.day-close.approve"));Assert.False(await Granted("fresh-accountant","pos.day-close.approve"));
             await Execute("UPDATE authorization_user_permission_overrides SET effect='deny' WHERE subject_id='fresh-manager' AND permission_code='pos.day-close.prepare'");
             Assert.False(await Granted("fresh-manager","pos.day-close.prepare"));
+            await Execute("UPDATE authorization_user_permission_overrides SET effect='deny' WHERE subject_id='fresh-manager' AND permission_code='pos.day-close.approve'");
+            Assert.False(await Granted("fresh-manager","pos.day-close.approve"));
+            await Execute(await File.ReadAllTextAsync(Path.Combine(folders[10],"down.sql")));
+            Assert.False(await Granted("store-manager","pos.day-close.approve"));Assert.False(await Granted("fresh-manager","pos.day-close.approve"));
             await Execute(await File.ReadAllTextAsync(Path.Combine(folders[9],"down.sql")));
             Assert.False(await Granted("store-manager","pos.day-close.prepare"));Assert.False(await Granted("fresh-accountant","pos.day-close.read"));
         }

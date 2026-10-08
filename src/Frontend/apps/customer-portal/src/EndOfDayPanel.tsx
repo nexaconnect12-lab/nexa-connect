@@ -1,3 +1,4 @@
+import {DayCloseApprovalPanel} from "./DayCloseApprovalPanel";
 import React,{useEffect,useRef,useState} from "react";
 import {Alert,Button,Descriptions,Form,Input,List,Space,Table,Typography} from "antd";
 import {createApiClient} from "@nexaconnect/api-client";
@@ -9,9 +10,10 @@ const issueNames:Record<string,string>={unresolved_orders:"Unresolved orders",un
 export function EndOfDayPanel({organizationId}:{organizationId:string}){
   const [branch,setBranch]=useState("");const [date,setDate]=useState("");const [report,setReport]=useState<DayDraft>();
   const [reviewed,setReviewed]=useState<{scope:string;version:number}>();
+  const [reviewedSeal,setReviewedSeal]=useState<{scope:string;version:number}>();
   const [busy,setBusy]=useState(false);const [error,setError]=useState<string>();
   const generation=useRef(0);const active=useRef<AbortController>();
-  const clear=()=>{generation.current++;active.current?.abort();setReport(undefined);setReviewed(undefined);setError(undefined);setBusy(false);};
+  const clear=()=>{generation.current++;active.current?.abort();setReport(undefined);setReviewed(undefined);setReviewedSeal(undefined);setError(undefined);setBusy(false);};
   useEffect(()=>()=>{generation.current++;active.current?.abort();},[]);
   const input=dayRequest(branch,date);
   const load=async()=>{
@@ -34,7 +36,8 @@ export function EndOfDayPanel({organizationId}:{organizationId:string}){
     </Space></Form>
     {input&&<DayClosePreparationPanel key={`${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate}/>}
     {input&&<DayClosePreparationPanel cutoff key={`cutoff|${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate} onCutoffChange={value=>setReviewed(value?.status==="ready_for_review"?{scope:`${organizationId}|${input.branchId}|${input.businessDate}`,version:value.version}:undefined)}/>}
-    {input&&<DayClosePreparationPanel seal key={`seal|${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate} reviewedCutoffVersion={reviewed?.scope===`${organizationId}|${input.branchId}|${input.businessDate}`?reviewed.version:undefined}/>}
+    {input&&<DayClosePreparationPanel seal key={`seal|${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate} reviewedCutoffVersion={reviewed?.scope===`${organizationId}|${input.branchId}|${input.businessDate}`?reviewed.version:undefined} onCutoffChange={value=>setReviewedSeal(value?.status==="ready_for_review"?{scope:`${organizationId}|${input.branchId}|${input.businessDate}`,version:value.version}:undefined)}/>}
+    {input&&<DayCloseApprovalPanel key={`approval|${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate} reviewedSealVersion={reviewedSeal?.scope===`${organizationId}|${input.branchId}|${input.businessDate}`?reviewedSeal.version:undefined}/>}
     {error&&<Alert role="status" type="error" message={error}/>}
     {report&&<>
       <Descriptions bordered column={1}>

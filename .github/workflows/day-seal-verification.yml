@@ -28,9 +28,9 @@ jobs:
         run: dotnet restore NexaConnect.sln
       - name: Verify financial and HTTP boundaries
         run: |
-          dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter "FullyQualifiedName~ExactDayAttributionTests|FullyQualifiedName~DayChangeAttributionTests|FullyQualifiedName~MigrationRunnerTests|FullyQualifiedName~DaySealTests|FullyQualifiedName~DayCutoffTests|FullyQualifiedName~DayClosePreparationTests|FullyQualifiedName~EndOfDayDraftTests|FullyQualifiedName~FinancialCompletenessTests" --verbosity minimal
+          dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter "FullyQualifiedName~DayApprovalTests|FullyQualifiedName~ExactDayAttributionTests|FullyQualifiedName~DayChangeAttributionTests|FullyQualifiedName~MigrationRunnerTests|FullyQualifiedName~DaySealTests|FullyQualifiedName~DayCutoffTests|FullyQualifiedName~DayClosePreparationTests|FullyQualifiedName~EndOfDayDraftTests|FullyQualifiedName~FinancialCompletenessTests" --verbosity minimal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter "FullyQualifiedName~CustomerDaySealBoundaryTests|FullyQualifiedName~CustomerDayCutoffBoundaryTests|FullyQualifiedName~DayCloseHttpTests" --verbosity minimal
+          dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter "FullyQualifiedName~CustomerDayApprovalBoundaryTests|FullyQualifiedName~CustomerDaySealBoundaryTests|FullyQualifiedName~CustomerDayCutoffBoundaryTests|FullyQualifiedName~DayCloseHttpTests" --verbosity minimal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test tests/Architecture/NexaConnect.ArchitectureTests --no-restore --verbosity minimal
       - name: Verify retained source and restart pipeline
@@ -45,7 +45,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm test -- apps/customer-portal/src/dayClosePreparation.test.ts apps/customer-portal/src/dayCutoff.test.ts apps/customer-portal/src/daySeal.test.ts
+          npm test -- apps/customer-portal/src/dayClosePreparation.test.ts apps/customer-portal/src/dayCutoff.test.ts apps/customer-portal/src/daySeal.test.ts apps/customer-portal/src/dayApproval.test.ts
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx playwright install --with-deps chromium
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

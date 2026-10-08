@@ -20,6 +20,18 @@ async function setup(page){
    }
    const saved=state.version?{...snapshot(),seals:{order:seal,payment:seal,pos:seal,pendingChanges:0,journalComplete:!state.bad,deliveryComplete:true}}:null;
    json={identity:{organizationId:org,restaurantId:restaurant,branchId:branch,businessDate:"2026-09-01"},version:state.version,status:state.status,snapshot:saved,blockers:state.status==="blocked"?["sealed_changes_pending"]:[],validatedAtUtc:state.status==="ready_for_review"?"2026-09-03T00:00:00Z":null,canPrepare:state.canPrepare,pendingCommand:null,pendingSealChanges:state.pending,latestSealComparison:state.comparison??null};
+  }else if(path.endsWith("/day-close-approvals/csrf"))json={requestToken:"approval-csrf"};
+  else if(path.endsWith("/day-close-approvals")){
+   const identity={organizationId:org,restaurantId:restaurant,branchId:branch,businessDate:"2026-09-01"};
+   const saved={...snapshot(),seals:{order:seal,payment:seal,pos:seal,pendingChanges:0,journalComplete:true,deliveryComplete:true}};
+   if(request.method()==="POST"){
+    (state.approvalPosts??=[]).push(request.postDataJSON());(state.approvalHeaders??=[]).push(request.headers());
+    if(state.approvalFail)return route.fulfill({status:503,json:{title:"private-upstream-body"}});
+    state.approvalDecision={approvalId:restaurant,operationId:request.postDataJSON().operationId,identity,approvalVersion:1,sealVersion:2,approverSubject:"manager",reasonCode:"review_complete",approvedAtUtc:"2026-09-03T00:00:02Z",sourceValidatedAtUtc:"2026-09-03T00:00:00Z",validationCheckId:org,snapshot:saved};
+   }
+   const current=state.approvalStatus??(state.approvalDecision?"approved":"not_approved");
+   const fresh=current==="not_approved"||current==="approved";
+   json={identity,version:state.approvalDecision?1:0,status:current,decision:state.approvalDecision??null,history:state.approvalDecision?[state.approvalDecision]:[],historyTruncated:false,validatedAtUtc:fresh?"2026-09-03T00:00:00Z":null,canApprove:state.approvalPermission!==false,sealVersion:fresh?2:null,sealSnapshot:fresh?saved:null,reason:"review_complete",operationDecision:request.method()==="POST"?state.approvalDecision:null};
   }else return route.fulfill({status:404});
   return route.fulfill({json});
  });
@@ -67,4 +79,26 @@ test("filter changes clear saved sealing state and a blocked cutoff disables new
  const state=await setup(page);await load(page);await page.getByRole("button",{name:"Seal reviewed evidence",exact:true}).click();await expect(page.getByText("sealed evidence",{exact:true})).toBeVisible();
  await page.getByLabel("End-of-day business date").fill("2026-09-02");await expect(page.getByText("sealed evidence",{exact:true})).toHaveCount(0);
  await page.getByLabel("End-of-day business date").fill("2026-09-01");state.reviewed=false;await load(page);await expect(page.getByRole("button",{name:"Reseal reviewed evidence",exact:true})).toBeDisabled();
+});
+test("approval requires the explicitly loaded matching seal and sends CSRF with reviewed versions",async({page})=>{
+ const state=await setup(page);state.status="ready_for_review";state.version=2;
+ await page.getByRole("button",{name:"Load approval",exact:true}).click();await expect(page.getByRole("button",{name:"Approve reviewed seal",exact:true})).toBeDisabled();
+ await load(page);await page.getByRole("button",{name:"Approve reviewed seal",exact:true}).click();
+ await expect(page.getByText("approved",{exact:true})).toBeVisible();
+ expect(state.approvalPosts[0]).toMatchObject({branchId:branch,businessDate:"2026-09-01",expectedApprovalVersion:0,reviewedSealVersion:2});
+ expect(state.approvalHeaders[0]["x-nexa-csrf"]).toBe("approval-csrf");expect(state.approvalPosts[0].organizationId).toBeUndefined();
+});
+test("an uncertain approval retries the exact operation without revealing dependency bodies",async({page})=>{
+ const state=await setup(page);state.status="ready_for_review";state.version=2;await load(page);await page.getByRole("button",{name:"Load approval",exact:true}).click();
+ state.approvalFail=true;await page.getByRole("button",{name:"Approve reviewed seal",exact:true}).click();
+ await expect(page.getByRole("status")).toContainText("Approval unavailable");await expect(page.getByRole("button",{name:"Retry same approval",exact:true})).toBeEnabled();state.approvalFail=false;await page.getByRole("button",{name:"Retry same approval",exact:true}).click();
+ await expect(page.getByText("approved",{exact:true})).toBeVisible();expect(state.approvalPosts[1]).toEqual(state.approvalPosts[0]);await expect(page.getByText("private-upstream-body")).toHaveCount(0);
+});
+test("read-only accountants cannot approve and changing filters clears approval state",async({page})=>{
+ const state=await setup(page);state.approvalPermission=false;await page.getByRole("button",{name:"Load approval",exact:true}).click();await expect(page.getByRole("button",{name:"Approve reviewed seal",exact:true})).toHaveCount(0);
+ await expect(page.getByText("not approved",{exact:true})).toBeVisible();await page.getByLabel("End-of-day business date").fill("2026-09-02");await expect(page.getByText("not approved",{exact:true})).toHaveCount(0);
+});
+test("superseded and unverified approval keep immutable history without showing current approval",async({page})=>{
+ const state=await setup(page);state.status="ready_for_review";state.version=2;await load(page);await page.getByRole("button",{name:"Load approval",exact:true}).click();await page.getByRole("button",{name:"Approve reviewed seal",exact:true}).click();await expect(page.getByText("approved",{exact:true})).toBeVisible();
+ for(const status of ["unverified","superseded"]){state.approvalStatus=status;await page.getByRole("button",{name:"Load approval",exact:true}).click();await expect(page.getByText(status,{exact:true})).toBeVisible();await expect(page.getByText("approved",{exact:true})).toHaveCount(0);await expect(page.getByText(/Seal version 2: review complete by manager/)).toBeVisible();}
 });

@@ -9,7 +9,7 @@ public sealed class MigrationRunnerTests
         var services = new Dictionary<string, int>(StringComparer.Ordinal)
         {
             ["PlatformDirectory"] = 3,
-            ["Authorization"] = 10,
+            ["Authorization"] = 11,
             ["Restaurant"] = 3,
             ["Catalog"] = 4,
             ["Inventory"] = 5,
@@ -18,7 +18,7 @@ public sealed class MigrationRunnerTests
             ["Customer"] = 2,
             ["Payment"] = 15,
             ["Notification"] = 3,
-            ["POS"] = 13,
+            ["POS"] = 14,
             ["Media"] = 4,
             ["Reporting"] = 20
         };

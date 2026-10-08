@@ -98,6 +98,7 @@ public sealed class PostgresDaySealStore(NpgsqlDataSource source) : IDaySealStor
         Add(audit,day.OrganizationId,day.BranchId,day.BusinessDate,state.Version,action);
         audit.Parameters.Add(new NpgsqlParameter{NpgsqlDbType=NpgsqlDbType.Uuid,Value=(object?)operation??DBNull.Value});
         Add(audit,actor.Subject,actor.DecisionId,state.UpdatedAtUtc,json);await audit.ExecuteNonQueryAsync(ct);
+        await PostgresDayApprovalStore.ObserveSealChange(connection,tx,state,actor,ct);
     }
     private static void Add(NpgsqlCommand command,params object[] values){foreach(var value in values)command.Parameters.Add(new NpgsqlParameter{Value=value});}
     private static async Task Execute(NpgsqlConnection connection,NpgsqlTransaction tx,string sql,CancellationToken ct,params object[] values)

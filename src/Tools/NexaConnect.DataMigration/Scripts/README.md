@@ -1,6 +1,8 @@
 # Migration scripts
 
-Exact historical-day attribution is implemented in Order 16 / Payment 15 / POS 13 (compatibility 0.29.0). Source-owned before/after selection distinguishes creation-time sales, Paid-time tenders, refund completion and drawer closure/review. Unrelated historical changes are excluded; older unresolved work, missing history, legacy descriptors and ownership uncertainty block readiness. Managers see bounded record identities, reasons, statuses, versions and effective times beside the preserved baseline/current comparison. Approval/finalization remain planned. See [attribution and comparison policy](../../../../docs/Architecture/Decisions/ADR-026-exact-historical-day-attribution.md).
+POS 14 adds three approval tables; Authorization 11 backfills manager approval grants without new tables. The current catalog requires application compatibility 0.30.0. See [approval rollout](../../../../docs/Deployment/Day-Close-Approvals.md).
+
+Exact historical-day attribution is implemented in Order 16 / Payment 15 / POS 13 (compatibility 0.29.0). Source-owned before/after selection distinguishes creation-time sales, Paid-time tenders, refund completion and drawer closure/review. Unrelated historical changes are excluded; older unresolved work, missing history, legacy descriptors and ownership uncertainty block readiness. Managers see bounded record identities, reasons, statuses, versions and effective times beside the preserved baseline/current comparison. Snapshot approval is implemented separately; settlement finalization remains planned. See [attribution and comparison policy](../../../../docs/Architecture/Decisions/ADR-026-exact-historical-day-attribution.md).
 
 Current exact-attribution migrations replace capture functions with version-two descriptors and require compatibility 0.29.0; no tables are added. Version-two history rejects downgrade, while empty/legacy-only downgrade restores version-one capture without rewriting epochs or history. Parent row locks require existing owning SELECT/UPDATE privileges. Existing immutable financial history guards remain intact.
 
@@ -15,7 +17,7 @@ Create one directory per owning service and one subdirectory per sequential migr
 | Service | Version | Owned tables |
 | --- | ---: | ---: |
 | PlatformDirectory | 3 | 8 |
-| Authorization | 10 | 7 |
+| Authorization | 11 | 7 |
 | Restaurant | 3 | 8 |
 | Catalog | 4 | 22 |
 | Inventory | 5 | 11 |
@@ -24,11 +26,11 @@ Create one directory per owning service and one subdirectory per sequential migr
 | Customer | 2 | 6 |
 | Payment | 15 | 14 |
 | Notification | 3 | 5 |
-| POS | 13 | 28 |
+| POS | 14 | 31 |
 | Media | 4 | 6 |
 | Reporting | 20 | 15 |
 
-The current 13-service catalog contains 159 tables. Counts include service-owned technical tables such as outboxes, inboxes, idempotency records, audit history, and projection checkpoints. Index counts should be generated from the packaged migration catalog when needed rather than maintained manually here.
+The current 13-service catalog contains 162 tables. Counts include service-owned technical tables such as outboxes, inboxes, idempotency records, audit history, and projection checkpoints. Index counts should be generated from the packaged migration catalog when needed rather than maintained manually here.
 
 Versions must be linear, sortable, immutable, independently owned by one service, and transactional. Non-transactional migrations are not supported because schema mutation and migration-history recording must remain atomic.
 
