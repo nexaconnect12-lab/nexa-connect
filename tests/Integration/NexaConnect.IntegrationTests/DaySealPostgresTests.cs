@@ -55,8 +55,8 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
     private async Task<Guid> Drawer(Guid store,DateTimeOffset opened,bool closed)
     {
         var terminal=Guid.NewGuid();var shift=Guid.NewGuid();var drawer=Guid.NewGuid();
-        await Sql(pos,"INSERT INTO terminals(id,restaurant_id,store_id,code,device_type,registration_status,registered_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'test','pos','active',now(),now(),now())",terminal,restaurant,store);
-        await Sql(pos,"INSERT INTO shifts(id,store_id,terminal_id,employee_identity_subject_id,shift_number,status,opened_at_utc,closed_at_utc,opened_by,created_at_utc,updated_at_utc,authorization_decision_id) VALUES($1,$2,$3,'manager','test',$4,$5,$6,'manager',now(),now(),gen_random_uuid())",shift,store,terminal,closed?"closed":"open",opened,closed?(object)opened.AddHours(1):DBNull.Value);
+        await Sql(pos,"INSERT INTO terminals(id,restaurant_id,store_id,code,device_type,registration_status,registered_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'test-'||$1::text,'pos','active',now(),now(),now())",terminal,restaurant,store);
+        await Sql(pos,"INSERT INTO shifts(id,store_id,terminal_id,employee_identity_subject_id,shift_number,status,opened_at_utc,closed_at_utc,opened_by,created_at_utc,updated_at_utc,authorization_decision_id) VALUES($1,$2,$3,'manager','test-'||$1::text,$4,$5,$6,'manager',now(),now(),gen_random_uuid())",shift,store,terminal,closed?"closed":"open",opened,closed?(object)opened.AddHours(1):DBNull.Value);
         await Sql(pos,"INSERT INTO cash_sessions(id,store_id,shift_id,currency,opening_amount,actual_closing_amount,expected_closing_amount,variance_amount,status,opened_at_utc,closed_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'THB',0,0,0,0,$4,$5,$6,now(),now())",drawer,store,shift,closed?"closed":"open",opened,closed?(object)opened.AddHours(1):DBNull.Value);
         return drawer;
     }
@@ -293,6 +293,9 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
             var attribution=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_day_change_attribution").Single();
             var exact=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_exact_day_attribution").Single();
             await using var epochQuery=db.CreateCommand("SELECT epoch FROM source_financial_epoch");var epoch=await epochQuery.ExecuteScalarAsync();
+            if(owner=="POS")await Sql(db,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0016_finalization_preparations/down.sql")));
+            var fences=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_day_fences").Single();
+            await Sql(db,File.ReadAllText(Path.Combine(fences,"down.sql")));
             if(owner=="POS")await Sql(db,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0014_day_approvals/down.sql")));
             await Sql(db,await File.ReadAllTextAsync(Path.Combine(exact,"down.sql")));
             await Sql(db,await File.ReadAllTextAsync(Path.Combine(attribution,"down.sql")));
@@ -301,6 +304,8 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
             await Sql(db,await File.ReadAllTextAsync(Path.Combine(exact,"up.sql")));
             if(owner=="POS")await Sql(db,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0014_day_approvals/up.sql")));
             Assert.Equal(epoch,await epochQuery.ExecuteScalarAsync());
+            await Sql(db,File.ReadAllText(Path.Combine(fences,"up.sql")));
+            if(owner=="POS")await Sql(db,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0016_finalization_preparations/up.sql")));
         }
     }
     public Task<SourceCutoffRead<OrderDaySummary>> OrderAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>
@@ -319,6 +324,7 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
         if(fail)return new(HttpStatusCode.ServiceUnavailable);
         Assert.Equal("Bearer token",request.Headers.Authorization!.ToString());
         string service=name.Replace("DayCutoff","");object result;
+        if(request.RequestUri!.AbsolutePath.Contains("/fences"))return await HandleFences(service,request,ct);
         if(request.RequestUri!.AbsolutePath.Contains("/seals"))
         {
             if(request.Method==HttpMethod.Post)

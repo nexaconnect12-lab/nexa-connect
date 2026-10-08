@@ -63,6 +63,13 @@ public sealed class OrderSettlementConsumer(IConnection connection,IOptions<Orde
             Outcomes.Add(1,new KeyValuePair<string,object?>("status","dead_lettered"));
             await channel.BasicNackAsync(args.DeliveryTag,false,false,cancellationToken);
         }
+        catch(Npgsql.PostgresException exception) when(exception.SqlState=="P0001"&&exception.MessageText=="financial_day_fenced")
+        {
+            logger.LogWarning("POS Order settlement deferred by temporary financial day fence");
+            Outcomes.Add(1,new KeyValuePair<string,object?>("status","fenced_retry"));
+            await Task.Delay(TimeSpan.FromSeconds(1),cancellationToken);
+            await channel.BasicNackAsync(args.DeliveryTag,false,true,cancellationToken);
+        }
         catch(Exception exception) when(exception is not OperationCanceledException)
         {
             logger.LogError(exception,"POS Order settlement event {EventId} will be retried.",eventId);

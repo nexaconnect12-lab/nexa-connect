@@ -10,7 +10,7 @@ namespace NexaConnect.Services.Order.Controllers;
 [ApiController, Authorize(Roles="customer-owner,customer-admin,customer-manager,customer-viewer")]
 [ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
 [Route("api/order/v1/customer/day-cutoffs")]
-public sealed class SourceCutoffsController(OrderCutoffs application, ILogger<SourceCutoffsController> logger) : ControllerBase
+public sealed class SourceCutoffsController(OrderCutoffs application, OrderDayFences fences, ILogger<SourceCutoffsController> logger) : ControllerBase
 {
     [HttpPost,RequestSizeLimit(4096)]
     public Task<IActionResult> Capture(SourceCutoffCommand command, CancellationToken ct) => Execute(async token =>
@@ -24,6 +24,12 @@ public sealed class SourceCutoffsController(OrderCutoffs application, ILogger<So
     [HttpGet("seals/{id:guid}")]
     public Task<IActionResult> ReadSeal(Guid id,[FromQuery] EndOfDayWindow window,CancellationToken ct)=>Execute(async token=>
         await application.ReadSealAsync(window,id,Request.Headers.Authorization.ToString(),token) is {} value?Ok(value):NotFound(),ct);
+    [HttpPost("fences"),RequestSizeLimit(4096)]
+    public Task<IActionResult> AcquireFence(SourceFenceCommand command,CancellationToken ct)=>Execute(async token=>Ok(await fences.ExecuteAsync(command,Request.Headers.Authorization.ToString(),Subject(),false,token)),ct);
+    [HttpPost("fences/cancel"),RequestSizeLimit(4096)]
+    public Task<IActionResult> CancelFence(SourceFenceCommand command,CancellationToken ct)=>Execute(async token=>Ok(await fences.ExecuteAsync(command,Request.Headers.Authorization.ToString(),Subject(),true,token)),ct);
+    [HttpGet("fences/{operation:guid}")]
+    public Task<IActionResult> ReadFence(Guid operation,[FromQuery] EndOfDayWindow window,CancellationToken ct)=>Execute(async token=>await fences.ReadAsync(window,operation,Request.Headers.Authorization.ToString(),token) is {} value?Ok(value):NotFound(),ct);
     private string Subject() => User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
     private async Task<IActionResult> Execute(Func<CancellationToken,Task<IActionResult>> action, CancellationToken ct)
     {

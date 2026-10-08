@@ -185,6 +185,19 @@ test(scenarios[13],async({page,browser})=>{
   const csrf=await(await other.request.get(approvalRoot+'/csrf')).json();const denied=await other.request.post(approvalRoot,{headers:{'X-Nexa-CSRF':csrf.requestToken},data:{...request,operationId:randomUUID()}});expect(denied.status()).toBe(403);
  }finally{await accounting.close();}
 });
+test(scenarios[14],async({page,browser})=>{
+ await signIn(page,s.resolver);const path='/bff/customer/day-close-finalization-preparations',query=`?branchId=${f.branchId}&businessDate=${f.businessDate}`;
+ await page.getByRole('button',{name:'Load finalization preparation',exact:true}).click();await expect(page.getByRole('button',{name:'Prepare finalization',exact:true})).toBeDisabled();
+ await page.getByRole('button',{name:'Load approval',exact:true}).click();await expect(page.getByRole('button',{name:'Prepare finalization',exact:true})).toBeEnabled();
+ const response=page.waitForResponse(r=>r.url().endsWith(path)&&r.request().method()==='POST');await page.getByRole('button',{name:'Prepare finalization',exact:true}).click();const preparedResponse=await response;expect(preparedResponse.status()).toBe(200);const prepared=await preparedResponse.json();expect(prepared.status).toBe('prepared');expect(prepared.sources).toHaveLength(3);expect(prepared.approvalId).toBe(approvedDay.decision.approvalId);
+ const accounting=await browser.newContext({baseURL:s.baseURL,ignoreHTTPSErrors:true});try{
+  const other=await accounting.newPage();await signIn(other,s.accountant);const read=await other.request.get(path+query);expect(read.status()).toBe(200);expect((await read.json()).canPrepare).toBe(false);
+  const csrf=await(await other.request.get(path+'/csrf')).json();const command=preparedResponse.request().postDataJSON();expect((await other.request.post(path,{headers:{'X-Nexa-CSRF':csrf.requestToken},data:{...command,operationId:randomUUID()}})).status()).toBe(403);
+  const accountantToken=await token(browser,s.accountant);
+  for(const owner of ['order','payment','pos']){const seal=approvedDay.decision.snapshot.seals[owner];expect((await send(owner,`/api/${owner}/v1/customer/day-cutoffs/fences`,accountantToken,{operationId:randomUUID(),window:window(),approvalId:approvedDay.decision.approvalId,sealId:seal.sealId,expiresAtUtc:prepared.expiresAtUtc})).status).toBe(403);}
+ }finally{await accounting.close();}
+ const cancelledResponse=page.waitForResponse(r=>r.url().endsWith(path+'/cancel')&&r.request().method()==='POST');await page.getByRole('button',{name:'Cancel finalization preparation',exact:true}).click();const cancelled=await cancelledResponse;expect(cancelled.status()).toBe(200);expect((await cancelled.json()).status).toBe('cancelled');
+});
 test(scenarios[8],async({page,browser})=>{
  cashier=await token(browser,s.reader);manager=await token(browser,s.resolver);await signIn(page,s.resolver);const before=await ready(page);clock('historical');
  try{

@@ -10,7 +10,7 @@ namespace NexaConnect.Services.POS.Controllers;
 [ApiController, Authorize(Roles="customer-owner,customer-admin,customer-manager,customer-viewer")]
 [ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
 [Route("api/pos/v1/customer/day-cutoffs")]
-public sealed class SourceCutoffsController(PosCutoffs application, ILogger<SourceCutoffsController> logger) : ControllerBase
+public sealed class SourceCutoffsController(PosCutoffs application, PosDayFences fences, ILogger<SourceCutoffsController> logger) : ControllerBase
 {
     [HttpPost,RequestSizeLimit(4096)]
     public Task<IActionResult> Capture(SourceCutoffCommand command, CancellationToken ct) => Execute(async token =>
@@ -24,6 +24,12 @@ public sealed class SourceCutoffsController(PosCutoffs application, ILogger<Sour
     [HttpGet("seals/{id:guid}")]
     public Task<IActionResult> ReadSeal(Guid id,[FromQuery] EndOfDayWindow window,CancellationToken ct)=>Execute(async token=>
         await application.ReadSealAsync(window,id,UserContext(),token) is {} value?Ok(value):NotFound(),ct);
+    [HttpPost("fences"),RequestSizeLimit(4096)]
+    public Task<IActionResult> AcquireFence(SourceFenceCommand command,CancellationToken ct)=>Execute(async token=>Ok(await fences.ExecuteAsync(command,UserContext(),Subject(),false,token)),ct);
+    [HttpPost("fences/cancel"),RequestSizeLimit(4096)]
+    public Task<IActionResult> CancelFence(SourceFenceCommand command,CancellationToken ct)=>Execute(async token=>Ok(await fences.ExecuteAsync(command,UserContext(),Subject(),true,token)),ct);
+    [HttpGet("fences/{operation:guid}")]
+    public Task<IActionResult> ReadFence(Guid operation,[FromQuery] EndOfDayWindow window,CancellationToken ct)=>Execute(async token=>await fences.ReadAsync(window,operation,UserContext(),token) is {} value?Ok(value):NotFound(),ct);
     private string Subject() => User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new UnauthorizedAccessException();
     private PosUserContext UserContext()
     {

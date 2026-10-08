@@ -1,5 +1,7 @@
 # Authorization Service
 
+Authorization 12 adds `pos.day-close.finalization.prepare` to existing manager role links and Domain defaults for new assignments. Accountants/cashiers remain read-only by default. Source and POS preparation/cancel routes require this live grant in addition to their read/scope checks. Disable routes before downgrade removes role links/overrides; cleanup then requires an authorized manager or bounded source expiry.
+
 Migration 11 adds `pos.day-close.approve` to existing tenant-admin/store-manager role links. Domain `ProductRoleDefaults` supplies the same defaults for new assignments; accountants/cashiers receive no approve grant. POS checks live read/approve and source permissions. Disable approval routes before downgrade; it removes approve role links and user overrides. See [approval rollout](../../../docs/Deployment/Day-Close-Approvals.md).
 
 Migration 10 (compatibility 0.24.0) adds `pos.day-close.read` for existing/new tenant-admin, store-manager and accountant assignments, and `pos.day-close.prepare` for tenant-admin/store-manager only. Decisions use exact live branch hierarchy; prepare is a nonfinancial observation and supplies no amount limit. POS retains the successful decision UUID in restricted preparation audit. Disable routes/controls before `10→9`, which removes both role-permission associations and user permission overrides for these permissions. See [day-close access and recovery](../../../docs/API/Day-Close-Preparation.md).

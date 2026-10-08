@@ -53,10 +53,10 @@ try{
     $targets=@{PlatformDirectory=@('platform',3);Restaurant=@('restaurant',3);Authorization=@('authorization',9);Order=@('order',11);Payment=@('payment',10);Reporting=@('reporting',20)}
     if($EndOfDay){$targets.POS=@('pos',$(if($DayClose){8}else{7}))}
     if($DayClose){$targets.Authorization=@('authorization',10)};if($CashierDayClose){$targets.Catalog=@('catalog',4);$targets.Inventory=@('inventory',5);$targets.Kitchen=@('kitchen',3)}
-    if($CashierDayCutoff){$targets.Order=@('order',16);$targets.Payment=@('payment',15);$targets.POS=@('pos',14);$targets.Authorization=@('authorization',11)}
+    if($CashierDayCutoff){$targets.Order=@('order',17);$targets.Payment=@('payment',16);$targets.POS=@('pos',16);$targets.Authorization=@('authorization',12)}
     foreach($e in $targets.GetEnumerator()){
         Set-RunSetting ('NEXACONNECT_'+$e.Key.ToUpperInvariant()+'_DB') (Connection $e.Value[0] nexaconnect_migration $env:NEXACONNECT_JOINED_MIGRATION_PASSWORD)
-        & dotnet run @noRestore --project (Join-Path $root 'src/Tools/NexaConnect.DataMigration') -- --service $e.Key --scripts-root (Join-Path $root 'src/Tools/NexaConnect.DataMigration/Scripts') --target $e.Value[1] --confirm --application-version $(if($CashierDayCutoff){"0.30.0"}elseif($DayClose){"0.24.0"}else{"0.23.0"})
+        & dotnet run @noRestore --project (Join-Path $root 'src/Tools/NexaConnect.DataMigration') -- --service $e.Key --scripts-root (Join-Path $root 'src/Tools/NexaConnect.DataMigration/Scripts') --target $e.Value[1] --confirm --application-version $(if($CashierDayCutoff){"0.31.0"}elseif($DayClose){"0.24.0"}else{"0.23.0"})
         if($LASTEXITCODE-ne 0){throw "Migration failed for $($e.Key)."}
     }
     Set-RunSetting NEXACONNECT_AUTHORIZATION_INTEGRATION_DB (Connection authorization nexaconnect_migration $env:NEXACONNECT_JOINED_MIGRATION_PASSWORD)
@@ -186,7 +186,7 @@ try{
     $suite=if($CashierDayCutoff){'cashier-day-cutoff-live'}elseif($CashierDayClose){'cashier-day-close-live'}elseif($DayClose){'day-close-live'}elseif($EndOfDay){'end-of-day-live'}else{'financial-completeness-live'}
     try{if($DayClose){Invoke-DayCloseJoinedBrowser}else{& npx playwright test --config "playwright.$suite.config.mjs"};if(-not $DayClose -and $LASTEXITCODE-ne 0){throw 'Joined browser acceptance failed.'}}finally{Pop-Location}
     $summary=Get-Content (Join-Path $root "src/Frontend/test-results/$suite/$runId/summary.json") -Raw|ConvertFrom-Json
-    $expected=if($CashierDayCutoff){14}elseif($CashierDayClose){5}elseif($DayClose){11}elseif($EndOfDay){8}else{7}
+    $expected=if($CashierDayCutoff){15}elseif($CashierDayClose){5}elseif($DayClose){11}elseif($EndOfDay){8}else{7}
     if(-not $summary.verified-or$summary.passed-ne $expected-or$summary.total-ne $expected){throw 'All distinct scenarios must pass without skips.'};$passed=$true
 }
 finally{

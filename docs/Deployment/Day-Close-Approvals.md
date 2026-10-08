@@ -1,5 +1,7 @@
 # Day-close approval rollout
 
+The current coordinated catalog also supports [temporary finalization preparation](Day-Close-Finalization-Preparation.md): Order 17 / Payment 16 / POS 16 / Authorization 12, compatibility 0.31.0. The POS 14 / Authorization 11 versions below describe the approval introduction boundary.
+
 Deploy Order 16, Payment 15, Reporting 20 with **POS 14 / Authorization 11**, application compatibility **0.30.0**, and the matching Customer BFF/Portal. Existing source/Reporting protocols are unchanged. Stop old POS hosts before applying POS 14 and deploying the updated coordinator: all seal save paths now observe approval state in the same transaction. Apply Authorization 11 before enabling approval routes. `scripts/migrate-databases.ps1` contains current targets.
 
 POS owns `branch_day_approvals` (mutable scoped validity/version), `branch_day_approval_decisions` (immutable actor/reason/reviewed snapshot and operation fingerprint) and `branch_day_approval_audit` (append-only approval/supersession/validation with private Authorization decision UUID). Scoped unique keys/FKs bind the coordinator and approval version. Runtime persistence uses parameterized values. Do not edit historical migration files.

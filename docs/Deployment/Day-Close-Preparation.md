@@ -1,6 +1,6 @@
 # Day-close preparation rollout and verification
 
-Deploy POS migration 8 (`0008_day_close_preparations`) and Authorization 10 (`0010_day_close_permissions`), both minimum application 0.24.0, before enabling preparation. The standard migration launcher defaults to 0.25.0 for the additional retained-cutoff migrations. Retain Order 11, Payment 10, Reporting 20 and Restaurant 3. Use independently owned database runtime credentials with only required schema/table privileges; do not deploy with migration-owner credentials.
+Deploy POS migration 8 (`0008_day_close_preparations`) and Authorization 10 (`0010_day_close_permissions`), both minimum application 0.24.0, before enabling preparation. The standard migration launcher defaults to 0.31.0 for the current catalog, including temporary source fences and finalization preparation. Retain Order 11, Payment 10, Reporting 20 and Restaurant 3. Use independently owned database runtime credentials with only required schema/table privileges; do not deploy with migration-owner credentials.
 
 Those versions are the original preparation minimum. Current cutoff-capable binaries additionally require Order 12 / Payment 11 / POS 9 and the coordinated [cutoff rollout](Day-Close-Cutoffs.md); deploy that catalog when exposing the new controls.
 

@@ -183,7 +183,10 @@ builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.Paym
 
 builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.PaymentCutoffs>();
 if (builder.Configuration["Persistence:Provider"]?.Equals("PostgreSQL",StringComparison.OrdinalIgnoreCase)==true) builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.IPaymentCutoffStore, NexaConnect.Services.Payment.Infrastructure.PostgresPaymentCutoffStore>();
+builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.PaymentDayFences>();
+if (builder.Configuration["Persistence:Provider"]?.Equals("PostgreSQL",StringComparison.OrdinalIgnoreCase)==true) builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.IPaymentDayFenceStore,NexaConnect.Services.Payment.Infrastructure.PostgresPaymentDayFenceStore>();
 var app = builder.Build();
+app.Use(async (context,next)=>{try{await next();}catch(Npgsql.PostgresException e)when(e.SqlState=="P0001"&&e.MessageText=="financial_day_fenced"){context.Response.StatusCode=409;context.Response.Headers.CacheControl="no-store";app.Logger.LogWarning("Financial day fence rejected a source mutation");await context.Response.WriteAsJsonAsync(new{code="financial_day_fenced"});}});
 app.UseNexaConnectRequestLogging();
 app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/payment/v1/customer/day-cutoffs")) context.Response.Headers.CacheControl="no-store"; await next(); });
 app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/payment/v1/customer/end-of-day", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });

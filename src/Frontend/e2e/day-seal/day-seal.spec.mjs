@@ -31,7 +31,19 @@ async function setup(page){
    }
    const current=state.approvalStatus??(state.approvalDecision?"approved":"not_approved");
    const fresh=current==="not_approved"||current==="approved";
-   json={identity,version:state.approvalDecision?1:0,status:current,decision:state.approvalDecision??null,history:state.approvalDecision?[state.approvalDecision]:[],historyTruncated:false,validatedAtUtc:fresh?"2026-09-03T00:00:00Z":null,canApprove:state.approvalPermission!==false,sealVersion:fresh?2:null,sealSnapshot:fresh?saved:null,reason:"review_complete",operationDecision:request.method()==="POST"?state.approvalDecision:null};
+   json={identity,version:state.approvalDecision?1:0,status:current,decision:state.approvalDecision??null,history:state.approvalDecision?[state.approvalDecision]:[],historyTruncated:false,validatedAtUtc:fresh?new Date().toISOString():null,canApprove:state.approvalPermission!==false,sealVersion:fresh?2:null,sealSnapshot:fresh?saved:null,reason:"review_complete",operationDecision:request.method()==="POST"?state.approvalDecision:null};
+  }else if(path.includes("/day-close-finalization-preparations")){
+   if(path.endsWith("/csrf"))return route.fulfill({json:{requestToken:"finalization-csrf"}});
+   const identity={organizationId:org,restaurantId:restaurant,branchId:branch,businessDate:"2026-09-01"};
+   if(request.method()==="POST"){
+    (state.finalPosts??=[]).push(request.postDataJSON());(state.finalHeaders??=[]).push(request.headers());
+    if(state.finalFail)return route.fulfill({status:503,json:{title:"private-finalization-body"}});
+    if(path.endsWith("/cancel"))state.finalStatus="cancelled";
+    else{state.finalCommand??=request.postDataJSON();state.finalStatus="prepared";state.finalExpires??=new Date(Date.now()+240_000).toISOString();}
+   }
+   const status=state.finalStatus??"not_prepared",pendingCommand=state.finalCommand??null,expiresAtUtc=state.finalExpires??null;
+   const sources=pendingCommand?["Order","Payment","POS"].map(source=>({source,sealId:org,epoch:org,revision:0,expiresAtUtc,active:status==="prepared",cancelled:status==="cancelled"})):[];
+   json={identity,version:pendingCommand?2:0,status,pendingCommand,approvalId:pendingCommand?.approvalId??null,reviewedApprovalVersion:pendingCommand?.reviewedApprovalVersion??null,sealVersion:pendingCommand?2:null,expiresAtUtc,validatedAtUtc:status==="prepared"?new Date().toISOString():null,sources,blockers:[],canPrepare:state.finalPermission!==false};
   }else return route.fulfill({status:404});
   return route.fulfill({json});
  });
@@ -101,4 +113,20 @@ test("read-only accountants cannot approve and changing filters clears approval 
 test("superseded and unverified approval keep immutable history without showing current approval",async({page})=>{
  const state=await setup(page);state.status="ready_for_review";state.version=2;await load(page);await page.getByRole("button",{name:"Load approval",exact:true}).click();await page.getByRole("button",{name:"Approve reviewed seal",exact:true}).click();await expect(page.getByText("approved",{exact:true})).toBeVisible();
  for(const status of ["unverified","superseded"]){state.approvalStatus=status;await page.getByRole("button",{name:"Load approval",exact:true}).click();await expect(page.getByText(status,{exact:true})).toBeVisible();await expect(page.getByText("approved",{exact:true})).toHaveCount(0);await expect(page.getByText(/Seal version 2: review complete by manager/)).toBeVisible();}
+});
+
+test("finalization preparation requires a reviewed approval and cancellation uses CSRF",async({page})=>{
+ const state=await setup(page);state.status="ready_for_review";state.version=2;
+ await page.getByRole("button",{name:"Load finalization preparation",exact:true}).click();await expect(page.getByRole("button",{name:"Prepare finalization",exact:true})).toBeDisabled();
+ await load(page);await page.getByRole("button",{name:"Load approval",exact:true}).click();await page.getByRole("button",{name:"Approve reviewed seal",exact:true}).click();await expect(page.getByText("approved",{exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"Prepare finalization",exact:true}).click();await expect(page.getByText("prepared",{exact:true})).toBeVisible();
+ expect(state.finalPosts[0]).toMatchObject({expectedVersion:0,approvalId:restaurant,reviewedApprovalVersion:1});expect(state.finalHeaders[0]["x-nexa-csrf"]).toBe("finalization-csrf");
+ await page.getByRole("button",{name:"Cancel finalization preparation",exact:true}).click();await expect(page.getByText("cancelled",{exact:true})).toBeVisible();expect(state.finalPosts[1].operationId).toBe(state.finalPosts[0].operationId);
+});
+test("uncertain preparation keeps the exact command for explicit retry",async({page})=>{
+ const state=await setup(page);state.status="ready_for_review";state.version=2;await load(page);await page.getByRole("button",{name:"Load approval",exact:true}).click();await page.getByRole("button",{name:"Approve reviewed seal",exact:true}).click();await expect(page.getByText("approved",{exact:true})).toBeVisible();await page.getByRole("button",{name:"Load finalization preparation",exact:true}).click();
+ state.finalFail=true;await page.getByRole("button",{name:"Prepare finalization",exact:true}).click();await expect(page.getByRole("status")).toContainText("Preparation unavailable");state.finalFail=false;await page.getByRole("button",{name:"Retry same preparation operation",exact:true}).click();await expect(page.getByText("prepared",{exact:true})).toBeVisible();expect(state.finalPosts[1]).toEqual(state.finalPosts[0]);await expect(page.getByText("private-finalization-body")).toHaveCount(0);
+});
+test("finalization accountant controls remain read only and filters clear progress",async({page})=>{
+ const state=await setup(page);state.finalPermission=false;await page.getByRole("button",{name:"Load finalization preparation",exact:true}).click();await expect(page.getByRole("button",{name:"Prepare finalization",exact:true})).toHaveCount(0);await expect(page.getByText("not prepared",{exact:true})).toBeVisible();await page.getByLabel("End-of-day business date").fill("2026-09-02");await expect(page.getByText("not prepared",{exact:true})).toHaveCount(0);
 });

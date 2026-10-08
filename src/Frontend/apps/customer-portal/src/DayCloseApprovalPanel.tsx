@@ -3,7 +3,7 @@ import {Alert,Button,Descriptions,List,Select,Space,Typography} from "antd";
 import {createApiClient} from "@nexaconnect/api-client";
 import {Approval,ApprovalCommand,readApproval} from "./dayApproval";
 const api=createApiClient({onUnauthorized:()=>location.assign("/bff/customer/login")});
-export function DayCloseApprovalPanel({organizationId,branchId,businessDate,reviewedSealVersion}:{organizationId:string;branchId:string;businessDate:string;reviewedSealVersion?:number}){
+export function DayCloseApprovalPanel({organizationId,branchId,businessDate,reviewedSealVersion,onApprovalChange}:{organizationId:string;branchId:string;businessDate:string;reviewedSealVersion?:number;onApprovalChange?:(value?:Approval)=>void}){
  const [value,setValue]=useState<Approval>(),[pending,setPending]=useState<ApprovalCommand>(),[busy,setBusy]=useState(false),[error,setError]=useState<string>();
  const [reason,setReason]=useState<"review_complete"|"review_after_changes">("review_complete");const generation=useRef(0),active=useRef<AbortController>();
  useEffect(()=>()=>{generation.current++;active.current?.abort();},[]);
@@ -11,7 +11,7 @@ export function DayCloseApprovalPanel({organizationId,branchId,businessDate,revi
   if(approve&&!pending&&(!value?.canApprove||!value.sealVersion||value.sealVersion!==reviewedSealVersion||value.decision?.sealVersion===value.sealVersion))return;
   const command=approve?(pending??{branchId,businessDate,operationId:crypto.randomUUID(),expectedApprovalVersion:value!.version,reviewedSealVersion:value!.sealVersion!,reasonCode:reason}):undefined;
   if(command)setPending(command);const run=++generation.current;active.current?.abort();const controller=new AbortController();active.current=controller;
-  setBusy(true);setValue(undefined);setError(undefined);
+  setBusy(true);setValue(undefined);onApprovalChange?.(undefined);setError(undefined);
   const timer=setTimeout(()=>{if(generation.current===run){generation.current++;controller.abort();setBusy(false);setError("Approval response unavailable. Load the saved decision or retry the same operation.");}},40_000);
   try{
    const path="/bff/customer/day-close-approvals";const csrf=approve?await api.request<{requestToken:string}>(path+"/csrf",{signal:controller.signal,cache:"no-store"}):undefined;
@@ -19,7 +19,7 @@ export function DayCloseApprovalPanel({organizationId,branchId,businessDate,revi
    const response=await api.request<unknown>(approve?path:`${path}?${new URLSearchParams({branchId,businessDate})}`,{method:approve?"POST":"GET",body:command,headers:csrf?{"X-Nexa-CSRF":csrf.requestToken}:undefined,signal:controller.signal,cache:"no-store"});
    if(controller.signal.aborted||generation.current!==run)return;const fresh=readApproval(response,organizationId,branchId,businessDate);
    if(command&&fresh.operationDecision?.operationId!==command.operationId)throw new Error("Approval operation mismatch");
-   setValue(fresh);setPending(undefined);
+   setValue(fresh);onApprovalChange?.(fresh);setPending(undefined);
   }catch{if(generation.current===run&&!controller.signal.aborted)setError("Approval unavailable or changed. Load the saved decision before a new attempt, or retry the same operation.");}
   finally{clearTimeout(timer);if(generation.current===run)setBusy(false);}
  };

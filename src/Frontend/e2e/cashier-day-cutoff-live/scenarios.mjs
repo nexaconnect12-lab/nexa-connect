@@ -12,5 +12,6 @@ export const scenarios=[
  'live owning source permission revocation blocks evidence without exposing upstream details',
  'live prepare read and membership revocation preserve immutable private command proof',
  'reviewed source seals reconcile actual events and later financial changes remain journaled',
- 'manager approval binds the reviewed seal and real accountant authority remains read only'
+ 'manager approval binds the reviewed seal and real accountant authority remains read only',
+ 'real manager finalization preparation retains three source fences and cancellation releases them with accountant denial',
 ];

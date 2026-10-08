@@ -70,7 +70,13 @@ foreach (string service in new[]{"Order","Payment","POS","Reporting"})
 {
     builder.Services.AddHttpClient("DayCutoff"+service,c=>{ c.BaseAddress=new Uri(builder.Configuration["Services:"+service]??"https://cutoff-dependency.invalid/");c.Timeout=TimeSpan.FromSeconds(15); }).AddNexaConnectCorrelationPropagation();
 }
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.PosDayFences>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPosDayFenceStore,NexaConnect.Services.POS.Infrastructure.Persistence.PostgresPosDayFenceStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IFinalizationStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresFinalizationStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IFinalizationSources,NexaConnect.Services.POS.Infrastructure.DayClose.HttpFinalizationSources>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayFinalizationPreparation>();
 var app = builder.Build();
+app.Use(async (context,next)=>{try{await next();}catch(Npgsql.PostgresException e)when(e.SqlState=="P0001"&&e.MessageText=="financial_day_fenced"){context.Response.StatusCode=409;context.Response.Headers.CacheControl="no-store";app.Logger.LogWarning("Financial day fence rejected a source mutation");await context.Response.WriteAsJsonAsync(new{code="financial_day_fenced"});}});
 app.UseNexaConnectRequestLogging();
 app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/pos/v1/customer/day-cutoffs")) context.Response.Headers.CacheControl="no-store"; await next(); });
 app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/pos/v1/customer", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });

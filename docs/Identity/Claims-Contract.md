@@ -1,5 +1,7 @@
 # Identity Claims Contract
 
+Temporary finalization preparation and source fence mutations require live `pos.day-close.finalization.prepare` plus existing owning read authority. Authorization 12 grants it to manager defaults only; it is not a browser claim or authority derived from tenant selection. Read-only accountant access remains. No new clients/scopes/secrets are added.
+
 Day-close evidence approval uses live product permission `pos.day-close.approve` plus `pos.day-close.read` and existing source/Reporting read authority. Authorization 11 defaults approve to tenant-admin/store-manager; accountants/cashiers have no default grant. These permissions are live decisions, not browser claims or tenant-selection authority. Stable approver subjects are exposed only in scoped authorized decision history; private Authorization decision IDs stay server-side. See [contract](../API/Day-Close-Approvals.md).
 
 The [joined preparation gate](../Deployment/Day-Close-Portal-Acceptance.md) provisions three distinct real OIDC users: a branch accountant and two Restaurant-scoped store managers in run-owned organizations. Existing customer-viewer realm roles satisfy transport access; Authorization 10 product grants independently permit read/prepare. Scenarios revoke active preparation/read/source overrides and suspend membership in existing sessions. Synthetic source closure/review decisions bypass their HTTP authorization; preparation mutations retain real granted decision IDs. No production identity client, realm claim or permission is added by the gate.
