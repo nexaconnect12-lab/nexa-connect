@@ -29,13 +29,15 @@ async function load(page){await page.getByRole("button",{name:"Load cutoff evide
 test("shows the sealed baseline beside historical source corrections",async({page})=>{
  const state=await setup(page);await load(page);await page.getByRole("button",{name:"Seal reviewed evidence",exact:true}).click();
  await expect(page.getByText("sealed evidence",{exact:true})).toBeVisible();
- state.status="blocked";state.pending=2;state.comparison={grossSales:120,completedRefunds:5,netSales:115,cashVariance:-10,tenders:[{method:"cash",currency:"THB",amount:120}],unknownChanges:0,checkedAtUtc:"2026-09-03T01:00:00Z"};
+ state.status="blocked";state.pending=2;state.comparison={grossSales:120,completedRefunds:5,netSales:115,cashVariance:-10,tenders:[{method:"cash",currency:"THB",amount:120}],unknownChanges:0,checkedAtUtc:"2026-09-03T01:00:00Z",changes:[{source:"Order",revision:1,reason:"sales_date",recordKind:"orders",recordId:org,parentId:org,beforeStatus:"completed",afterStatus:"completed",beforeFinancialVersion:1,afterFinancialVersion:2,beforeFinancialAtUtc:"2026-09-01T01:00:00Z",afterFinancialAtUtc:"2026-08-30T01:00:00Z"}],changesTruncated:true};
  await page.getByRole("button",{name:"Load sealed evidence",exact:true}).click();
  await expect(page.getByRole("columnheader",{name:"Sealed baseline",exact:true})).toBeVisible();
  await expect(page.getByRole("row").filter({has:page.getByText("Gross sales",{exact:true})})).toContainText("120");
  await expect(page.getByRole("row").filter({has:page.getByText("Cash variance",{exact:true})})).toContainText("-10");
  await expect(page.getByRole("row").filter({has:page.getByText("Tender: cash",{exact:true})})).toContainText("120");
  await expect(page.getByText(/Saved evidence: THB gross 100/)).toHaveCount(2);
+ await expect(page.getByText(/Order: .*sales date/)).toBeVisible();
+ await expect(page.getByText("The change list is limited. Pending counts include every relevant or unknown change.")).toBeVisible();
 });
 test("seals a reviewed version with CSRF and clears readiness when late changes are observed",async({page})=>{
  const state=await setup(page);await load(page);await page.getByRole("button",{name:"Seal reviewed evidence",exact:true}).click();

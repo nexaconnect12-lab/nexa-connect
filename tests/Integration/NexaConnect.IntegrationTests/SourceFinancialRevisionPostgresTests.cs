@@ -134,12 +134,15 @@ public sealed class SourceFinancialRevisionPostgresTests : IAsyncLifetime
             var directory=Directory.GetDirectories(root,"*_financial_revisions").Single();
             var seals=Directory.GetDirectories(root,"*_day_seals").Single();
             var attribution=Directory.GetDirectories(root,"*_day_change_attribution").Single();
+            var exact=Directory.GetDirectories(root,"*_exact_day_attribution").Single();
+            await Sql(service,await File.ReadAllTextAsync(Path.Combine(exact,"down.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(attribution,"down.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(seals,"down.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(directory,"down.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(directory,"up.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(seals,"up.sql")));
             await Sql(service,await File.ReadAllTextAsync(Path.Combine(attribution,"up.sql")));
+            await Sql(service,await File.ReadAllTextAsync(Path.Combine(exact,"up.sql")));
             Assert.NotEqual(before.Epoch,(await Revision(service)).Epoch);
             var window=Window;
             if(service=="Order")await new OrderDb.PostgresOrderCutoffStore(Db(service)).CaptureAsync(new(Guid.NewGuid(),window),"manager",default);

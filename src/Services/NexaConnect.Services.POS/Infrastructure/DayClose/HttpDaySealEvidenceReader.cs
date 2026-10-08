@@ -58,6 +58,10 @@ public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySea
             throw new InvalidOperationException("Source seal identity changed.");
         static DaySealReference Ref(SourceDaySeal s)=>new(s.SealId,s.ManifestId,s.SourceRevision.Epoch,s.SourceRevision.Revision);
         long pending=checked(orderAfter.PendingChanges+paymentAfter.PendingChanges+posAfter.PendingChanges);
+        static IEnumerable<DaySealRecordChange> Details(string source,IReadOnlyList<SourceSealChange> changes)=>changes.Select(c=>
+            new DaySealRecordChange(source,c.Revision,c.Attribution,c.RecordKind,c.RecordId,c.ParentId,c.BeforeStatus,c.AfterStatus,
+                c.BeforeFinancialVersion,c.AfterFinancialVersion,c.BeforeFinancialAtUtc,c.AfterFinancialAtUtc));
+        var details=Details("Order",orderAfter.Changes).Concat(Details("Payment",paymentAfter.Changes)).Concat(Details("POS",posAfter.Changes)).ToArray();
         return basis with{ObservedAtUtc=clock.GetUtcNow(),Cutoff=cutoff with{CheckId=check.CheckId,DeliveryComplete=check.DeliveryComplete,FinancialGaps=checked((int)gaps)},
             Seals=new(Ref(order.Seal),Ref(payment.Seal),Ref(pos.Seal),pending,
                 order.JournalComplete&&payment.JournalComplete&&pos.JournalComplete&&orderAfter.JournalComplete&&paymentAfter.JournalComplete&&posAfter.JournalComplete
@@ -65,7 +69,8 @@ public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySea
             SealComparison=new(orderAfter.CurrentSummary!.GrossSales,paymentAfter.CurrentSummary!.CompletedRefunds,
                 orderAfter.CurrentSummary.GrossSales-paymentAfter.CurrentSummary.CompletedRefunds,posAfter.CurrentSummary!.CashVariance,
                 orderAfter.CurrentSummary.Tenders.Select(t=>new DayTender(t.Method,t.Currency,t.Amount)).ToArray(),
-                checked(orderAfter.UnknownChanges+paymentAfter.UnknownChanges+posAfter.UnknownChanges),clock.GetUtcNow())};
+                checked(orderAfter.UnknownChanges+paymentAfter.UnknownChanges+posAfter.UnknownChanges),clock.GetUtcNow(),details.Take(256).ToArray(),
+                details.Length>256||orderAfter.ChangesTruncated||paymentAfter.ChangesTruncated||posAfter.ChangesTruncated)};
     }
     private void Validate<T>(SourceSealRead<T> s,EndOfDayWindow w,CutoffReference reviewed)
     {
@@ -74,7 +79,8 @@ public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySea
             || s.Manifest.Generation!=reviewed.Generation || s.Manifest.EvidenceVersion!=reviewed.EvidenceVersion
             || s.Seal.SourceRevision!=s.Manifest.SourceRevision || s.Seal.SourceRevision.Epoch!=reviewed.RevisionEpoch
             || s.Seal.SourceRevision.Revision!=reviewed.SourceRevision || s.PendingChanges<0 || s.Manifest.EvidenceProtocolVersion!=2
-            || s.AttributionProtocolVersion!=1 || s.UnknownChanges<0 || s.UnknownChanges>s.PendingChanges
+            || s.AttributionProtocolVersion!=2 || s.UnknownChanges<0 || s.UnknownChanges>s.PendingChanges
+            || s.Changes is null || s.Changes.Count>256 || s.Changes.Count>s.PendingChanges
             || s.ObservedChanges<s.PendingChanges || s.CurrentSummary is null
             || s.Seal.SealedAtUtc<s.Manifest.CapturedAtUtc || s.Seal.SealedAtUtc>clock.GetUtcNow())
             throw new InvalidOperationException("Source seal invalid.");

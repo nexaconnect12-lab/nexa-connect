@@ -27,7 +27,7 @@ public sealed class PostgresPosCutoffStore(NpgsqlDataSource source) : IPosCutoff
         {EvidenceVersion=summary.EvidenceVersion??"",SourceRevision=revision,EvidenceProtocolVersion=2}));
     }
     public Task<SourceSealRead<PosDaySummary>?> ReadSealAsync(EndOfDayWindow window,Guid id,CancellationToken ct)=>
-        new PostgresEvidenceSeals<PosDaySummary>(source).ReadAsync(window,id,ct,json=>FinancialChangeAttribution.Classify(json,window.ToUtc),
+        new PostgresEvidenceSeals<PosDaySummary>(source).ReadAsync(window,id,ct,json=>FinancialChangeAttribution.Classify(json,window.FromUtc,window.ToUtc),
             (c,t,token)=>PostgresPosDayReader.QueryAsync(window,c,t,token));
     public Task<SourceDaySeal> SealAsync(SourceSealCommand command,string actor,CancellationToken ct)=>
         new PostgresEvidenceSeals<PosDaySummary>(source).RetainAsync(command,actor,(m,r)=>

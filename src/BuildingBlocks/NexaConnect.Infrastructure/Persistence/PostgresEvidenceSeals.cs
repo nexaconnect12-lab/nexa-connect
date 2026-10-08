@@ -54,7 +54,7 @@ public sealed class PostgresEvidenceSeals<T>(NpgsqlDataSource source)
         finally{await Unlock(c,operation);}
     }
     public async Task<SourceSealRead<T>?> ReadAsync(EndOfDayWindow w,Guid id,CancellationToken ct,
-        Func<string?,bool?> classify, Func<NpgsqlConnection,NpgsqlTransaction,CancellationToken,Task<T>> readCurrent)
+        Func<string?,SourceSealImpact> classify, Func<NpgsqlConnection,NpgsqlTransaction,CancellationToken,Task<T>> readCurrent)
     {
         await using var c=await source.OpenConnectionAsync(ct);
         await using var t=await c.BeginTransactionAsync(IsolationLevel.RepeatableRead,ct);
@@ -83,17 +83,19 @@ public sealed class PostgresEvidenceSeals<T>(NpgsqlDataSource source)
             if(rows.GetInt64(0)!=seal.SourceRevision.Revision+processed+1)complete=false;
             processed++;
             var impact=classify(attribution);
-            if(impact==false)continue;
+            if(impact.AffectsWindow==false)continue;
             relevant++;
-            if(impact is null)unknown++;
-            if(entries.Count<256)entries.Add(new(rows.GetInt64(0),rows.GetFieldValue<DateTimeOffset>(1),impact is null?"unknown":"historical_change"));
+            if(impact.AffectsWindow is null)unknown++;
+            if(entries.Count<256)entries.Add(new(rows.GetInt64(0),rows.GetFieldValue<DateTimeOffset>(1),impact.Attribution,
+                impact.RecordKind,impact.RecordId,impact.ParentId,impact.BeforeStatus,impact.AfterStatus,impact.BeforeFinancialVersion,
+                impact.AfterFinancialVersion,impact.BeforeFinancialAtUtc,impact.AfterFinancialAtUtc));
         }
         complete&=processed==observed;
         unknown+=observed-processed;
         relevant+=observed-processed;
         var current=await readCurrent(c,t,ct);
         await t.CommitAsync(ct);
-        return new(seal,manifest,relevant,complete,entries,relevant>entries.Count || processed<observed,1,unknown,observed,current);
+        return new(seal,manifest,relevant,complete,entries,relevant>entries.Count || processed<observed,2,unknown,observed,current);
     }
     private static async Task<SourceCutoff<T>?> Manifest(NpgsqlConnection c,NpgsqlTransaction t,EndOfDayWindow w,Guid id,CancellationToken ct)
     {

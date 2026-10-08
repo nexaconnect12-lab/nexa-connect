@@ -1,21 +1,30 @@
 using System.Text.Json;
+using NexaConnect.Contracts.Reporting;
 using NexaConnect.Services.Order.Domain;
 namespace NexaConnect.Services.Order.Infrastructure.Persistence;
 
 internal static class FinancialChangeAttribution
 {
-    public static bool? Classify(string? json, DateTimeOffset toUtc)
+    private static readonly JsonSerializerOptions Json=new(JsonSerializerDefaults.Web);
+    public static SourceSealImpact Classify(string? json,DateTimeOffset from,DateTimeOffset to)
     {
-        if (json is null) return null;
+        if(json is null)return new(null,"unknown");
         try
         {
-            using var document = JsonDocument.Parse(json);
-            var root = document.RootElement;
-            if (root.GetProperty("version").GetInt32() != 1 || root.GetProperty("kind").GetString() is not ("orders" or "order_manual_tender_settlements" or "order_sale_publications")) return null;
-            static DateTimeOffset[]? Times(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null
-                : value.EnumerateArray().Select(t => t.GetDateTimeOffset()).ToArray();
-            return FinancialChange.AffectsWindow(toUtc, Times(root.GetProperty("before")), Times(root.GetProperty("after")));
+            using var document=JsonDocument.Parse(json);var root=document.RootElement;
+            if(root.GetProperty("version").GetInt32()!=2)return new(null,"legacy_attribution");
+            var kind=root.GetProperty("kind").GetString();
+            if(kind is not ("orders" or "order_manual_tender_settlements" or "order_sale_publications"))return new(null,"unknown");
+            var recordId=root.GetProperty("recordId").GetGuid();
+            if(recordId==Guid.Empty)return new(null,"unknown");
+            var before=root.GetProperty("before").Deserialize<FinancialRecord>(Json);
+            var after=root.GetProperty("after").Deserialize<FinancialRecord>(Json);
+            var impact=FinancialChange.Classify(from,to,before,after,root.GetProperty("ownershipUncertain").GetBoolean(),kind);
+            var parent=after??before;
+            bool origin=impact.Reason is "sales_date" or "unresolved_order" or "unresolved_payment" or "unresolved_refund" or "unresolved_shift" or "unresolved_drawer";
+            return new(impact.AffectsWindow,impact.Reason,kind,recordId,parent?.Id,before?.Status,after?.Status,
+                before?.Version,after?.Version,origin?before?.CreatedAtUtc:before?.FinancialAtUtc??before?.CreatedAtUtc,origin?after?.CreatedAtUtc:after?.FinancialAtUtc??after?.CreatedAtUtc);
         }
-        catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or KeyNotFoundException) { return null; }
+        catch(Exception e)when(e is JsonException or InvalidOperationException or FormatException or KeyNotFoundException){return new(null,"unknown");}
     }
 }

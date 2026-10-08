@@ -4,6 +4,8 @@ Status: Accepted. Date: 2026-10-07. Supersedes the affected-date policy in ADR-0
 
 ## Decision
 
+The conservative historical policy in this ADR is superseded by [ADR-026](ADR-026-exact-historical-day-attribution.md). The original execution evidence remains historical.
+
 Order, Payment and POS retain safe before/after effective timestamps in the same financial transaction as their branch revision and append-only journal row. Source Infrastructure captures only a version, owning table kind and timestamp arrays. It does not persist bodies, receipts, provider identifiers, personal data or monetary payloads in attribution. Each owning Domain decides window relevance; shared persistence supplies locking, snapshot and bounded stream mechanics only.
 
 A change is proved unrelated to a seal only when both available states have complete anchors and every effective timestamp is at or after the seal's exclusive UTC end. Historical changes remain relevant, including work before the window start: older unresolved work and cash review can affect later readiness. This intentionally conservative first implementation removes unrelated next-day trading invalidation; it does not attempt exact historical-day assignment or a monetary adjustment ledger. Recording time is never used as the financial date. UTC boundaries remain the immutable sealed boundaries.

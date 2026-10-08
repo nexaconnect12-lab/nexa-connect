@@ -1,6 +1,6 @@
 # Joined cashier-to-cutoff acceptance
 
-Current cutoff mode uses Order 15 / Payment 14 / POS 12 and compatibility 0.28.0. It now requires thirteen distinct real-OIDC browser passes, including reviewed source sealing and verification that a subsequent actual historical sale invalidates readiness with journaled changes while preserving original seals. Six Authorization persistence cases and exact cleanup remain required. Earlier twelve-case runs are historical; current execution is recorded in docs/Architecture/Evidence/Day-Close-Seals.md. Original non-cutoff modes retain their schema targets.
+Current cutoff mode uses Order 16 / Payment 15 / POS 13 and compatibility 0.29.0. It now requires thirteen distinct real-OIDC browser passes, including reviewed source sealing and verification that a subsequent actual historical sale invalidates readiness with journaled changes while preserving original seals. Six Authorization persistence cases and exact cleanup remain required. Earlier twelve-case runs are historical; current execution is recorded in docs/Architecture/Evidence/Day-Close-Seals.md. Original non-cutoff modes retain their schema targets.
 
 The earlier revision-protocol-two mode used Order 13 / Payment 12 / POS 10 at compatibility 0.26.0 and required exact-set Reporting delivery proof. Its twelve-case execution and prior 0.25.0 acceptance remain historical. Current seal execution is recorded in [seal evidence](../Architecture/Evidence/Day-Close-Seals.md).
 
@@ -24,7 +24,7 @@ Pop-Location
 
 `-NoBuild` requires current Debug binaries. The runner still builds ancillary services/recovery tooling, publishes the BFF/portal and runs all six Authorization persistence cases. It requires thirteen distinct browser passes with no skips/retries and verified cleanup. No missing setting permits a skip. CI retains only bounded verification/summary JSON for 14 days; local service logs and credentials are never uploaded.
 
-The mode reuses the ten-context [cashier Docker topology](../../docker/cashier-day-close/README.md) under its own random `nexa-cashier-day-cutoff-<run>` project. It pins Order 15, Payment 14, POS 12, Reporting 20, Authorization 10 and compatibility 0.28.0. POS receives Order, Payment, self-source and Reporting addresses; its Payment dependency traverses the owned fault proxy. Older preparation/cashier launchers retain their pinned schemas and controls.
+The mode reuses the ten-context [cashier Docker topology](../../docker/cashier-day-close/README.md) under its own random `nexa-cashier-day-cutoff-<run>` project. It pins Order 16, Payment 15, POS 13, Reporting 20, Authorization 10 and compatibility 0.29.0. POS receives Order, Payment, self-source and Reporting addresses; its Payment dependency traverses the owned fault proxy. Older preparation/cashier launchers retain their pinned schemas and controls.
 
 ## Real commands and controlled faults
 

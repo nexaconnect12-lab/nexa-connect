@@ -1,6 +1,8 @@
 # Migration scripts
 
-Window-aware sealed reconciliation is implemented in Order 15 / Payment 14 / POS 12 (compatibility 0.28.0). Owning sources atomically retain safe before/after effective timestamps with journal revisions. Proven unrelated next-day trading no longer invalidates older seals; historical, ownership-uncertain and unattributed changes remain blocking. Managers compare current sales, tenders, refunds and cash variance with the preserved sealed baseline. Approval/finalization and exact historical-day attribution remain planned. See [attribution and comparison policy](../../../../docs/Architecture/Decisions/ADR-025-window-aware-sealed-change-reconciliation.md).
+Exact historical-day attribution is implemented in Order 16 / Payment 15 / POS 13 (compatibility 0.29.0). Source-owned before/after selection distinguishes creation-time sales, Paid-time tenders, refund completion and drawer closure/review. Unrelated historical changes are excluded; older unresolved work, missing history, legacy descriptors and ownership uncertainty block readiness. Managers see bounded record identities, reasons, statuses, versions and effective times beside the preserved baseline/current comparison. Approval/finalization remain planned. See [attribution and comparison policy](../../../../docs/Architecture/Decisions/ADR-026-exact-historical-day-attribution.md).
+
+Current exact-attribution migrations replace capture functions with version-two descriptors and require compatibility 0.29.0; no tables are added. Version-two history rejects downgrade, while empty/legacy-only downgrade restores version-one capture without rewriting epochs or history. Parent row locks require existing owning SELECT/UPDATE privileges. Existing immutable financial history guards remain intact.
 
 The preceding Order 14 / Payment 13 / POS 11 migrations add day seals, append-only branch change journals and (in POS) separate durable coordination. Compatibility is 0.27.0. Existing revision epochs survive empty new-migration downgrade/reapply; retained history requires forward recovery. See [ADR-024](../../../../docs/Architecture/Decisions/ADR-024-source-day-seals-and-late-change-journals.md).
 
@@ -17,12 +19,12 @@ Create one directory per owning service and one subdirectory per sequential migr
 | Restaurant | 3 | 8 |
 | Catalog | 4 | 22 |
 | Inventory | 5 | 11 |
-| Order | 15 | 21 |
+| Order | 16 | 21 |
 | Kitchen | 3 | 8 |
 | Customer | 2 | 6 |
-| Payment | 14 | 14 |
+| Payment | 15 | 14 |
 | Notification | 3 | 5 |
-| POS | 12 | 28 |
+| POS | 13 | 28 |
 | Media | 4 | 6 |
 | Reporting | 20 | 15 |
 

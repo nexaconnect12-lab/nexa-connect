@@ -22,7 +22,7 @@ using ReportingDb=REPORTING::NexaConnect.Services.Reporting.Infrastructure.Persi
 
 namespace NexaConnect.IntegrationTests;
 
-public sealed class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICutoffSources,ReportingApp.ISealedSources,ReportingApp.IReportingCustomerAuthorizer,
+public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICutoffSources,ReportingApp.ISealedSources,ReportingApp.IReportingCustomerAuthorizer,
     PosApp.IDayCloseEvidenceReader,IHttpClientFactory,PosAuth.IRestaurantScopeReader,PosAuth.IAuthorizationDecisionClient
 {
     private readonly List<(NpgsqlDataSource Db,string Schema)> owned=[];
@@ -95,10 +95,13 @@ public sealed class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICutoffSour
     {
         var reviewed=await Reviewed();var sealedDay=await Sealing.SealAsync(organization,SealCommand(reviewed.Version),new("manager","token"),default);
         var dir=Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/Order/0015_day_change_attribution");
+        var exact=Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/Order/0016_exact_day_attribution");
+        await Sql(order,File.ReadAllText(Path.Combine(exact,"down.sql")));
         await Sql(order,File.ReadAllText(Path.Combine(dir,"down.sql")));
         var aggregate=OrderDomain.OrderAggregate.Create(Guid.NewGuid(),organization,branch,[new OrderDomain.OrderLine(Guid.NewGuid(),"Rice",10,1,"kitchen")],"THB",restaurantId:restaurant);
         await new OrderDb.PostgresOrderRepository(order).SaveAsync(aggregate,default);
         await Sql(order,File.ReadAllText(Path.Combine(dir,"up.sql")));
+        await Sql(order,File.ReadAllText(Path.Combine(exact,"up.sql")));
         var read=await OrderSealAsync(Window,sealedDay.Snapshot!.Seals!.Order.SealId,"token",default);
         Assert.Equal(1,read.UnknownChanges);Assert.Equal(1,read.PendingChanges);Assert.True(read.JournalComplete);
         var blocked=await Sealing.ReadAsync(organization,branch,Date,new("manager","token"),default);
@@ -111,7 +114,7 @@ public sealed class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICutoffSour
         var seal=await source.SealAsync(SourceCommand(Window,reviewed.Snapshot!.Cutoff!.Pos),"manager",default);
         await Sql(pos,"DO $$ BEGIN FOR i IN 1..10001 LOOP UPDATE stores SET name=i::text; END LOOP; END; $$");
         var read=(await source.ReadSealAsync(Window,seal.SealId,default))!;
-        Assert.Equal(10001,read.PendingChanges);Assert.Equal(10001,read.UnknownChanges);Assert.False(read.JournalComplete);Assert.True(read.ChangesTruncated);Assert.Equal(256,read.Changes.Count);
+        Assert.Equal(1,read.PendingChanges);Assert.Equal(1,read.UnknownChanges);Assert.False(read.JournalComplete);Assert.True(read.ChangesTruncated);Assert.Empty(read.Changes);
         await Sql(pos,"UPDATE stores SET branch_id=$1 WHERE id=$2",Guid.NewGuid(),id);
         read=(await source.ReadSealAsync(Window,seal.SealId,default))!;Assert.Equal(10002,read.ObservedChanges);Assert.False(read.JournalComplete);
         await Assert.ThrowsAsync<PostgresException>(()=>Sql(pos,"UPDATE source_financial_changes SET attribution='{}'::jsonb"));
@@ -239,7 +242,7 @@ public sealed class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICutoffSour
         await Assert.ThrowsAsync<NexaConnect.Infrastructure.Persistence.SnapshotOperationConflictException>(()=>source.SealAsync(command,"other",default));
         for(int i=0;i<260;i++)await Sql(pos,"UPDATE stores SET name=$1 WHERE id=$2","Change "+i,id);
         var read=(await source.ReadSealAsync(Window,seal.SealId,default))!;
-        Assert.Equal(260,read.PendingChanges);Assert.Equal(256,read.Changes.Count);Assert.True(read.ChangesTruncated);Assert.True(read.JournalComplete);
+        Assert.Equal(260,read.ObservedChanges);Assert.Equal(0,read.PendingChanges);Assert.Empty(read.Changes);Assert.False(read.ChangesTruncated);Assert.True(read.JournalComplete);
     }
     [ReportingDatabaseFact]
     public async Task Outage_and_calendar_changes_clear_readiness_and_preserve_original_seals()
@@ -288,10 +291,13 @@ public sealed class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICutoffSour
         {
             var directory=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_day_seals").Single();
             var attribution=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_day_change_attribution").Single();
+            var exact=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_exact_day_attribution").Single();
             await using var epochQuery=db.CreateCommand("SELECT epoch FROM source_financial_epoch");var epoch=await epochQuery.ExecuteScalarAsync();
+            await Sql(db,await File.ReadAllTextAsync(Path.Combine(exact,"down.sql")));
             await Sql(db,await File.ReadAllTextAsync(Path.Combine(attribution,"down.sql")));
             await Sql(db,await File.ReadAllTextAsync(Path.Combine(directory,"down.sql")));await Sql(db,await File.ReadAllTextAsync(Path.Combine(directory,"up.sql")));
             await Sql(db,await File.ReadAllTextAsync(Path.Combine(attribution,"up.sql")));
+            await Sql(db,await File.ReadAllTextAsync(Path.Combine(exact,"up.sql")));
             Assert.Equal(epoch,await epochQuery.ExecuteScalarAsync());
         }
     }

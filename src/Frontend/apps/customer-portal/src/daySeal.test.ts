@@ -27,3 +27,12 @@ it("keeps the baseline and validates current reconciliation money and unattribut
  expect(()=>readSealedPreparation({...f,latestSealComparison:{...latestSealComparison,netSales:116}},org,branch,date)).toThrow();
  expect(()=>readSealedPreparation({...f,latestSealComparison:{...latestSealComparison,tenders:[{method:"cash",currency:"USD",amount:120}]}},org,branch,date)).toThrow();
 });
+it("validates bounded record-level reasons and never accepts pending records as ready",()=>{
+ const f=fixture(),change={source:"Order",revision:1,reason:"sales_date",recordKind:"orders",recordId:org,parentId:org,beforeStatus:"completed",afterStatus:"completed",beforeFinancialVersion:1,afterFinancialVersion:2,beforeFinancialAtUtc:"2026-09-01T01:00:00Z",afterFinancialAtUtc:"2026-08-30T01:00:00Z"};
+ const latestSealComparison={grossSales:100,completedRefunds:0,netSales:100,cashVariance:0,tenders:[],unknownChanges:0,checkedAtUtc:"2026-09-03T00:00:01Z",changes:[change],changesTruncated:false};
+ const read=readSealedPreparation({...f,status:"blocked",pendingSealChanges:1,latestSealComparison},org,branch,date);
+ expect(read.latestSealComparison?.changes?.[0]?.reason).toBe("sales_date");expect(read.snapshot?.grossSales).toBe(100);
+ expect(()=>readSealedPreparation({...f,latestSealComparison},org,branch,date)).toThrow();
+ for(const changes of [[{...change,reason:"unrecognized"}],[{...change,recordId:"invalid"}],Array(257).fill(change)])
+  expect(()=>readSealedPreparation({...f,status:"blocked",latestSealComparison:{...latestSealComparison,changes}},org,branch,date)).toThrow();
+});

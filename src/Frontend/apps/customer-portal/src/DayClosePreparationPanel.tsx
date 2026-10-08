@@ -39,6 +39,13 @@ export function DayClosePreparationPanel({organizationId,branchId,businessDate,c
       {seal&&<Typography.Paragraph>Pending source changes at the last check: {value.pendingSealChanges??"not checked"}. {value.status==="ready_for_review"?"The saved event set was reconciled and no changes were pending when checked.":"Retained seals are not freshly validated. Resolve blockers, refresh cutoff evidence and reseal."}</Typography.Paragraph>}
       {seal&&value.snapshot&&value.latestSealComparison&&<>
         <Typography.Paragraph>Comparison checked {value.latestSealComparison.checkedAtUtc}. Unattributed changes: {value.latestSealComparison.unknownChanges}. Historical changes still require review when totals are unchanged.</Typography.Paragraph>
+        {value.latestSealComparison.changesTruncated&&<Alert type="warning" message="The change list is limited. Pending counts include every relevant or unknown change."/>}
+        <List header="Records affecting this day" dataSource={value.latestSealComparison.changes??[]} renderItem={change=><List.Item>
+          <Typography.Paragraph>{change.source}: {change.recordId??"Record identity unavailable"}{change.parentId&&change.parentId!==change.recordId?` (financial record ${change.parentId})`:""}. {change.reason.replaceAll("_"," ")}.
+            {` Status: ${change.beforeStatus??"absent"} → ${change.afterStatus??"absent"}; financial version: ${change.beforeFinancialVersion??"unavailable"} → ${change.afterFinancialVersion??"unavailable"}.`}
+            {` Financial time: ${change.beforeFinancialAtUtc??"unavailable"} → ${change.afterFinancialAtUtc??"unavailable"}.`}
+          </Typography.Paragraph>
+        </List.Item>}/>
         <Table pagination={false} rowKey="label" columns={[{title:"Amount",dataIndex:"label"},{title:"Sealed baseline",dataIndex:"baseline"},{title:"Current source totals",dataIndex:"current"},{title:"Change",dataIndex:"delta"}]}
           dataSource={([['Gross sales','grossSales'],['Refunds','completedRefunds'],['Net sales','netSales'],['Cash variance','cashVariance']] as const).map(([label,key])=>({label:String(label),baseline:value.snapshot![key],current:value.latestSealComparison![key],delta:value.latestSealComparison![key]-value.snapshot![key]})).concat(
             [...new Set([...value.snapshot.tenders,...value.latestSealComparison.tenders].map(t=>t.method))].map(method=>{const baseline=value.snapshot!.tenders.filter(t=>t.method===method).reduce((n,t)=>n+t.amount,0),current=value.latestSealComparison!.tenders.filter(t=>t.method===method).reduce((n,t)=>n+t.amount,0);return {label:`Tender: ${method}`,baseline,current,delta:current-baseline};}))}/>
