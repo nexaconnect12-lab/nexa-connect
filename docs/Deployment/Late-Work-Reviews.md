@@ -1,6 +1,6 @@
 # Late-work review rollout
 
-Coordinate **Order 19 / Payment 18 / POS 19 / Authorization 14**, compatibility **0.33.0**, with matching Customer BFF/Portal. Reporting remains 20. The current migration wrapper defaults to compatibility 0.34.0; schema targets are still discovered independently. Preserve ADR-029 barriers, original messages and recovery configuration. No new secret, identity client or configurable background worker is introduced.
+Coordinate **Order 19 / Payment 18 / POS 19 / Authorization 14**, compatibility **0.33.0**, with matching Customer BFF/Portal. Reporting remains 20. The current migration wrapper defaults to compatibility 0.35.0; schema targets are still discovered independently. Preserve ADR-029 barriers, original messages and recovery configuration. No new secret, identity client or configurable background worker is introduced.
 
 Each source migration adds an opaque `work_id` to its existing immutable custody records, generates UUIDs for retained rows, uniquely indexes organization/work and indexes organization/received/work for pagination. Payload, fingerprint and original disposition remain unchanged. New review tables use primary key `(organization_id,barrier_id,work_id,version)`, unique `(organization_id,operation_id)` and same-owner custody/barrier FKs. Insert guards verify committed linked membership and consecutive versions under a per-case advisory lock; decision/reason/status check constraints backstop the source Domain. UPDATE/DELETE/TRUNCATE is forbidden.
 

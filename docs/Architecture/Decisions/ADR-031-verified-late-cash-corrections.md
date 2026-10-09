@@ -27,3 +27,5 @@ Targets are Order 19 / Payment 18 / POS 20 / Authorization 15, application compa
 Reporting projection/export, fiscal documents, Payment/provider corrections, reversal/compensation, arbitrary/backdated adjustments, physical drawer transfers and offline posting remain separate work. The new event is durable and can use the existing outbox dispatcher, but this slice adds no Reporting consumer.
 
 See [API](../../API/Late-Cash-Corrections.md), [deployment](../../Deployment/Late-Cash-Corrections.md) and [verification](../Evidence/Late-Cash-Correction-Acceptance.md).
+
+Subsequent ADR-032 implements separate Reporting correction projection/live comparison and original-event replay at POS/Reporting 21 and compatibility 0.35.0. ADR-031 posting semantics remain unchanged; general exports and other correction types remain separate.

@@ -1,5 +1,7 @@
 # NexaConnect Customer BFF
 
+The read-only reports/cash-corrections route derives organization from the protected tenant cookie, checks live product membership and forwards server-held bearer/correlation. It buffers at most 2 MiB with a 30-second deadline; all outcomes are no-store and failures sanitized. Logs use Cash correction reporting BFF. See [contract](../../../docs/API/Cash-Correction-Reporting.md) and [operations](../../../docs/Deployment/Cash-Correction-Reporting.md).
+
 Verified cash-correction GET/POST/CSRF routes use protected tenant/session, live membership, server-held customer token and correlated POS forwarding. POST accepts only work/operation/review/preview bindings, never a browser financial amount or posting date. No-store covers early failures; body is 4 KiB, bounded JSON 128 KiB. See [correction contract](../../../docs/API/Late-Cash-Corrections.md) and [operations](../../../docs/Deployment/Late-Cash-Corrections.md).
 
 Late-work queue/list/detail/review/CSRF routes use protected session/tenant, live membership, server-held tokens, antiforgery and correlated POS forwarding. POST is 4 KiB; response JSON is 128 KiB and no-store also covers early rejection. Query nexaconnect-customer-bff / CorrelationId for Late-work BFF boundaries. See [review contract](../../../docs/API/Late-Work-Reviews.md).

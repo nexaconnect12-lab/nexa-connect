@@ -27,7 +27,7 @@ try {
     $env:NEXACONNECT_ENVIRONMENT='Testing'
     $env:NEXACONNECT_POS_INTEGRATION_DB="Host=127.0.0.1;Port=$dbPort;Database=day_close_it;Username=postgres;Password=$temporaryPassword"
     $env:NEXACONNECT_REPORTING_INTEGRATION_DB=$env:NEXACONNECT_POS_INTEGRATION_DB
-    dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter '(FullyQualifiedName~DayCutoffPostgresTests|FullyQualifiedName~DaySealPostgresTests|FullyQualifiedName~EndOfDaySourcePostgresTests|FullyQualifiedName~DayCutoffPipelineTests|FullyQualifiedName~SourceFinancialRevisionPostgresTests|FullyQualifiedName~FinancialCompletenessPipelineTests)&FullyQualifiedName!~Hosted_outboxes_survive' -v quiet --logger 'console;verbosity=normal' --logger 'trx;LogFileName=seals.trx' --results-directory $evidenceDirectory
+    dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter '(FullyQualifiedName~DayCutoffPostgresTests|FullyQualifiedName~DaySealPostgresTests|FullyQualifiedName~EndOfDaySourcePostgresTests|FullyQualifiedName~DayCutoffPipelineTests|FullyQualifiedName~SourceFinancialRevisionPostgresTests|FullyQualifiedName~FinancialCompletenessPipelineTests)&FullyQualifiedName!~Hosted_outboxes_survive&FullyQualifiedName!~Hosted_correction_consumer' -v quiet --logger 'console;verbosity=normal' --logger 'trx;LogFileName=seals.trx' --results-directory $evidenceDirectory
     if($LASTEXITCODE -ne 0){throw 'Day-seal PostgreSQL acceptance failed.'}
     [xml]$testResult=Get-Content -LiteralPath (Join-Path $evidenceDirectory 'seals.trx') -Raw
     $counters=$testResult.TestRun.ResultSummary.Counters

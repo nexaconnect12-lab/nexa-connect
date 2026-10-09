@@ -95,9 +95,12 @@ builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.LateCas
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ILateCashCorrectionStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresLateCashCorrectionStore>();
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ILateCashCorrectionEvidence,NexaConnect.Services.POS.Infrastructure.DayClose.HttpLateCashCorrectionEvidence>();
 builder.Services.AddHttpClient("CorrectionRestaurant",c=>{c.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]??"https://restaurant.invalid/");c.Timeout=TimeSpan.FromSeconds(15);}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.CashCorrectionInventory>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ICashCorrectionInventoryStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresCashCorrectionInventoryStore>();
 var app = builder.Build();
 
 app.UseNexaConnectRequestLogging();
+app.Use(async(context,next)=>{if(context.Request.Path.StartsWithSegments("/api/pos/v1/customer/cash-correction-manifest"))context.Response.Headers.CacheControl="no-store";await next();});
 app.Use(async (context,next)=>
 {
     try { await next(); }

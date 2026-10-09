@@ -2,7 +2,7 @@
 
 For the current coordinated deployment, use [late-work review rollout](Late-Work-Reviews.md): Order 19 / Payment 18 / POS 19 / Authorization 14, compatibility 0.33.0, Reporting 20 unchanged. Version sets below identify the earlier capability boundary; current review-enabled binaries require the latest coordinated catalog.
 
-Deploy POS migration 8 (`0008_day_close_preparations`) and Authorization 10 (`0010_day_close_permissions`), both minimum application 0.24.0, before enabling preparation. The standard migration launcher defaults to 0.34.0 for the current catalog, including durable settlement. Retain Order 11, Payment 10, Reporting 20 and Restaurant 3. Use independently owned database runtime credentials with only required schema/table privileges; do not deploy with migration-owner credentials.
+Deploy POS migration 8 (`0008_day_close_preparations`) and Authorization 10 (`0010_day_close_permissions`), both minimum application 0.24.0, before enabling preparation. The standard migration launcher defaults to 0.35.0 for the current catalog, including durable settlement. Retain Order 11, Payment 10, Reporting 20 and Restaurant 3. Use independently owned database runtime credentials with only required schema/table privileges; do not deploy with migration-owner credentials.
 
 Those versions are the original preparation minimum. Current cutoff-capable binaries additionally require Order 12 / Payment 11 / POS 9 and the coordinated [cutoff rollout](Day-Close-Cutoffs.md); deploy that catalog when exposing the new controls.
 

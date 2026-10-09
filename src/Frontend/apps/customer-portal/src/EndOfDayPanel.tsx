@@ -1,3 +1,4 @@
+import {CashCorrectionReportingPanel} from "./CashCorrectionReportingPanel";
 import {DayFinalizationPanel} from "./DayFinalizationPanel";
 import {Approval} from "./dayApproval";
 import {DayCloseApprovalPanel} from "./DayCloseApprovalPanel";
@@ -42,6 +43,7 @@ export function EndOfDayPanel({organizationId}:{organizationId:string}){
     {input&&<DayClosePreparationPanel seal key={`seal|${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate} reviewedCutoffVersion={reviewed?.scope===`${organizationId}|${input.branchId}|${input.businessDate}`?reviewed.version:undefined} onCutoffChange={value=>setReviewedSeal(value?.status==="ready_for_review"?{scope:`${organizationId}|${input.branchId}|${input.businessDate}`,version:value.version}:undefined)}/>}
     {input&&<DayCloseApprovalPanel key={`approval|${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate} onApprovalChange={value=>setReviewedApproval(value?{scope:`${organizationId}|${input.branchId}|${input.businessDate}`,value}:undefined)} reviewedSealVersion={reviewedSeal?.scope===`${organizationId}|${input.branchId}|${input.businessDate}`?reviewedSeal.version:undefined}/>}
     {input&&<DayFinalizationPanel key={`finalization|${organizationId}|${input.branchId}|${input.businessDate}`} organizationId={organizationId} branchId={input.branchId} businessDate={input.businessDate} reviewedApproval={reviewedApproval?.scope===`${organizationId}|${input.branchId}|${input.businessDate}`?reviewedApproval.value:undefined}/>}
+    {input&&<CashCorrectionReportingPanel key={`correction-report|${organizationId}|${input.branchId}`} organizationId={organizationId} branchId={input.branchId}/> }
     {error&&<Alert role="status" type="error" message={error}/>}
     {report&&<>
       <Descriptions bordered column={1}>

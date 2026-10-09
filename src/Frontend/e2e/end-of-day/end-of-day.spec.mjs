@@ -50,3 +50,28 @@ test("tenant switch clears results and pending reads",async({page})=>{
 test("mismatched source scope cannot display financial data",async({page})=>{
   const state=await setup(page);state.wrongScope=true;await load(page);await expect(page.getByRole("status")).toContainText("unavailable");await expect(page.getByRole("table")).toHaveCount(0);
 });
+
+async function correctionSetup(page){
+ await setup(page);const state={status:200,delay:0,wrongScope:false,gap:false};
+ await page.route("**/bff/customer/reports/cash-corrections?**",async route=>{
+  const query=new URL(route.request().url()).searchParams,delay=state.delay;
+  const json={organizationId:state.wrongScope?otherOrg:org,branchId:query.get("branchId"),fromUtc:query.get("fromUtc"),toUtc:query.get("toUtc"),sourceObservedAtUtc:"2026-09-03T00:00:00Z",comparedAtUtc:"2026-09-03T00:00:00Z",manifestHash:"A".repeat(64),status:state.gap?"gaps":"matched",expected:1,matched:state.gap?0:1,missing:state.gap?1:0,conflicting:0,unexpected:0,sourceAdjustment:"-10.0001",projectedAdjustment:state.gap?"0":"-10.0001",items:[{eventId:branch,correctionId:branch,originalSettlementId:org,workId:branch,orderId:branch,tenderId:branch,drawerId:branch,postingDate:"2026-09-01",postedAtUtc:"2026-09-01T01:00:00Z",currency:"THB",adjustment:"-10.0001",status:state.gap?"missing":"matched"}]};
+  const status=state.status;if(delay)await new Promise(r=>setTimeout(r,delay));await route.fulfill({status,json:status===200?json:{detail:"restricted-source-error"}}).catch(()=>{});
+ });
+ await page.getByLabel("Correction from (UTC)").fill("2026-09-01T00:00");await page.getByLabel("Correction to (UTC, exclusive)").fill("2026-09-02T00:00");return state;
+}
+const compare=page=>page.getByRole("button",{name:"Compare cash correction delivery",exact:true}).click();
+test("correction comparison shows separate exact adjustments and delayed delivery gaps",async({page})=>{
+ const state=await correctionSetup(page);state.gap=true;await compare(page);await expect(page.getByText("Cash correction delivery has gaps",{exact:true})).toBeVisible();
+ await expect(page.getByRole("cell",{name:"-10.0001",exact:true})).toBeVisible();state.gap=false;await compare(page);await expect(page.getByText("Cash correction delivery matched",{exact:true})).toBeVisible();
+});
+for(const status of [403,503])test(`correction reporting ${status} clears prior evidence`,async({page})=>{
+ const state=await correctionSetup(page);await compare(page);await expect(page.getByText("Cash correction delivery matched",{exact:true})).toBeVisible();state.status=status;await compare(page);
+ await expect(page.getByRole("status")).toContainText("Cash correction reporting unavailable");await expect(page.getByRole("table")).toHaveCount(0);await expect(page.getByText("restricted-source-error")).toHaveCount(0);
+});
+test("correction reporting rejects other tenant evidence",async({page})=>{
+ const state=await correctionSetup(page);state.wrongScope=true;await compare(page);await expect(page.getByRole("status")).toContainText("Cash correction reporting unavailable");await expect(page.getByRole("table")).toHaveCount(0);
+});
+test("correction filter change prevents delayed evidence restoring old scope",async({page})=>{
+ const state=await correctionSetup(page);state.delay=600;await compare(page);await page.getByLabel("Correction from (UTC)").fill("2026-09-01T00:30");await page.waitForTimeout(800);await expect(page.getByRole("table")).toHaveCount(0);
+});

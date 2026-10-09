@@ -1,6 +1,8 @@
 # Joined cashier-to-cutoff browser gate
 
-Current joined coverage is seventeen scenarios, including temporary preparation, durable settlement and populated late-work review through verified POS cash correction. Targets are Order 19 / Payment 18 / POS 20 / Authorization 15, Reporting 20, compatibility 0.34.0. Existing execution records retain their original version and coverage boundaries.
+Current seventeen-scenario gate uses POS/Reporting 21 and compatibility 0.35.0. The genuine correction scenario now also proves real consumer delivery, live protected comparison and portal rendering with original settlement unchanged. See [contract](../../../../docs/API/Cash-Correction-Reporting.md) and [operations](../../../../docs/Deployment/Cash-Correction-Reporting.md).
+
+Current joined coverage is seventeen scenarios, including temporary preparation, durable settlement and populated late-work review through verified POS cash correction. Targets are Order 19 / Payment 18 / POS 21 / Authorization 15, Reporting 21, compatibility 0.35.0. Existing execution records retain their original version and coverage boundaries.
 
 Current mode requires seventeen distinct real-OIDC browser passes, six Authorization persistence cases and verified cleanup. The correction scenario holds actual broker delivery until permanent settlement, then exercises manager review, authoritative Order proof, missing/below-limit denial, live revocation, committed response loss, POS restart and exact retry while preserving original money and settlement receipts. See [correction execution](../../../../docs/Architecture/Evidence/Late-Cash-Correction-Acceptance.md). Original non-cutoff modes retain their schema targets.
 

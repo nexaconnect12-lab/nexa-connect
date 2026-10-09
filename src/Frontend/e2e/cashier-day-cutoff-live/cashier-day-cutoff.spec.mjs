@@ -335,5 +335,9 @@ test(scenarios[16],async({page,browser})=>{
  await page.getByRole('button',{name:'Post reviewed cash correction'}).click();await expect(page.getByRole('button',{name:'Retry same cash correction'})).toBeEnabled();await control('stop-pos');await control('start-pos');
  await postButton('Retry same cash correction',correctionPath);expect(commands[1]).toEqual(commands[0]);await expect(page.getByText('Immutable cash correction receipt')).toBeVisible();
  expect((await bff(page,'/bff/customer/day-close-settlements'+query)).data.settlement.receipt).toEqual(originalReceipt);
+ const reportingQuery='?'+new URLSearchParams({branchId:refs.branchId,fromUtc:new Date(Date.now()-3600000).toISOString(),toUtc:new Date().toISOString()});
+ await expect.poll(async()=>{const response=await bff(page,'/bff/customer/reports/cash-corrections'+reportingQuery);return response.status===200&&response.data.status==='matched'&&response.data.expected===1&&response.data.matched===1&&Number(response.data.projectedAdjustment)===-paidAmount;},{timeout:45000,intervals:[500,1000]}).toBe(true);
+ await page.getByLabel('Correction from (UTC)').fill(new Date(Date.now()-3600000).toISOString().slice(0,19).replace(/:00$/,''));await page.getByLabel('Correction to (UTC, exclusive)').fill(new Date().toISOString().slice(0,19).replace(/:00$/,''));
+ await page.getByRole('button',{name:'Compare cash correction delivery',exact:true}).click();await expect(page.getByText('Cash correction delivery matched',{exact:true})).toBeVisible();
  const proof=JSON.parse(await fixture('cash-correction-proof'));expect(proof).toMatchObject({verified:true,corrections:1,audits:1,publications:1,custodyRetained:true,originalCashUnchanged:true,authorizationVerified:true});
 });

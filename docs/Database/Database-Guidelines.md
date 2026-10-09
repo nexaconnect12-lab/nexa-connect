@@ -1,5 +1,7 @@
 # Database Guidelines
 
+Correction Reporting projections may be rebuilt only after stopping consumption/reads, retaining original POS event evidence and replaying after re-upgrade. POS correction ledger and retained replay audit require forward recovery; shared-exchange confirmation does not certify Reporting completeness. See [contract](../API/Cash-Correction-Reporting.md) and [operations](../Deployment/Cash-Correction-Reporting.md).
+
 Cash correction ledger/audit is immutable and must be retained with original custody/review/barrier/drawer provenance and source journal. POS 20 downgrade refuses financial history; runtime roles receive only owning SELECT/INSERT. Source amount and approval limit verification belongs to Application/Domain; parameterized transactions and owning SQL constraints backstop current review, unique posting and financial window. See [correction contract](../API/Late-Cash-Corrections.md) and [operations](../Deployment/Late-Cash-Corrections.md).
 
 Late-work review uses source-owned append-only history with SELECT/INSERT runtime access, scoped committed custody membership, serialized version advancement and exact operation replay. Retain opaque custody identities together with their links/barriers/reviews; source downgrade refuses any custody or review row. Reviews do not mutate money, source revisions, message disposition or settlement receipts. See [review storage and rollback](../Deployment/Late-Work-Reviews.md).
