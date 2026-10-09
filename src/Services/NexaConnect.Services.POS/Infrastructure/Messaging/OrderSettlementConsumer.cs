@@ -54,18 +54,32 @@ public sealed class OrderSettlementConsumer(IConnection connection,IOptions<Orde
             using IServiceScope scope=scopes.CreateScope();
             OrderSettlementProjectionStatus status=await scope.ServiceProvider.GetRequiredService<OrderSettlementProjectionService>().ProjectAsync(value,cancellationToken);
             logger.LogInformation("POS Order settlement {ProjectionStatus} for event {EventId}, order {OrderId}, terminal {TerminalId}.",status,eventId,value.OrderId,value.TerminalId);
-            Outcomes.Add(1,new KeyValuePair<string,object?>("status",status==OrderSettlementProjectionStatus.Applied?"applied":"replayed"));
+            Outcomes.Add(1,new KeyValuePair<string,object?>("status",status==OrderSettlementProjectionStatus.Applied?"applied":status==OrderSettlementProjectionStatus.LateCaptured?"late_captured":"replayed"));
             await channel.BasicAckAsync(args.DeliveryTag,false,cancellationToken);
         }
-        catch(Exception exception) when(exception is JsonException or ArgumentException or OrderSettlementProjectionConflictException)
+        catch(Exception exception) when(exception is JsonException or ArgumentException or OrderSettlementProjectionConflictException or NexaConnect.Infrastructure.Persistence.SnapshotOperationConflictException)
         {
-            logger.LogWarning(exception,"Rejected permanent POS Order settlement event {EventId}.",eventId);
+            logger.LogWarning("Rejected permanent POS Order settlement event; category {Category}",exception.GetType().Name);
             Outcomes.Add(1,new KeyValuePair<string,object?>("status","dead_lettered"));
             await channel.BasicNackAsync(args.DeliveryTag,false,false,cancellationToken);
         }
+        catch(NexaConnect.Infrastructure.Persistence.LateFinancialWorkHeldException)
+        {
+            logger.LogInformation("POS Order settlement remains held by an armed settlement barrier");
+            Outcomes.Add(1,new KeyValuePair<string,object?>("status","fenced_retry"));
+            await Task.Delay(TimeSpan.FromSeconds(1),cancellationToken);
+            await channel.BasicNackAsync(args.DeliveryTag,false,true,cancellationToken);
+        }
+        catch(Npgsql.PostgresException exception) when(exception.SqlState=="PDS01" || exception.SqlState=="P0001"&&exception.MessageText=="financial_day_fenced")
+        {
+            logger.LogWarning("POS Order settlement deferred by temporary financial day fence");
+            Outcomes.Add(1,new KeyValuePair<string,object?>("status","fenced_retry"));
+            await Task.Delay(TimeSpan.FromSeconds(1),cancellationToken);
+            await channel.BasicNackAsync(args.DeliveryTag,false,true,cancellationToken);
+        }
         catch(Exception exception) when(exception is not OperationCanceledException)
         {
-            logger.LogError(exception,"POS Order settlement event {EventId} will be retried.",eventId);
+            logger.LogError("POS Order settlement will be retried; category {Category}",exception.GetType().Name);
             Outcomes.Add(1,new KeyValuePair<string,object?>("status","retry"));
             await channel.BasicNackAsync(args.DeliveryTag,false,true,cancellationToken);
         }

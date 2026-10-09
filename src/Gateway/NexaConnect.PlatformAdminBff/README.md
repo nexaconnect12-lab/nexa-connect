@@ -1,5 +1,7 @@
 # Platform Admin BFF
 
+Publishing this BFF builds the Product Owner Portal through the shared frontend workspace and therefore requires Node 22.12+ on 22.x or Node 24+. Run the separate production/full-tree audit commands before release; they are CI gates and are not automatically executed by the existing publish target. See [frontend runtime and audit policy](../../../docs/Deployment/Frontend-Dependency-Hardening.md).
+
 Separate Product Owner/Platform Admin session boundary. Control-plane mutations require `platform-owner` or `platform-admin`; support requests additionally allow `platform-support`, and elevation inspection allows `platform-auditor`. The BFF forwards the server-held access token to Platform Directory and never accesses PostgreSQL directly. Configure `Bff:ClientSecret` from a secret store. Development/Test use an in-memory ticket cache; other environments require Redis through `ConnectionStrings:BffSessionCache`, with optional key isolation through `BffSessionCache:InstanceName`.
 
 The recorded local origin is `https://localhost:58627` (`http://localhost:58628` is the secondary development listener). The Keycloak development client uses `https://localhost:58627/signin-oidc` and origin `https://localhost:58627`. The Phase 8 development launcher publishes and starts this BFF with the hosted Product Owner Portal using `PLATFORM_ADMIN_BFF_CLIENT_SECRET` from the ignored `.env`.

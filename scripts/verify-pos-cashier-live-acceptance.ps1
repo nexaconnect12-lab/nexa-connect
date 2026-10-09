@@ -4,6 +4,9 @@ param(
     [Guid] $OrderId,
     [switch] $ConfirmInteractiveOidc,
     [switch] $ConfirmWpfCashCheckout,
+    [switch] $ConfirmReceiptPreview,
+    [switch] $ConfirmReceiptReprint,
+    [switch] $ConfirmReceiptFailureDidNotRetryPayment,
     [switch] $ConfirmSignedOut,
     [ValidateRange(1, 120)]
     [int] $ProjectionWaitSeconds = 30
@@ -12,8 +15,10 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-if (-not $ConfirmInteractiveOidc -or -not $ConfirmWpfCashCheckout -or -not $ConfirmSignedOut) {
-    throw 'Interactive OIDC, the WPF cash-checkout sequence, and final sign-out must all be explicitly confirmed.'
+if (-not $ConfirmInteractiveOidc -or -not $ConfirmWpfCashCheckout -or
+    -not $ConfirmReceiptPreview -or -not $ConfirmReceiptReprint -or
+    -not $ConfirmReceiptFailureDidNotRetryPayment -or -not $ConfirmSignedOut) {
+    throw 'Interactive OIDC, WPF cash checkout, receipt preview/reprint/failure isolation, and final sign-out must all be explicitly confirmed.'
 }
 if ($OrderId -eq [Guid]::Empty) { throw 'OrderId must be a non-empty UUID.' }
 
@@ -66,6 +71,7 @@ function Invoke-LocalJsonQuery([string] $Database, [string] $Sql) {
 }
 
 $orderSql = @"
+BEGIN READ ONLY;
 SELECT json_build_object(
   'orderCount', (SELECT count(*) FROM orders WHERE id = '$orderText'::uuid),
   'completedOrderCount', (SELECT count(*) FROM orders WHERE id = '$orderText'::uuid AND status = 'completed'),
@@ -95,15 +101,62 @@ SELECT json_build_object(
   'organizationId', (SELECT organization_id::text FROM order_manual_tender_settlements WHERE order_id = '$orderText'::uuid),
   'branchId', (SELECT branch_id::text FROM order_manual_tender_settlements WHERE order_id = '$orderText'::uuid),
   'terminalId', (SELECT terminal_id::text FROM order_manual_tender_settlements WHERE order_id = '$orderText'::uuid)
+  , 'receiptCount', (SELECT count(*) FROM orders WHERE id = '$orderText'::uuid AND receipt_snapshot IS NOT NULL)
+  , 'receiptVersion', (SELECT (receipt_snapshot->>'Version')::integer FROM orders WHERE id = '$orderText'::uuid)
+  , 'receiptNumber', (SELECT receipt_snapshot->>'ReceiptNumber' FROM orders WHERE id = '$orderText'::uuid)
+  , 'receiptTotal', (SELECT (receipt_snapshot->>'TotalAmount')::numeric FROM orders WHERE id = '$orderText'::uuid)
+  , 'receiptSubtotal', (SELECT (receipt_snapshot->>'SubtotalAmount')::numeric FROM orders WHERE id = '$orderText'::uuid)
+  , 'receiptServiceCharge', (SELECT (receipt_snapshot->>'ServiceChargeAmount')::numeric FROM orders WHERE id = '$orderText'::uuid)
+  , 'receiptTax', (SELECT (receipt_snapshot->>'TaxAmount')::numeric FROM orders WHERE id = '$orderText'::uuid)
+  , 'receiptCurrency', (SELECT receipt_snapshot->>'Currency' FROM orders WHERE id = '$orderText'::uuid)
+  , 'receiptTender', (SELECT receipt_snapshot->>'Tender' FROM orders WHERE id = '$orderText'::uuid)
+  , 'receiptLineCount', (SELECT jsonb_array_length(receipt_snapshot->'Lines') FROM orders WHERE id = '$orderText'::uuid)
+  , 'storedLineCount', (SELECT count(*) FROM order_lines WHERE order_id = '$orderText'::uuid)
+  , 'matchingReceiptLineCount', (
+    SELECT count(*) FROM orders customer_order
+    CROSS JOIN LATERAL jsonb_array_elements(customer_order.receipt_snapshot->'Lines') receipt_line
+    JOIN order_lines stored_line ON stored_line.order_id = customer_order.id
+      AND stored_line.product_id = (receipt_line->>'ProductId')::uuid
+      AND stored_line.name_snapshot = receipt_line->>'Name'
+      AND stored_line.unit_price = (receipt_line->>'UnitPrice')::numeric
+      AND stored_line.quantity = (receipt_line->>'Quantity')::numeric
+      AND stored_line.line_total = (receipt_line->>'Total')::numeric
+    WHERE customer_order.id = '$orderText'::uuid
+  )
+  , 'receiptScopeMatches', (
+    SELECT (receipt_snapshot->>'OrderId')::uuid = id
+      AND (receipt_snapshot->>'OrganizationId')::uuid = organization_id
+      AND (receipt_snapshot->>'RestaurantId')::uuid = restaurant_id
+      AND (receipt_snapshot->>'BranchId')::uuid = branch_id
+      AND receipt_snapshot->>'OrderNumber' = order_number
+      AND receipt_snapshot->>'Currency' = btrim(currency)
+      AND (receipt_snapshot->>'TotalAmount')::numeric = total_amount
+      AND (receipt_snapshot->>'SubtotalAmount')::numeric = subtotal_amount
+      AND (receipt_snapshot->>'ServiceChargeAmount')::numeric = service_charge_amount
+      AND (receipt_snapshot->>'TaxAmount')::numeric = tax_amount
+    FROM orders WHERE id = '$orderText'::uuid
+  )
 )::text;
+COMMIT;
 "@
 $order = Invoke-LocalJsonQuery 'NexaConnect_Order' $orderSql
 if ([int]$order.orderCount -ne 1 -or [int]$order.completedOrderCount -ne 1 -or
     [int]$order.cashSettlementCount -ne 1) {
     throw 'Order acceptance failed: expected one completed order with one exact-total THB cash settlement.'
 }
+$expectedReceiptNumber = 'R-' + $OrderId.ToString('N').ToUpperInvariant()
+if ([int]$order.receiptCount -ne 1 -or [int]$order.receiptVersion -ne 1 -or
+    [string]$order.receiptNumber -cne $expectedReceiptNumber -or
+    [decimal]$order.receiptTotal -ne [decimal]$order.settlementAmount -or
+    [decimal]$order.receiptSubtotal + [decimal]$order.receiptServiceCharge + [decimal]$order.receiptTax -ne [decimal]$order.receiptTotal -or
+    [string]$order.receiptCurrency -cne 'THB' -or [string]$order.receiptTender -cne 'cash' -or
+    [int]$order.receiptLineCount -le 0 -or [int]$order.receiptLineCount -ne [int]$order.storedLineCount -or
+    [int]$order.matchingReceiptLineCount -ne [int]$order.storedLineCount -or $order.receiptScopeMatches -ne $true) {
+    throw 'Receipt acceptance failed: expected one immutable version-1 cash receipt matching the paid Order scope, lines and accepted bill.'
+}
 
 $posSql = @"
+BEGIN READ ONLY;
 WITH projection AS (
   SELECT settlement_id, organization_id, branch_id, terminal_id, cash_session_id, amount
   FROM pos_order_settlements
@@ -152,6 +205,7 @@ SELECT json_build_object(
     WHERE shift.status = 'closed'
   )
 )::text;
+COMMIT;
 "@
 
 $deadline = [DateTimeOffset]::UtcNow.AddSeconds($ProjectionWaitSeconds)
@@ -206,6 +260,12 @@ $evidence = [ordered]@{
     orderId = $orderText
     interactiveOidcConfirmed = $true
     wpfCashCheckoutConfirmed = $true
+    receiptPreviewConfirmed = $true
+    receiptReprintConfirmed = $true
+    receiptFailureIsolationConfirmed = $true
+    receiptSnapshotVerified = $true
+    receiptVersion = 1
+    receiptLineCount = [int]$order.receiptLineCount
     signedOutConfirmed = $true
     completedOrderCount = 1
     cashSettlementCount = 1

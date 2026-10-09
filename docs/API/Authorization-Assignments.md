@@ -1,5 +1,17 @@
 # Authorization role assignments
 
+## Decision policy
+
+`POST /api/authorization/v1/decisions` evaluates the authenticated subject with `organizationId`, optional `restaurantId`/`branchId`, `permission`, and optional `amount`/`currency`. It returns `200` with `decisionId`, `granted` and `evaluatedLimit`, including denied decisions. Missing subject identity is forbidden. The caller must supply the resource's validated hierarchy; a decision is not proof of ownership by itself.
+
+The most specific active matching user override replaces role fallback: branch precedes restaurant, which precedes organization. At equal specificity, deny wins; an unknown selected effect fails closed. Without an override, an active role assignment and active role must match the requested organization and hierarchical scope and carry the permission. A more specific allow can replace a broader deny.
+
+If an amount is supplied, permission alone is insufficient: the amount must be nonnegative and no greater than a present active approval limit matching restaurant, action and currency. The evaluated limit is the maximum eligible subject or matching-role limit. Roles assigned outside the requested scope, inactive roles and inactive assignments cannot contribute limits. Without an amount, no financial limit is evaluated.
+
+Infrastructure reads overrides, roles and limits in one PostgreSQL statement snapshot. Domain policy evaluates that evidence; Application persists the decision with `policy_version=2` before returning it. A failed audit write fails the request rather than returning an unaudited grant. Every invocation rereads policy without a grant cache. Policy changes after the read snapshot can affect the next decision, but do not cancel an in-flight decision; policy read, audit insertion and the caller's later business transaction are not one atomic transaction. No schema migration or new grant accompanies this policy correction.
+
+Operational decision logs contain only the decision UUID and granted flag, with shared correlation context. Subject, scope, permission, amounts, database diagnostics and request bodies are excluded. The restricted decision audit remains Authorization-owned.
+
 Authorization migration 6 grants `order.manual-payment.confirm` to existing `cashier`, `store-manager`, and `tenant-admin` roles; runtime assignment provisioning grants it to roles created later. Normal branch/restaurant/organization hierarchy still applies and Order revalidates the exact branch. A controlled `6→5` downgrade deletes only these associations; disable manual settlement before rollback.
 
 Authorization migration 7 grants `pos.cash-review.read` and `pos.cash-review.resolve` to existing and newly assigned `tenant-admin` and `store-manager` roles. Existing and newly assigned `accountant` roles receive read only. POS revalidates Restaurant hierarchy and POS-owned store scope before each decision request. A controlled `7→6` downgrade deletes only these review associations; disable POS Cash Review reads and decisions before rollback.

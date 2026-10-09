@@ -1,0 +1,1 @@
+{"version":9,"name":"paid_order_receipts","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.18.0"}

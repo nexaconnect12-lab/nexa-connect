@@ -10,6 +10,8 @@ using NexaConnect.Services.POS.Infrastructure.Messaging;
 using NexaConnect.Services.POS.Infrastructure.Persistence;
 using Npgsql;
 
+if (args.FirstOrDefault() == "--cash-corrections") return await CashCorrectionReplayCommand.RunAsync(args.Skip(1).ToArray());
+
 using var logging = NexaConnectObservabilityExtensions.CreateClientLoggerFactory("nexaconnect-cash-close-replay",
     new ObservabilityOptions { OtlpEnabled = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")), OtlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT") });
 var logger = logging.CreateLogger("CashCloseReplay");

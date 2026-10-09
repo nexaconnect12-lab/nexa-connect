@@ -1,5 +1,23 @@
 # Migration scripts
 
+POS 21 adds immutable correction replay audit; Reporting 21 adds separate correction facts/receipt hashes. Latest compatibility is 0.35.0. Retained source replay audit blocks downgrade; controlled Reporting projection rebuild requires retained original POS events. See [contract](../../../../docs/API/Cash-Correction-Reporting.md) and [operations](../../../../docs/Deployment/Cash-Correction-Reporting.md).
+
+POS 20 adds verified late-cash correction ledger/audit and posting-time journal guards; Authorization 15 grants posting permission. Application compatibility is 0.34.0. Empty rollback drops corrections before reviews/barriers; retained history requires forward recovery. See [rollout](../../../../docs/Deployment/Late-Cash-Corrections.md).
+
+The late-work review slice introduced stable custody UUIDs and one append-only `source_late_work_reviews` table per owner: Order 19 / Payment 18 / POS 19. Authorization 14 grants manager review; minimum compatibility is 0.33.0 and Reporting remains 20. Retained custody or review history prevents source downgrade; empty rollback removes review migrations before settlement/barrier migrations. See [review rollout](../../../../docs/Deployment/Late-Work-Reviews.md).
+
+The durable settlement slice introduced: Order 18, Payment 17 and POS 17 add source barriers/audit/custody/links; POS 18 adds durable coordinator/operation/decision/receipt/audit; Authorization 13 grants manager finalization. Minimum compatibility is 0.32.0, Reporting remains 20. New migrations are additive; never rewrite applied migrations. Retained settlement/source history prevents destructive downgrade; empty rollback removes POS 18 before barriers and original preparation/fences. See [settlement rollout](../../../../docs/Deployment/Day-Close-Settlements.md).
+
+POS 14 adds three approval tables; Authorization 11 backfills manager approval grants without new tables. The approval migration boundary requires application compatibility 0.30.0. See [approval rollout](../../../../docs/Deployment/Day-Close-Approvals.md).
+
+Exact historical-day attribution is implemented in Order 16 / Payment 15 / POS 13 (compatibility 0.29.0). Source-owned before/after selection distinguishes creation-time sales, Paid-time tenders, refund completion and drawer closure/review. Unrelated historical changes are excluded; older unresolved work, missing history, legacy descriptors and ownership uncertainty block readiness. Managers see bounded record identities, reasons, statuses, versions and effective times beside the preserved baseline/current comparison. Snapshot approval is implemented separately; durable online settlement is implemented separately by ADR-029; verified POS late-cash correction posting is implemented separately by ADR-031; other correction types and offline finalization remain planned. See [attribution and comparison policy](../../../../docs/Architecture/Decisions/ADR-026-exact-historical-day-attribution.md).
+
+Current exact-attribution migrations replace capture functions with version-two descriptors and require compatibility 0.29.0; no tables are added. Version-two history rejects downgrade, while empty/legacy-only downgrade restores version-one capture without rewriting epochs or history. Parent row locks require existing owning SELECT/UPDATE privileges. Existing immutable financial history guards remain intact.
+
+The preceding Order 14 / Payment 13 / POS 11 migrations add day seals, append-only branch change journals and (in POS) separate durable coordination. Compatibility is 0.27.0. Existing revision epochs survive empty new-migration downgrade/reapply; retained history requires forward recovery. See [ADR-024](../../../../docs/Architecture/Decisions/ADR-024-source-day-seals-and-late-change-journals.md).
+
+Order 13 / Payment 12 / POS 10 add source financial epochs, transactionally advanced branch revisions and guarded downgrade after protocol-two manifests. Compatibility is 0.26.0. Counts below are distinct CREATE TABLE names in the current owning up-script catalog. See [ADR-023](../../../../docs/Architecture/Decisions/ADR-023-revision-fenced-day-close-evidence.md).
+
 Create one directory per owning service and one subdirectory per sequential migration version. Each migration contains `migration.json`, `up.sql`, and `down.sql`.
 
 ## Current schema catalog
@@ -7,20 +25,20 @@ Create one directory per owning service and one subdirectory per sequential migr
 | Service | Version | Owned tables |
 | --- | ---: | ---: |
 | PlatformDirectory | 3 | 8 |
-| Authorization | 6 | 7 |
+| Authorization | 15 | 7 |
 | Restaurant | 3 | 8 |
 | Catalog | 4 | 22 |
 | Inventory | 5 | 11 |
-| Order | 5 | 13 |
+| Order | 19 | 28 |
 | Kitchen | 3 | 8 |
 | Customer | 2 | 6 |
-| Payment | 7 | 6 |
+| Payment | 18 | 21 |
 | Notification | 3 | 5 |
-| POS | 4 | 9 |
+| POS | 21 | 50 |
 | Media | 4 | 6 |
-| Reporting | 14 | 9 |
+| Reporting | 21 | 17 |
 
-The current 13-service catalog contains 118 tables. Counts include service-owned technical tables such as outboxes, inboxes, idempotency records, audit history, and projection checkpoints. Index counts should be generated from the packaged migration catalog when needed rather than maintained manually here.
+The current 13-service catalog contains 197 tables. Counts include service-owned technical tables such as outboxes, inboxes, idempotency records, audit history, and projection checkpoints. Index counts should be generated from the packaged migration catalog when needed rather than maintained manually here.
 
 Versions must be linear, sortable, immutable, independently owned by one service, and transactional. Non-transactional migrations are not supported because schema mutation and migration-history recording must remain atomic.
 

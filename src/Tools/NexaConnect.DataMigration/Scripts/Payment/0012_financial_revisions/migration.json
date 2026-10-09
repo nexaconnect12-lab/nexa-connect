@@ -1,0 +1,7 @@
+{
+  "downgradeSafety": "destructive",
+  "name": "financial_revisions",
+  "transactional": true,
+  "version": 12,
+  "minimumApplicationVersion": "0.26.0"
+}

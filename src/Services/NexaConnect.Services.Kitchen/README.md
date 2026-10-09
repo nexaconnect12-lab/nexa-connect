@@ -1,5 +1,7 @@
 # NexaConnect Kitchen Service
 
+The Order pre-payment cancellation saga uses the existing workload-only ticket cancellation before Inventory release. Missing/already-cancelled work is idempotent; completed preparation returns `409`, which Order records as cancellation review and does not follow with Inventory release. No Kitchen schema or event contract changed.
+
 Kitchen owns tenant-scoped preparation tickets and ticket-level lifecycle state. Only `nexaconnect-order-service` may create or compensate tickets; operators use tenant-authorized branch routes with `kitchen.ticket.read` or `kitchen.ticket.transition`.
 
 - `POST /api/kitchen/v1/tickets` creates one station ticket.

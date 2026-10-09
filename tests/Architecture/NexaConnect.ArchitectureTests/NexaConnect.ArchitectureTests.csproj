@@ -19,6 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Order\NexaConnect.Services.Order.csproj" />
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Payment\NexaConnect.Services.Payment.csproj" />
+    <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Authorization\NexaConnect.Services.Authorization.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Reporting\NexaConnect.Services.Reporting.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.POS\NexaConnect.Services.POS.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Kitchen\NexaConnect.Services.Kitchen.csproj" />

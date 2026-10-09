@@ -28,6 +28,7 @@ $values = [ordered]@{
     NEXACONNECT_POS_SERVICE_CLIENT_SECRET = 'validation-pos-workload-secret'
     NEXACONNECT_CATALOG_SERVICE_CLIENT_SECRET = 'validation-catalog-workload-secret'
     NEXACONNECT_ORDER_SERVICE_CLIENT_SECRET = 'validation-order-workload-secret'
+    NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET = 'validation-reporting-workload-secret'
     NEXACONNECT_INVENTORY_SERVICE_CLIENT_SECRET = 'validation-inventory-workload-secret'
     NEXACONNECT_KITCHEN_SERVICE_CLIENT_SECRET = 'validation-kitchen-workload-secret'
     NEXACONNECT_PAYMENT_SERVICE_CLIENT_SECRET = 'validation-payment-workload-secret'
@@ -73,6 +74,7 @@ $requiredClients = @(
     'nexaconnect-pos-service'
     'nexaconnect-catalog-service'
     'nexaconnect-order-service'
+    'nexaconnect-reporting-service'
     'nexaconnect-inventory-service'
     'nexaconnect-kitchen-service'
     'nexaconnect-payment-service'
@@ -119,6 +121,14 @@ $posWorkloadAudience = @($posWorkload.protocolMappers | Where-Object {
 if ($posWorkloadAudience.Count -ne 1) {
     throw 'The POS workload client must emit the nexaconnect-api audience in access tokens.'
 }
+$posWorkloadUsername = @($posWorkload.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-usermodel-property-mapper' -and $_.config.'user.attribute' -eq 'username' -and
+    $_.config.'claim.name' -eq 'preferred_username' -and $_.config.'access.token.claim' -eq 'true' -and
+    $_.config.'id.token.claim' -eq 'false' -and $_.config.'userinfo.token.claim' -eq 'false'
+})
+if ($posWorkloadUsername.Count -ne 1 -or $posWorkload[0].standardFlowEnabled -or $posWorkload[0].directAccessGrantsEnabled -or -not $posWorkload[0].serviceAccountsEnabled) {
+    throw 'The POS settlement workload must emit its service-account username only in access tokens and prohibit human sign-in flows.'
+}
 
 $orderClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-order-service')
 $orderAudience = @($orderClient.protocolMappers | Where-Object {
@@ -129,6 +139,22 @@ if ($orderClient.Count -ne 1 -or $orderAudience.Count -ne 1 -or
     throw 'The Order workload client must emit the nexaconnect-api audience in access tokens.'
 }
 
+$paymentClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-payment-service')
+$paymentAudience = @($paymentClient.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api' -and $_.config.'access.token.claim' -eq 'true'
+})
+if ($paymentClient.Count -ne 1 -or $paymentAudience.Count -ne 1) {
+    throw 'The Payment workload client must emit the nexaconnect-api audience in access tokens.'
+}
+$reportingClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-reporting-service')
+$reportingAudience = @($reportingClient.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api' -and $_.config.'access.token.claim' -eq 'true'
+})
+if ($reportingClient.Count -ne 1 -or $reportingAudience.Count -ne 1 -or
+    $reportingClient[0].publicClient -or -not $reportingClient[0].serviceAccountsEnabled -or
+    $reportingClient[0].standardFlowEnabled -or $reportingClient[0].directAccessGrantsEnabled) {
+    throw 'Reporting must use a confidential client-credentials client with the API audience.'
+}
 $posClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-pos')
 $posSubject = @($posClient.protocolMappers | Where-Object protocolMapper -eq 'oidc-sub-mapper')
 $posAudience = @($posClient.protocolMappers | Where-Object {
@@ -150,6 +176,14 @@ if ($catalogClient.Count -ne 1 -or $catalogAudience.Count -ne 1 -or
 }
 
 $publicClients = @($realm.clients | Where-Object publicClient)
+$inventoryClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-inventory-service')
+$inventoryAudience = @($inventoryClient.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-audience-mapper' -and $_.config.'included.custom.audience' -eq 'nexaconnect-api'
+})
+if ($inventoryClient.Count -ne 1 -or $inventoryAudience.Count -ne 1 -or
+    $inventoryAudience[0].config.'access.token.claim' -ne 'true') {
+    throw 'The Inventory workload client must emit the nexaconnect-api audience in access tokens.'
+}
 foreach ($client in $publicClients) {
     if ($client.attributes.'pkce.code.challenge.method' -ne 'S256') {
         throw "Public client '$($client.clientId)' does not require PKCE S256."

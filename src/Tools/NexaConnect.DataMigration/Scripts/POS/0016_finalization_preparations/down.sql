@@ -1,0 +1,2 @@
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM branch_day_finalization_preparations) OR EXISTS(SELECT 1 FROM branch_day_finalization_operations) OR EXISTS(SELECT 1 FROM branch_day_finalization_audit) THEN RAISE EXCEPTION 'Finalization history requires forward recovery'; END IF; END; $$;
+DROP TABLE branch_day_finalization_audit;DROP TABLE branch_day_finalization_operations;DROP TABLE branch_day_finalization_preparations;DROP FUNCTION protect_finalization_history();

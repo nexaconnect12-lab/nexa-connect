@@ -4,7 +4,7 @@ using NexaConnect.Services.POS.Application.CashSessions;
 
 namespace NexaConnect.Services.POS.Infrastructure.Persistence;
 
-public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICashSessionStore
+public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource, TimeProvider? timeProvider = null) : ICashSessionStore
 {
     public async Task<Guid> OpenAsync(
         Guid shiftId,
@@ -18,7 +18,7 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
             INSERT INTO cash_sessions
                 (id, store_id, shift_id, currency, opening_amount, status,
                  opened_at_utc, created_at_utc, updated_at_utc)
-            SELECT $1, $2, shift.id, $3, $4, 'open', now(), now(), now()
+            SELECT $1, $2, shift.id, $3, $4, 'open', $6, $6, $6
             FROM shifts shift
             WHERE shift.id = $5 AND shift.store_id = $2 AND shift.status = 'open'
             ON CONFLICT (shift_id) DO NOTHING;
@@ -30,6 +30,7 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
         command.Parameters.AddWithValue(currency.ToUpperInvariant());
         command.Parameters.AddWithValue(openingAmount);
         command.Parameters.AddWithValue(shiftId);
+        command.Parameters.AddWithValue((timeProvider ?? TimeProvider.System).GetUtcNow());
         if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
         {
             const string existingSql = "SELECT status FROM cash_sessions WHERE shift_id = $1 AND store_id = $2;";
@@ -254,7 +255,7 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
                     (SELECT SUM(CASE WHEN movement_type IN ('sale', 'pay_in', 'float_adjustment')
                                      THEN amount ELSE -amount END)
                      FROM cash_movements WHERE cash_session_id = session.id), 0)),
-                closed_at_utc = now(), updated_at_utc = now(), concurrency_version = concurrency_version + 1
+                closed_at_utc = $6, updated_at_utc = $6, concurrency_version = concurrency_version + 1
             WHERE session.id = $1 AND session.status = 'open' AND session.concurrency_version = $3
               AND EXISTS (
                   SELECT 1 FROM shifts shift
@@ -268,6 +269,7 @@ public sealed class PostgresCashSessionStore(NpgsqlDataSource dataSource) : ICas
         command.Parameters.AddWithValue(expectedConcurrencyVersion);
         command.Parameters.AddWithValue(terminalId);
         command.Parameters.AddWithValue(subject);
+        command.Parameters.AddWithValue((timeProvider ?? TimeProvider.System).GetUtcNow());
         if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
         {
             throw new InvalidOperationException(

@@ -105,8 +105,10 @@ public sealed class OrderWorkflowRecoveryService(
                 }
                 else
                 {
+                    DateTimeOffset paidAtUtc = clock.GetUtcNow();
                     order.MarkPaid(paid.PaymentId.Value);
-                    integrationEvent = new PaymentCompletedV1(OrderPaymentEventIdentity.Completion(order.Id, paymentMethod), correlationId, clock.GetUtcNow(),
+                    order.IssueReceipt(paidAtUtc, paymentMethod);
+                    integrationEvent = new PaymentCompletedV1(OrderPaymentEventIdentity.Completion(order.Id, paymentMethod), correlationId, paidAtUtc,
                         order.Id, paid.PaymentId.Value, order.TotalAmount, order.Currency, paymentMethod);
                 }
 

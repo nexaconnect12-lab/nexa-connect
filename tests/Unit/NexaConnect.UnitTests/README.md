@@ -1,5 +1,15 @@
 # NexaConnect Unit Tests
 
+`DaySealTests` protect source Domain eligibility, pinned review/resume, stale completion fencing, immutable late-change evidence, journal/delivery blockers and sealed-set Reporting authorization/proof. `DayChangeAttributionTests` cover before/after timestamps, exclusive UTC boundaries and unknown/incomplete anchors in each owning Domain. Migration catalog tests now expect Order 15 / Payment 14 / POS 12. See [seal verification](../../../docs/Architecture/Evidence/Day-Close-Seals.md).
+
+`DayCutoffTests` additionally reject legacy/unproven delivery, preserve revision equality boundaries, require current revision-bound sources and reject changed retained revision identities. The revision foundation was introduced in Order 13 / Payment 12 / POS 10; current catalog expectations use the attribution versions above. See [revision protocol](../../../docs/Architecture/Decisions/ADR-023-revision-fenced-day-close-evidence.md).
+
+`DayClosePreparationTests` cover aggregate readiness/blocker policy, same-total version drift, immutable exported evidence, expired restart/resume fencing, live permissions/hierarchy, source outage invalidation and cancellation. The source-interface fake does not replace PostgreSQL/HTTP/browser acceptance; see [verification](../../../docs/Deployment/Day-Close-Preparation.md).
+
+OrderPricingTests verifies inclusive/exclusive calculations, decimal rounding, changed-price confirmation, snapshot replay, scope/content conflicts, tamper rejection and provider totals. ProductConfigurationTests bounds tax precision; PosCheckoutIntegrationTests covers quote identity and explicit reconfirmation responses.
+
+`AuthorizationPolicyTests` supplies 12 cases covering explicit override precedence, unknown-effect denial, nonnegative bounded amounts, missing limits and audit-write failure. These passed for policy version 2; persistence scope selection is covered separately by live PostgreSQL tests.
+
 Cash-close tests protect snapshot translation, ownership/source-version invariants, late-settlement review invalidation, exact-store authorization before reads, cursor bounds, authoritative publication scope and repeated Restaurant-client requests. Migration discovery checks include POS 6 and Reporting 15. Run the `CashClose|MigrationRunner` fully qualified name filter; these tests do not exercise a live broker. See [cash-close verification](../../../docs/API/Cash-Close-Reporting.md).
 
 The unit suite covers application and domain behavior without production infrastructure. POS coverage includes shift authorization and concurrency orchestration, cash-session validation and currency normalization, and terminal-enrollment scope/authorization decisions through controlled persistence and provider doubles. Platform identity coverage verifies role policies plus support-elevation duration, separation-of-duties, expiry, and Application persistence orchestration.

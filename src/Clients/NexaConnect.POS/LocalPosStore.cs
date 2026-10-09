@@ -5,11 +5,16 @@ using Microsoft.Data.Sqlite;
 
 namespace NexaConnect.POS;
 
+public sealed record LocalReceiptReference(Guid OrderId);
+public sealed record LocalPendingRefundState(Guid PaymentIntentId, Guid OperationId, decimal Amount,
+    string Currency, string ReasonCode, Guid? RefundId = null);
+public sealed record LocalRefundReference(Guid PaymentIntentId, Guid OperationId);
 public sealed record LocalShiftState(Guid ShiftId, string ShiftNumber, DateTimeOffset OpenedAtUtc);
 public sealed record LocalCashSessionState(Guid CashSessionId, Guid ShiftId, DateTimeOffset OpenedAtUtc);
 public sealed record LocalPendingSettlementState(Guid OrderId, decimal Amount, string Currency,
     Guid IdempotencyKey, string? Method = null, bool ReceiptConfirmed = false, string? BankReference = null,
-    bool OutcomeUncertain = false);
+    bool OutcomeUncertain = false, PosOrderPricing? Pricing = null, string? CancellationStatus = null,
+    string? CancellationReason = null);
 public sealed record LocalPendingCashReviewState(
     Guid IdempotencyKey,
     Guid CashSessionId,
@@ -67,6 +72,13 @@ public sealed class LocalPosStore
         database = new LocalPosDatabase(storageDirectory, payloadProtector, scope);
     }
 
+    public LocalReceiptReference? LoadLastReceipt() => Read<LocalReceiptReference>("last-receipt", "The last receipt reference cannot be read.");
+    public void SaveLastReceipt(Guid orderId)
+    {
+        if (orderId == Guid.Empty) throw new ArgumentException("Order identity is required.");
+        Write("last-receipt", new LocalReceiptReference(orderId));
+    }
+
     public LocalShiftState? LoadActiveShift() => Read<LocalShiftState>("active-shift",
         "The saved shift cannot be read. Preserve the local POS database and reconcile the shift.");
 
@@ -98,12 +110,36 @@ public sealed class LocalPosStore
     public void SavePendingSettlement(LocalPendingSettlementState state)
     {
         if (state.OrderId == Guid.Empty || state.IdempotencyKey == Guid.Empty || state.Amount <= 0
-            || !string.Equals(state.Currency, "THB", StringComparison.Ordinal))
+            || !string.Equals(state.Currency, "THB", StringComparison.Ordinal)
+            || state.CancellationStatus is not (null or "pending" or "blocked")
+            || (state.CancellationStatus is null) != (state.CancellationReason is null)
+            || (state.CancellationReason is not null && (state.CancellationReason.Length is < 1 or > 200
+                || state.CancellationReason != state.CancellationReason.Trim()
+                || state.CancellationReason.Any(char.IsControl))))
             throw new InvalidDataException("The pending settlement state is invalid.");
         Write("pending-settlement", state);
     }
 
     public void ClearPendingSettlement() => Delete("pending-settlement");
+
+    public LocalPendingRefundState? LoadPendingRefund() => Read<LocalPendingRefundState>("pending-refund",
+        "The pending refund cannot be read. Preserve the local POS database and verify the provider result before another refund.");
+    public void SavePendingRefund(LocalPendingRefundState state)
+    {
+        if (state.PaymentIntentId == Guid.Empty || state.OperationId == Guid.Empty || state.Amount <= 0
+            || state.Currency != "THB" || state.ReasonCode is not ("customer_request" or "duplicate_charge"
+                or "item_unavailable" or "service_issue" or "other"))
+            throw new InvalidDataException("The pending refund state is invalid.");
+        Write("pending-refund", state);
+    }
+    public void ClearPendingRefund() => Delete("pending-refund");
+    public LocalRefundReference? LoadLastRefund() => Read<LocalRefundReference>("last-refund",
+        "The last refund reference cannot be read.");
+    public void SaveLastRefund(Guid paymentIntentId, Guid operationId)
+    {
+        if (paymentIntentId == Guid.Empty || operationId == Guid.Empty) throw new ArgumentException("Refund identity is required.");
+        Write("last-refund", new LocalRefundReference(paymentIntentId, operationId));
+    }
 
     public PendingCheckout? LoadPendingCheckout() => Read<PendingCheckout>("pending-checkout",
         "Pending checkout recovery cannot be read. Preserve the local POS database and reconcile; do not submit another order.");

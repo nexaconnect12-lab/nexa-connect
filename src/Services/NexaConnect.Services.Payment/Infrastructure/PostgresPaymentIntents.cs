@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace NexaConnect.Services.Payment.Infrastructure;
 
-public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions<PaymentProviderOptions>? options = null) : IPaymentIntents
+public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions<PaymentProviderOptions>? options = null, TimeProvider? clock = null) : IPaymentIntents
 {
     private readonly TimeSpan leaseDuration = options?.Value.LeaseDuration > TimeSpan.Zero ? options.Value.LeaseDuration : TimeSpan.FromMinutes(2);
     private readonly int maximumCaptureRecoveryAttempts = Math.Min(options?.Value.MaximumCaptureRecoveryAttempts > 0
@@ -20,7 +20,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
         if (context is null || string.IsNullOrWhiteSpace(context.ActorSubjectId) || context.ActorSubjectId.Length > 200
             || context.ActorSubjectId.Any(char.IsControl) || context.CorrelationId == Guid.Empty)
             throw new ArgumentException("A valid mutation actor and correlation identifier are required.");
-        DateTimeOffset occurredAt = DateTimeOffset.UtcNow;
+        DateTimeOffset occurredAt = (clock ?? TimeProvider.System).GetUtcNow();
         PaymentIntentAggregate candidate = PaymentIntentAggregate.Create(organizationId, command.RestaurantId, command.BranchId,
             command.OrderId, command.IdempotencyKey, command.Amount, command.Currency, command.PaymentMethod, occurredAt);
         const string sql = """
@@ -85,7 +85,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
     public PaymentAuthorizationLease BeginAuthorization(Guid organizationId, Guid id, PaymentMutationContext context)
     {
         ValidateContext(context);
-        DateTimeOffset occurredAt = DateTimeOffset.UtcNow;
+        DateTimeOffset occurredAt = (clock ?? TimeProvider.System).GetUtcNow();
         using NpgsqlConnection connection = dataSource.OpenConnection();
         using NpgsqlTransaction transaction = connection.BeginTransaction();
         PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id)
@@ -125,7 +125,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
         ValidateContext(context);
         if (outcome == ProviderAuthorizationOutcome.Authorized && string.IsNullOrWhiteSpace(providerAuthorizationId))
             throw new ArgumentException("A successful authorization requires a provider reference.");
-        DateTimeOffset occurredAt = DateTimeOffset.UtcNow;
+        DateTimeOffset occurredAt = (clock ?? TimeProvider.System).GetUtcNow();
         using NpgsqlConnection connection = dataSource.OpenConnection();
         using NpgsqlTransaction transaction = connection.BeginTransaction();
         PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id)
@@ -173,7 +173,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
         {
             if (intent.AuthorizationAttemptCount >= 3)
             {
-                DateTimeOffset exhaustedAt = DateTimeOffset.UtcNow;
+                DateTimeOffset exhaustedAt = (clock ?? TimeProvider.System).GetUtcNow();
                 using var exhaustedCommand = new NpgsqlCommand("UPDATE payment_intents SET status='requires_action',failure_code='authorization_attempts_exhausted',lease_owner=NULL,lease_expires_at_utc=NULL,updated_at_utc=$1,concurrency_version=concurrency_version+1 WHERE organization_id=$2 AND id=$3 AND concurrency_version=$4", connection, transaction);
                 exhaustedCommand.Parameters.AddWithValue(exhaustedAt); exhaustedCommand.Parameters.AddWithValue(organizationId); exhaustedCommand.Parameters.AddWithValue(id); exhaustedCommand.Parameters.AddWithValue(intent.ConcurrencyVersion);
                 exhaustedCommand.ExecuteNonQuery();
@@ -185,15 +185,15 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
                 return new PaymentAuthorizationLease(exhausted, false);
             }
             using var retryCommand = new NpgsqlCommand("UPDATE payment_intents SET status='authorizing',lease_owner=$1,lease_expires_at_utc=$2,authorization_attempt_count=authorization_attempt_count+1,updated_at_utc=$2,concurrency_version=concurrency_version+1 WHERE organization_id=$3 AND id=$4 AND concurrency_version=$5", connection, transaction);
-            retryCommand.Parameters.AddWithValue(context.ActorSubjectId.Trim()); retryCommand.Parameters.AddWithValue(DateTimeOffset.UtcNow.Add(leaseDuration)); retryCommand.Parameters.AddWithValue(organizationId); retryCommand.Parameters.AddWithValue(id); retryCommand.Parameters.AddWithValue(intent.ConcurrencyVersion);
+            retryCommand.Parameters.AddWithValue(context.ActorSubjectId.Trim()); retryCommand.Parameters.AddWithValue((clock ?? TimeProvider.System).GetUtcNow().Add(leaseDuration)); retryCommand.Parameters.AddWithValue(organizationId); retryCommand.Parameters.AddWithValue(id); retryCommand.Parameters.AddWithValue(intent.ConcurrencyVersion);
             if (retryCommand.ExecuteNonQuery() != 1) throw new PaymentConcurrencyException("The authorization recovery claim changed before retry.");
             PaymentIntent retry = ReadForUpdate(connection, transaction, organizationId, id)!;
             transaction.Commit();
             return new PaymentAuthorizationLease(retry, true);
         }
-        if (intent.Status != "authorizing" || intent.LeaseExpiresAtUtc is null || intent.LeaseExpiresAtUtc > DateTimeOffset.UtcNow)
+        if (intent.Status != "authorizing" || intent.LeaseExpiresAtUtc is null || intent.LeaseExpiresAtUtc > (clock ?? TimeProvider.System).GetUtcNow())
         { transaction.Commit(); return new PaymentAuthorizationLease(intent, false); }
-        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateTimeOffset now = (clock ?? TimeProvider.System).GetUtcNow();
         using var command = new NpgsqlCommand("UPDATE payment_intents SET status='unknown',lease_owner=NULL,lease_expires_at_utc=NULL,updated_at_utc=$1,concurrency_version=concurrency_version+1 WHERE organization_id=$2 AND id=$3 AND concurrency_version=$4", connection, transaction);
         command.Parameters.AddWithValue(now); command.Parameters.AddWithValue(organizationId); command.Parameters.AddWithValue(id); command.Parameters.AddWithValue(intent.ConcurrencyVersion);
         if (command.ExecuteNonQuery() != 1) throw new PaymentConcurrencyException("The authorization lease changed before reclamation.");
@@ -216,7 +216,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
         ProviderAuthorizationOutcome outcome, string? providerAuthorizationId, string? failureCode, PaymentMutationContext context)
     {
         ValidateContext(context);
-        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateTimeOffset now = (clock ?? TimeProvider.System).GetUtcNow();
         using NpgsqlConnection connection = dataSource.OpenConnection();
         using NpgsqlTransaction transaction = connection.BeginTransaction();
         PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
@@ -234,7 +234,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
 
     public PaymentAuthorizationLease BeginCapture(Guid organizationId, Guid id, PaymentMutationContext context)
     {
-        ValidateContext(context); DateTimeOffset now = DateTimeOffset.UtcNow;
+        ValidateContext(context); DateTimeOffset now = (clock ?? TimeProvider.System).GetUtcNow();
         using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
         PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
         if (intent.Status is "captured" or "capturing" or "capture_unknown") { transaction.Commit(); return new(intent, false); }
@@ -253,7 +253,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
         ValidateContext(context);
         if (outcome == ProviderCaptureOutcome.Captured && string.IsNullOrWhiteSpace(providerCaptureId)) throw new ArgumentException("A successful capture requires a provider reference.");
         if (outcome == ProviderCaptureOutcome.Captured && !IsSafeProviderReference(providerCaptureId!)) throw new ArgumentException("The provider capture reference is invalid.");
-        DateTimeOffset now = DateTimeOffset.UtcNow; using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
+        DateTimeOffset now = (clock ?? TimeProvider.System).GetUtcNow(); using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
         PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
         if (intent.Status == "captured") { transaction.Commit(); return intent; }
         if (intent.Status != "capturing" || intent.ConcurrencyVersion != expectedVersion) throw new PaymentConcurrencyException("The payment intent changed while capture was in progress.");
@@ -273,7 +273,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
 
     public PaymentAuthorizationLease ClaimExpiredCapture(Guid organizationId, Guid id, PaymentMutationContext context)
     {
-        ValidateContext(context); DateTimeOffset now = DateTimeOffset.UtcNow;
+        ValidateContext(context); DateTimeOffset now = (clock ?? TimeProvider.System).GetUtcNow();
         using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
         PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
         if (intent.Status == "capturing" && intent.CaptureLeaseExpiresAtUtc > now) { transaction.Commit(); return new(intent, false); }
@@ -301,7 +301,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
             throw new ArgumentException("A reconciled capture requires a provider reference.");
         if (outcome == ProviderCaptureOutcome.Captured && !IsSafeProviderReference(providerCaptureId!))
             throw new ArgumentException("The provider capture reference is invalid.");
-        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateTimeOffset now = (clock ?? TimeProvider.System).GetUtcNow();
         using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
         PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
         if (intent.Status == "captured") { transaction.Commit(); return intent; }
@@ -322,7 +322,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
 
     public PaymentAuthorizationLease BeginVoid(Guid organizationId, Guid id, PaymentMutationContext context)
     {
-        ValidateContext(context); DateTimeOffset now = DateTimeOffset.UtcNow;
+        ValidateContext(context); DateTimeOffset now = (clock ?? TimeProvider.System).GetUtcNow();
         using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
         PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
         if (intent.Status is "voided" or "voiding" or "void_unknown") { transaction.Commit(); return new(intent, false); }
@@ -343,7 +343,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
 
     public PaymentAuthorizationLease ClaimExpiredVoid(Guid organizationId, Guid id, PaymentMutationContext context)
     {
-        ValidateContext(context); DateTimeOffset now = DateTimeOffset.UtcNow;
+        ValidateContext(context); DateTimeOffset now = (clock ?? TimeProvider.System).GetUtcNow();
         using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
         PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
         if (intent.Status == "voiding" && intent.VoidLeaseExpiresAtUtc > now) { transaction.Commit(); return new(intent, false); }
@@ -370,7 +370,7 @@ public sealed class PostgresPaymentIntents(NpgsqlDataSource dataSource, IOptions
     {
         ValidateContext(context);
         if (outcome == ProviderVoidOutcome.Voided && !IsSafeProviderReference(providerVoidId ?? string.Empty)) throw new ArgumentException("A successful void requires a valid provider reference.");
-        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateTimeOffset now = (clock ?? TimeProvider.System).GetUtcNow();
         using NpgsqlConnection connection = dataSource.OpenConnection(); using NpgsqlTransaction transaction = connection.BeginTransaction();
         PaymentIntent intent = ReadForUpdate(connection, transaction, organizationId, id) ?? throw new KeyNotFoundException("Payment intent was not found.");
         if (intent.Status == "voided") { transaction.Commit(); return intent; }

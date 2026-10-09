@@ -14,6 +14,8 @@ using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-pos");
+builder.Services.AddOpenTelemetry().WithTracing(t=>t.AddSource(NexaConnect.Services.POS.Infrastructure.DayClose.SettlementRecoveryWorker.TelemetryName))
+    .WithMetrics(m=>m.AddMeter(NexaConnect.Services.POS.Infrastructure.DayClose.SettlementRecoveryWorker.TelemetryName));
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 
 // Add services to the container.
@@ -32,7 +34,7 @@ builder.Services.AddHttpClient("Authorization").AddNexaConnectCorrelationPropaga
 builder.Services.AddScoped<IShiftStore, PostgresShiftStore>();
 builder.Services.AddScoped<ICashSessionStore, PostgresCashSessionStore>();
 builder.Services.AddScoped<ICashReviewStore, PostgresCashReviewStore>();
-builder.Services.AddScoped<IOrderSettlementProjectionStore, PostgresOrderSettlementProjectionStore>();
+builder.Services.AddScoped<IOrderSettlementProjectionStore, LateAwareOrderSettlementStore>();
 builder.Services.AddScoped<ITerminalStore, PostgresTerminalStore>();
 builder.Services.AddScoped<IRestaurantScopeReader, RestaurantHierarchyClient>();
 builder.Services.AddScoped<IAuthorizationDecisionClient, AuthorizationDecisionClient>();
@@ -49,8 +51,69 @@ builder.Services.AddScoped<CashClosePublisher>();
 if (builder.Configuration.GetValue<bool>("CashClosePublication:Enabled")) builder.Services.AddHostedService<CashClosePublicationWorker>();
 if (builder.Configuration.GetValue<bool>("CashClosePublication:Enabled") || builder.Configuration.GetValue<bool>("Outbox:Enabled")) builder.Services.AddHostedService<CashCloseBacklogMonitor>();
 if (builder.Configuration.GetValue<bool>("Outbox:Enabled")) NexaConnect.Infrastructure.Messaging.OutboxServiceCollectionExtensions.AddPostgresOutbox(builder.Services, builder.Configuration, "POS");
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.PosDayRead>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPosDayReader, NexaConnect.Services.POS.Infrastructure.Persistence.PostgresPosDayReader>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IDayCloseStore, NexaConnect.Services.POS.Infrastructure.DayClose.PostgresDayCloseStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayClosePreparation>();
+builder.Services.AddHttpClient<NexaConnect.Services.POS.Application.DayClose.IDayCloseEvidenceReader, NexaConnect.Services.POS.Infrastructure.DayClose.HttpDayCloseEvidenceReader>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:Reporting"] ?? "https://reporting.invalid/"); c.Timeout = TimeSpan.FromSeconds(15); }).AddNexaConnectCorrelationPropagation();
+
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.PosCutoffs>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPosCutoffStore, NexaConnect.Services.POS.Infrastructure.Persistence.PostgresPosCutoffStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ICutoffPreparationStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresDayCutoffStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ICutoffEvidenceReader,NexaConnect.Services.POS.Infrastructure.DayClose.HttpCutoffEvidenceReader>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayCloseCutoff>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IDaySealStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresDaySealStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IDaySealEvidenceReader,NexaConnect.Services.POS.Infrastructure.DayClose.HttpDaySealEvidenceReader>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayCloseSealing>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IApprovalSealEvidenceReader,NexaConnect.Services.POS.Infrastructure.DayClose.HttpDaySealEvidenceReader>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IDayApprovalStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresDayApprovalStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayCloseApproval>();
+foreach (string service in new[]{"Order","Payment","POS","Reporting"})
+{
+    builder.Services.AddHttpClient("DayCutoff"+service,c=>{ c.BaseAddress=new Uri(builder.Configuration["Services:"+service]??"https://cutoff-dependency.invalid/");c.Timeout=TimeSpan.FromSeconds(15); }).AddNexaConnectCorrelationPropagation();
+}
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.PosDayFences>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPosDayFenceStore,NexaConnect.Services.POS.Infrastructure.Persistence.PostgresPosDayFenceStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IFinalizationStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresFinalizationStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IFinalizationSources,NexaConnect.Services.POS.Infrastructure.DayClose.HttpFinalizationSources>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayFinalizationPreparation>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPOSDayBarrierStore, NexaConnect.Services.POS.Infrastructure.Persistence.PostgresPOSDayBarrierStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.POSDayBarriers>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IDaySettlementStore, NexaConnect.Services.POS.Infrastructure.DayClose.PostgresDaySettlementStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ISettlementSources, NexaConnect.Services.POS.Infrastructure.DayClose.HttpSettlementSources>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DaySettlementRecovery>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DaySettlement>();
+if (builder.Configuration.GetValue<bool>("SettlementRecovery:Enabled"))
+    builder.Services.AddHostedService<NexaConnect.Services.POS.Infrastructure.DayClose.SettlementRecoveryWorker>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPOSLateWorkStore,NexaConnect.Services.POS.Infrastructure.Persistence.PostgresPOSLateWorkStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.POSLateWork>();
+
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayLateWork>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IDayLateWorkPort,NexaConnect.Services.POS.Infrastructure.DayClose.HttpDayLateWorkPort>();
+
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.LateCashCorrections>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ILateCashCorrectionStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresLateCashCorrectionStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ILateCashCorrectionEvidence,NexaConnect.Services.POS.Infrastructure.DayClose.HttpLateCashCorrectionEvidence>();
+builder.Services.AddHttpClient("CorrectionRestaurant",c=>{c.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]??"https://restaurant.invalid/");c.Timeout=TimeSpan.FromSeconds(15);}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.CashCorrectionInventory>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ICashCorrectionInventoryStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresCashCorrectionInventoryStore>();
 var app = builder.Build();
+
 app.UseNexaConnectRequestLogging();
+app.Use(async(context,next)=>{if(context.Request.Path.StartsWithSegments("/api/pos/v1/customer/cash-correction-manifest"))context.Response.Headers.CacheControl="no-store";await next();});
+app.Use(async (context,next)=>
+{
+    try { await next(); }
+    catch(Npgsql.PostgresException e)when(e.SqlState=="PDS01"||e.SqlState=="P0001"&&e.MessageText=="financial_day_fenced")
+    {
+        var code=e.SqlState=="PDS01"?"financial_day_barrier":"financial_day_fenced";
+        context.Response.StatusCode=409;context.Response.Headers.CacheControl="no-store";
+        app.Logger.LogWarning("Financial source mutation rejected; code {Code}",code);
+        await context.Response.WriteAsJsonAsync(new{code});
+    }
+});
+app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/pos/v1/customer/late-work")||context.Request.Path.StartsWithSegments("/api/pos/v1/customer/day-cutoffs")||context.Request.Path.StartsWithSegments("/api/pos/v1/internal/day-settlement-barriers")||context.Request.Path.StartsWithSegments("/api/pos/v1/customer/organizations")) context.Response.Headers.CacheControl="no-store"; await next(); });
+app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/pos/v1/customer", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing"))

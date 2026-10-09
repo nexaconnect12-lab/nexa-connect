@@ -121,13 +121,40 @@ builder.Services.AddAuthorization(options => options.AddPolicy("CustomerSession"
 }));
 
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Reporting.CustomerCashCloseReports>();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Reporting.CustomerFinancialCompleteness>();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Reporting.CustomerCashCorrectionReports>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Reporting.ICustomerCashCorrectionReportsPort,NexaConnect.CustomerBff.Infrastructure.Reporting.HttpCustomerCashCorrectionReportsPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:Reporting"]??throw new InvalidOperationException("Services:Reporting is required."));c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerDayClose>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerDayClosePort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerDayClosePort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Reporting.CustomerEndOfDay>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Reporting.ICustomerEndOfDayPort, NexaConnect.CustomerBff.Infrastructure.Reporting.HttpCustomerEndOfDayPort>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:Reporting"] ?? throw new InvalidOperationException("Services:Reporting is required.")); c.Timeout = TimeSpan.FromSeconds(30); }).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Reporting.ICustomerFinancialCompletenessPort, NexaConnect.CustomerBff.Infrastructure.Reporting.HttpCustomerFinancialCompletenessPort>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:Reporting"] ?? throw new InvalidOperationException("Services:Reporting is required.")); c.Timeout = TimeSpan.FromSeconds(20); }).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Reporting.ICustomerCashClosePort, NexaConnect.CustomerBff.Infrastructure.Reporting.HttpCustomerCashClosePort>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:Reporting"] ?? throw new InvalidOperationException("Services:Reporting is required.")); c.Timeout = TimeSpan.FromSeconds(20); }).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerDayCutoff>();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerDaySeal>();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerDayApproval>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerDayApprovalPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerDayApprovalPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerDaySealPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerDaySealPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerDayCutoffPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerDayCutoffPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerFinalizationPreparation>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerFinalizationPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerFinalizationPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerSettlement>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerSettlementPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerSettlementPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
+
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerLateWork>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerLateWorkPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerLateWorkPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
+
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerCashCorrection>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerCashCorrectionPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerCashCorrectionPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
+app.Use(async(context,next)=>{if(context.Request.Path.StartsWithSegments("/bff/customer/reports/cash-corrections"))context.Response.Headers.CacheControl="no-store";await next();});
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
 app.Use(async (context, next) =>
 {
+    if ((context.Request.Path.StartsWithSegments("/bff/customer/late-cash-corrections", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-late-work", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-settlements", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-finalization-preparations", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-approvals", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-seals", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-cutoffs", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-preparations", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/reports/financial-completeness", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/reports/end-of-day", StringComparison.OrdinalIgnoreCase)))
+        context.Response.Headers.CacheControl = "no-store";
     context.Response.Headers.ContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
     context.Response.Headers.XContentTypeOptions = "nosniff";
     context.Response.Headers["Referrer-Policy"] = "no-referrer";
@@ -261,6 +288,7 @@ app.MapPost("/bff/customer/orders/branches/{branchId:guid}/place", async (
     HttpContext context,
     IHttpClientFactory clients,
     ICustomerOrderPort orders,
+    ILogger<Program> logger,
     TenantSelectionCookie selectionCookie,
     CancellationToken cancellationToken) =>
 {
@@ -275,9 +303,38 @@ app.MapPost("/bff/customer/orders/branches/{branchId:guid}/place", async (
     CurrentPlatformAccessResponse? access = await accessResponse.Content.ReadFromJsonAsync<CurrentPlatformAccessResponse>(cancellationToken: cancellationToken);
     bool stillGranted = access?.SubjectId == tenant.SubjectId && access.Organizations.Any(item =>
         item.OrganizationId == tenant.OrganizationId && item.ApplicationCode == tenant.ApplicationCode);
-    if (!stillGranted) return Results.Forbid();
+    if (!stillGranted) { logger.LogWarning("Customer order branch access denied"); return Results.Forbid(); }
 
     using HttpResponseMessage response = await orders.PlaceAsync(tenant, branchId, request, accessToken, cancellationToken);
+    if (!response.IsSuccessStatusCode) logger.LogWarning("Customer order boundary rejected with status {StatusCode}", (int)response.StatusCode);
+    return await ForwardJsonAsync(response, cancellationToken);
+}).RequireAuthorization("CustomerSession");
+
+app.MapPost("/bff/customer/orders/branches/{branchId:guid}/quote", async (
+    Guid branchId,
+    CustomerPlaceOrderRequest request,
+    HttpContext context,
+    IHttpClientFactory clients,
+    ICustomerOrderPort orders,
+    ILogger<Program> logger,
+    TenantSelectionCookie selectionCookie,
+    CancellationToken cancellationToken) =>
+{
+    TenantContext? tenant = selectionCookie.Unprotect(context.Request.Cookies["__Host-nexa-customer-tenant"]);
+    string? subjectId = context.User.FindFirstValue("sub");
+    string? accessToken = await GetCustomerAccessTokenAsync(context, cancellationToken);
+    if (tenant is null || string.IsNullOrWhiteSpace(subjectId) || subjectId != tenant.SubjectId || string.IsNullOrWhiteSpace(accessToken))
+        return Results.Unauthorized();
+
+    HttpResponseMessage accessResponse = await CallPlatformDirectoryAsync(context, clients, "api/platform-directory/v1/me/access", cancellationToken);
+    if (!accessResponse.IsSuccessStatusCode) return await ForwardJsonAsync(accessResponse, cancellationToken);
+    CurrentPlatformAccessResponse? access = await accessResponse.Content.ReadFromJsonAsync<CurrentPlatformAccessResponse>(cancellationToken: cancellationToken);
+    bool stillGranted = access?.SubjectId == tenant.SubjectId && access.Organizations.Any(item =>
+        item.OrganizationId == tenant.OrganizationId && item.ApplicationCode == tenant.ApplicationCode);
+    if (!stillGranted) { logger.LogWarning("Customer order branch access denied"); return Results.Forbid(); }
+
+    using HttpResponseMessage response = await orders.QuoteAsync(tenant, branchId, request, accessToken, cancellationToken);
+    if (!response.IsSuccessStatusCode) logger.LogWarning("Customer order boundary rejected with status {StatusCode}", (int)response.StatusCode);
     return await ForwardJsonAsync(response, cancellationToken);
 }).RequireAuthorization("CustomerSession");
 

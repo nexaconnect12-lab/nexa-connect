@@ -1,0 +1,11 @@
+# Financial reporting recovery tool
+
+The [joined financial portal fixture](../NexaConnect.FinancialPortalAcceptance/README.md) invokes this executable with `--record` against exact disposable run-owned databases. It accepts exit1 as a recorded gap and exit0 as observed complete; this is test evidence, not a production operator credential grant or provider acceptance.
+
+Privileged, bounded operator inspection/replay for Order sales/payments and Payment refunds, followed by Reporting reconciliation. Default is read-only; `--apply` repairs source retention/outboxes and records the immediate observation; `--record` only records inspection. Reporting facts are never modified.
+
+Usage: `<organization UUID> <branch UUID> <from ISO UTC> <to ISO UTC> [--apply|--record]`. Require Order 11, Payment 10, Reporting 20/application 0.23.0 and closed positive windows up to 31 days. Inject `NEXACONNECT_FINANCIAL_RECOVERY_ORDER_DB`, `NEXACONNECT_FINANCIAL_RECOVERY_PAYMENT_DB`, `NEXACONNECT_FINANCIAL_RECOVERY_REPORTING_DB`; writes also require bounded `NEXACONNECT_FINANCIAL_RECOVERY_ACTOR`. Limit each source to 10,000 candidates and each Reporting inventory to 20,000 rows; execution timeout is five minutes.
+
+The executable calls separately service-owned Infrastructure adapters, translating contracts into Reporting facts in Application. It introduces no shared domain model, cross-database SQL or distributed transaction. Requeues/audits commit per aggregate. Repeat after a partial failure; original IDs/times are preserved. Lost pre-ledger refund events are gaps rather than new UUIDs. After asynchronous replay, inspect again and record the new observation. Exit 0 is observed complete, 1 gaps, 2 invalid input/failure. Sanitized JSON contains status/counts/hash/provenance, no financial bodies, actor or secrets.
+
+See the [runbook](../../../docs/Deployment/Financial-Reporting-Recovery.md) for commands, restricted credentials, rollout, diagnostics and verification, and [API contract](../../../docs/API/Financial-Reporting-Completeness.md) for the exact-scope read and limitations. The Customer Portal Sales report reads recorded observations through the Customer BFF; it cannot run this tool or repair evidence. No global completeness certificate is supplied.

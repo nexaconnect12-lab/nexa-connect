@@ -1,0 +1,63 @@
+name: Day-seal evidence verification
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: day-seal-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  cutoff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore
+        run: dotnet restore NexaConnect.sln
+      - name: Verify financial and HTTP boundaries
+        run: |
+          dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter "FullyQualifiedName~FinalizationPreparationTests|FullyQualifiedName~DayApprovalTests|FullyQualifiedName~ExactDayAttributionTests|FullyQualifiedName~DayChangeAttributionTests|FullyQualifiedName~MigrationRunnerTests|FullyQualifiedName~DaySealTests|FullyQualifiedName~DayCutoffTests|FullyQualifiedName~DayClosePreparationTests|FullyQualifiedName~EndOfDayDraftTests|FullyQualifiedName~FinancialCompletenessTests" --verbosity minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter "FullyQualifiedName~CustomerFinalizationBoundaryTests|FullyQualifiedName~CustomerDayApprovalBoundaryTests|FullyQualifiedName~CustomerDaySealBoundaryTests|FullyQualifiedName~CustomerDayCutoffBoundaryTests|FullyQualifiedName~DayCloseHttpTests" --verbosity minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/Architecture/NexaConnect.ArchitectureTests --no-restore --verbosity minimal
+      - name: Verify retained source and restart pipeline
+        run: |
+          docker pull postgres:17-alpine
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/test-day-seals.ps1 -ConfirmDisposableInfrastructure
+      - name: Verify portal contracts
+        working-directory: src/Frontend
+        run: |
+          npm ci --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm test -- apps/customer-portal/src/dayClosePreparation.test.ts apps/customer-portal/src/dayCutoff.test.ts apps/customer-portal/src/daySeal.test.ts apps/customer-portal/src/dayApproval.test.ts apps/customer-portal/src/dayFinalization.test.ts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx playwright install --with-deps chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:e2e:day-seal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:e2e:day-cutoff
+      - name: Retain bounded database verification
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: day-seal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .runstate/day-seals/*/verification.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

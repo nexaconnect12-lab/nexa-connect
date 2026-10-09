@@ -33,6 +33,7 @@ builder.Services.AddHttpClient<ProductAuthorizationClient>(client=>client.BaseAd
 builder.Services.AddScoped<IBranchCustomerAuthorizer>(provider=>new HttpBranchCustomerAuthorizer(provider.GetRequiredService<IHttpClientFactory>().CreateClient("PlatformDirectory"),provider.GetRequiredService<ProductAuthorizationClient>()));
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
+app.Use(async (context, next) => { if (context.Request.Path.Value?.EndsWith("/business-calendar", StringComparison.OrdinalIgnoreCase) == true) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
 app.UseAuthentication();

@@ -1,0 +1,7 @@
+{
+  "minimumApplicationVersion": "0.29.0",
+  "version": 16,
+  "transactional": true,
+  "name": "exact_day_attribution",
+  "downgradeSafety": "destructive"
+}

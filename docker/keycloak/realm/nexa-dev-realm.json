@@ -499,6 +499,19 @@
             "id.token.claim": "false",
             "userinfo.token.claim": "false"
           }
+        },
+        {
+          "name": "pos-service-account-username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
         }
       ]
     },
@@ -578,6 +591,31 @@
       ]
     },
     {
+      "clientId": "nexaconnect-reporting-service",
+      "name": "NexaConnect Reporting Workload",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["nexaconnect-api"],
+      "protocolMappers": [
+        {
+          "name": "nexaconnect-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "nexaconnect-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "nexaconnect-inventory-service",
       "name": "NexaConnect Inventory Workload",
       "enabled": true,
@@ -587,7 +625,20 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "fullScopeAllowed": false,
-      "defaultClientScopes": ["nexaconnect-api"]
+      "defaultClientScopes": ["nexaconnect-api"],
+      "protocolMappers": [
+        {
+          "name": "nexaconnect-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "nexaconnect-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
     },
     {
       "clientId": "nexaconnect-payment-service",
@@ -599,7 +650,19 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "fullScopeAllowed": false,
-      "defaultClientScopes": ["nexaconnect-api"]
+      "defaultClientScopes": ["nexaconnect-api"],
+      "protocolMappers": [
+        {
+          "name": "nexaconnect-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "nexaconnect-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "nexaconnect-kitchen-service",

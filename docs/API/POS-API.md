@@ -1,5 +1,7 @@
 # POS API
 
+`GET /api/pos/v1/customer/end-of-day` adds an authorized branch read summary for the reconciliation draft: current open work, pending reviews and movement-derived closed-session variance. It requires customer roles, live branch `pos.cash-review.read` and Restaurant owner validation; it does not resolve reviews. See [source window, states and failures](End-Of-Day-Draft.md).
+
 ## Order manual-tender projection
 
 This is an asynchronous integration boundary, not a public POS endpoint. With `OrderSettlementConsumer` enabled after POS migration 4, POS consumes `order.manual-tender-settled.v1`. It verifies restaurant, branch, terminal, and the shift/session time window containing the event. Cash records one Order-linked sale; late delivery updates the historical closed session and recomputes variance. PromptPay never changes drawer totals. Matching delivery is replay; invalid identity/scope contracts dead-letter and infrastructure failures retry.
@@ -119,3 +121,5 @@ Review history retains the reviewer subject and Authorization decision identifie
 Supported device types are `pos`, `kiosk`, `kds`, and `edge`. A successful enrollment returns `201 Created`, sets `Location` to `api/pos/v1/terminals/{terminalId}`, and returns `{ "terminalId": "..." }`. Enrollment is an online administrative operation and is not performed from an offline client.
 
 Invalid enrollment input returns `400`, denied branch scope or authorization returns `403`, an active matching store that cannot be found returns `404`, and unavailable Restaurant or Authorization dependencies return `503` without exposing provider details.
+
+Cash-session open/close persistence obtains UTC timestamps from the service's TimeProvider. Normal deployment uses TimeProvider.System; these timestamps now originate from the application host rather than PostgreSQL `now()`. Align service/database clocks because session windows route financial events. An acceptance-only host can inject a historical provider; production has no environment clock switch. See [command acceptance and clock limits](../Deployment/Cashier-Day-Close-Acceptance.md).
