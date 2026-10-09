@@ -12,6 +12,12 @@ public sealed class HttpPaymentTenantAuthorizer(
     IServiceWorkloadTokenProvider tokens,
     ProductAuthorizationClient authorization) : IPaymentTenantAuthorizer
 {
+    public async Task<Guid?> GetBranchReviewDecisionAsync(Guid organizationId,Guid restaurantId,Guid branchId,string permission,string bearer,CancellationToken ct)
+    {
+        if(!await CanReadBranchFinancialsAsync(organizationId,restaurantId,branchId,bearer,ct))return null;
+        var decision=await authorization.DecideAsync(organizationId,restaurantId,branchId,permission,bearer,ct);
+        return decision is { Granted: true, DecisionId: var id } && id != Guid.Empty ? id : null;
+    }
     public async Task<bool> CanPrepareDayAsync(Guid organizationId,Guid restaurantId,Guid branchId,string header,CancellationToken ct)=>
         await CanReadBranchFinancialsAsync(organizationId,restaurantId,branchId,header,ct)&&await authorization.DecideAsync(organizationId,restaurantId,branchId,"pos.day-close.finalization.prepare",header,ct) is {Granted:true,DecisionId:var id}&&id!=Guid.Empty;
     public async Task<bool> CanReadBranchFinancialsAsync(Guid organizationId, Guid restaurantId, Guid branchId,

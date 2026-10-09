@@ -85,6 +85,12 @@ builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DaySett
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DaySettlement>();
 if (builder.Configuration.GetValue<bool>("SettlementRecovery:Enabled"))
     builder.Services.AddHostedService<NexaConnect.Services.POS.Infrastructure.DayClose.SettlementRecoveryWorker>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPOSLateWorkStore,NexaConnect.Services.POS.Infrastructure.Persistence.PostgresPOSLateWorkStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.POSLateWork>();
+
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayLateWork>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IDayLateWorkPort,NexaConnect.Services.POS.Infrastructure.DayClose.HttpDayLateWorkPort>();
+
 var app = builder.Build();
 
 app.UseNexaConnectRequestLogging();
@@ -99,7 +105,7 @@ app.Use(async (context,next)=>
         await context.Response.WriteAsJsonAsync(new{code});
     }
 });
-app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/pos/v1/customer/day-cutoffs")||context.Request.Path.StartsWithSegments("/api/pos/v1/internal/day-settlement-barriers")||context.Request.Path.StartsWithSegments("/api/pos/v1/customer/organizations")) context.Response.Headers.CacheControl="no-store"; await next(); });
+app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/pos/v1/customer/late-work")||context.Request.Path.StartsWithSegments("/api/pos/v1/customer/day-cutoffs")||context.Request.Path.StartsWithSegments("/api/pos/v1/internal/day-settlement-barriers")||context.Request.Path.StartsWithSegments("/api/pos/v1/customer/organizations")) context.Response.Headers.CacheControl="no-store"; await next(); });
 app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/pos/v1/customer", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.

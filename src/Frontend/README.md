@@ -1,5 +1,7 @@
 # NexaConnect frontend foundations
 
+Customer Portal loads source-owned late-work queues after committed settlement progress, shows safe record UUIDs, custody reasons and review history, and offers manager investigate/require-correction/evidence-checked actions. Exact uncertain commands remain in memory across settlement progress reload; a definitive rejection requires fresh loading. Source changes are disabled during pending decisions. Accountants inspect without actions. No financial correction is posted. See [review contract](../../docs/API/Late-Work-Reviews.md) and npm run test:e2e:day-seal.
+
 The end-of-day portal includes exact reviewed settlement finalization and durable progress/receipt viewing. Load the matching approval and prepared proof before finalize; uncertain commands retain their identity for retry. Source counts explicitly indicate saved versus current observations. Accountants have no default finalize action. The joined cashier-to-cutoff gate now requires sixteen distinct real-OIDC scenarios. See [settlement contract](../../docs/API/Day-Close-Settlements.md) and [operations/telemetry](../../docs/Deployment/Day-Close-Settlements.md).
 
 The end-of-day portal now includes temporary finalization preparation with reviewed-approval binding, source progress, exact retries and cancellation. `dayFinalization.test.ts` protects scoped proof/expiry/cancellation contracts; the existing day-seal Chromium suite now has 14 cases, and the joined cashier-to-cutoff gate has 15.

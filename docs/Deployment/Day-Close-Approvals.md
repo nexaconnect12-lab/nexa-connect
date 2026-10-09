@@ -1,6 +1,6 @@
 # Day-close approval rollout
 
-For the current coordinated deployment, use [durable settlement rollout](Day-Close-Settlements.md): Order 18 / Payment 17 / POS 18 / Authorization 13, compatibility 0.32.0, Reporting 20 unchanged. Version sets below identify the earlier capability boundary and are insufficient for the current settlement-enabled binaries.
+For the current coordinated deployment, use [late-work review rollout](Late-Work-Reviews.md): Order 19 / Payment 18 / POS 19 / Authorization 14, compatibility 0.33.0, Reporting 20 unchanged. Version sets below identify the earlier capability boundary; current review-enabled binaries require the latest coordinated catalog.
 
 The preceding coordinated catalog also supports [temporary finalization preparation](Day-Close-Finalization-Preparation.md): Order 17 / Payment 16 / POS 16 / Authorization 12, compatibility 0.31.0. The POS 14 / Authorization 11 versions below describe the approval introduction boundary.
 

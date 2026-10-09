@@ -5,9 +5,12 @@ import {Approval} from "./dayApproval";
 import {Finalization} from "./dayFinalization";
 import {readSettlement,SettlementCommand,SettlementView} from "./daySettlement";
 
+import {LateWorkReviewPanel} from "./LateWorkReviewPanel";
+import {LateScope} from "./lateWork";
 const api=createApiClient({onUnauthorized:()=>location.assign("/bff/customer/login")});
 export function DaySettlementPanel({organizationId,branchId,businessDate,preparation,reviewedApproval}:{organizationId:string;branchId:string;businessDate:string;preparation?:Finalization;reviewedApproval?:Approval}){
  const [value,setValue]=useState<SettlementView>(),[pending,setPending]=useState<SettlementCommand>(),[busy,setBusy]=useState(false),[error,setError]=useState<string>();
+ const [reviewScope,setReviewScope]=useState<LateScope>();
  const generation=useRef(0),active=useRef<AbortController>();
  useEffect(()=>()=>{generation.current++;active.current?.abort();},[]);
  const execute=async(finalize:boolean)=>{
@@ -34,6 +37,7 @@ export function DaySettlementPanel({organizationId,branchId,businessDate,prepara
    if(finalize&&fresh.settlement?.command.operationId!==command?.operationId)throw new Error("Settlement operation mismatch");
    if(fresh.settlement&&command&&fresh.settlement.command.operationId===command.operationId)setPending(undefined);
    setValue(fresh);
+   if(fresh.settlement?.receipt){const window=fresh.settlement.sources[0]?.proof.command.fence.window;if(window)setReviewScope({settlementId:fresh.settlement.id,window});}
   }catch{if(generation.current===run)setError("Settlement response unavailable or changed. Load progress or retry the same operation.");}
   finally{clearTimeout(timer);if(generation.current===run)setBusy(false);}
  };
@@ -45,12 +49,13 @@ export function DaySettlementPanel({organizationId,branchId,businessDate,prepara
     onClick={()=>void execute(true)}>{pending?"Retry same settlement operation":"Finalize settlement"}</Button>}</Space>
   {error&&<Alert role="status" type="error" message={error}/>}
   {settlement&&<><Descriptions column={1} bordered><Descriptions.Item label="Settlement status">{settlement.status}</Descriptions.Item>
-   <Descriptions.Item label="Settlement identifier">{settlement.id}</Descriptions.Item><Descriptions.Item label="Reviewed approval">{settlement.command.approvalId}</Descriptions.Item></Descriptions>
+   <Descriptions.Item label="Settlement identifier"><span id={`settlement-${settlement.id}`}>{settlement.id}</span></Descriptions.Item><Descriptions.Item label="Reviewed approval">{settlement.command.approvalId}</Descriptions.Item></Descriptions>
    {!value?.sourceProofCurrent&&<Alert type="info" message="Source counts are from saved progress. Load progress to request current counts."/>}
    <List header="Source acknowledgements" dataSource={settlement.sources} renderItem={s=><List.Item>{s.source}: {s.proof.phase}; late work retained: {s.proof.lateWorkCount}.</List.Item>}/>
    {settlement.receipt&&<Descriptions title="Immutable settlement receipt" column={1} bordered><Descriptions.Item label="Receipt event">{settlement.receipt.eventId}</Descriptions.Item>
     <Descriptions.Item label="Settled at">{settlement.receipt.settledAtUtc}</Descriptions.Item><Descriptions.Item label="Gross sales">THB {settlement.receipt.snapshot.grossSales}</Descriptions.Item>
     <Descriptions.Item label="Completed refunds">THB {settlement.receipt.snapshot.completedRefunds}</Descriptions.Item><Descriptions.Item label="Net sales">THB {settlement.receipt.snapshot.netSales}</Descriptions.Item>
     <Descriptions.Item label="Cash variance">THB {settlement.receipt.snapshot.cashVariance}</Descriptions.Item></Descriptions>}</>}
+  {reviewScope&&<LateWorkReviewPanel key={reviewScope.settlementId} scope={reviewScope} businessDate={businessDate}/>}
  </Space>;
 }

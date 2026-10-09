@@ -293,6 +293,8 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
             var attribution=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_day_change_attribution").Single();
             var exact=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_exact_day_attribution").Single();
             await using var epochQuery=db.CreateCommand("SELECT epoch FROM source_financial_epoch");var epoch=await epochQuery.ExecuteScalarAsync();
+            var review=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_late_work_reviews").Single();
+            await Sql(db,File.ReadAllText(Path.Combine(review,"down.sql")));
             if(owner=="POS")await Sql(db,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0018_day_settlements/down.sql")));
             var barriers=Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner,owner=="Order"?"0018_day_barriers":"0017_day_barriers");
             await Sql(db,File.ReadAllText(Path.Combine(barriers,"down.sql")));
@@ -311,6 +313,7 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
             if(owner=="POS")await Sql(db,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0016_finalization_preparations/up.sql")));
             await Sql(db,File.ReadAllText(Path.Combine(barriers,"up.sql")));
             if(owner=="POS")await Sql(db,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0018_day_settlements/up.sql")));
+            await Sql(db,File.ReadAllText(Path.Combine(review,"up.sql")));
         }
     }
     public Task<SourceCutoffRead<OrderDaySummary>> OrderAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>

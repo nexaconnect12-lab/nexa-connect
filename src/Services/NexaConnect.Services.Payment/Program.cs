@@ -188,6 +188,8 @@ builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.Paym
 if (builder.Configuration["Persistence:Provider"]?.Equals("PostgreSQL",StringComparison.OrdinalIgnoreCase)==true) builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.IPaymentDayFenceStore,NexaConnect.Services.Payment.Infrastructure.PostgresPaymentDayFenceStore>();
 builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.IPaymentDayBarrierStore, NexaConnect.Services.Payment.Infrastructure.PostgresPaymentDayBarrierStore>();
 builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.PaymentDayBarriers>();
+builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.IPaymentLateWorkStore,NexaConnect.Services.Payment.Infrastructure.PostgresPaymentLateWorkStore>();
+builder.Services.AddScoped<NexaConnect.Services.Payment.Application.Refunds.PaymentLateWork>();
 var app = builder.Build();
 
 app.UseNexaConnectRequestLogging();
@@ -202,7 +204,7 @@ app.Use(async (context,next)=>
         await context.Response.WriteAsJsonAsync(new{code});
     }
 });
-app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/payment/v1/customer/day-cutoffs")||context.Request.Path.StartsWithSegments("/api/payment/v1/internal/day-settlement-barriers")) context.Response.Headers.CacheControl="no-store"; await next(); });
+app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/payment/v1/customer/late-work")||context.Request.Path.StartsWithSegments("/api/payment/v1/customer/day-cutoffs")||context.Request.Path.StartsWithSegments("/api/payment/v1/internal/day-settlement-barriers")) context.Response.Headers.CacheControl="no-store"; await next(); });
 app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/payment/v1/customer/end-of-day", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.

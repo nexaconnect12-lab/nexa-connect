@@ -1,5 +1,7 @@
 # Database Guidelines
 
+Late-work review uses source-owned append-only history with SELECT/INSERT runtime access, scoped committed custody membership, serialized version advancement and exact operation replay. Retain opaque custody identities together with their links/barriers/reviews; source downgrade refuses any custody or review row. Reviews do not mutate money, source revisions, message disposition or settlement receipts. See [review storage and rollback](../Deployment/Late-Work-Reviews.md).
+
 Permanent financial-day barriers and settlement history require forward recovery after any retained intent. Runtime roles own only their service tables and narrow INSERT/UPDATE privileges; no trigger disabling, table ownership, cross-database grants or history deletion is allowed. Late financial payload custody stays private to its owner. See [settlement storage and recovery](../Deployment/Day-Close-Settlements.md).
 
 See [Database Design](Database-Design.md) for the PostgreSQL topology, service-owned logical models, media metadata, and operational workflows.

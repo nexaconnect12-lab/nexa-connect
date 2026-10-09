@@ -1,5 +1,7 @@
 # Migration scripts
 
+Current late-work review migrations add stable custody UUIDs and one append-only `source_late_work_reviews` table per owner: Order 19 / Payment 18 / POS 19. Authorization 14 grants manager review; minimum compatibility is 0.33.0 and Reporting remains 20. Retained custody or review history prevents source downgrade; empty rollback removes review migrations before settlement/barrier migrations. See [review rollout](../../../../docs/Deployment/Late-Work-Reviews.md).
+
 Current settlement migrations: Order 18, Payment 17 and POS 17 add source barriers/audit/custody/links; POS 18 adds durable coordinator/operation/decision/receipt/audit; Authorization 13 grants manager finalization. Minimum compatibility is 0.32.0, Reporting remains 20. New migrations are additive; never rewrite applied migrations. Retained settlement/source history prevents destructive downgrade; empty rollback removes POS 18 before barriers and original preparation/fences. See [settlement rollout](../../../../docs/Deployment/Day-Close-Settlements.md).
 
 POS 14 adds three approval tables; Authorization 11 backfills manager approval grants without new tables. The approval migration boundary requires application compatibility 0.30.0. See [approval rollout](../../../../docs/Deployment/Day-Close-Approvals.md).
@@ -19,20 +21,20 @@ Create one directory per owning service and one subdirectory per sequential migr
 | Service | Version | Owned tables |
 | --- | ---: | ---: |
 | PlatformDirectory | 3 | 8 |
-| Authorization | 13 | 7 |
+| Authorization | 14 | 7 |
 | Restaurant | 3 | 8 |
 | Catalog | 4 | 22 |
 | Inventory | 5 | 11 |
-| Order | 18 | 27 |
+| Order | 19 | 28 |
 | Kitchen | 3 | 8 |
 | Customer | 2 | 6 |
-| Payment | 17 | 20 |
+| Payment | 18 | 21 |
 | Notification | 3 | 5 |
-| POS | 18 | 45 |
+| POS | 19 | 46 |
 | Media | 4 | 6 |
 | Reporting | 20 | 15 |
 
-The current 13-service catalog contains 188 tables. Counts include service-owned technical tables such as outboxes, inboxes, idempotency records, audit history, and projection checkpoints. Index counts should be generated from the packaged migration catalog when needed rather than maintained manually here.
+The current 13-service catalog contains 191 tables. Counts include service-owned technical tables such as outboxes, inboxes, idempotency records, audit history, and projection checkpoints. Index counts should be generated from the packaged migration catalog when needed rather than maintained manually here.
 
 Versions must be linear, sortable, immutable, independently owned by one service, and transactional. Non-transactional migrations are not supported because schema mutation and migration-history recording must remain atomic.
 

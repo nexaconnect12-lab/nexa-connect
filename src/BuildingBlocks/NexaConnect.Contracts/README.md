@@ -1,5 +1,7 @@
 # Shared Contracts
 
+`Reporting/LateWorkReviews.cs` defines source-scoped queue/detail transport and version-bound review commands/results. Public metadata includes opaque custody UUIDs, allow-listed affected record UUIDs, bounded history and settlement references; actor, authorization decision, fingerprint, provider identity and payload stay private. Review policy and aggregates remain source-owned, and no review integration event is published. See [review contract](../../../docs/API/Late-Work-Reviews.md).
+
 Settlement integration adds SourceBarrierCommand/Request/Proof and pos.branch-day-settled.v1 (BranchDaySettledV1). These are stable integration contracts; source Domain models and immutable receipt ownership stay inside their bounded contexts. No Reporting settlement projection is introduced. See [settlement contract](../../../docs/API/Day-Close-Settlements.md) and [operations/telemetry](../../../docs/Deployment/Day-Close-Settlements.md).
 
 Version-one source fence transport records bind operation, scoped UTC window, approval/source seal and expiry. They expose active/cancelled status and observed owning revision; they are integration DTOs, not shared business entities or finalized settlement proof.

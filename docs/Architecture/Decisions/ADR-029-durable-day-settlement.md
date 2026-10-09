@@ -1,6 +1,6 @@
 # ADR-029: Durable branch-day settlement and late-work custody
 
-Status: Accepted and implemented; local 80-case PostgreSQL and sixteen-scenario real-OIDC acceptance passed with verified cleanup, 2026-10-08. Remote CI and production acceptance remain unverified.
+Status: Accepted and implemented; local 81-case PostgreSQL and sixteen-scenario real-OIDC acceptance passed with verified cleanup, 2026-10-08. Remote CI and production acceptance remain unverified.
 
 ## Context
 

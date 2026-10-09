@@ -1,5 +1,7 @@
 # NexaConnect Customer BFF
 
+Late-work queue/list/detail/review/CSRF routes use protected session/tenant, live membership, server-held tokens, antiforgery and correlated POS forwarding. POST is 4 KiB; response JSON is 128 KiB and no-store also covers early rejection. Query nexaconnect-customer-bff / CorrelationId for Late-work BFF boundaries. See [review contract](../../../docs/API/Late-Work-Reviews.md).
+
 Settlement adds protected GET/POST/CSRF routes at /bff/customer/day-close-settlements with current membership, server-held token, correlated POS forwarding and sanitized no-store responses, including authentication/antiforgery failures. POS owns finalize authority and financial admission; the BFF has no financial SQL or coordinator state. See [settlement contract](../../../docs/API/Day-Close-Settlements.md) and [operations/telemetry](../../../docs/Deployment/Day-Close-Settlements.md).
 
 Finalization preparation adds GET/POST/cancel/CSRF routes with protected tenant/session, current Directory membership, server-held token and correlated POS forwarding. BFF has no financial policy or SQL; 30-second boundary and 16 MiB bounded JSON/sanitized no-store responses apply. Query `nexaconnect-customer-bff` for `Finalization preparation` and validated `CorrelationId`. See [contract](../../../docs/API/Day-Close-Finalization-Preparation.md).

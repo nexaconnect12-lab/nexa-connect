@@ -130,6 +130,8 @@ if (builder.Configuration["Persistence:Provider"]?.Equals("PostgreSQL",StringCom
 builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.IOrderDayBarrierStore, NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderDayBarrierStore>();
 builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderDayBarriers>();
 builder.Services.AddScoped<NexaConnect.Services.Order.Infrastructure.Messaging.LatePaymentReconciliation>();
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.IOrderLateWorkStore,NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderLateWorkStore>();
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderLateWork>();
 var app = builder.Build();
 
 app.UseNexaConnectRequestLogging();
@@ -144,7 +146,7 @@ app.Use(async (context,next)=>
         await context.Response.WriteAsJsonAsync(new{code});
     }
 });
-app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/order/v1/customer/day-cutoffs")||context.Request.Path.StartsWithSegments("/api/order/v1/internal/day-settlement-barriers")) context.Response.Headers.CacheControl="no-store"; await next(); });
+app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/order/v1/customer/late-work")||context.Request.Path.StartsWithSegments("/api/order/v1/customer/day-cutoffs")||context.Request.Path.StartsWithSegments("/api/order/v1/internal/day-settlement-barriers")) context.Response.Headers.CacheControl="no-store"; await next(); });
 app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/order/v1/customer/end-of-day", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.
