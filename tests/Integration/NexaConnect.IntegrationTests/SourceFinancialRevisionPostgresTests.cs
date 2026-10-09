@@ -135,6 +135,9 @@ public sealed class SourceFinancialRevisionPostgresTests : IAsyncLifetime
             var seals=Directory.GetDirectories(root,"*_day_seals").Single();
             var attribution=Directory.GetDirectories(root,"*_day_change_attribution").Single();
             var exact=Directory.GetDirectories(root,"*_exact_day_attribution").Single();
+            if(service=="POS")await Sql(service,File.ReadAllText(Path.Combine(root,"0018_day_settlements/down.sql")));
+            var barriers=Path.Combine(root,service=="Order"?"0018_day_barriers":service=="Payment"?"0017_day_barriers":"0017_day_barriers");
+            await Sql(service,File.ReadAllText(Path.Combine(barriers,"down.sql")));
             if(service=="POS")await Sql(service,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0016_finalization_preparations/down.sql")));
             var fences=Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",service,service=="Order"?"0017_day_fences":service=="Payment"?"0016_day_fences":"0015_day_fences");
             await Sql(service,File.ReadAllText(Path.Combine(fences,"down.sql")));
@@ -150,6 +153,8 @@ public sealed class SourceFinancialRevisionPostgresTests : IAsyncLifetime
             if(service=="POS")await Sql(service,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0014_day_approvals/up.sql")));
             await Sql(service,File.ReadAllText(Path.Combine(fences,"up.sql")));
             if(service=="POS")await Sql(service,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0016_finalization_preparations/up.sql")));
+            await Sql(service,File.ReadAllText(Path.Combine(barriers,"up.sql")));
+            if(service=="POS")await Sql(service,File.ReadAllText(Path.Combine(root,"0018_day_settlements/up.sql")));
             Assert.NotEqual(before.Epoch,(await Revision(service)).Epoch);
             var window=Window;
             if(service=="Order")await new OrderDb.PostgresOrderCutoffStore(Db(service)).CaptureAsync(new(Guid.NewGuid(),window),"manager",default);

@@ -42,6 +42,7 @@ public sealed class SourceCutoffsController(PosCutoffs application, PosDayFences
         try { return await action(deadline.Token); }
         catch(ArgumentException) { return BadRequest(); }
         catch(UnauthorizedAccessException) { logger.LogWarning("Day-cutoff source authorization denied"); return Forbid(); }
+        catch(Npgsql.PostgresException e)when(e.SqlState=="PDS01"){logger.LogWarning("Source fence is pinned by settlement");return Conflict(new{code="financial_day_barrier"});}
         catch(SnapshotOperationConflictException) { logger.LogWarning("Day-cutoff source operation conflict"); return Conflict(); }
         catch(Exception e) when(!ct.IsCancellationRequested) { logger.LogWarning("Day-cutoff source unavailable; category {Category}",e.GetType().Name); return StatusCode(503); }
     }

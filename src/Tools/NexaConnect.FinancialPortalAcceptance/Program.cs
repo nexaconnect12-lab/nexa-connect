@@ -37,7 +37,7 @@ try
         else await CashierReferenceFixture.ProofAsync(options,proofTimeout.Token); return 0;
     }
     if(args.Length==1 && args[0]=="provision-cashier" && (!options.DayClose || Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CLOSE")!="1")) throw new ArgumentException();
-    if(args.Length!=1 || args[0] is not ("provision" or "provision-cashier" or "record" or "deliver" or "revoke" or "revoke-source" or "membership" or "resolve-day-close" or "same-total-evidence" or "late-cash" or "approve-cash" or "preparation-proof" or "stop-pos" or "start-pos" or "revoke-day-close-read" or "revoke-day-close-prepare" or "revoke-manager-source" or "restore-manager-source" or "membership-second")) return 2;
+    if(args.Length!=1 || args[0] is not ("provision" or "provision-cashier" or "record" or "deliver" or "revoke" or "revoke-source" or "membership" or "resolve-day-close" or "same-total-evidence" or "late-cash" or "approve-cash" or "preparation-proof" or "stop-pos" or "start-pos" or "revoke-day-close-read" or "restore-day-close-read" or "revoke-day-close-prepare" or "restore-day-close-prepare" or "revoke-manager-source" or "restore-manager-source" or "membership-second")) return 2;
     if(args[0] is not("provision" or "provision-cashier" or "record" or "deliver" or "revoke" or "revoke-source" or "membership") && !options.DayClose)return 2;
     using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(3));var ct=timeout.Token;
     await using var platformDb=NpgsqlDataSource.Create(options.Connection("platform"));

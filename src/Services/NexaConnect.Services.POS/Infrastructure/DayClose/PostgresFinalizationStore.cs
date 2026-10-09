@@ -8,6 +8,11 @@ namespace NexaConnect.Services.POS.Infrastructure.DayClose;
 public sealed class PostgresFinalizationStore(NpgsqlDataSource source):IFinalizationStore
 {
     private static readonly JsonSerializerOptions Json=new(JsonSerializerDefaults.Web);
+    public async Task<string?> SettlementStatusAsync(DayIdentity day,CancellationToken ct)
+    {
+        await using var q=source.CreateCommand("SELECT state->>'status' FROM branch_day_settlements WHERE organization_id=$1 AND restaurant_id=$2 AND branch_id=$3 AND business_date=$4 AND state->>'status'<>'aborted'");
+        Scope(q,day);return await q.ExecuteScalarAsync(ct) as string;
+    }
     public async Task<FinalizationState?> ReadAsync(DayIdentity day,CancellationToken ct)
     {await using var c=await source.OpenConnectionAsync(ct);return await Load(c,null,day,false,ct);}
     public async Task<FinalizationState> BeginAsync(DayIdentity day,FinalizationCommand command,ApprovalView approval,PreparationActor actor,DateTimeOffset now,CancellationToken ct)
@@ -86,7 +91,7 @@ public sealed class PostgresFinalizationStore(NpgsqlDataSource source):IFinaliza
         await tx.CommitAsync(ct);
         return state with{Sources=[..sources],ValidatedAtUtc=status=="prepared"?now:null};
     }
-    private static async Task<bool> ApprovalMatches(NpgsqlConnection c,NpgsqlTransaction tx,DayIdentity day,ApprovalView? approval,DateTimeOffset now,CancellationToken ct)
+    internal static async Task<bool> ApprovalMatches(NpgsqlConnection c,NpgsqlTransaction tx,DayIdentity day,ApprovalView? approval,DateTimeOffset now,CancellationToken ct)
     {
         await using var seal=new NpgsqlCommand("SELECT version,state->>'status' FROM branch_day_seals WHERE organization_id=$1 AND restaurant_id=$2 AND branch_id=$3 AND business_date=$4 FOR UPDATE",c,tx);Scope(seal,day);
         long sealVersion=-1;string? sealStatus=null;

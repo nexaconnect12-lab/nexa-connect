@@ -43,7 +43,7 @@ public sealed class PostgresWindowFence(NpgsqlDataSource source)
             if(!cancel&&(command.ExpiresAtUtc<=now||command.ExpiresAtUtc>now.AddMinutes(5)))throw new SnapshotOperationConflictException();
             if(!cancel)
             {
-                await using var conflict=new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM source_day_fences WHERE restaurant_id=$1 AND branch_id=$2 AND from_utc<$4 AND to_utc>$3 AND NOT cancelled AND expires_at_utc>clock_timestamp())",c,tx);
+                await using var conflict=new NpgsqlCommand("SELECT EXISTS(SELECT 1 FROM source_day_fences WHERE restaurant_id=$1 AND branch_id=$2 AND from_utc<$4 AND to_utc>$3 AND NOT cancelled AND expires_at_utc>clock_timestamp()) OR EXISTS(SELECT 1 FROM source_day_barriers WHERE restaurant_id=$1 AND branch_id=$2 AND from_utc<$4 AND to_utc>$3 AND phase IN('armed','committed'))",c,tx);
                 Add(conflict,w.RestaurantId,w.BranchId,w.FromUtc,w.ToUtc);
                 if((bool)(await conflict.ExecuteScalarAsync(ct))!)throw new SnapshotOperationConflictException();
                 await using var sealedQuery=new NpgsqlCommand("SELECT payload::text FROM source_day_seals WHERE organization_id=$1 AND restaurant_id=$2 AND branch_id=$3 AND from_utc=$4 AND to_utc=$5 AND id=$6",c,tx);

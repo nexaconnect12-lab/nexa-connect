@@ -3,6 +3,7 @@ import {Alert,Button,Descriptions,List,Space,Typography} from "antd";
 import {createApiClient} from "@nexaconnect/api-client";
 import {Approval} from "./dayApproval";
 import {Finalization,FinalizationCommand,readFinalization} from "./dayFinalization";
+import {DaySettlementPanel} from "./DaySettlementPanel";
 const api=createApiClient({onUnauthorized:()=>location.assign("/bff/customer/login")});
 type Pending={action:"prepare"|"cancel";command:FinalizationCommand|{branchId:string;businessDate:string;operationId:string}};
 export function DayFinalizationPanel({organizationId,branchId,businessDate,reviewedApproval}:{organizationId:string;branchId:string;businessDate:string;reviewedApproval?:Approval}){
@@ -44,5 +45,6 @@ export function DayFinalizationPanel({organizationId,branchId,businessDate,revie
   {value&&<><Descriptions column={1} bordered><Descriptions.Item label="Preparation status">{value.status==="prepared"&&!current?"Verification expired; reload":value.status.replaceAll("_"," ")}</Descriptions.Item><Descriptions.Item label="Preparation version">{value.version}</Descriptions.Item><Descriptions.Item label="Bound approval">{value.approvalId??"None"}</Descriptions.Item><Descriptions.Item label="Source lease expires">{value.expiresAtUtc??"None"}</Descriptions.Item><Descriptions.Item label="Fresh preparation validation">{current?value.validatedAtUtc:"Not currently verified"}</Descriptions.Item></Descriptions>
    <List header="Source protection" dataSource={value.sources} renderItem={s=><List.Item>{s.source}: {s.cancelled?"cancelled":s.active&&Date.parse(s.expiresAtUtc)>now?"temporary fence active":"inactive"}; seal {s.sealId}.</List.Item>}/>
    {value.blockers.length>0&&<Alert type="warning" message={value.blockers.map(x=>x.replaceAll("_"," ")).join(", ")}/>}</>}
+ <DaySettlementPanel key={`${organizationId}:${branchId}:${businessDate}`} organizationId={organizationId} branchId={branchId} businessDate={businessDate} preparation={value} reviewedApproval={reviewedApproval}/>
  </Space>;
 }

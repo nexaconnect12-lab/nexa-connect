@@ -238,3 +238,50 @@ test(scenarios[11],async({page,browser})=>{
  await expect(fixture('deliver')).rejects.toThrow('Acceptance fixture failed');await expect(fixture('late-cash')).rejects.toThrow('Acceptance fixture failed');
  expect(JSON.parse(await fixture('cashier-proof')).verified).toBe(true);expect((await proof()).authorizationVerified).toBe(true);
 });
+
+test(scenarios[15],async({page,browser})=>{
+ await fixture('restore-day-close-prepare');await fixture('restore-day-close-read');
+ manager=await token(browser,s.resolver);await signIn(page,s.resolver);await refresh(page);
+ async function clickLoad(name,path){const response=page.waitForResponse(r=>r.url().includes(path+'?')&&r.request().method()==='GET');await page.getByRole('button',{name,exact:true}).click();const loaded=await response;expect(loaded.status()).toBe(200);return loaded.json();}
+ async function clickPost(name,path){const response=page.waitForResponse(r=>r.url().endsWith(path)&&r.request().method()==='POST');await page.getByRole('button',{name,exact:true}).click();const posted=await response;expect(posted.status()).toBe(200);return {data:await posted.json(),command:posted.request().postDataJSON()};}
+ await clickLoad('Load sealed evidence','/bff/customer/day-close-seals');
+ await clickPost('Reseal reviewed evidence','/bff/customer/day-close-seals');
+ await clickLoad('Load sealed evidence','/bff/customer/day-close-seals');
+ await clickLoad('Load approval','/bff/customer/day-close-approvals');
+ const approved=await clickPost('Approve reviewed seal','/bff/customer/day-close-approvals');
+ await clickLoad('Load finalization preparation','/bff/customer/day-close-finalization-preparations');
+ const prepared=await clickPost('Prepare finalization','/bff/customer/day-close-finalization-preparations');
+ const path='/bff/customer/day-close-settlements',query='?branchId='+f.branchId+'&businessDate='+f.businessDate;
+ expect((await clickLoad('Load settlement progress',path)).canFinalize).toBe(true);
+ const finalized=await clickPost('Finalize settlement',path);expect(finalized.data.settlement.status).toBe('finalized');
+ const receipt=finalized.data.settlement.receipt;expect(receipt.approvalId).toBe(approved.data.decision.approvalId);
+ expect(finalized.command.expectedPreparationVersion).toBe(prepared.data.version);expect(receipt.snapshot.grossSales).toBe(2*amount);
+ await expect(page.getByText('Immutable settlement receipt',{exact:true})).toBeVisible();
+ expect((await bff(page,path,finalized.command)).data.settlement.receipt).toEqual(receipt);
+ expect((await bff(page,path,{...finalized.command,reviewedApprovalVersion:finalized.command.reviewedApprovalVersion+1})).status).toBe(409);
+ expect((await bff(page,'/bff/customer/day-close-finalization-preparations/cancel',{branchId:f.branchId,businessDate:f.businessDate,operationId:prepared.command.operationId})).status).toBe(409);
+ const context=await browser.newContext({baseURL:s.baseURL,ignoreHTTPSErrors:true});try{
+  const accountant=await context.newPage();await signIn(accountant,s.accountant);
+  const loaded=await accountant.request.get(path+query);expect(loaded.status()).toBe(200);const view=await loaded.json();expect(view.canFinalize).toBe(false);expect(view.settlement.receipt).toEqual(receipt);
+  expect((await bff(accountant,path,finalized.command)).status).toBe(403);
+  const csrfMissing=await accountant.request.post(path,{data:finalized.command});expect(csrfMissing.status()).toBe(400);
+ }finally{await context.close();}
+ for(const owner of ['order','payment','pos']){
+  const barrier=finalized.data.settlement.sources.find(x=>x.source.toLowerCase()===owner).proof.command;
+  expect((await send(owner,'/api/'+owner+'/v1/internal/day-settlement-barriers',manager,{command:barrier,phase:'aborted',decisionId:randomUUID()})).status).toBe(403);
+  const cancel=await send(owner,'/api/'+owner+'/v1/customer/day-cutoffs/fences/cancel',manager,barrier.fence);
+  expect(cancel.status).toBe(409);expect(cancel.data.code).toBe('financial_day_barrier');
+ }
+ cashier=await token(browser,s.reader);
+ const stockBefore=(await send('inventory',`/api/inventory/v1/branches/${f.branchId}/stock`,manager)).data.find(x=>x.productId===r.productId).availableQuantity;
+ clock('historical');try{
+  const input={organizationId:f.organizationId,restaurantId:f.restaurantId,branchId:f.branchId,currency:'THB',paymentMethod:'cash_manual',idempotencyKey:randomUUID(),lines:[{productId:r.productId,quantity:1}]};
+  const quote=await send('order','/api/order/v1/workflows/quote',cashier,input);expect(quote.status).toBe(200);
+  const rejected=await send('order','/api/order/v1/workflows/place',cashier,{...input,pricingFingerprint:quote.data.fingerprint});
+  expect(rejected.status).toBe(409);expect(rejected.data.code).toBe('financial_day_barrier');
+ }finally{clock('live');}
+ expect((await send('inventory',`/api/inventory/v1/branches/${f.branchId}/stock`,manager)).data.find(x=>x.productId===r.productId).availableQuantity).toBe(stockBefore);
+ expect((await bff(page,path+query)).data.settlement.receipt).toEqual(receipt);
+ await control('stop-pos');await control('start-pos');
+ expect((await bff(page,path+query)).data.settlement.receipt).toEqual(receipt);
+});

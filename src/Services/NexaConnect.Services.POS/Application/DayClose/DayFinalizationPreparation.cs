@@ -7,6 +7,7 @@ public sealed record FinalizationView(DayIdentity Identity,long Version,string S
     FinalizationFence[] Sources,string[] Blockers,bool CanPrepare);
 public interface IFinalizationStore
 {
+    Task<string?> SettlementStatusAsync(DayIdentity day,CancellationToken ct)=>Task.FromResult<string?>(null);
     Task<FinalizationState?> ReadAsync(DayIdentity day,CancellationToken ct);
     Task<FinalizationState> BeginAsync(DayIdentity day,FinalizationCommand command,ApprovalView approval,PreparationActor actor,DateTimeOffset now,CancellationToken ct);
     Task<FinalizationState> CancelAsync(DayIdentity day,Guid operation,PreparationActor actor,DateTimeOffset now,CancellationToken ct);
@@ -25,6 +26,8 @@ public sealed class DayFinalizationPreparation(IFinalizationStore store,IFinaliz
         var(day,actor,scope)=await Authorize(organization,branch,date,user,DayClosePreparation.ReadPermission,ct);
         var permission=await authorization.DecideAsync(user,scope,FinalizationPreparation.PreparePermission,ct);
         var state=await store.ReadAsync(day,ct);if(state is null)return new(day,0,"not_prepared",null,null,null,null,null,null,[],[],permission.Granted&&permission.DecisionId!=Guid.Empty);
+        if(await store.SettlementStatusAsync(day,ct) is {} settlementStatus)
+            return View(state with{Status=settlementStatus=="finalized"?"finalized":"finalizing",ValidatedAtUtc=null},false);
         ApprovalView? approval=null;FinalizationFence[] proof=state.Status=="cancelled"?state.Sources:[];
         if(state.Status is not("cancelled" or "expired")&&state.ExpiresAtUtc>clock.GetUtcNow())
         {
@@ -40,6 +43,7 @@ public sealed class DayFinalizationPreparation(IFinalizationStore store,IFinaliz
         using var deadline=Deadline(ct);ct=deadline.Token;
         var(day,actor,_)=await Authorize(organization,command.BranchId,command.BusinessDate,user,FinalizationPreparation.PreparePermission,ct);
         FinalizationPreparation.Validate(command,day);
+        if(await store.SettlementStatusAsync(day,ct) is not null)throw new DayCloseConflictException("settlement_owns_preparation");
         var approval=await approvals.ReadAsync(organization,command.BranchId,command.BusinessDate,user,ct);
         var confirmed=await Authorize(organization,command.BranchId,command.BusinessDate,user,FinalizationPreparation.PreparePermission,ct);
         if(confirmed.Item1!=day)throw new UnauthorizedAccessException();actor=confirmed.Item2;
@@ -52,6 +56,7 @@ public sealed class DayFinalizationPreparation(IFinalizationStore store,IFinaliz
         using var deadline=Deadline(ct);ct=deadline.Token;
         var(day,actor,_)=await Authorize(organization,command.BranchId,command.BusinessDate,user,FinalizationPreparation.PreparePermission,ct);
         if(command.OperationId==Guid.Empty)throw new ArgumentException();
+        if(await store.SettlementStatusAsync(day,ct) is not null)throw new DayCloseConflictException("settlement_owns_preparation");
         await Authorize(organization,command.BranchId,command.BusinessDate,user,DayClosePreparation.ReadPermission,ct);
         var state=await store.CancelAsync(day,command.OperationId,actor,clock.GetUtcNow(),ct);
         if(state.ClaimId is null)return View(state,true);

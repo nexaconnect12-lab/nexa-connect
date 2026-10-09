@@ -1,6 +1,8 @@
 # Day-close approval rollout
 
-The current coordinated catalog also supports [temporary finalization preparation](Day-Close-Finalization-Preparation.md): Order 17 / Payment 16 / POS 16 / Authorization 12, compatibility 0.31.0. The POS 14 / Authorization 11 versions below describe the approval introduction boundary.
+For the current coordinated deployment, use [durable settlement rollout](Day-Close-Settlements.md): Order 18 / Payment 17 / POS 18 / Authorization 13, compatibility 0.32.0, Reporting 20 unchanged. Version sets below identify the earlier capability boundary and are insufficient for the current settlement-enabled binaries.
+
+The preceding coordinated catalog also supports [temporary finalization preparation](Day-Close-Finalization-Preparation.md): Order 17 / Payment 16 / POS 16 / Authorization 12, compatibility 0.31.0. The POS 14 / Authorization 11 versions below describe the approval introduction boundary.
 
 Deploy Order 16, Payment 15, Reporting 20 with **POS 14 / Authorization 11**, application compatibility **0.30.0**, and the matching Customer BFF/Portal. Existing source/Reporting protocols are unchanged. Stop old POS hosts before applying POS 14 and deploying the updated coordinator: all seal save paths now observe approval state in the same transaction. Apply Authorization 11 before enabling approval routes. `scripts/migrate-databases.ps1` contains current targets.
 

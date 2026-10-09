@@ -121,6 +121,14 @@ $posWorkloadAudience = @($posWorkload.protocolMappers | Where-Object {
 if ($posWorkloadAudience.Count -ne 1) {
     throw 'The POS workload client must emit the nexaconnect-api audience in access tokens.'
 }
+$posWorkloadUsername = @($posWorkload.protocolMappers | Where-Object {
+    $_.protocolMapper -eq 'oidc-usermodel-property-mapper' -and $_.config.'user.attribute' -eq 'username' -and
+    $_.config.'claim.name' -eq 'preferred_username' -and $_.config.'access.token.claim' -eq 'true' -and
+    $_.config.'id.token.claim' -eq 'false' -and $_.config.'userinfo.token.claim' -eq 'false'
+})
+if ($posWorkloadUsername.Count -ne 1 -or $posWorkload[0].standardFlowEnabled -or $posWorkload[0].directAccessGrantsEnabled -or -not $posWorkload[0].serviceAccountsEnabled) {
+    throw 'The POS settlement workload must emit its service-account username only in access tokens and prohibit human sign-in flows.'
+}
 
 $orderClient = @($realm.clients | Where-Object clientId -eq 'nexaconnect-order-service')
 $orderAudience = @($orderClient.protocolMappers | Where-Object {

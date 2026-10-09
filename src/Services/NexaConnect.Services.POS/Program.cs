@@ -14,6 +14,8 @@ using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-pos");
+builder.Services.AddOpenTelemetry().WithTracing(t=>t.AddSource(NexaConnect.Services.POS.Infrastructure.DayClose.SettlementRecoveryWorker.TelemetryName))
+    .WithMetrics(m=>m.AddMeter(NexaConnect.Services.POS.Infrastructure.DayClose.SettlementRecoveryWorker.TelemetryName));
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 
 // Add services to the container.
@@ -32,7 +34,7 @@ builder.Services.AddHttpClient("Authorization").AddNexaConnectCorrelationPropaga
 builder.Services.AddScoped<IShiftStore, PostgresShiftStore>();
 builder.Services.AddScoped<ICashSessionStore, PostgresCashSessionStore>();
 builder.Services.AddScoped<ICashReviewStore, PostgresCashReviewStore>();
-builder.Services.AddScoped<IOrderSettlementProjectionStore, PostgresOrderSettlementProjectionStore>();
+builder.Services.AddScoped<IOrderSettlementProjectionStore, LateAwareOrderSettlementStore>();
 builder.Services.AddScoped<ITerminalStore, PostgresTerminalStore>();
 builder.Services.AddScoped<IRestaurantScopeReader, RestaurantHierarchyClient>();
 builder.Services.AddScoped<IAuthorizationDecisionClient, AuthorizationDecisionClient>();
@@ -75,10 +77,29 @@ builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPos
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IFinalizationStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresFinalizationStore>();
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IFinalizationSources,NexaConnect.Services.POS.Infrastructure.DayClose.HttpFinalizationSources>();
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DayFinalizationPreparation>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.IPOSDayBarrierStore, NexaConnect.Services.POS.Infrastructure.Persistence.PostgresPOSDayBarrierStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.CashReviews.POSDayBarriers>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.IDaySettlementStore, NexaConnect.Services.POS.Infrastructure.DayClose.PostgresDaySettlementStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ISettlementSources, NexaConnect.Services.POS.Infrastructure.DayClose.HttpSettlementSources>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DaySettlementRecovery>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.DaySettlement>();
+if (builder.Configuration.GetValue<bool>("SettlementRecovery:Enabled"))
+    builder.Services.AddHostedService<NexaConnect.Services.POS.Infrastructure.DayClose.SettlementRecoveryWorker>();
 var app = builder.Build();
-app.Use(async (context,next)=>{try{await next();}catch(Npgsql.PostgresException e)when(e.SqlState=="P0001"&&e.MessageText=="financial_day_fenced"){context.Response.StatusCode=409;context.Response.Headers.CacheControl="no-store";app.Logger.LogWarning("Financial day fence rejected a source mutation");await context.Response.WriteAsJsonAsync(new{code="financial_day_fenced"});}});
+
 app.UseNexaConnectRequestLogging();
-app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/pos/v1/customer/day-cutoffs")) context.Response.Headers.CacheControl="no-store"; await next(); });
+app.Use(async (context,next)=>
+{
+    try { await next(); }
+    catch(Npgsql.PostgresException e)when(e.SqlState=="PDS01"||e.SqlState=="P0001"&&e.MessageText=="financial_day_fenced")
+    {
+        var code=e.SqlState=="PDS01"?"financial_day_barrier":"financial_day_fenced";
+        context.Response.StatusCode=409;context.Response.Headers.CacheControl="no-store";
+        app.Logger.LogWarning("Financial source mutation rejected; code {Code}",code);
+        await context.Response.WriteAsJsonAsync(new{code});
+    }
+});
+app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/pos/v1/customer/day-cutoffs")||context.Request.Path.StartsWithSegments("/api/pos/v1/internal/day-settlement-barriers")||context.Request.Path.StartsWithSegments("/api/pos/v1/customer/organizations")) context.Response.Headers.CacheControl="no-store"; await next(); });
 app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/pos/v1/customer", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.

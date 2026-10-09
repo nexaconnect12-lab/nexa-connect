@@ -14,4 +14,5 @@ export const scenarios=[
  'reviewed source seals reconcile actual events and later financial changes remain journaled',
  'manager approval binds the reviewed seal and real accountant authority remains read only',
  'real manager finalization preparation retains three source fences and cancellation releases them with accountant denial',
+ 'real manager finalizes exact prepared approval and accountant reads immutable receipt without finalize authority',
 ];

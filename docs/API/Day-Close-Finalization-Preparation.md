@@ -1,5 +1,7 @@
 # Temporary finalization preparation and source fences
 
+This document describes temporary preparation. [Durable settlement](../API/Day-Close-Settlements.md) now promotes exact leases to permanent barriers. Once settlement intent owns preparation, expiry/cancel cannot release armed or committed protection; preparation GET reports finalizing/finalized and new prepare/cancel is rejected.
+
 Online single-branch THB preparation binds the exact manager approval, sealed financial snapshot, source IDs and revisions. It temporarily protects relevant source writes; it creates no completed settlement, accounting adjustment, fiscal correction or offline operation. See [ADR-028](../Architecture/Decisions/ADR-028-temporary-day-close-source-fences.md) and [rollout](../Deployment/Day-Close-Finalization-Preparation.md).
 
 ## Customer workflow

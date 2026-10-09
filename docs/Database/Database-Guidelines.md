@@ -1,5 +1,7 @@
 # Database Guidelines
 
+Permanent financial-day barriers and settlement history require forward recovery after any retained intent. Runtime roles own only their service tables and narrow INSERT/UPDATE privileges; no trigger disabling, table ownership, cross-database grants or history deletion is allowed. Late financial payload custody stays private to its owner. See [settlement storage and recovery](../Deployment/Day-Close-Settlements.md).
+
 See [Database Design](Database-Design.md) for the PostgreSQL topology, service-owned logical models, media metadata, and operational workflows.
 
 - Each service owns its database or schema.

@@ -2,7 +2,7 @@ using NexaConnect.Contracts.IntegrationEvents;
 
 namespace NexaConnect.Services.POS.Application.OrderSettlements;
 
-public enum OrderSettlementProjectionStatus { Applied, Replayed }
+public enum OrderSettlementProjectionStatus { Applied, Replayed, LateCaptured }
 public sealed class OrderSettlementProjectionConflictException(string message) : Exception(message);
 
 public interface IOrderSettlementProjectionStore

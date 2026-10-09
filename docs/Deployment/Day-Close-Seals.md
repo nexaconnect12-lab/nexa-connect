@@ -1,5 +1,7 @@
 # Day-close seal rollout and recovery
 
+For the current coordinated deployment, use [durable settlement rollout](Day-Close-Settlements.md): Order 18 / Payment 17 / POS 18 / Authorization 13, compatibility 0.32.0, Reporting 20 unchanged. Version sets below identify the earlier capability boundary and are insufficient for the current settlement-enabled binaries.
+
 The current seal coordinator also observes manager approval validity atomically on seal changes; deploy POS 16 / Authorization 12, compatibility 0.31.0 for the approval-enabled binary. Sources use Order 17 / Payment 16 with Reporting 20 unchanged. The separate [approval workflow](Day-Close-Approvals.md) records a decision on reviewed evidence; source sealing alone still does not approve/finalize settlement.
 
 Apply Order **17**, Payment **16**, POS **16** with compatibility **0.31.0**. Reporting remains **20** and Authorization uses **12**. Upgrade source/Reporting/POS/BFF/portal binaries together before exposing sealing controls. POS requires attribution response protocol two; older source responses cannot validate readiness. Existing HTTPS source/Reporting/POS addresses, correlation clients, identity clients and read/prepare grants apply; no new secret or workload bypass is needed; approval adds the separately documented manager permission. Ordinary preparation/cutoff workflows remain available.

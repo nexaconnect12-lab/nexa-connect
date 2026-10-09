@@ -3,7 +3,7 @@ const id=z.string().uuid(),version=z.number().int().nonnegative().safe(),time=z.
 export const finalizationCommand=z.object({branchId:id,businessDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),operationId:id,expectedVersion:version,approvalId:id,reviewedApprovalVersion:version.positive()});
 const identity=z.object({organizationId:id,restaurantId:id,branchId:id,businessDate:z.string()});
 const fence=z.object({source:z.enum(["Order","Payment","POS"]),sealId:id,epoch:id,revision:version,expiresAtUtc:time,active:z.boolean(),cancelled:z.boolean()});
-const view=z.object({identity,version,status:z.enum(["not_prepared","preparing","prepared","blocked","cancelling","cancelled","expired"]),pendingCommand:finalizationCommand.nullable(),approvalId:id.nullable(),reviewedApprovalVersion:version.positive().nullable(),sealVersion:version.positive().nullable(),expiresAtUtc:time.nullable(),validatedAtUtc:time.nullable(),sources:z.array(fence).max(3),blockers:z.array(z.string().max(100)).max(20),canPrepare:z.boolean()});
+const view=z.object({identity,version,status:z.enum(["not_prepared","preparing","prepared","blocked","cancelling","cancelled","expired","finalizing","finalized"]),pendingCommand:finalizationCommand.nullable(),approvalId:id.nullable(),reviewedApprovalVersion:version.positive().nullable(),sealVersion:version.positive().nullable(),expiresAtUtc:time.nullable(),validatedAtUtc:time.nullable(),sources:z.array(fence).max(3),blockers:z.array(z.string().max(100)).max(20),canPrepare:z.boolean()});
 export type Finalization=z.infer<typeof view>;
 export type FinalizationCommand=z.infer<typeof finalizationCommand>;
 export function readFinalization(value:unknown,organization:string,branch:string,date:string,now=Date.now()):Finalization{

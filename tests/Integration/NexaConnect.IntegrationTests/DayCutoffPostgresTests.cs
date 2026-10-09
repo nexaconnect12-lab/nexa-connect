@@ -55,6 +55,8 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
     }
     [PosPostgresFact]public async Task Empty_migration_can_downgrade_and_reapply()
     {
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0018_day_settlements/down.sql")));
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0017_day_barriers/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0016_finalization_preparations/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0015_day_fences/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0014_day_approvals/down.sql")));
@@ -71,6 +73,8 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0014_day_approvals/up.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0015_day_fences/up.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0016_finalization_preparations/up.sql")));
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0017_day_barriers/up.sql")));
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0018_day_settlements/up.sql")));
         Assert.Equal(0L,await Scalar("SELECT count(*) FROM branch_day_cutoff_audit"));
     }
     [PosPostgresFact]public async Task Authorization_migration_backfills_roles_and_fresh_assignments_preserve_reader_preparer_separation()
@@ -104,10 +108,15 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
             await Execute(await File.ReadAllTextAsync(Path.Combine(folders[11],"up.sql")));
             Assert.True(await Granted("store-manager","pos.day-close.finalization.prepare"));Assert.True(await Granted("tenant-admin","pos.day-close.finalization.prepare"));
             Assert.False(await Granted("accountant","pos.day-close.finalization.prepare"));Assert.False(await Granted("cashier","pos.day-close.finalization.prepare"));
+            Assert.False(await Granted("store-manager","pos.day-close.finalize"));
+            await Execute(await File.ReadAllTextAsync(Path.Combine(folders[12],"up.sql")));
+            Assert.True(await Granted("store-manager","pos.day-close.finalize"));Assert.True(await Granted("tenant-admin","pos.day-close.finalize"));
+            Assert.False(await Granted("accountant","pos.day-close.finalize"));Assert.False(await Granted("cashier","pos.day-close.finalize"));
             await assignments.AssignAsync(new("fresh-manager",day.OrganizationId,day.RestaurantId,day.BranchId,"store-manager"),"test-admin",default);
             await assignments.AssignAsync(new("fresh-accountant",day.OrganizationId,day.RestaurantId,day.BranchId,"accountant"),"test-admin",default);
             Assert.True(await Granted("fresh-manager","pos.day-close.prepare"));Assert.True(await Granted("fresh-accountant","pos.day-close.read"));Assert.False(await Granted("fresh-accountant","pos.day-close.prepare"));
             Assert.True(await Granted("fresh-manager","pos.day-close.approve"));Assert.False(await Granted("fresh-accountant","pos.day-close.approve"));
+            Assert.True(await Granted("fresh-manager","pos.day-close.finalize"));Assert.False(await Granted("fresh-accountant","pos.day-close.finalize"));
             await Execute("UPDATE authorization_user_permission_overrides SET effect='deny' WHERE subject_id='fresh-manager' AND permission_code='pos.day-close.prepare'");
             Assert.False(await Granted("fresh-manager","pos.day-close.prepare"));
             await Execute("UPDATE authorization_user_permission_overrides SET effect='deny' WHERE subject_id='fresh-manager' AND permission_code='pos.day-close.approve'");
@@ -115,6 +124,8 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
             Assert.True(await Granted("fresh-manager","pos.day-close.finalization.prepare"));Assert.False(await Granted("fresh-accountant","pos.day-close.finalization.prepare"));
             await Execute("UPDATE authorization_user_permission_overrides SET effect='deny' WHERE subject_id='fresh-manager' AND permission_code='pos.day-close.finalization.prepare'");
             Assert.False(await Granted("fresh-manager","pos.day-close.finalization.prepare"));
+            await Execute(await File.ReadAllTextAsync(Path.Combine(folders[12],"down.sql")));
+            Assert.False(await Granted("store-manager","pos.day-close.finalize"));
             await Execute(await File.ReadAllTextAsync(Path.Combine(folders[11],"down.sql")));
             Assert.False(await Granted("store-manager","pos.day-close.finalization.prepare"));
             await Execute(await File.ReadAllTextAsync(Path.Combine(folders[10],"down.sql")));

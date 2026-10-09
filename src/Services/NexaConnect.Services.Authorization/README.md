@@ -1,5 +1,7 @@
 # Authorization Service
 
+Authorization 13 backfills `pos.day-close.finalize` for tenant-admin/store-manager; `ProductRoleDefaults` provides the same grant for new assignments. Accountants/cashiers receive no finalize grant. POS requires live read/finalize for new commands and exact customer retries; previously authorized durable intents recover through the existing POS workload identity even after revocation. Disable settlement routes/worker before downgrade removes role links and overrides. See [settlement rollout](../../../docs/Deployment/Day-Close-Settlements.md).
+
 Authorization 12 adds `pos.day-close.finalization.prepare` to existing manager role links and Domain defaults for new assignments. Accountants/cashiers remain read-only by default. Source and POS preparation/cancel routes require this live grant in addition to their read/scope checks. Disable routes before downgrade removes role links/overrides; cleanup then requires an authorized manager or bounded source expiry.
 
 Migration 11 adds `pos.day-close.approve` to existing tenant-admin/store-manager role links. Domain `ProductRoleDefaults` supplies the same defaults for new assignments; accountants/cashiers receive no approve grant. POS checks live read/approve and source permissions. Disable approval routes before downgrade; it removes approve role links and user overrides. See [approval rollout](../../../docs/Deployment/Day-Close-Approvals.md).
