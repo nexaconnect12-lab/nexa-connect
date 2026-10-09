@@ -29,6 +29,8 @@ try
         stage="command-host"; await CashierCommandHost.RunAsync(args[0]); return 0;
     }
     var options=FixtureOptions.Read();
+    if(args.Length==1&&args[0] is "correction-reference" or "cash-correction-proof" or "revoke-cash-correction" or "restore-cash-correction" or "limit-cash-correction" or "restore-cash-correction-limit")
+    {using var correctionTimeout=new CancellationTokenSource(TimeSpan.FromSeconds(30));await LateCashCorrectionAcceptanceFixture.ExecuteAsync(options,args[0],correctionTimeout.Token);return 0;}
     if (args.Length == 1 && args[0] is "cashier-proof" or "cutoff-proof")
     {
         if(!options.DayClose || Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CLOSE")!="1") throw new ArgumentException();

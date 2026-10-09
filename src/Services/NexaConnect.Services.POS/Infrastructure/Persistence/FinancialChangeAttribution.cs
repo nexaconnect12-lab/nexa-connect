@@ -14,7 +14,7 @@ internal static class FinancialChangeAttribution
             using var document=JsonDocument.Parse(json);var root=document.RootElement;
             if(root.GetProperty("version").GetInt32()!=2)return new(null,"legacy_attribution");
             var kind=root.GetProperty("kind").GetString();
-            if(kind is not ("stores" or "shifts" or "cash_sessions" or "cash_movements" or "cash_session_review_states"))return new(null,"unknown");
+            if(kind is not ("stores" or "shifts" or "cash_sessions" or "cash_movements" or "cash_session_review_states" or "late_cash_corrections"))return new(null,"unknown");
             var recordId=root.GetProperty("recordId").GetGuid();
             if(recordId==Guid.Empty)return new(null,"unknown");
             var before=root.GetProperty("before").Deserialize<FinancialRecord>(Json);

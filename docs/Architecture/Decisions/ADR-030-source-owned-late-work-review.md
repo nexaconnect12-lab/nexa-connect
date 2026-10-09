@@ -1,5 +1,7 @@
 # ADR-030: Source-owned review of retained late financial work
 
+POS late-cash posting is implemented separately by [ADR-031](ADR-031-verified-late-cash-corrections.md); the review behavior documented here remains unchanged. Other source corrections and fiscal/Reporting integration remain planned.
+
 Status: Accepted and implemented. Local verification is recorded in [acceptance evidence](../Evidence/Late-Work-Review-Acceptance.md).
 
 ## Context
@@ -20,6 +22,6 @@ Lists seek by received timestamp/opaque UUID with 1–50 results and a bounded c
 
 ## Consequences
 
-This adds one review table per source (Order 19 / Payment 18 / POS 19), stable custody metadata and Authorization 14 manager grants; minimum application compatibility is 0.33.0. Reporting remains 20. Existing histories and receipts stay immutable. Downgrade refuses retained custody or review rows because removing public work identity would break references. Deploy matching binaries and migrations together; least-privilege runtime roles need SELECT/INSERT on their own review table, never UPDATE/DELETE/TRUNCATE. Correction posting and fiscal/Reporting integration remain separate future work.
+This adds one review table per source (Order 19 / Payment 18 / POS 19), stable custody metadata and Authorization 14 manager grants; minimum application compatibility is 0.33.0. Reporting remains 20. Existing histories and receipts stay immutable. Downgrade refuses retained custody or review rows because removing public work identity would break references. Deploy matching binaries and migrations together; least-privilege runtime roles need SELECT/INSERT on their own review table, never UPDATE/DELETE/TRUNCATE. Verified POS late-cash posting is implemented separately by ADR-031; other correction types and fiscal/Reporting integration remain planned.
 
 See [API](../../API/Late-Work-Reviews.md) and [rollout](../../Deployment/Late-Work-Reviews.md).

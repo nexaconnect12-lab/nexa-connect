@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$Confirm,
-    [string]$ApplicationVersion = '0.33.0',
+    [string]$ApplicationVersion = '0.34.0',
     [string]$EnvironmentFile
 )
 

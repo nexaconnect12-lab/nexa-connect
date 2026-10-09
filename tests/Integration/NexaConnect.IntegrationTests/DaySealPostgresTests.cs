@@ -28,7 +28,8 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
     private readonly List<(NpgsqlDataSource Db,string Schema)> owned=[];
     private NpgsqlDataSource order=null!,payment=null!,pos=null!,reporting=null!;
     private readonly Guid organization=Guid.NewGuid(),restaurant=Guid.NewGuid(),branch=Guid.NewGuid();
-    private DateOnly Date=>DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+    private DateOnly? correctionTestDate;
+    private DateOnly Date=>correctionTestDate??DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
     private EndOfDayWindow Window=>new(organization,restaurant,branch,new(Date.ToDateTime(TimeOnly.MinValue,DateTimeKind.Utc)),new(Date.AddDays(1).ToDateTime(TimeOnly.MinValue,DateTimeKind.Utc)));
     private PosDomain.DayIdentity Day=>new(organization,restaurant,branch,Date);
     private bool allowed=true,fail,calendarDrift;
@@ -294,6 +295,7 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
             var exact=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_exact_day_attribution").Single();
             await using var epochQuery=db.CreateCommand("SELECT epoch FROM source_financial_epoch");var epoch=await epochQuery.ExecuteScalarAsync();
             var review=Directory.GetDirectories(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner),"*_late_work_reviews").Single();
+            if(owner=="POS")await Sql(db,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0020_late_cash_corrections/down.sql")));
             await Sql(db,File.ReadAllText(Path.Combine(review,"down.sql")));
             if(owner=="POS")await Sql(db,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0018_day_settlements/down.sql")));
             var barriers=Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts",owner,owner=="Order"?"0018_day_barriers":"0017_day_barriers");
@@ -314,6 +316,7 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
             await Sql(db,File.ReadAllText(Path.Combine(barriers,"up.sql")));
             if(owner=="POS")await Sql(db,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0018_day_settlements/up.sql")));
             await Sql(db,File.ReadAllText(Path.Combine(review,"up.sql")));
+            if(owner=="POS")await Sql(db,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0020_late_cash_corrections/up.sql")));
         }
     }
     public Task<SourceCutoffRead<OrderDaySummary>> OrderAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>

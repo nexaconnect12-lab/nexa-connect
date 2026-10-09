@@ -22,7 +22,7 @@ Allow-listed late financial deliveries use independently owned append-only custo
 
 ## Consequences
 
-Permanent barriers intentionally fail closed during dependency outages. Operators restore credentials, hosts and databases; they do not remove barriers or rewrite decisions. GET returns durable progress and attempts fresh source counts; unavailable counts are explicitly marked saved. Accountants have read-only access by default. There is no new Reporting projection: the outbox event is a versioned integration fact for future consumers. Correction posting, fiscal adjustment, accounting exports and branch-offline finalization remain separate work.
+Permanent barriers intentionally fail closed during dependency outages. Operators restore credentials, hosts and databases; they do not remove barriers or rewrite decisions. GET returns durable progress and attempts fresh source counts; unavailable counts are explicitly marked saved. Accountants have read-only access by default. There is no new Reporting projection: the outbox event is a versioned integration fact for future consumers. Verified POS late-cash posting is implemented separately by [ADR-031](ADR-031-verified-late-cash-corrections.md). Other correction types, fiscal adjustment, accounting exports and branch-offline finalization remain separate work.
 
 The protocol favors retained evidence and recovery over automatic unlock. It is not a provider transfer, tax settlement or distributed database transaction. Deploy the coordinated migrations, credentials, source endpoints, recovery worker and matching portal together.
 

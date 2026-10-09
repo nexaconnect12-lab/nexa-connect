@@ -11,7 +11,7 @@ const schema=z.object({
   tenders:z.array(z.object({method:z.string().min(1),currency:z.string(),amount:money.nonnegative()})),
   order:z.object({...source,completedOrders:count,unresolvedOrders:count,evidenceGaps:count}),
   payment:z.object({...source,unresolvedPayments:count,unresolvedRefunds:count,evidenceGaps:count}),
-  pos:z.object({...source,openShifts:count,openCashSessions:count,pendingCashReviews:count}),
+  pos:z.object({...source,openShifts:count,openCashSessions:count,pendingCashReviews:count,lateCashCorrectionAdjustment:money.nonpositive().default(0),lateCashCorrections:count.default(0)}),
   issues:z.array(z.string()),
 });
 export type DayDraft=z.infer<typeof schema>;

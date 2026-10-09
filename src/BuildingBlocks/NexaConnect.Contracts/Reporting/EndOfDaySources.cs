@@ -12,4 +12,4 @@ public sealed record PaymentDaySummary(EndOfDayWindow Window, DateTimeOffset Obs
     IReadOnlyList<string> Currencies, string? EvidenceVersion = null);
 public sealed record PosDaySummary(EndOfDayWindow Window, DateTimeOffset ObservedAtUtc,
     int OpenShifts, int OpenCashSessions, int PendingCashReviews, decimal CashVariance,
-    IReadOnlyList<string> Currencies, string? EvidenceVersion = null);
+    IReadOnlyList<string> Currencies, string? EvidenceVersion = null,decimal LateCashCorrectionAdjustment=0,int LateCashCorrections=0);

@@ -31,7 +31,7 @@ test.describe.configure({mode:'serial'});
 test.beforeAll(async()=>{api=await request.newContext();await reporting.start();await payment.start();});
 test.afterAll(async()=>{cashier=manager=secondManager=undefined;await api?.dispose();await reporting.close();await payment.close();});
 async function fixture(action){try{return(await promisify(execFile)('dotnet',[s.fixtureDll,action],{timeout:190000,windowsHide:true})).stdout.trim();}catch{throw new Error('Acceptance fixture failed; diagnostics suppressed.');}}
-async function control(action){if(!['stop-pos','start-pos','stop-order','start-order-delivery'].includes(action))throw new Error('Invalid POS action.');const requestId=randomUUID().replaceAll('-',''),temp=join(s.controlPath,'request.tmp'),path=join(s.controlPath,'request.json'),ack=join(s.controlPath,'ack.json');writeFileSync(temp,JSON.stringify({runId:s.runId,requestId,action}));renameSync(temp,path);const limit=Date.now()+30000;while(Date.now()<limit){try{if(statSync(ack).size>4096)throw new Error('Oversized runner acknowledgement.');const value=JSON.parse(readFileSync(ack,'utf8').replace(/^\uFEFF/,''));if(value.requestId===requestId&&value.status==='completed')return;}catch(error){if(error.code!=='ENOENT')throw error;}await new Promise(ok=>setTimeout(ok,100));}throw new Error('Owned POS control timed out.');}
+async function control(action){if(!['stop-pos','start-pos','start-pos-held-delivery','stop-order','start-order-delivery'].includes(action))throw new Error('Invalid POS action.');const requestId=randomUUID().replaceAll('-',''),temp=join(s.controlPath,'request.tmp'),path=join(s.controlPath,'request.json'),ack=join(s.controlPath,'ack.json');writeFileSync(temp,JSON.stringify({runId:s.runId,requestId,action}));renameSync(temp,path);const limit=Date.now()+30000;while(Date.now()<limit){try{if(statSync(ack).size>4096)throw new Error('Oversized runner acknowledgement.');const value=JSON.parse(readFileSync(ack,'utf8').replace(/^\uFEFF/,''));if(value.requestId===requestId&&value.status==='completed')return;}catch(error){if(error.code!=='ENOENT')throw error;}await new Promise(ok=>setTimeout(ok,100));}throw new Error('Owned POS control timed out.');}
 async function token(browser,identity){
  const context=await browser.newContext(),page=await context.newPage(),verifier=randomBytes(32).toString('base64url'),state=randomUUID();let callback;
  const listener=createHttpServer((req,res)=>{const u=new URL(req.url,s.callbackURL);if(u.pathname==='/callback'&&u.searchParams.get('state')===state){callback=u;res.writeHead(200,{'Content-Type':'text/plain','Cache-Control':'no-store'});res.end('Authentication complete');}else{res.writeHead(404);res.end();}});
@@ -45,8 +45,8 @@ async function token(browser,identity){
   if(response.status()!==200)throw new Error();const data=await response.json();if(!data.access_token)throw new Error();return data.access_token;
  }catch{const current=new URL(page.url());process.stdout.write('acceptance-stage: pkce-failure-'+(current.origin===new URL(s.issuer).origin?'issuer':current.origin===new URL(s.callbackURL).origin?'callback':'other')+'-'+(callback?'seen':'unseen')+'-'+(await page.locator('#input-error').count()?'login-error':'no-login-error')+'\n');throw new Error('PKCE authentication failed; credentials suppressed.');}finally{await context.close();listener.closeAllConnections();await new Promise(ok=>listener.close(ok));}
 }
-async function send(service,path,bearer,body,method=body?'POST':'GET',organization=f.organizationId){
- const response=await api.fetch(s.urls[service]+path,{method,headers:{...(bearer?{Authorization:'Bearer '+bearer}:{}),'X-Nexa-Organization-Id':organization,'X-Nexa-Application-Code':'nexa_connect','X-Nexa-Terminal-Id':r.terminalId,'X-Correlation-ID':'cashier-'+s.runId},data:body});
+async function send(service,path,bearer,body,method=body?'POST':'GET',organization=f.organizationId,terminal=r.terminalId){
+ const response=await api.fetch(s.urls[service]+path,{method,headers:{...(bearer?{Authorization:'Bearer '+bearer}:{}),'X-Nexa-Organization-Id':organization,'X-Nexa-Application-Code':'nexa_connect','X-Nexa-Terminal-Id':terminal,'X-Correlation-ID':'cashier-'+s.runId},data:body});
  let data;try{data=await response.json();}catch{}return {status:response.status(),data};
 }
 async function bff(page,path,body){return page.evaluate(async({path,body,root})=>{const headers=body?{'Content-Type':'application/json','X-Nexa-CSRF':(await(await fetch(root+'/csrf')).json()).requestToken}:{};const response=await fetch(path,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,cache:'no-store'});let data;try{data=await response.json();}catch{}return {status:response.status,data};},{path,body,root});}
@@ -284,4 +284,56 @@ test(scenarios[15],async({page,browser})=>{
  expect((await bff(page,path+query)).data.settlement.receipt).toEqual(receipt);
  await control('stop-pos');await control('start-pos');
  expect((await bff(page,path+query)).data.settlement.receipt).toEqual(receipt);
+});
+
+test(scenarios[16],async({page,browser})=>{
+ const refs=JSON.parse(await fixture('correction-reference'));expect(Object.keys(refs).sort()).toEqual(['branchId','productId','storeId','terminalId']);
+ const call=(service,path,bearer,body,method)=>send(service,path,bearer,body,method,f.organizationId,refs.terminalId);
+ await control('stop-pos');await control('start-pos-held-delivery');clock('historical');let cashSession,paidAmount;
+ try{
+  expect((await call('pos','/api/pos/v1/terminals/enroll',manager,{branchId:refs.branchId,storeId:refs.storeId,terminalId:refs.terminalId,code:'correction',deviceType:'pos'})).status).toBe(201);
+  const opened=await call('pos','/api/pos/v1/shifts/open',cashier,{branchId:refs.branchId,storeId:refs.storeId,terminalId:refs.terminalId,shiftNumber:'CORRECTION-'+s.runId.slice(0,8)});expect(opened.status).toBe(200);
+  const cash=await call('pos','/api/pos/v1/cash-sessions/open',cashier,{shiftId:opened.data.shiftId,storeId:refs.storeId,currency:'THB',openingAmount:0});expect(cash.status).toBe(200);cashSession=cash.data.cashSessionId;
+  expect((await call('catalog','/api/catalog/v1/branches/'+refs.branchId+'/menu-items',manager,{productId:refs.productId,name:'Correction acceptance',unitPrice:100,currency:'THB',preparationStation:'kitchen'})).status).toBe(201);
+  expect((await call('inventory','/api/inventory/v1/branches/'+refs.branchId+'/stock/'+refs.productId,manager,{quantity:10},'PUT')).status).toBe(200);
+  const checkout={organizationId:f.organizationId,restaurantId:f.restaurantId,branchId:refs.branchId,currency:'THB',paymentMethod:'cash_manual',idempotencyKey:randomUUID(),lines:[{productId:refs.productId,quantity:1}]};
+  const quote=await call('order','/api/order/v1/workflows/quote',cashier,checkout);expect(quote.status).toBe(200);paidAmount=quote.data.pricing.totalAmount;
+  const placed=await call('order','/api/order/v1/workflows/place',cashier,{...checkout,pricingFingerprint:quote.data.fingerprint});expect(placed.status).toBe(200);
+  expect((await call('order','/api/order/v1/orders/'+placed.data.orderId+'/manual-settlement',cashier,{organizationId:f.organizationId,branchId:refs.branchId,terminalId:refs.terminalId,idempotencyKey:randomUUID(),method:'cash',amount:paidAmount,currency:'THB',receiptConfirmed:true})).status).toBe(201);
+  const summary=(await call('pos','/api/pos/v1/cash-sessions/'+cashSession+'/summary',cashier)).data;expect(summary.netMovementAmount).toBe(0);
+  expect((await call('pos','/api/pos/v1/cash-sessions/'+cashSession+'/close',cashier,{actualClosingAmount:paidAmount,expectedConcurrencyVersion:summary.concurrencyVersion})).status).toBe(204);
+  expect((await call('pos','/api/pos/v1/shifts/'+opened.data.shiftId+'/close',cashier,undefined,'POST')).status).toBe(204);
+ }finally{clock('live');}
+ const reviewPath='/api/pos/v1/cash-reviews/'+cashSession;const reviewQuery='?'+new URLSearchParams({organizationId:f.organizationId,branchId:refs.branchId,storeId:refs.storeId});
+ const cashReview=(await call('pos',reviewPath+reviewQuery,manager)).data.session;
+ expect((await call('pos',reviewPath+'/decisions',manager,{organizationId:f.organizationId,branchId:refs.branchId,storeId:refs.storeId,decision:'approve',reason:'Verified delayed cash acceptance',expectedSessionVersion:cashReview.sessionVersion,expectedReviewVersion:cashReview.reviewVersion,idempotencyKey:randomUUID()})).status).toBe(200);
+ await signIn(page,s.resolver);await page.getByLabel('End-of-day branch ID').fill(refs.branchId);
+ const query='?'+new URLSearchParams({branchId:refs.branchId,businessDate:f.businessDate});
+ await expect.poll(async()=>{const draft=await bff(page,'/bff/customer/reports/end-of-day'+query);return draft.status===200&&draft.data.projection?.completedOrders===1&&draft.data.pos.pendingCashReviews===0;},{timeout:45000,intervals:[500,1000]}).toBe(true);
+ async function loadButton(name,path){const waiting=page.waitForResponse(r=>r.url().includes(path)&&!r.url().endsWith('/csrf')&&r.request().method()==='GET');await page.getByRole('button',{name,exact:true}).click();const response=await waiting;expect(response.status()).toBe(200);return response.json();}
+ async function postButton(name,path){const waiting=page.waitForResponse(r=>r.url().endsWith(path)&&r.request().method()==='POST');await page.getByRole('button',{name,exact:true}).click();const response=await waiting;expect(response.status()).toBe(200);return response.json();}
+ await loadButton('Load cutoff evidence',root);expect((await postButton('Capture cutoff evidence',root)).status).toBe('ready_for_review');
+ await loadButton('Load sealed evidence','/bff/customer/day-close-seals');await postButton('Seal reviewed evidence','/bff/customer/day-close-seals');await loadButton('Load sealed evidence','/bff/customer/day-close-seals');
+ await loadButton('Load approval','/bff/customer/day-close-approvals');await postButton('Approve reviewed seal','/bff/customer/day-close-approvals');
+ await loadButton('Load finalization preparation','/bff/customer/day-close-finalization-preparations');await postButton('Prepare finalization','/bff/customer/day-close-finalization-preparations');
+ await loadButton('Load settlement progress','/bff/customer/day-close-settlements');const finalized=await postButton('Finalize settlement','/bff/customer/day-close-settlements');expect(finalized.settlement.receipt.snapshot.cashVariance).toBe(paidAmount);
+ const originalReceipt=finalized.settlement.receipt;await control('stop-pos');await control('start-pos');
+ const latePath='/bff/customer/day-close-late-work',lateQuery=query+'&source=POS';let retained;
+ await expect.poll(async()=>{const response=await bff(page,latePath+lateQuery);retained=response.data;return response.status===200?retained.items.length:0;},{timeout:45000,intervals:[500,1000]}).toBe(1);
+ await loadButton('Load late work',latePath);await page.getByRole('button',{name:'View retained work',exact:true}).click();await expect(page.getByRole('button',{name:'Require correction',exact:true})).toBeVisible();
+ await postButton('Require correction',latePath);const workId=retained.items[0].workId;const correctionPath='/bff/customer/late-cash-corrections';
+ const preview=await loadButton('Load cash correction',correctionPath);expect(Number(preview.preview.adjustment)).toBe(-paidAmount);
+ await fixture('limit-cash-correction');const limited=await loadButton('Load cash correction',correctionPath);expect(limited.canPost).toBe(false);await expect(page.getByRole('button',{name:'Post reviewed cash correction'})).toHaveCount(0);
+ expect((await bff(page,correctionPath,{branchId:refs.branchId,businessDate:f.businessDate,workId,command:{workId,operationId:randomUUID(),expectedReviewVersion:preview.preview.reviewVersion,previewFingerprint:preview.preview.fingerprint}})).status).toBe(403);
+ await fixture('restore-cash-correction-limit');await loadButton('Load cash correction',correctionPath);
+ const accountantContext=await browser.newContext(),accountantPage=await accountantContext.newPage();try{
+  await signIn(accountantPage,s.accountant);const denied=await bff(accountantPage,correctionPath,{branchId:refs.branchId,businessDate:f.businessDate,workId,command:{workId,operationId:randomUUID(),expectedReviewVersion:preview.preview.reviewVersion,previewFingerprint:preview.preview.fingerprint}});expect(denied.status).toBe(403);
+ }finally{await accountantContext.close();}
+ await fixture('revoke-cash-correction');await page.getByRole('checkbox',{name:'I reviewed this adjustment and posting date'}).check();const forbidden=page.waitForResponse(r=>r.url().endsWith(correctionPath)&&r.request().method()==='POST');await page.getByRole('button',{name:'Post reviewed cash correction'}).click();expect((await forbidden).status()).toBe(403);
+ await fixture('restore-cash-correction');await loadButton('Load cash correction',correctionPath);await page.getByRole('checkbox',{name:'I reviewed this adjustment and posting date'}).check();
+ let drop=true;const commands=[];await page.route('**/bff/customer/late-cash-corrections',async route=>{if(route.request().method()==='POST'){commands.push(route.request().postDataJSON());if(drop){drop=false;const committed=await route.fetch();expect(committed.status()).toBe(200);await route.abort('failed');return;}}await route.continue();});
+ await page.getByRole('button',{name:'Post reviewed cash correction'}).click();await expect(page.getByRole('button',{name:'Retry same cash correction'})).toBeEnabled();await control('stop-pos');await control('start-pos');
+ await postButton('Retry same cash correction',correctionPath);expect(commands[1]).toEqual(commands[0]);await expect(page.getByText('Immutable cash correction receipt')).toBeVisible();
+ expect((await bff(page,'/bff/customer/day-close-settlements'+query)).data.settlement.receipt).toEqual(originalReceipt);
+ const proof=JSON.parse(await fixture('cash-correction-proof'));expect(proof).toMatchObject({verified:true,corrections:1,audits:1,publications:1,custodyRetained:true,originalCashUnchanged:true,authorizationVerified:true});
 });

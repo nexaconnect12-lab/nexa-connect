@@ -50,7 +50,8 @@ export function EndOfDayPanel({organizationId}:{organizationId:string}){
         <Descriptions.Item label="Gross sales">{report.branch.currency} {report.grossSales}</Descriptions.Item>
         <Descriptions.Item label="Completed refunds">{report.branch.currency} {report.completedRefunds}</Descriptions.Item>
         <Descriptions.Item label="Net sales">{report.branch.currency} {report.netSales}</Descriptions.Item>
-        <Descriptions.Item label="Closed drawer cash variance">{report.branch.currency} {report.cashVariance}</Descriptions.Item>
+        <Descriptions.Item label="Cash variance including corrections">{report.branch.currency} {report.cashVariance}</Descriptions.Item>
+        <Descriptions.Item label="Late cash correction adjustments">{report.branch.currency} {report.pos.lateCashCorrectionAdjustment} ({report.pos.lateCashCorrections} postings)</Descriptions.Item>
         <Descriptions.Item label="Unresolved work">Orders {report.order.unresolvedOrders}; payments {report.payment.unresolvedPayments}; refunds {report.payment.unresolvedRefunds}; open shifts {report.pos.openShifts}; open cash sessions {report.pos.openCashSessions}; pending cash reviews {report.pos.pendingCashReviews}</Descriptions.Item>
         <Descriptions.Item label="Source evidence gaps">Orders {report.order.evidenceGaps}; refunds {report.payment.evidenceGaps}</Descriptions.Item>
         <Descriptions.Item label="Source observation times (UTC)">Order {report.order.observedAtUtc}; Payment {report.payment.observedAtUtc}; POS {report.pos.observedAtUtc}</Descriptions.Item>

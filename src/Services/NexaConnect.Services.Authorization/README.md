@@ -1,5 +1,7 @@
 # Authorization Service
 
+Authorization 15 grants pos.day-close.late-cash.post to manager defaults and backfills existing roles. It does not create approval limits: an applicable active financial_approval_limits action/currency cap must be configured. POS sends the verified positive amount and THB in live decisions, including exact retries. Missing/too-small caps deny posting; accountants remain read-only by default. See [correction contract](../../../docs/API/Late-Cash-Corrections.md) and [operations](../../../docs/Deployment/Late-Cash-Corrections.md).
+
 Authorization 14 backfills pos.day-close.late-work.review only for tenant-admin/store-manager; new assignment defaults match. Accountants/cashiers receive no default review grant. Live decisions also apply on exact retry. Downgrade removes role links and overrides after routes are disabled; see [review rollout](../../../docs/Deployment/Late-Work-Reviews.md).
 
 Authorization 13 backfills `pos.day-close.finalize` for tenant-admin/store-manager; `ProductRoleDefaults` provides the same grant for new assignments. Accountants/cashiers receive no finalize grant. POS requires live read/finalize for new commands and exact customer retries; previously authorized durable intents recover through the existing POS workload identity even after revocation. Disable settlement routes/worker before downgrade removes role links and overrides. See [settlement rollout](../../../docs/Deployment/Day-Close-Settlements.md).

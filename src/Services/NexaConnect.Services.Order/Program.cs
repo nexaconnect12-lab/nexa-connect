@@ -132,6 +132,8 @@ builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderDa
 builder.Services.AddScoped<NexaConnect.Services.Order.Infrastructure.Messaging.LatePaymentReconciliation>();
 builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.IOrderLateWorkStore,NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderLateWorkStore>();
 builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderLateWork>();
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.ManualTenders.IManualTenderEvidenceStore,NexaConnect.Services.Order.Infrastructure.Persistence.PostgresManualTenderEvidenceStore>();
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.ManualTenders.ManualTenderEvidence>();
 var app = builder.Build();
 
 app.UseNexaConnectRequestLogging();
@@ -146,7 +148,7 @@ app.Use(async (context,next)=>
         await context.Response.WriteAsJsonAsync(new{code});
     }
 });
-app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/order/v1/customer/late-work")||context.Request.Path.StartsWithSegments("/api/order/v1/customer/day-cutoffs")||context.Request.Path.StartsWithSegments("/api/order/v1/internal/day-settlement-barriers")) context.Response.Headers.CacheControl="no-store"; await next(); });
+app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/order/v1/customer/manual-tender-evidence")||context.Request.Path.StartsWithSegments("/api/order/v1/customer/late-work")||context.Request.Path.StartsWithSegments("/api/order/v1/customer/day-cutoffs")||context.Request.Path.StartsWithSegments("/api/order/v1/internal/day-settlement-barriers")) context.Response.Headers.CacheControl="no-store"; await next(); });
 app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/order/v1/customer/end-of-day", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.

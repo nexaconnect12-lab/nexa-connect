@@ -15,4 +15,5 @@ export const scenarios=[
  'manager approval binds the reviewed seal and real accountant authority remains read only',
  'real manager finalization preparation retains three source fences and cancellation releases them with accountant denial',
  'real manager finalizes exact prepared approval and accountant reads immutable receipt without finalize authority',
+ 'real retained cash delivery is reviewed and posted once as a verified current-day correction with live authority',
 ];
