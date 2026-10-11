@@ -1,5 +1,7 @@
 # NexaConnect Customer Portal
 
+Settlement reporting now uses Reporting 22 / POS 22 with matching binaries at compatibility 0.37.0. New commits atomically publish V2 proof; the opt-in consumer accepts original V1/V2, stores immutable facts/hash receipts and exposes a live authorized business-date ledger with separate corrections and delivery gaps. V1 proof remains unavailable rather than enriched. No new financial authority is added. See [ADR-034](../../../../docs/Architecture/Decisions/ADR-034-settlement-reporting.md), [API](../../../../docs/API/Settlement-Reporting.md) and [rollout](../../../../docs/Deployment/Settlement-Reporting.md).
+
 Day-close correction evidence displays exact original identities and decimal strings, independent delivery counts and clear blockers through approval, finalization preparation and settlement receipts. Fresh readiness requires protocol three and explicit proof; legacy decided history remains readable. See [contract](../../../../docs/API/Correction-Day-Evidence.md) and [rollout](../../../../docs/Deployment/Correction-Day-Evidence.md).
 
 End-of-day cash correction reporting uses a separate closed UTC-window comparison and live protected BFF read. Exact strings preserve adjustment precision; missing/conflicting/unexpected delivery is distinct from original sales and settled drawer totals. Old requests cannot restore changed filter scope. See [contract](../../../../docs/API/Cash-Correction-Reporting.md) and [operations](../../../../docs/Deployment/Cash-Correction-Reporting.md).

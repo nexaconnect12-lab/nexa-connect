@@ -57,6 +57,16 @@ public sealed partial class DaySealPostgresTests
         Assert.Equal(ready.Snapshot.Corrections.Adjustment,final.Receipt.Snapshot.Corrections.Adjustment);
         Assert.Equal(1,final.Receipt.Snapshot.Corrections.Matched);Assert.Equal(0,final.Receipt.Snapshot.Corrections.Missing);
         Assert.Equal(original,JsonSerializer.Serialize((await Settlements.ReadAsync(oldDay,default))!.Receipt));
+        var settlementRange=new SettlementReportRange(organization,branch,Date,Date.AddDays(1));
+        var settlementManifest=await new POS::NexaConnect.Services.POS.Infrastructure.DayClose.PostgresSettlementInventoryStore(pos).ReadAsync(settlementRange,restaurant,default);
+        var projectedSettlement=new REPORTING::NexaConnect.Services.Reporting.Infrastructure.Persistence.PostgresSettlementFactRepository(reporting);
+        Assert.Equal(1,(await projectedSettlement.CompareAsync(settlementManifest,default)).Missing);
+        await projectedSettlement.ProjectAsync(REPORTING::NexaConnect.Services.Reporting.Application.SettlementReporting.Translate(settlementManifest.Events.Single()),default);
+        var settlementReport=await projectedSettlement.CompareAsync(settlementManifest,default);
+        Assert.Equal("matched",settlementReport.Status);Assert.Equal(1,settlementReport.Items.Single().Corrections!.Expected);
+        Assert.Equal(final.Receipt.Snapshot.Corrections.Items.Single().OriginalSettlementId,settlementReport.Items.Single().Corrections!.Items.Single().OriginalSettlementId);
+        Assert.Equal(final.Receipt.Snapshot.Corrections.Adjustment,settlementReport.Items.Single().Corrections!.Adjustment);
+
         Assert.Equal(1,await Count(pos,"late_cash_corrections"));Assert.Equal(0,await Count(pos,"cash_movements"));
         await Assert.ThrowsAsync<PostgresException>(()=>Sql(pos,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0022_correction_day_evidence/down.sql"))));
     }

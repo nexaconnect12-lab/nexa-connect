@@ -96,6 +96,8 @@ builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ILateCa
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ILateCashCorrectionEvidence,NexaConnect.Services.POS.Infrastructure.DayClose.HttpLateCashCorrectionEvidence>();
 builder.Services.AddHttpClient("CorrectionRestaurant",c=>{c.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]??"https://restaurant.invalid/");c.Timeout=TimeSpan.FromSeconds(15);}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.CashCorrectionInventory>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.SettlementInventory>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ISettlementInventoryStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresSettlementInventoryStore>();
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.DayClose.ICashCorrectionInventoryStore,NexaConnect.Services.POS.Infrastructure.DayClose.PostgresCashCorrectionInventoryStore>();
 var app = builder.Build();
 

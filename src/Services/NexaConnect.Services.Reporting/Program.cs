@@ -23,6 +23,10 @@ builder.Services.AddScoped<IReportingReadRepository, PostgresReportingReadReposi
 builder.Services.AddScoped<SaleFinancialReporting>();
 builder.Services.AddScoped<ISaleFinancialFactRepository, PostgresSaleFinancialFactRepository>();
 builder.Services.AddScoped<CashCorrectionReporting>();
+builder.Services.AddScoped<SettlementReporting>();
+builder.Services.AddScoped<ISettlementFactRepository, PostgresSettlementFactRepository>();
+builder.Services.AddHttpClient<ISettlementSource, HttpSettlementSource>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:POS"] ?? throw new InvalidOperationException("Services:POS is required.")); c.Timeout = TimeSpan.FromSeconds(15); }).AddNexaConnectCorrelationPropagation();
+if (builder.Configuration.GetValue<bool>("SettlementConsumer:Enabled")) builder.Services.AddHostedService<SettlementFinancialConsumer>();
 builder.Services.AddScoped<ICashCorrectionFactRepository, PostgresCashCorrectionFactRepository>();
 builder.Services.AddHttpClient<ICashCorrectionSource, HttpCashCorrectionSource>(c => { c.BaseAddress = new Uri(builder.Configuration["Services:POS"] ?? throw new InvalidOperationException("Services:POS is required.")); c.Timeout = TimeSpan.FromSeconds(15); }).AddNexaConnectCorrelationPropagation();
 if (builder.Configuration.GetValue<bool>("CashCorrectionConsumer:Enabled")) builder.Services.AddHostedService<CashCorrectionFinancialConsumer>();
@@ -60,6 +64,7 @@ builder.Services.AddScoped<SealedDayReconciliation>();
 builder.Services.AddScoped<ISealedSources,HttpCutoffSources>();
 builder.Services.AddScoped<ICutoffSources,HttpCutoffSources>();
 var app = builder.Build();
+app.Use(async(context,next)=>{if(context.Request.Path.Value?.Contains("/reports/day-settlements",StringComparison.OrdinalIgnoreCase)==true)context.Response.Headers.CacheControl="no-store";await next();});
 app.UseNexaConnectRequestLogging();
 app.Use(async (context,next) => { if (context.Request.Path.Value?.EndsWith("/reports/cash-corrections", StringComparison.OrdinalIgnoreCase) == true) context.Response.Headers.CacheControl="no-store"; await next(); });
 app.Use(async(context,next)=>{if((context.Request.Path.StartsWithSegments("/api/reporting/v1/customer/day-cutoff-reconciliation")||context.Request.Path.StartsWithSegments("/api/reporting/v1/customer/day-seal-reconciliation")))context.Response.Headers.CacheControl="no-store";await next();});

@@ -1,5 +1,7 @@
 # Database Guidelines
 
+Reporting 22 adds two owned immutable settlement projection/hash tables; current catalog 199 tables (Reporting 19/POS 50). Settlement reporting reuses reporting.sales.read and pos.day-close.read with customer membership/scope revalidation; it adds no grant. Current cutoff acceptance uses Reporting 22/POS 22 and compatibility 0.37.0 with both settlement event bindings. New POS publication is V2; original V1 history stays unchanged. See [settlement reporting](../API/Settlement-Reporting.md) and [operations](../Deployment/Settlement-Reporting.md).
+
 Correction-aware POS manifests retain original events, source summary and revision in one repeatable-read snapshot; matching protocol-three provenance is required for new readiness. Retained epochs/history cannot be reset or silently upgraded. Source and Reporting comparisons remain separate snapshots; existing temporary/permanent financial guards protect later transactions. See [contract](../API/Correction-Day-Evidence.md) and [operations](../Deployment/Correction-Day-Evidence.md).
 
 Correction Reporting projections may be rebuilt only after stopping consumption/reads, retaining original POS event evidence and replaying after re-upgrade. POS correction ledger and retained replay audit require forward recovery; shared-exchange confirmation does not certify Reporting completeness. See [contract](../API/Cash-Correction-Reporting.md) and [operations](../Deployment/Cash-Correction-Reporting.md).

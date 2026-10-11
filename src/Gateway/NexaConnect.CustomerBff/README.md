@@ -1,5 +1,7 @@
 # NexaConnect Customer BFF
 
+Settlement reporting now uses Reporting 22 / POS 22 with matching binaries at compatibility 0.37.0. New commits atomically publish V2 proof; the opt-in consumer accepts original V1/V2, stores immutable facts/hash receipts and exposes a live authorized business-date ledger with separate corrections and delivery gaps. V1 proof remains unavailable rather than enriched. No new financial authority is added. See [ADR-034](../../../docs/Architecture/Decisions/ADR-034-settlement-reporting.md), [API](../../../docs/API/Settlement-Reporting.md) and [rollout](../../../docs/Deployment/Settlement-Reporting.md).
+
 Existing cutoff/seal/approval/settlement routes forward protocol-three correction snapshots under unchanged protected membership/token/CSRF/correlation boundaries. No new route or grant. Deploy matching portal/BFF binaries with POS 22 and Reporting 21 at 0.36.0; old ready responses are historical, not new action authority. See [contract](../../../docs/API/Correction-Day-Evidence.md) and [operations](../../../docs/Deployment/Correction-Day-Evidence.md).
 
 The read-only reports/cash-corrections route derives organization from the protected tenant cookie, checks live product membership and forwards server-held bearer/correlation. It buffers at most 2 MiB with a 30-second deadline; all outcomes are no-store and failures sanitized. Logs use Cash correction reporting BFF. See [contract](../../../docs/API/Cash-Correction-Reporting.md) and [operations](../../../docs/Deployment/Cash-Correction-Reporting.md).

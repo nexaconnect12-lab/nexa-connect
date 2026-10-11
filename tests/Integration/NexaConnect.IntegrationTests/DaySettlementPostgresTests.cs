@@ -41,9 +41,9 @@ public sealed partial class DaySealPostgresTests
         var receipt=(await FinalizeSettlement(command)).Settlement!.Receipt!;
         var original=receipt.Snapshot.Seals!.Order;
         Assert.True(receipt.Sources.Single(s=>s.Source=="Order").Revision>original.SourceRevision);
-        await using var q=pos.CreateCommand("SELECT payload::text FROM outbox_messages WHERE event_type='pos.branch-day-settled.v1'");
-        var publication=System.Text.Json.JsonSerializer.Deserialize<BranchDaySettledV1>((string)(await q.ExecuteScalarAsync())!,new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
-        var source=publication.Sources.Single(s=>s.Source=="Order");Assert.Equal(original.SealId,source.SealId);
+        await using var q=pos.CreateCommand("SELECT payload::text FROM outbox_messages WHERE event_type='pos.branch-day-settled.v2'");
+        var publication=System.Text.Json.JsonSerializer.Deserialize<BranchDaySettledV2>((string)(await q.ExecuteScalarAsync())!,new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+        var source=publication.Settlement.Sources.Single(s=>s.Source=="Order");Assert.Equal(original.SealId,source.SealId);
         Assert.Equal(original.RevisionEpoch,source.Epoch);Assert.Equal(original.SourceRevision,source.Revision);
     }
     private sealed class SettlementSources(DaySealPostgresTests owner):App.ISettlementSources
@@ -78,7 +78,7 @@ public sealed partial class DaySealPostgresTests
         Assert.Equal("finalized",first.Status);Assert.NotNull(first.Receipt);Assert.Equal(first.Preparation.Approval.Snapshot,first.Receipt.Snapshot);
         Assert.Equal(first.Id,(await FinalizeSettlement(command)).Settlement!.Id);
         Assert.Equal(1,await Count(pos,"branch_day_settlement_receipts"));Assert.Equal(1,await Count(pos,"branch_day_settlement_decisions"));
-        await using var publication=pos.CreateCommand("SELECT count(*) FROM outbox_messages WHERE event_type='pos.branch-day-settled.v1'");Assert.Equal(1L,await publication.ExecuteScalarAsync());
+        await using var publication=pos.CreateCommand("SELECT count(*) FROM outbox_messages WHERE event_type='pos.branch-day-settled.v2'");Assert.Equal(1L,await publication.ExecuteScalarAsync());
         Assert.All(first.Sources,s=>Assert.Equal("committed",s.Proof.Phase));
         Assert.Equal("finalized",(await Finalizations().ReadAsync(organization,branch,Date,new("manager","token"),default)).Status);
         await Assert.ThrowsAsync<Domain.DayCloseConflictException>(()=>Finalizations().CancelAsync(organization,new(branch,Date,command.PreparationOperationId),new("manager","token"),default));

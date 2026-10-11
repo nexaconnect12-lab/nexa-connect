@@ -58,6 +58,7 @@ public sealed class CustomerBffFeatureAuthorizationTests
     [InlineData("PUT", "/bff/customer/configuration/branches/11111111-1111-1111-1111-111111111111")]
     [InlineData("GET", "/bff/customer/dashboard")]
     [InlineData("GET", "/bff/customer/reports/sales")]
+    [InlineData("GET", "/bff/customer/reports/day-settlements")]
     [InlineData("GET", "/bff/customer/media")]
     [InlineData("POST", "/bff/customer/media/uploads")]
     [InlineData("POST", "/bff/customer/media/11111111-1111-1111-1111-111111111111/complete")]

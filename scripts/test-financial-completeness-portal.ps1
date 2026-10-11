@@ -53,10 +53,10 @@ try{
     $targets=@{PlatformDirectory=@('platform',3);Restaurant=@('restaurant',3);Authorization=@('authorization',9);Order=@('order',11);Payment=@('payment',10);Reporting=@('reporting',20)}
     if($EndOfDay){$targets.POS=@('pos',$(if($DayClose){8}else{7}))}
     if($DayClose){$targets.Authorization=@('authorization',10)};if($CashierDayClose){$targets.Catalog=@('catalog',4);$targets.Inventory=@('inventory',5);$targets.Kitchen=@('kitchen',3)}
-    if($CashierDayCutoff){$targets.Order=@('order',19);$targets.Payment=@('payment',18);$targets.POS=@('pos',22);$targets.Reporting=@('reporting',21);$targets.Authorization=@('authorization',15)}
+    if($CashierDayCutoff){$targets.Order=@('order',19);$targets.Payment=@('payment',18);$targets.POS=@('pos',22);$targets.Reporting=@('reporting',22);$targets.Authorization=@('authorization',15)}
     foreach($e in $targets.GetEnumerator()){
         Set-RunSetting ('NEXACONNECT_'+$e.Key.ToUpperInvariant()+'_DB') (Connection $e.Value[0] nexaconnect_migration $env:NEXACONNECT_JOINED_MIGRATION_PASSWORD)
-        & dotnet run @noRestore --project (Join-Path $root 'src/Tools/NexaConnect.DataMigration') -- --service $e.Key --scripts-root (Join-Path $root 'src/Tools/NexaConnect.DataMigration/Scripts') --target $e.Value[1] --confirm --application-version $(if($CashierDayCutoff){"0.36.0"}elseif($DayClose){"0.24.0"}else{"0.23.0"})
+        & dotnet run @noRestore --project (Join-Path $root 'src/Tools/NexaConnect.DataMigration') -- --service $e.Key --scripts-root (Join-Path $root 'src/Tools/NexaConnect.DataMigration/Scripts') --target $e.Value[1] --confirm --application-version $(if($CashierDayCutoff){"0.37.0"}elseif($DayClose){"0.24.0"}else{"0.23.0"})
         if($LASTEXITCODE-ne 0){throw "Migration failed for $($e.Key)."}
     }
     Set-RunSetting NEXACONNECT_AUTHORIZATION_INTEGRATION_DB (Connection authorization nexaconnect_migration $env:NEXACONNECT_JOINED_MIGRATION_PASSWORD)
@@ -117,7 +117,7 @@ try{
         $config=$common.Clone();$config["ConnectionStrings__$name"]=[Environment]::GetEnvironmentVariable('NEXACONNECT_FINANCIAL_PORTAL_DB_'+$suffix.ToUpperInvariant())
         if($EndOfDay -and $name-eq'Reporting'){$config.Services__Order=$urls.Order;$config.Services__Payment="http://127.0.0.1:$($ports[9])/";$config.Services__POS=$urls.POS}
         if($name-eq'PlatformDirectory'){$config.KeycloakAdmin__BaseUrl="http://127.0.0.1:$keycloakPort/";$config.KeycloakAdmin__Realm=$realm;$config.KeycloakAdmin__ClientId='platform-directory-admin';$config.KeycloakAdmin__ClientSecret=$env:NEXACONNECT_JOINED_CLIENT_SECRET}
-        if($name-eq'Reporting'){$config.WorkloadIdentity__ClientId='nexaconnect-reporting-service';foreach($consumer in $(if($CashierDayCutoff){@('OrderSaleConsumer','PaymentRefundConsumer','CashCorrectionConsumer')}else{@('OrderSaleConsumer','PaymentRefundConsumer')})){$config[$consumer+'__Enabled']='true';$config[$consumer+'__ConnectionString']=$broker};$config.CashCloseConsumer__Enabled='false';$config.ActivityConsumer__Enabled='false'}
+        if($name-eq'Reporting'){$config.WorkloadIdentity__ClientId='nexaconnect-reporting-service';foreach($consumer in $(if($CashierDayCutoff){@('OrderSaleConsumer','PaymentRefundConsumer','CashCorrectionConsumer','SettlementConsumer')}else{@('OrderSaleConsumer','PaymentRefundConsumer')})){$config[$consumer+'__Enabled']='true';$config[$consumer+'__ConnectionString']=$broker};$config.CashCloseConsumer__Enabled='false';$config.ActivityConsumer__Enabled='false'}
         Start-App $name (Join-Path $dir "bin/Debug/net10.0/NexaConnect.Services.$name.dll") $dir $config $ports[$i]
     }
     if($EndOfDay){
@@ -168,7 +168,8 @@ try{
         $baseBindingsReady=($bindings -match 'nexaconnect.events\s+nexaconnect.reporting.order-sales.v1\s+order.sale-completed.v1') -and ($bindings -match 'nexaconnect.events\s+nexaconnect.reporting.payment-refunds.v1\s+payment.refunded.v1')
         $cashBindingReady=-not $CashierDayClose -or ($bindings -match 'nexaconnect.events\s+nexaconnect.pos.order-manual-tender.v1\s+order.manual-tender-settled.v1')
         $correctionBindingReady=-not $CashierDayCutoff -or ($bindings -match 'nexaconnect.events\s+nexaconnect.reporting.cash-corrections.v1\s+pos.late-cash-correction-posted.v1')
-        if($LASTEXITCODE-eq 0 -and $baseBindingsReady -and $cashBindingReady -and $correctionBindingReady){$bound=$true;break}
+        $settlementBindingReady=-not $CashierDayCutoff -or ($bindings -match 'nexaconnect.events\s+nexaconnect.reporting.day-settlements.v1\s+pos.branch-day-settled.v2')
+        if($LASTEXITCODE-eq 0 -and $baseBindingsReady -and $cashBindingReady -and $correctionBindingReady -and $settlementBindingReady){$bound=$true;break}
         Start-Sleep -Seconds 1
     }
     if(-not $bound){throw 'All required actual financial consumer bindings must exist before delivery.'}

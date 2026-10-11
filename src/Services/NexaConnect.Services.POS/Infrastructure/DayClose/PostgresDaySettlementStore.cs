@@ -77,15 +77,8 @@ public sealed class PostgresDaySettlementStore(NpgsqlDataSource source) : IDaySe
         {
             await Run(c, tx, "INSERT INTO branch_day_settlement_receipts(organization_id,settlement_id,receipt) VALUES($1,$2,$3::jsonb)", ct,
                 state.Identity.OrganizationId, state.Id, JsonSerializer.Serialize(receipt, Json));
-            var snapshot = receipt.Snapshot;
-            var seals=snapshot.Seals!;
-            var publication = new BranchDaySettledV1(receipt.EventId, receipt.CorrelationId, receipt.SettledAtUtc, state.Id,
-                state.Identity.OrganizationId, state.Identity.RestaurantId, state.Identity.BranchId, state.Identity.BusinessDate,
-                receipt.ApprovalId, receipt.SealVersion, snapshot.Currency, snapshot.GrossSales, snapshot.CompletedRefunds, snapshot.NetSales,
-                snapshot.CashVariance, snapshot.Tenders.Select(t=>new SettlementTenderV1(t.Method,t.Currency,t.Amount)).ToArray(),
-                new[]{("Order",seals.Order),("Payment",seals.Payment),("POS",seals.Pos)}
-                    .Select(s=>new SettlementSourceV1(s.Item1,s.Item2.SealId,s.Item2.RevisionEpoch,s.Item2.SourceRevision)).ToArray());
-            await Run(c, tx, "INSERT INTO outbox_messages(id,event_type,contract_version,aggregate_type,aggregate_id,payload,correlation_id,occurred_at_utc) VALUES($1,'pos.branch-day-settled.v1',1,'branch-day-settlement',$2,$3::jsonb,$4,$5)", ct,
+            var publication = SettlementPublicationFactory.Current(receipt);
+            await Run(c, tx, "INSERT INTO outbox_messages(id,event_type,contract_version,aggregate_type,aggregate_id,payload,correlation_id,occurred_at_utc) VALUES($1,'pos.branch-day-settled.v2',2,'branch-day-settlement',$2,$3::jsonb,$4,$5)", ct,
                 publication.EventId, state.Id, JsonSerializer.Serialize(publication, Json), state.CorrelationId, now);
         }
         await Save(c, tx, state, ct); await Audit(c, tx, state, commit ? "commit" : "abort", ct);

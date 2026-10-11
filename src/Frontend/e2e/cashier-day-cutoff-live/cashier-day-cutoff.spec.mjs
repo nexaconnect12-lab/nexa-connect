@@ -258,11 +258,17 @@ test(scenarios[15],async({page,browser})=>{
  expect(finalized.command.expectedPreparationVersion).toBe(prepared.data.version);expect(receipt.snapshot.grossSales).toBe(2*amount);
  await expect(page.getByText('Immutable settlement receipt',{exact:true})).toBeVisible();
  expect((await bff(page,path,finalized.command)).data.settlement.receipt).toEqual(receipt);
+ const ledgerQuery='?'+new URLSearchParams({branchId:f.branchId,fromDate:f.businessDate,toDate:new Date(Date.parse(f.businessDate+'T00:00:00Z')+86400000).toISOString().slice(0,10)});
+ await expect.poll(async()=>{const report=await bff(page,'/bff/customer/reports/day-settlements'+ledgerQuery);return report.status===200&&report.data.status==='matched'&&report.data.expected===1&&report.data.matched===1&&report.data.items[0].settlementId===finalized.data.settlement.id&&report.data.items[0].correctionEvidence==='verified';},{timeout:45000,intervals:[500,1000]}).toBe(true);
+ await page.getByLabel('Settlement from date',{exact:true}).fill(f.businessDate);await page.getByLabel('Settlement to date (exclusive)').fill(new Date(Date.parse(f.businessDate+'T00:00:00Z')+86400000).toISOString().slice(0,10));
+ await page.getByRole('button',{name:'Load settlement ledger',exact:true}).click();await expect(page.getByText('Settlement delivery matched',{exact:true})).toBeVisible();
+
  expect((await bff(page,path,{...finalized.command,reviewedApprovalVersion:finalized.command.reviewedApprovalVersion+1})).status).toBe(409);
  expect((await bff(page,'/bff/customer/day-close-finalization-preparations/cancel',{branchId:f.branchId,businessDate:f.businessDate,operationId:prepared.command.operationId})).status).toBe(409);
  const context=await browser.newContext({baseURL:s.baseURL,ignoreHTTPSErrors:true});try{
   const accountant=await context.newPage();await signIn(accountant,s.accountant);
   const loaded=await accountant.request.get(path+query);expect(loaded.status()).toBe(200);const view=await loaded.json();expect(view.canFinalize).toBe(false);expect(view.settlement.receipt).toEqual(receipt);
+  const accountantLedger=await bff(accountant,'/bff/customer/reports/day-settlements'+ledgerQuery);expect(accountantLedger.status).toBe(200);expect(accountantLedger.data.status).toBe('matched');
   expect((await bff(accountant,path,finalized.command)).status).toBe(403);
   const csrfMissing=await accountant.request.post(path,{data:finalized.command});expect(csrfMissing.status()).toBe(400);
  }finally{await context.close();}

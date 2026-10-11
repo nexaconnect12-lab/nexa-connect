@@ -1,5 +1,7 @@
 # Identity Claims Contract
 
+Reporting 22 adds two owned immutable settlement projection/hash tables; current catalog 199 tables (Reporting 19/POS 50). Settlement reporting reuses reporting.sales.read and pos.day-close.read with customer membership/scope revalidation; it adds no grant. Current cutoff acceptance uses Reporting 22/POS 22 and compatibility 0.37.0 with both settlement event bindings. New POS publication is V2; original V1 history stays unchanged. See [settlement reporting](../API/Settlement-Reporting.md) and [operations](../Deployment/Settlement-Reporting.md).
+
 Correction-aware retained checks add no permission or workload identity. Reporting sales read plus live owning financial reads cover exact manifests/seals; POS coordination keeps read/prepare/approve/finalize and configured amount posting limits separate. Customer bearer/correlation propagate through the existing adapters. See [contract](../API/Correction-Day-Evidence.md) and [operations](../Deployment/Correction-Day-Evidence.md).
 
 Correction Reporting adds no permissions or workload identity. Live reporting.sales.read plus current organization/product membership is combined with customer-bearer POS pos.day-close.read and pos.cash-review.read. Administrative correction replay uses a controlled database/broker login rather than OIDC; self-asserted operator UUID is distinct from persisted PostgreSQL session_user. See [contract](../API/Cash-Correction-Reporting.md) and [operations](../Deployment/Cash-Correction-Reporting.md).
