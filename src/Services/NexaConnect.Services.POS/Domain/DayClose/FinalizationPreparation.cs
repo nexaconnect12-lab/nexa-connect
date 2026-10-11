@@ -21,7 +21,9 @@ public static class FinalizationPreparation
     {
         if(state.ExpiresAtUtc<=now.AddSeconds(15)||decision?.Identity!=state.Identity||decision.ApprovalId!=state.Approval.ApprovalId
             ||decision.SealVersion!=state.Approval.SealVersion||approvalVersion!=state.Command.ReviewedApprovalVersion||approvalStatus!="approved"
-            ||sources.Length!=3||sources.Select(x=>x.Source).Distinct().Count()!=3)return false;
+            ||sources.Length!=3||sources.Select(x=>x.Source).Distinct().Count()!=3
+            ||!state.Approval.Snapshot.IsValid(now)||state.Approval.Snapshot.Blockers().Length!=0
+            ||!state.Approval.Snapshot.SameEvidence(decision.Snapshot))return false;
         var seals=state.Approval.Snapshot.Seals!;
         foreach(var owner in new[]{"Order","Payment","POS"})
         {

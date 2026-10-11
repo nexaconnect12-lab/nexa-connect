@@ -1,5 +1,7 @@
 # Database Guidelines
 
+Correction-aware POS manifests retain original events, source summary and revision in one repeatable-read snapshot; matching protocol-three provenance is required for new readiness. Retained epochs/history cannot be reset or silently upgraded. Source and Reporting comparisons remain separate snapshots; existing temporary/permanent financial guards protect later transactions. See [contract](../API/Correction-Day-Evidence.md) and [operations](../Deployment/Correction-Day-Evidence.md).
+
 Correction Reporting projections may be rebuilt only after stopping consumption/reads, retaining original POS event evidence and replaying after re-upgrade. POS correction ledger and retained replay audit require forward recovery; shared-exchange confirmation does not certify Reporting completeness. See [contract](../API/Cash-Correction-Reporting.md) and [operations](../Deployment/Cash-Correction-Reporting.md).
 
 Cash correction ledger/audit is immutable and must be retained with original custody/review/barrier/drawer provenance and source journal. POS 20 downgrade refuses financial history; runtime roles receive only owning SELECT/INSERT. Source amount and approval limit verification belongs to Application/Domain; parameterized transactions and owning SQL constraints backstop current review, unique posting and financial window. See [correction contract](../API/Late-Cash-Corrections.md) and [operations](../Deployment/Late-Cash-Corrections.md).

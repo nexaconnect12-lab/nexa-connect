@@ -1,5 +1,7 @@
 # Finalization preparation rollout and recovery
 
+Current correction-aware rollout uses POS 22 / Reporting 21 with matching binaries at 0.36.0. Follow [protocol-three migration, compatibility and recovery](Correction-Day-Evidence.md); preceding introduction versions and execution artifacts remain historical. New readiness requires explicit correction proof and old undecided preparations need coordinated recovery.
+
 This document describes temporary preparation. [Durable settlement](../Deployment/Day-Close-Settlements.md) now promotes exact leases to permanent barriers. Once settlement intent owns preparation, expiry/cancel cannot release armed or committed protection; preparation GET reports finalizing/finalized and new prepare/cancel is rejected.
 
 The temporary preparation boundary requires **Order 17 / Payment 16 / POS 16 / Authorization 12**, compatibility **0.31.0**, with matching Customer BFF/Portal and unchanged Reporting 20. POS 15 supplies its source fences; POS 16 supplies the coordinator. `scripts/migrate-databases.ps1` discovers the latest catalog, currently Order 19 / Payment 18 / POS 19 / Authorization 14 at 0.33.0; see [late-work review rollout](Late-Work-Reviews.md) for current binaries. Stop affected old hosts while migrating/deploying; enable the coordinated routes only after all sources support the fence protocol. Mixed source binaries/schemas cannot certify prepared status.

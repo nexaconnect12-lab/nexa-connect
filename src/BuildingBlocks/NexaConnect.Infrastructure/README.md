@@ -1,5 +1,7 @@
 # NexaConnect Infrastructure
 
+Low-level revision comparison supports matching protocol-two or protocol-three versions without context business policy. POS owns correction selection and admission; shared retention remains mechanical and stores owner-supplied bounded payloads. No cross-owner database access. See [contract](../../../docs/API/Correction-Day-Evidence.md) and [operations](../../../docs/Deployment/Correction-Day-Evidence.md).
+
 `Persistence/PostgresLateWorkReview` supplies owning-schema scoped seek pagination, repeatable-read detail, serialized append transactions and actor-bound exact replay. Owning adapters provide safe projection and source Domain review policy; Application supplies live authorization. The helper does not change financial state, custody disposition or settlement receipts. See [review contract](../../../docs/API/Late-Work-Reviews.md) and [storage/grants](../../../docs/Deployment/Late-Work-Reviews.md).
 
 PostgresDayBarrier and PostgresLateFinancialWork provide parameterized owning-schema retention/locking mechanics; owning Domain supplies transition/window admission. Strict ServiceWorkloadPrincipal.IsClientCredentials checks exact authenticated client and service-account username for the POS settlement protocol. No service-specific financial policy is placed here. See [settlement contract](../../../docs/API/Day-Close-Settlements.md) and [operations/telemetry](../../../docs/Deployment/Day-Close-Settlements.md).

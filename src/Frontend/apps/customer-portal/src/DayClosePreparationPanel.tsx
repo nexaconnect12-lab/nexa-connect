@@ -1,3 +1,4 @@
+import {DayCorrectionEvidencePanel} from "./DayCorrectionEvidencePanel";
 import React,{useEffect,useRef,useState} from "react";
 import {Alert,Button,Descriptions,List,Select,Space,Table,Typography} from "antd";
 import {createApiClient} from "@nexaconnect/api-client";
@@ -35,6 +36,7 @@ export function DayClosePreparationPanel({organizationId,branchId,businessDate,c
     {error&&<Alert role="status" type="error" message={error}/>}
     {value&&<><Descriptions bordered column={1}><Descriptions.Item label="Preparation status">{seal&&value.status==="ready_for_review"?"sealed evidence":value.status.replaceAll("_"," ")}</Descriptions.Item><Descriptions.Item label="Version">{value.version}</Descriptions.Item><Descriptions.Item label="Fresh validation">{value.validatedAtUtc??"No fresh readiness validation"}</Descriptions.Item></Descriptions>
       {value.snapshot&&<Typography.Paragraph>Saved evidence: {value.snapshot.currency} gross {value.snapshot.grossSales}, refunds {value.snapshot.completedRefunds}, net {value.snapshot.netSales}, cash variance {value.snapshot.cashVariance}; {value.snapshot.timeZone}, {value.snapshot.fromUtc} to {value.snapshot.toUtc}. Observed {value.snapshot.observedAtUtc}. This snapshot is retained until an explicit refresh.</Typography.Paragraph>}
+      {value.snapshot?.corrections&&<DayCorrectionEvidencePanel value={value.snapshot.corrections}/>}
       {cutoff&&value.snapshot?.cutoff&&<Typography.Paragraph>Retained source generations: Order {value.snapshot.cutoff.order.generation}, Payment {value.snapshot.cutoff.payment.generation}, POS {value.snapshot.cutoff.pos.generation}. Saved source revisions: Order {value.snapshot.cutoff.order.sourceRevision??"unavailable"}, Payment {value.snapshot.cutoff.payment.sourceRevision??"unavailable"}, POS {value.snapshot.cutoff.pos.sourceRevision??"unavailable"}. Saved financial gaps: {value.snapshot.cutoff.financialGaps}. {value.status==="ready_for_review"?"Sources unchanged at this validation.":"Retained evidence is blocked or not freshly validated; resolve blockers and refresh."}</Typography.Paragraph>}
       {seal&&<Typography.Paragraph>Pending source changes at the last check: {value.pendingSealChanges??"not checked"}. {value.status==="ready_for_review"?"The saved event set was reconciled and no changes were pending when checked.":"Retained seals are not freshly validated. Resolve blockers, refresh cutoff evidence and reseal."}</Typography.Paragraph>}
       {seal&&value.snapshot&&value.latestSealComparison&&<>

@@ -49,6 +49,6 @@ public static class BranchDayApproval
         if(status==state.Status && reason==state.Reason)return state;
         return state with{Version=checked(state.Version+1),Status=status,Reason=reason,UpdatedAtUtc=now};
     }
-    private static DayEvidence Copy(DayEvidence value)=>value with{Tenders=[..value.Tenders],Issues=[..value.Issues],
+    private static DayEvidence Copy(DayEvidence value)=>value with{Tenders=[..value.Tenders],Issues=[..value.Issues],Corrections=value.Corrections?.Copy(),
         SealComparison=value.SealComparison is null?null:value.SealComparison with{Tenders=[..value.SealComparison.Tenders],Changes=value.SealComparison.Changes?.ToArray()}};
 }

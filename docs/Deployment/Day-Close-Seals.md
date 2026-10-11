@@ -1,5 +1,7 @@
 # Day-close seal rollout and recovery
 
+Current correction-aware rollout uses POS 22 / Reporting 21 with matching binaries at 0.36.0. Follow [protocol-three migration, compatibility and recovery](Correction-Day-Evidence.md); preceding introduction versions and execution artifacts remain historical. New readiness requires explicit correction proof and old undecided preparations need coordinated recovery.
+
 For the current coordinated deployment, use [late-work review rollout](Late-Work-Reviews.md): Order 19 / Payment 18 / POS 19 / Authorization 14, compatibility 0.33.0, Reporting 20 unchanged. Version sets below identify the earlier capability boundary; current review-enabled binaries require the latest coordinated catalog.
 
 The current seal coordinator also observes manager approval validity atomically on seal changes; deploy POS 16 / Authorization 12, compatibility 0.31.0 for the approval-enabled binary. Sources use Order 17 / Payment 16 with Reporting 20 unchanged. The separate [approval workflow](Day-Close-Approvals.md) records a decision on reviewed evidence; source sealing alone still does not approve/finalize settlement.

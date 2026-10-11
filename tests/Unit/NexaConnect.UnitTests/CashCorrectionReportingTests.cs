@@ -21,6 +21,8 @@ public sealed class CashCorrectionReportingTests
         Assert.Equal(value.CorrectionId, fact.CorrectionId); Assert.Equal(value.OriginalSettlementId, fact.OriginalSettlementId);
         Assert.Equal(fact, CashCorrectionReporting.Translate(value with { OccurredAtUtc = value.OccurredAtUtc.ToOffset(TimeSpan.FromHours(7)), CashVarianceAdjustment = -10.0000m }));
         Assert.Equal(FinancialCompleteness.Hash(fact), FinancialCompleteness.Hash(CashCorrectionReporting.Translate(value with { CashVarianceAdjustment = -10.0000m })));
+        Assert.Equal(FinancialCompleteness.Hash(new[]{fact}),CashCorrectionEvidenceFingerprint.Calculate(new[]{value}));
+        Assert.Equal(CashCorrectionEvidenceFingerprint.Calculate(new[]{value}),CashCorrectionEvidenceFingerprint.Calculate(new[]{value with{CashVarianceAdjustment=-10.0000m,OccurredAtUtc=value.OccurredAtUtc.ToOffset(TimeSpan.FromHours(7))}}));
     }
     [Theory]
     [InlineData(0)][InlineData(10)][InlineData(-0.00001)]

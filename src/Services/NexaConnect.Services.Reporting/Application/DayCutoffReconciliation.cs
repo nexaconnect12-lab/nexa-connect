@@ -7,9 +7,10 @@ public interface ICutoffSources
 {
     Task<SourceCutoffRead<OrderDaySummary>> OrderAsync(EndOfDayWindow window, Guid id, string bearer, CancellationToken ct);
     Task<SourceCutoffRead<PaymentDaySummary>> PaymentAsync(EndOfDayWindow window, Guid id, string bearer, CancellationToken ct);
+    Task<SourceCutoffRead<PosDaySummary>> PosAsync(EndOfDayWindow window, Guid id, string bearer, CancellationToken ct) => throw new InvalidOperationException("POS evidence capability unavailable.");
 }
 public sealed class DayCutoffReconciliation(ICutoffSources sources, IReportingCustomerAuthorizer authorization,
-    IFinancialCompletenessRepository repository)
+    IFinancialCompletenessRepository repository, ICashCorrectionFactRepository corrections)
 {
     public async Task<CutoffReconciliation> CheckAsync(CutoffReconciliationCommand command,string bearer,CancellationToken ct)
     {
@@ -17,10 +18,12 @@ public sealed class DayCutoffReconciliation(ICutoffSources sources, IReportingCu
         var w=command.Window;
         if(w.OrganizationId==Guid.Empty || w.RestaurantId==Guid.Empty || w.BranchId==Guid.Empty
             || w.FromUtc==default || w.ToUtc<=w.FromUtc || w.ToUtc-w.FromUtc>TimeSpan.FromHours(27) || w.ToUtc>DateTimeOffset.UtcNow
-            || command.OrderManifestId==Guid.Empty || command.PaymentManifestId==Guid.Empty)throw new ArgumentException();
+            || command.OrderManifestId==Guid.Empty || command.PaymentManifestId==Guid.Empty || command.PosManifestId==Guid.Empty)throw new ArgumentException();
         if(!await authorization.IsGrantedAsync(w.OrganizationId,w.BranchId,ProductPermissions.ReportingSalesRead,bearer,ct))throw new UnauthorizedAccessException();
         var order=await sources.OrderAsync(w,command.OrderManifestId,bearer,ct);
         var payment=await sources.PaymentAsync(w,command.PaymentManifestId,bearer,ct);
+        var pos=await sources.PosAsync(w,command.PosManifestId,bearer,ct);
+        ValidatePos(pos,w,command.PosManifestId);
         if(order.Manifest.Window!=w || payment.Manifest.Window!=w || order.Manifest.ManifestId!=command.OrderManifestId
             || payment.Manifest.ManifestId!=command.PaymentManifestId || order.Manifest.Summary.Window!=w || payment.Manifest.Summary.Window!=w
             || order.Manifest.Refunds.Count!=0 || payment.Manifest.Sales.Count!=0)throw new InvalidOperationException("Cutoff source scope invalid.");
@@ -43,23 +46,42 @@ public sealed class DayCutoffReconciliation(ICutoffSources sources, IReportingCu
             order.Manifest.CapturedAtUtc,payment.Manifest.CapturedAtUtc,sales.Length+order.Manifest.Summary.EvidenceGaps,
             refunds.Length+payment.Manifest.Summary.EvidenceGaps,order.Manifest.Summary.EvidenceGaps,payment.Manifest.Summary.EvidenceGaps,0,0,sales,refunds);
         var check=await repository.CheckAsync(source,ct);
+        var correctionCheck=await corrections.CompareAsync(pos.Manifest.CashCorrections!,ct);
         // Recheck owners after the projection snapshot; the retained source identities never change.
         var orderAfter=await sources.OrderAsync(w,command.OrderManifestId,bearer,ct);
         var paymentAfter=await sources.PaymentAsync(w,command.PaymentManifestId,bearer,ct);
+        var posAfter=await sources.PosAsync(w,command.PosManifestId,bearer,ct);ValidatePos(posAfter,w,command.PosManifestId);
         if(orderAfter.Manifest.ManifestId!=command.OrderManifestId || paymentAfter.Manifest.ManifestId!=command.PaymentManifestId
             || orderAfter.Manifest.Window!=w || paymentAfter.Manifest.Window!=w
             || orderAfter.Manifest.EvidenceVersion!=order.Manifest.EvidenceVersion || paymentAfter.Manifest.EvidenceVersion!=payment.Manifest.EvidenceVersion
             || orderAfter.Manifest.SourceRevision!=order.Manifest.SourceRevision || paymentAfter.Manifest.SourceRevision!=payment.Manifest.SourceRevision
             || orderAfter.Manifest.EvidenceProtocolVersion!=order.Manifest.EvidenceProtocolVersion
-            || paymentAfter.Manifest.EvidenceProtocolVersion!=payment.Manifest.EvidenceProtocolVersion)
+            || paymentAfter.Manifest.EvidenceProtocolVersion!=payment.Manifest.EvidenceProtocolVersion
+            || posAfter.Manifest.SourceRevision!=pos.Manifest.SourceRevision || posAfter.Manifest.EvidenceVersion!=pos.Manifest.EvidenceVersion
+            || FinancialCompleteness.Hash(posAfter.Manifest.CashCorrections)!=FinancialCompleteness.Hash(pos.Manifest.CashCorrections))
             throw new InvalidOperationException("Cutoff source identity changed.");
         static bool RevisionBound<T>(SourceCutoff<T> value)=>value.EvidenceProtocolVersion==2
             && value.SourceRevision is {Epoch:var epoch,Revision:>=0} && epoch!=Guid.Empty;
         bool current=RevisionBound(order.Manifest)&&RevisionBound(payment.Manifest)
-            && order.Current&&payment.Current&&orderAfter.Current&&paymentAfter.Current;
+            && order.Current&&payment.Current&&orderAfter.Current&&paymentAfter.Current&&pos.Current&&posAfter.Current;
         static CutoffFactCounts Counts(FinancialFactCounts c)=>new(c.Expected,c.Matched,c.Missing,c.Conflicting,c.Unexpected);
         return new(check.CheckId,w,command.OrderManifestId,command.PaymentManifestId,current,
-            current?check.Status:"sources_changed",check.CheckedAtUtc,Counts(check.Sales),Counts(check.Payments),Counts(check.Refunds),
-            order.Manifest.SourceRevision,payment.Manifest.SourceRevision,current&&check.Status=="observed_complete",2);
+            current?(check.Status=="observed_complete"&&correctionCheck.Status=="matched"?"observed_complete":"gaps_detected"):"sources_changed",
+            DateTimeOffset.UtcNow,Counts(check.Sales),Counts(check.Payments),Counts(check.Refunds),
+            order.Manifest.SourceRevision,payment.Manifest.SourceRevision,current&&check.Status=="observed_complete"&&correctionCheck.Status=="matched",3,
+            command.PosManifestId,pos.Manifest.SourceRevision,
+            new(command.PosManifestId,pos.Manifest.SourceRevision!,correctionCheck.ManifestHash,
+                new(correctionCheck.Expected,correctionCheck.Matched,correctionCheck.Missing,correctionCheck.Conflicting,correctionCheck.Unexpected),correctionCheck.SourceAdjustment));
+    }
+    public static void ValidatePos(SourceCutoffRead<PosDaySummary> value,EndOfDayWindow w,Guid id)
+    {
+        var m=value.Manifest;
+        if(m.ManifestId!=id || m.Window!=w || m.Summary.Window!=w || m.EvidenceProtocolVersion!=3
+            || m.SourceRevision is not {Epoch:var epoch,Revision:>=0} || epoch==Guid.Empty || m.CashCorrections is null
+            || m.CashCorrections.RestaurantId!=w.RestaurantId || m.Sales.Count!=0 || m.Refunds.Count!=0
+            || m.Summary.LateCashCorrections!=m.CashCorrections.Events.Count
+            || m.Summary.LateCashCorrectionAdjustment!=m.CashCorrections.Events.Sum(e=>e.CashVarianceAdjustment))
+            throw new InvalidOperationException("Correction-aware POS manifest unavailable or inconsistent.");
+        CashCorrectionReporting.ValidateManifest(m.CashCorrections,new(w.OrganizationId,w.BranchId,w.FromUtc,w.ToUtc));
     }
 }

@@ -1,3 +1,4 @@
+import {dayCorrectionSchema,validateDayCorrections} from "./dayCorrectionEvidence";
 import {z} from "zod";
 
 const id=z.string().uuid(),version=z.number().int().positive().safe(),time=z.string().datetime({offset:true});
@@ -6,7 +7,7 @@ export const settlementCommand=z.object({branchId:id,businessDate:z.string(),ope
  preparationOperationId:id,approvalId:id,reviewedApprovalVersion:version});
 const source=z.enum(["Order","Payment","POS"]);
 const receipt=z.object({decisionId:id,eventId:id,correlationId:id,settledAtUtc:time,settlementId:id,identity,approvalId:id,sealVersion:version,
- snapshot:z.object({currency:z.literal("THB"),grossSales:z.number().finite(),completedRefunds:z.number().finite(),netSales:z.number().finite(),cashVariance:z.number().finite(),
+ snapshot:z.object({corrections:dayCorrectionSchema.nullable().optional(),fromUtc:time.optional(),toUtc:time.optional(),cutoff:z.object({evidenceProtocolVersion:z.number().int(),pos:z.object({manifestId:id,revisionEpoch:id,sourceRevision:z.number().int().nonnegative().safe()})}).nullable().optional(),currency:z.literal("THB"),grossSales:z.number().finite(),completedRefunds:z.number().finite(),netSales:z.number().finite(),cashVariance:z.number().finite(),
   tenders:z.array(z.object({method:z.string().max(64),currency:z.literal("THB"),amount:z.number().finite()})).max(20)}),
  sources:z.array(z.object({source,sealId:id,epoch:id,revision:z.number().int().nonnegative().safe()})).length(3)});
 const window=z.object({organizationId:id,restaurantId:id,branchId:id,fromUtc:time,toUtc:time});
@@ -32,6 +33,7 @@ export function readSettlement(input:unknown,organizationId:string,branchId:stri
   if(!sameScope(r.identity)||r.identity.restaurantId!==s.identity.restaurantId||r.settlementId!==s.id||r.decisionId!==s.decisionId||r.approvalId!==s.command.approvalId
    ||new Set(r.sources.map(x=>x.source)).size!==3||r.sources.some(x=>s.sources.find(b=>b.source===x.source)?.proof.command.fence.sealId!==x.sealId))throw new Error("Receipt binding mismatch");
  }
+ if(s.receipt?.snapshot.cutoff?.evidenceProtocolVersion===3){const snap=s.receipt.snapshot;if(!snap.corrections||!snap.fromUtc||!snap.toUtc)throw new Error("Receipt correction evidence missing");validateDayCorrections(snap.corrections,snap.fromUtc,snap.toUtc,snap.cutoff!.pos,true);}
  if(s.status==="finalized"&&(s.sources.length!==3||s.sources.some(x=>x.proof.phase!=="committed")))throw new Error("Finalization acknowledgements missing");
  if(s.status==="aborted"&&(s.sources.length!==3||s.sources.some(x=>x.proof.phase!=="aborted")))throw new Error("Abort acknowledgements missing");
  return result;

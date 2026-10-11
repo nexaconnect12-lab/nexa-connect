@@ -9,6 +9,7 @@ public sealed class HttpCutoffSources(IHttpClientFactory clients) : ICutoffSourc
 {
     public Task<SourceCutoffRead<OrderDaySummary>> OrderAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>Read<OrderDaySummary>("Order",w,id,bearer,ct);
     public Task<SourceCutoffRead<PaymentDaySummary>> PaymentAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>Read<PaymentDaySummary>("Payment",w,id,bearer,ct);
+    public Task<SourceCutoffRead<PosDaySummary>> PosAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>Read<PosDaySummary>("POS",w,id,bearer,ct);
     private async Task<SourceCutoffRead<T>> Read<T>(string service,EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)
     {
         string query=$"organizationId={w.OrganizationId:D}&restaurantId={w.RestaurantId:D}&branchId={w.BranchId:D}&fromUtc={Uri.EscapeDataString(w.FromUtc.ToString("O"))}&toUtc={Uri.EscapeDataString(w.ToUtc.ToString("O"))}";
@@ -21,6 +22,7 @@ public sealed class HttpCutoffSources(IHttpClientFactory clients) : ICutoffSourc
     }
     public Task<SourceSealRead<OrderDaySummary>> OrderSealAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>ReadSeal<OrderDaySummary>("Order",w,id,bearer,ct);
     public Task<SourceSealRead<PaymentDaySummary>> PaymentSealAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>ReadSeal<PaymentDaySummary>("Payment",w,id,bearer,ct);
+    public Task<SourceSealRead<PosDaySummary>> PosSealAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>ReadSeal<PosDaySummary>("POS",w,id,bearer,ct);
     private async Task<SourceSealRead<T>> ReadSeal<T>(string service,EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)
     {
         string query=$"organizationId={w.OrganizationId:D}&restaurantId={w.RestaurantId:D}&branchId={w.BranchId:D}&fromUtc={Uri.EscapeDataString(w.FromUtc.ToString("O"))}&toUtc={Uri.EscapeDataString(w.ToUtc.ToString("O"))}";

@@ -16,5 +16,6 @@ export function readSettings(env){
  if(!secondManager.username||!secondManager.password||[s.reader.username,s.resolver.username].includes(secondManager.username))throw new Error('Distinct managers required.');
  const accountant={username:env[p+'ACCOUNTANT_USERNAME'],password:env[p+'ACCOUNTANT_PASSWORD']};if(!accountant.username||!accountant.password||[s.reader.username,s.resolver.username,secondManager.username].includes(accountant.username))throw new Error('Distinct accountant required.');
  urls.payment=`http://127.0.0.1:${Number(env[p+'PAYMENT_PORT'])}`;
+ urls.reporting=`http://127.0.0.1:${s.reportingPort}`;
  return {...s,urls,refs,secondManager,accountant,callbackURL:`http://127.0.0.1:${callbackPort}/callback`,clockPath:join(dirname(resolve(env[p+'STATE_PATH'])),'clock.json'),controlPath:join(dirname(resolve(env[p+'STATE_PATH'])),'pos-control'),sourceProxyPort:Number(env[p+'SOURCE_PROXY_PORT']),paymentPort:Number(env[p+'PAYMENT_PORT'])};
 }

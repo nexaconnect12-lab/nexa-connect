@@ -9,7 +9,8 @@ public sealed class DaySealTests
     private static DayEvidence Reviewed()
     {
         static CutoffReference Ref()=>new(Guid.NewGuid(),1,new('a',64),Guid.NewGuid(),0);
-        return DayClosePreparationTests.Evidence() with{Cutoff=new(Ref(),Ref(),Ref(),Guid.NewGuid(),true,0,true,2)};
+        var cut=new DayCutoffEvidence(Ref(),Ref(),Ref(),Guid.NewGuid(),true,0,true,3);
+        return DayClosePreparationTests.Evidence() with{Cutoff=cut,Corrections=new(cut.Pos.ManifestId,cut.Pos.RevisionEpoch!.Value,cut.Pos.SourceRevision!.Value,new('a',64),0,0,0,0,0,0,[])};
     }
     private static DayEvidence Sealed(DayEvidence value)
     {
@@ -75,14 +76,14 @@ public sealed class DaySealTests
         fixture.Reads=0;fixture.Allowed=false;
         await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>fixture.App.CheckAsync(fixture.Command,"Bearer manager",default));Assert.Equal(0,fixture.Reads);
     }
-    private sealed class Fixture:ISealedSources,IReportingCustomerAuthorizer,IFinancialCompletenessRepository
+    private sealed class Fixture:ISealedSources,IReportingCustomerAuthorizer,IFinancialCompletenessRepository,ICashCorrectionFactRepository
     {
         private readonly DateTimeOffset now=DateTimeOffset.UtcNow;
-        private readonly Guid org=Guid.NewGuid(),restaurant=Guid.NewGuid(),branch=Guid.NewGuid(),payment=Guid.NewGuid(),orderManifest=Guid.NewGuid(),paymentManifest=Guid.NewGuid(),epoch=Guid.NewGuid();
+        private readonly Guid org=Guid.NewGuid(),restaurant=Guid.NewGuid(),branch=Guid.NewGuid(),pos=Guid.NewGuid(),posManifest=Guid.NewGuid(),payment=Guid.NewGuid(),orderManifest=Guid.NewGuid(),paymentManifest=Guid.NewGuid(),epoch=Guid.NewGuid();
         public Guid Order=Guid.NewGuid();public bool Allowed=true,Journal=true;public int Reads;
         private EndOfDayWindow Window=>new(org,restaurant,branch,now.AddDays(-2),now.AddDays(-1));
-        public SealedReconciliationCommand Command=>new(Window,Order,payment);
-        public SealedDayReconciliation App=>new(this,this,this);
+        public SealedReconciliationCommand Command=>new(Window,Order,payment,pos);
+        public SealedDayReconciliation App=>new(this,this,this,this);
         public Task<SourceSealRead<OrderDaySummary>> OrderSealAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)
         {
             Reads++;
@@ -94,6 +95,9 @@ public sealed class DaySealTests
                 new(paymentManifest,paymentManifest,1,w,now,new('b',64),new(w,now,0,0,0,0,[]),[],[],SourceRevision:new(epoch,0),EvidenceProtocolVersion:2),0,Journal,[],false));
         public Task<bool> IsGrantedAsync(Guid org,Guid? branch,string permission,string bearer,CancellationToken ct)=>Task.FromResult(Allowed);
         public Task<FinancialCompletenessObservation> CheckAsync(FinancialCompletenessSource s,CancellationToken ct)=>Task.FromResult(FinancialCompletenessEvaluator.Evaluate(s,new([],[],[],new Dictionary<Guid,string>(),new Dictionary<Guid,string>())));
+        public Task<SourceSealRead<PosDaySummary>> PosSealAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>Task.FromResult(new SourceSealRead<PosDaySummary>(new(pos,pos,w,posManifest,new(epoch,0),now),new(posManifest,posManifest,1,w,now,new('c',64),new(w,now,0,0,0,0,[]),[],[],SourceRevision:new(epoch,0),EvidenceProtocolVersion:3,CashCorrections:new(w.OrganizationId,w.RestaurantId,w.BranchId,w.FromUtc,w.ToUtc,now,[])),0,Journal,[],false));
+        public Task<bool> ProjectAsync(NexaConnect.Services.Reporting.Domain.CashCorrectionFact f,CancellationToken ct)=>throw new NotSupportedException();
+        public Task<CashCorrectionReport> CompareAsync(CashCorrectionManifest m,CancellationToken ct)=>Task.FromResult(new CashCorrectionReport(m.OrganizationId,m.BranchId,m.FromUtc,m.ToUtc,m.ObservedAtUtc,now,new('a',64),"matched",0,0,0,0,0,0,0,[]));
         public Task RecordAsync(FinancialCompletenessObservation v,string actor,CancellationToken ct)=>throw new NotSupportedException();
         public Task<FinancialCompletenessObservation?> LatestAsync(ReportingRange r,CancellationToken ct)=>throw new NotSupportedException();
     }

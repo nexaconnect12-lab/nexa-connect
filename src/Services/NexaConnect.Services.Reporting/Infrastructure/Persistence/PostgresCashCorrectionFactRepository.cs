@@ -88,7 +88,7 @@ public sealed class PostgresCashCorrectionFactRepository(NpgsqlDataSource source
             && x.Fact.PostedAtUtc >= range.FromUtc && x.Fact.PostedAtUtc < range.ToUtc).Sum(x => x.Fact.Adjustment);
         await tx.CommitAsync(ct);
         return new(range.OrganizationId, range.BranchId, range.FromUtc, range.ToUtc, manifest.ObservedAtUtc,
-            DateTimeOffset.UtcNow, FinancialCompleteness.Hash(manifest.Events.OrderBy(x => x.EventId).Select(CashCorrectionReporting.Translate).ToArray()),
+            DateTimeOffset.UtcNow, CashCorrectionEvidenceFingerprint.Calculate(manifest.Events),
             missing + conflicting + unexpected.Length == 0 ? "matched" : "gaps", manifest.Events.Count, matched, missing, conflicting,
             unexpected.Length, manifest.Events.Sum(x => x.CashVarianceAdjustment), projected, items);
     }

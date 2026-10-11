@@ -1,5 +1,7 @@
 # Identity Claims Contract
 
+Correction-aware retained checks add no permission or workload identity. Reporting sales read plus live owning financial reads cover exact manifests/seals; POS coordination keeps read/prepare/approve/finalize and configured amount posting limits separate. Customer bearer/correlation propagate through the existing adapters. See [contract](../API/Correction-Day-Evidence.md) and [operations](../Deployment/Correction-Day-Evidence.md).
+
 Correction Reporting adds no permissions or workload identity. Live reporting.sales.read plus current organization/product membership is combined with customer-bearer POS pos.day-close.read and pos.cash-review.read. Administrative correction replay uses a controlled database/broker login rather than OIDC; self-asserted operator UUID is distinct from persisted PostgreSQL session_user. See [contract](../API/Cash-Correction-Reporting.md) and [operations](../Deployment/Cash-Correction-Reporting.md).
 
 Authorization 15 introduces live pos.day-close.late-cash.post for manager defaults. Posting and exact retries require an amount-aware decision against an explicitly configured applicable THB financial approval limit; permission alone grants no amount authority. The verified positive tender magnitude is server-derived. Customer bearer drives proof and posting; POS workload identity only reads the Restaurant calendar. No client/secret/browser claim is added. See [correction contract](../API/Late-Cash-Corrections.md) and [operations](../Deployment/Late-Cash-Corrections.md).

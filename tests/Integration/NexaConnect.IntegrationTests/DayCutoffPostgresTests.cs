@@ -13,7 +13,8 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
     private readonly A.PreparationActor manager=new("manager",Guid.NewGuid());
     private static readonly DateTimeOffset Now=new(2026,9,3,0,0,0,TimeSpan.Zero);
     private D.PreparationCommand Command(long version=0)=>new(day.BranchId,day.BusinessDate,Guid.NewGuid(),version,"routine_close");
-    private static D.DayEvidence Evidence()=>new("UTC","THB",Now.AddDays(-2),Now.AddDays(-1),100,25,75,0,[new("cash","THB",100)],new('a',64),new('b',64),new('c',64),0,0,0,0,0,0,[],Now,Cutoff:new(new(Guid.NewGuid(),1,new('a',64),Guid.NewGuid(),0),new(Guid.NewGuid(),1,new('b',64),Guid.NewGuid(),0),new(Guid.NewGuid(),1,new('c',64),Guid.NewGuid(),0),Guid.NewGuid(),true,0,true,2));
+    private static D.DayEvidence LegacyEvidence()=>new("UTC","THB",Now.AddDays(-2),Now.AddDays(-1),100,25,75,0,[new("cash","THB",100)],new('a',64),new('b',64),new('c',64),0,0,0,0,0,0,[],Now,Cutoff:new(new(Guid.NewGuid(),1,new('a',64),Guid.NewGuid(),0),new(Guid.NewGuid(),1,new('b',64),Guid.NewGuid(),0),new(Guid.NewGuid(),1,new('c',64),Guid.NewGuid(),0),Guid.NewGuid(),true,0,true,2));
+    private static D.DayEvidence Evidence(){var e=LegacyEvidence();var cut=e.Cutoff! with{EvidenceProtocolVersion=3};return e with{Cutoff=cut,Corrections=new(cut.Pos.ManifestId,cut.Pos.RevisionEpoch!.Value,cut.Pos.SourceRevision!.Value,new('a',64),0,0,0,0,0,0,[])};}
     [PosPostgresFact]public async Task Exact_replay_restart_conflicting_payload_and_immutable_audit_are_durable()
     {
         var store=new Db.PostgresDayCutoffStore(source!);var command=Command();var started=await store.BeginAsync(day,command,manager,Now,default);
@@ -55,6 +56,8 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
     }
     [PosPostgresFact]public async Task Empty_migration_can_downgrade_and_reapply()
     {
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0022_correction_day_evidence/down.sql")));
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0021_cash_correction_replay/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0020_late_cash_corrections/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0019_late_work_reviews/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0018_day_settlements/down.sql")));
@@ -79,6 +82,8 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0018_day_settlements/up.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0019_late_work_reviews/up.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0020_late_cash_corrections/up.sql")));
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0021_cash_correction_replay/up.sql")));
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0022_correction_day_evidence/up.sql")));
         Assert.Equal(0L,await Scalar("SELECT count(*) FROM branch_day_cutoff_audit"));
     }
     [PosPostgresFact]public async Task Authorization_migration_backfills_roles_and_fresh_assignments_preserve_reader_preparer_separation()

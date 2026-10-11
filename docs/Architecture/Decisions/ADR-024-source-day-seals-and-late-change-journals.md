@@ -1,5 +1,7 @@
 # ADR-024: Source day seals and late-change journals
 
+Successor: [ADR-033](ADR-033-correction-aware-day-close-evidence.md) requires fresh POS protocol-three manifests and exact correction delivery proof through seal, approval and settlement; Order/Payment seals retain protocol-two source selections. The original protocol below records the seal introduction boundary.
+
 Status: Accepted. Date: 2026-10-07.
 
 ## Context

@@ -33,7 +33,8 @@ public sealed class DayCutoffPipelineTests:IAsyncLifetime,ReportingApp.ICutoffSo
     private PosDomain.DayIdentity Day=>new(organization,restaurant,branch,Date);
     private bool allowed=true,fail;
     private readonly List<Guid> capturedOperations=[];
-    private ReportingApp.DayCutoffReconciliation Checker=>new(this,this,new ReportingDb.PostgresFinancialCompletenessRepository(reporting));
+    private ReportingApp.DayCutoffReconciliation Checker=>new(this,this,new ReportingDb.PostgresFinancialCompletenessRepository(reporting),new ReportingDb.PostgresCashCorrectionFactRepository(reporting));
+    public async Task<SourceCutoffRead<PosDaySummary>> PosAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>await new PosDb.PostgresPosCutoffStore(pos).ReadAsync(w,id,ct)??throw new InvalidOperationException();
     private PosApp.DayCloseCutoff Workflow=>new(new CoordinatorDb.PostgresDayCutoffStore(pos),
         new CoordinatorDb.HttpCutoffEvidenceReader(this,new CoordinatorDb.PostgresDayCutoffStore(pos),this,TimeProvider.System),
         this,this,TimeProvider.System,NullLoggerFactory.Instance);

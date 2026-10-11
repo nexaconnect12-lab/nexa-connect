@@ -29,13 +29,14 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
     private NpgsqlDataSource order=null!,payment=null!,pos=null!,reporting=null!;
     private readonly Guid organization=Guid.NewGuid(),restaurant=Guid.NewGuid(),branch=Guid.NewGuid();
     private DateOnly? correctionTestDate;
+    private EndOfDayWindow? correctionEvidenceTestWindow;
     private DateOnly Date=>correctionTestDate??DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
-    private EndOfDayWindow Window=>new(organization,restaurant,branch,new(Date.ToDateTime(TimeOnly.MinValue,DateTimeKind.Utc)),new(Date.AddDays(1).ToDateTime(TimeOnly.MinValue,DateTimeKind.Utc)));
+    private EndOfDayWindow Window=>correctionEvidenceTestWindow??new(organization,restaurant,branch,new(Date.ToDateTime(TimeOnly.MinValue,DateTimeKind.Utc)),new(Date.AddDays(1).ToDateTime(TimeOnly.MinValue,DateTimeKind.Utc)));
     private PosDomain.DayIdentity Day=>new(organization,restaurant,branch,Date);
-    private bool allowed=true,fail,calendarDrift;
+    private bool allowed=true,fail,calendarDrift,forgeCorrectionHash;
     private TimeProvider sealClock=TimeProvider.System;
     private readonly List<Guid> capturedOperations=[];
-    private ReportingApp.DayCutoffReconciliation Checker=>new(this,this,new ReportingDb.PostgresFinancialCompletenessRepository(reporting));
+    private ReportingApp.DayCutoffReconciliation Checker=>new(this,this,new ReportingDb.PostgresFinancialCompletenessRepository(reporting),new ReportingDb.PostgresCashCorrectionFactRepository(reporting));
     private PosApp.DayCloseCutoff Workflow=>new(new CoordinatorDb.PostgresDayCutoffStore(pos),
         new CoordinatorDb.HttpCutoffEvidenceReader(this,new CoordinatorDb.PostgresDayCutoffStore(pos),this,TimeProvider.System),
         this,this,TimeProvider.System,NullLoggerFactory.Instance);
@@ -46,6 +47,10 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
         await new OrderDb.PostgresOrderCutoffStore(order).ReadSealAsync(w,id,ct)??throw new InvalidOperationException();
     public async Task<SourceSealRead<PaymentDaySummary>> PaymentSealAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>
         await new PaymentDb.PostgresPaymentCutoffStore(payment).ReadSealAsync(w,id,ct)??throw new InvalidOperationException();
+    public async Task<SourceCutoffRead<PosDaySummary>> PosAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>
+        await new PosDb.PostgresPosCutoffStore(pos).ReadAsync(w,id,ct)??throw new InvalidOperationException();
+    public async Task<SourceSealRead<PosDaySummary>> PosSealAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>
+        await new PosDb.PostgresPosCutoffStore(pos).ReadSealAsync(w,id,ct)??throw new InvalidOperationException();
     private async Task<PosApp.PreparationView> Reviewed()=>await Workflow.PrepareAsync(organization,Command(),new("manager","token"),default);
     private PosDomain.PreparationCommand SealCommand(long reviewed,long version=0)=>Command(version) with{ReviewedCutoffVersion=reviewed};
     private static SourceSealCommand SourceCommand(EndOfDayWindow w,PosDomain.CutoffReference r,Guid? operation=null)=>new(operation??Guid.NewGuid(),w,r.ManifestId,new(r.RevisionEpoch!.Value,r.SourceRevision!.Value));
@@ -366,7 +371,7 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
             }
         }
         else if(service=="Reporting" && request.RequestUri.AbsolutePath.EndsWith("day-seal-reconciliation"))
-            result=await new ReportingApp.SealedDayReconciliation(this,this,new ReportingDb.PostgresFinancialCompletenessRepository(reporting)).CheckAsync((await request.Content!.ReadFromJsonAsync<SealedReconciliationCommand>(cancellationToken:ct))!,"Bearer token",ct);
+            result=await new ReportingApp.SealedDayReconciliation(this,this,new ReportingDb.PostgresFinancialCompletenessRepository(reporting),new ReportingDb.PostgresCashCorrectionFactRepository(reporting)).CheckAsync((await request.Content!.ReadFromJsonAsync<SealedReconciliationCommand>(cancellationToken:ct))!,"Bearer token",ct);
         else if(service=="Reporting")result=await Checker.CheckAsync((await request.Content!.ReadFromJsonAsync<CutoffReconciliationCommand>(cancellationToken:ct))!,"Bearer token",ct);
         else if(request.Method==HttpMethod.Post)
         {
@@ -388,6 +393,10 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
                 _=>(await new PosDb.PostgresPosCutoffStore(pos).ReadAsync(Window,id,ct))!
             };
         }
+        if(forgeCorrectionHash && result is CutoffReconciliation cutoff && cutoff.CashCorrections is {} cutoffProof)
+            result=cutoff with { CashCorrections=cutoffProof with { ManifestHash=new string('f',64) } };
+        if(forgeCorrectionHash && result is SealedReconciliation sealedResult && sealedResult.CashCorrections is {} sealProof)
+            result=sealedResult with { CashCorrections=sealProof with { ManifestHash=new string('f',64) } };
         return new(HttpStatusCode.OK){Content=JsonContent.Create(result)};
     })){BaseAddress=new Uri("https://cutoff.test/")};
     private sealed class Handler(Func<HttpRequestMessage,CancellationToken,Task<HttpResponseMessage>> action):HttpMessageHandler

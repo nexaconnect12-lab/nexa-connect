@@ -10,12 +10,18 @@ public sealed record SourceCutoff<T>(Guid ManifestId, Guid OperationId, long Gen
     DateTimeOffset CapturedAtUtc, string EvidenceVersion, T Summary,
     IReadOnlyList<OrderSaleCompletedV1> Sales, IReadOnlyList<PaymentRefundedV1> Refunds,
     IReadOnlyList<string>? OwnerEvidence = null, SourceFinancialRevision? SourceRevision = null,
-    int EvidenceProtocolVersion = 1);
+    int EvidenceProtocolVersion = 1,
+    [property:System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] CashCorrectionManifest? CashCorrections = null);
 public sealed record SourceCutoffRead<T>(SourceCutoff<T> Manifest, bool Current);
-public sealed record CutoffReconciliationCommand(EndOfDayWindow Window, Guid OrderManifestId, Guid PaymentManifestId);
+public sealed record CutoffReconciliationCommand(EndOfDayWindow Window, Guid OrderManifestId, Guid PaymentManifestId, Guid PosManifestId = default);
 public sealed record CutoffFactCounts(int Expected, int Matched, int Missing, int Conflicting, int Unexpected);
 public sealed record CutoffReconciliation(Guid CheckId, EndOfDayWindow Window, Guid OrderManifestId,
     Guid PaymentManifestId, bool SourcesCurrent, string Status, DateTimeOffset CheckedAtUtc,
     CutoffFactCounts Sales, CutoffFactCounts Payments, CutoffFactCounts Refunds,
     SourceFinancialRevision? OrderRevision = null, SourceFinancialRevision? PaymentRevision = null,
-    bool DeliveryComplete = false, int EvidenceProtocolVersion = 1);
+    bool DeliveryComplete = false, int EvidenceProtocolVersion = 1, Guid PosManifestId = default,
+    SourceFinancialRevision? PosRevision = null, CashCorrectionDeliveryProof? CashCorrections = null);
+
+public sealed record CashCorrectionDeliveryProof(Guid PosManifestId, SourceFinancialRevision PosRevision,
+    string ManifestHash, CutoffFactCounts Counts,
+    [property:System.Text.Json.Serialization.JsonNumberHandling(System.Text.Json.Serialization.JsonNumberHandling.WriteAsString|System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString)] decimal Adjustment);

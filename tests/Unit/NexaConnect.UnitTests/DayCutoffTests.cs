@@ -69,13 +69,13 @@ public sealed class DayCutoffTests
         fixture.Allowed=true;fixture.WrongScope=true;
         await Assert.ThrowsAsync<InvalidOperationException>(()=>fixture.App.CheckAsync(fixture.Command,"Bearer manager",default));Assert.Equal(0,fixture.Checks);
     }
-    private sealed class Fixture:ICutoffSources,IReportingCustomerAuthorizer,IFinancialCompletenessRepository
+    private sealed class Fixture:ICutoffSources,IReportingCustomerAuthorizer,IFinancialCompletenessRepository,ICashCorrectionFactRepository
     {
-        private readonly Guid order=Guid.NewGuid(),payment=Guid.NewGuid();
+        private readonly Guid order=Guid.NewGuid(),payment=Guid.NewGuid(),pos=Guid.NewGuid();
         private readonly Guid epoch=Guid.NewGuid();
         public bool Allowed=true,Drift,WrongScope,Legacy,ChangeRetainedRevision;public int OrderReads,Checks;
-        public CutoffReconciliationCommand Command=>new(Window,order,payment);
-        public DayCutoffReconciliation App=>new(this,this,this);
+        public CutoffReconciliationCommand Command=>new(Window,order,payment,pos);
+        public DayCutoffReconciliation App=>new(this,this,this,this);
         public Task<bool> IsGrantedAsync(Guid org,Guid? branch,string permission,string bearer,CancellationToken ct)=>Task.FromResult(Allowed);
         public Task<SourceCutoffRead<OrderDaySummary>> OrderAsync(EndOfDayWindow window,Guid id,string bearer,CancellationToken ct)
         {
@@ -88,6 +88,9 @@ public sealed class DayCutoffTests
                 SourceRevision:new(epoch,0),EvidenceProtocolVersion:2),true));
         public Task<FinancialCompletenessObservation> CheckAsync(FinancialCompletenessSource source,CancellationToken ct)
         {Checks++;return Task.FromResult(FinancialCompletenessEvaluator.Evaluate(source,new([],[],[],new Dictionary<Guid,string>(),new Dictionary<Guid,string>())));}
+        public Task<SourceCutoffRead<PosDaySummary>> PosAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct)=>Task.FromResult(new SourceCutoffRead<PosDaySummary>(new(pos,pos,1,w,Now,new('c',64),new(w,Now,0,0,0,0,[]),[],[],SourceRevision:new(epoch,0),EvidenceProtocolVersion:3,CashCorrections:new(w.OrganizationId,w.RestaurantId,w.BranchId,w.FromUtc,w.ToUtc,Now,[])),true));
+        public Task<bool> ProjectAsync(NexaConnect.Services.Reporting.Domain.CashCorrectionFact f,CancellationToken ct)=>throw new NotSupportedException();
+        public Task<CashCorrectionReport> CompareAsync(CashCorrectionManifest m,CancellationToken ct)=>Task.FromResult(new CashCorrectionReport(m.OrganizationId,m.BranchId,m.FromUtc,m.ToUtc,m.ObservedAtUtc,Now,new('a',64),"matched",0,0,0,0,0,0,0,[]));
         public Task RecordAsync(FinancialCompletenessObservation value,string actor,CancellationToken ct)=>throw new NotSupportedException();
         public Task<FinancialCompletenessObservation?> LatestAsync(ReportingRange range,CancellationToken ct)=>throw new NotSupportedException();
     }

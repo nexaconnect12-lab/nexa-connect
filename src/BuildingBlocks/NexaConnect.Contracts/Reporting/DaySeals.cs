@@ -13,7 +13,8 @@ public sealed record SourceSealChange(long Revision, DateTimeOffset RecordedAtUt
 public sealed record SourceSealRead<T>(SourceDaySeal Seal, SourceCutoff<T> Manifest, long PendingChanges,
     bool JournalComplete, IReadOnlyList<SourceSealChange> Changes, bool ChangesTruncated,
     int AttributionProtocolVersion = 0, long UnknownChanges = 0, long ObservedChanges = 0, T? CurrentSummary = default);
-public sealed record SealedReconciliationCommand(EndOfDayWindow Window, Guid OrderSealId, Guid PaymentSealId);
+public sealed record SealedReconciliationCommand(EndOfDayWindow Window, Guid OrderSealId, Guid PaymentSealId, Guid PosSealId = default);
 public sealed record SealedReconciliation(Guid CheckId, EndOfDayWindow Window, Guid OrderSealId, Guid PaymentSealId,
     Guid OrderManifestId, Guid PaymentManifestId, bool DeliveryComplete, DateTimeOffset CheckedAtUtc,
-    CutoffFactCounts Sales, CutoffFactCounts Payments, CutoffFactCounts Refunds);
+    CutoffFactCounts Sales, CutoffFactCounts Payments, CutoffFactCounts Refunds,
+    Guid PosSealId = default, CashCorrectionDeliveryProof? CashCorrections = null, int EvidenceProtocolVersion = 1);

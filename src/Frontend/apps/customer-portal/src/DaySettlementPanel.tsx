@@ -1,3 +1,4 @@
+import {DayCorrectionEvidencePanel} from "./DayCorrectionEvidencePanel";
 import React,{useEffect,useRef,useState} from "react";
 import {Alert,Button,Descriptions,List,Space,Typography} from "antd";
 import {createApiClient} from "@nexaconnect/api-client";
@@ -55,7 +56,8 @@ export function DaySettlementPanel({organizationId,branchId,businessDate,prepara
    {settlement.receipt&&<Descriptions title="Immutable settlement receipt" column={1} bordered><Descriptions.Item label="Receipt event">{settlement.receipt.eventId}</Descriptions.Item>
     <Descriptions.Item label="Settled at">{settlement.receipt.settledAtUtc}</Descriptions.Item><Descriptions.Item label="Gross sales">THB {settlement.receipt.snapshot.grossSales}</Descriptions.Item>
     <Descriptions.Item label="Completed refunds">THB {settlement.receipt.snapshot.completedRefunds}</Descriptions.Item><Descriptions.Item label="Net sales">THB {settlement.receipt.snapshot.netSales}</Descriptions.Item>
-    <Descriptions.Item label="Cash variance">THB {settlement.receipt.snapshot.cashVariance}</Descriptions.Item></Descriptions>}</>}
+    <Descriptions.Item label="Cash variance">THB {settlement.receipt.snapshot.cashVariance}</Descriptions.Item></Descriptions>}
+   {settlement.receipt?.snapshot.corrections&&<DayCorrectionEvidencePanel value={settlement.receipt.snapshot.corrections}/>}</>}
   {reviewScope&&<LateWorkReviewPanel key={reviewScope.settlementId} scope={reviewScope} businessDate={businessDate}/>}
  </Space>;
 }

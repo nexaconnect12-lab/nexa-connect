@@ -1,5 +1,7 @@
 # Manager approval of sealed day-close evidence
 
+Current correction-aware behavior is extended by [ADR-033](../Architecture/Decisions/ADR-033-correction-aware-day-close-evidence.md) and [the protocol-three contract](Correction-Day-Evidence.md). Fresh POS/combined evidence requires exact correction selection and delivery; historical protocol-two evidence remains readable but cannot authorize new readiness. Existing command identity, tenant, permission and financial state boundaries are preserved.
+
 POS owns online, single-branch THB manager decisions bound to reviewed source seals. Approval records evidence observed at a point in time; approval alone permits later source commits. The separate [finalization preparation](Day-Close-Finalization-Preparation.md) can temporarily fence relevant writes against the reviewed approval. It does not finalize settlement, lock financial writes, create corrections or adjust tax/inventory. See [ADR-027](../Architecture/Decisions/ADR-027-version-bound-day-close-approval.md) and [rollout](../Deployment/Day-Close-Approvals.md).
 
 GET `/bff/customer/day-close-approvals?branchId={uuid}&businessDate=yyyy-MM-dd` loads current validity and immutable history. GET `/bff/customer/day-close-approvals/csrf` obtains the token. POST uses `X-Nexa-CSRF`, maximum 4096 bytes:

@@ -11,12 +11,12 @@ export function readApproval(value:unknown,organization:string,branch:string,dat
  const result=view.parse(value);
  const same=(i:z.infer<typeof identity>)=>i.organizationId.toLowerCase()===organization.toLowerCase()&&i.branchId.toLowerCase()===branch.toLowerCase()&&i.businessDate===date&&i.restaurantId.toLowerCase()===result.identity.restaurantId.toLowerCase();
  if(!same(result.identity))throw new Error("Approval scope mismatch");
- function validateSnapshot(snapshot:unknown,sealVersion:number,validatedAtUtc:string){
-  return readSealedPreparation({identity:result.identity,version:sealVersion,status:"ready_for_review",snapshot,blockers:[],validatedAtUtc,canPrepare:false,pendingCommand:null,pendingSealChanges:0},organization,branch,date);
+ function validateSnapshot(snapshot:unknown,sealVersion:number,validatedAtUtc:string,historical=false){
+  return readSealedPreparation({identity:result.identity,version:sealVersion,status:"ready_for_review",snapshot,blockers:[],validatedAtUtc,canPrepare:false,pendingCommand:null,pendingSealChanges:0},organization,branch,date,historical);
  }
  for(const d of [...result.history,...(result.decision?[result.decision]:[]),...(result.operationDecision?[result.operationDecision]:[])]){
   if(!same(d.identity)||d.approvalVersion>result.version||Date.parse(d.sourceValidatedAtUtc)>Date.parse(d.approvedAtUtc))throw new Error("Approval decision invalid");
-  validateSnapshot(d.snapshot,d.sealVersion,d.sourceValidatedAtUtc);
+  validateSnapshot(d.snapshot,d.sealVersion,d.sourceValidatedAtUtc,true);
  }
  if(result.status==="not_approved"&&result.decision || result.status!=="not_approved"&&!result.decision)throw new Error("Approval state invalid");
  let candidate:Preparation["snapshot"]=null;

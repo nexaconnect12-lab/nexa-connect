@@ -13,7 +13,11 @@ public sealed class PostgresPosCutoffStore(NpgsqlDataSource source) : IPosCutoff
         {
             string[] rows=[];var summary=await PostgresPosDayReader.QueryAsync(command.Window,c,t,token,e=>rows=e);
             var revision=await PostgresFinancialRevision.ReadAsync(command.Window,c,t,token);
-            return new(Guid.Empty,Guid.Empty,0,command.Window,DateTimeOffset.UtcNow,summary.EvidenceVersion??"",summary,[],[],rows,revision,2);
+            var w=command.Window;
+            var corrections=(await NexaConnect.Services.POS.Infrastructure.DayClose.PostgresCashCorrectionInventoryStore.QueryRetainedAsync(w.OrganizationId,w.RestaurantId,w.BranchId,w.FromUtc,w.ToUtc,c,t,token)).Manifest;
+            if(corrections.Events.Count!=summary.LateCashCorrections || corrections.Events.Sum(e=>e.CashVarianceAdjustment)!=summary.LateCashCorrectionAdjustment)
+                throw new InvalidOperationException("Correction inventory disagrees with its owning summary.");
+            return new(Guid.Empty,Guid.Empty,0,command.Window,DateTimeOffset.UtcNow,summary.EvidenceVersion??"",summary,[],[],rows,revision,3,corrections);
         },ct);
     public async Task<SourceCutoffRead<PosDaySummary>?> ReadAsync(EndOfDayWindow window,Guid id,CancellationToken ct)
     {
@@ -24,7 +28,7 @@ public sealed class PostgresPosCutoffStore(NpgsqlDataSource source) : IPosCutoff
         var revision=await PostgresFinancialRevision.ReadAsync(window,c,t,ct);
         await t.CommitAsync(ct);
         return new(saved,PostgresFinancialRevision.IsCurrent(saved,saved with
-        {EvidenceVersion=summary.EvidenceVersion??"",SourceRevision=revision,EvidenceProtocolVersion=2}));
+        {EvidenceVersion=summary.EvidenceVersion??"",SourceRevision=revision,EvidenceProtocolVersion=3}));
     }
     public Task<SourceSealRead<PosDaySummary>?> ReadSealAsync(EndOfDayWindow window,Guid id,CancellationToken ct)=>
         new PostgresEvidenceSeals<PosDaySummary>(source).ReadAsync(window,id,ct,json=>FinancialChangeAttribution.Classify(json,window.FromUtc,window.ToUtc),
@@ -34,6 +38,7 @@ public sealed class PostgresPosCutoffStore(NpgsqlDataSource source) : IPosCutoff
         {
             try
             {
+                if(m.EvidenceProtocolVersion!=3 || m.CashCorrections is null)throw new InvalidOperationException("Fresh correction-aware capture required.");
                 NexaConnect.Services.POS.Domain.FinancialDaySeal.Retain(command.ManifestId,command.ExpectedRevision.Epoch,
                     command.ExpectedRevision.Revision,m.ManifestId,r.Epoch,r.Revision,PostgresFinancialRevision.IsCurrent(m,m with{SourceRevision=r}),
                     m.Summary.Window==command.Window && m.Summary.Currencies.All(c=>c=="THB"),m.Summary.OpenShifts+m.Summary.OpenCashSessions+m.Summary.PendingCashReviews);

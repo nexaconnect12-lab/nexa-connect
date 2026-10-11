@@ -2,7 +2,7 @@
 function Test-DayCloseControlRequest($request,[string]$expectedRun,[bool]$cutoffMode) {
     if($null-eq$request-or$expectedRun-notmatch'^[a-f0-9]{32}$'){return $false}
     if(@($request.PSObject.Properties.Name).Count-ne3-or$request.runId-isnot[string]-or$request.requestId-isnot[string]-or$request.action-isnot[string]){return $false}
-    $allowed=if($cutoffMode){@('stop-pos','start-pos','start-pos-held-delivery','stop-order','start-order-delivery')}else{@('stop-pos','start-pos')}
+    $allowed=if($cutoffMode){@('stop-pos','start-pos','start-pos-held-delivery','start-pos-held-publication','stop-order','start-order-delivery')}else{@('stop-pos','start-pos')}
     return $request.runId-eq$expectedRun-and$request.requestId-match'^[a-f0-9]{32}$'-and$request.action-in$allowed
 }
 function Invoke-DayCloseJoinedBrowser {
@@ -41,6 +41,7 @@ function Invoke-DayCloseJoinedBrowser {
                     if($active.Count-ne0){throw 'POS is already running.'}
                     $restartNumber++;$restartConfiguration=$posConfiguration.Clone()
                     if($request.action-eq'start-pos-held-delivery'){$restartConfiguration.OrderSettlementConsumer__Enabled='false'}
+                    if($request.action-eq'start-pos-held-publication'){$restartConfiguration.Outbox__BatchSize='0'}
                     Start-App "POSRestart$restartNumber" $posAssembly $posDirectory $restartConfiguration $ports[8]
                 }
                 }

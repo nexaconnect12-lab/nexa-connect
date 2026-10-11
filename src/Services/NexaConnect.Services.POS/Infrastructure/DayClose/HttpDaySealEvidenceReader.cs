@@ -35,15 +35,16 @@ public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySea
         var pos=await Source<PosDaySummary>("POS",w,operation,cutoff.Pos,retained?.Pos.SealId,token,ct);
         Validate(order,w,cutoff.Order);Validate(payment,w,cutoff.Payment);Validate(pos,w,cutoff.Pos);
         var check=await Send<SealedReconciliation>("Reporting",HttpMethod.Post,"api/reporting/v1/customer/day-seal-reconciliation",
-            new SealedReconciliationCommand(w,order.Seal.SealId,payment.Seal.SealId),token,ct);
+            new SealedReconciliationCommand(w,order.Seal.SealId,payment.Seal.SealId,pos.Seal.SealId),token,ct);
         if(check.Window!=w || check.OrderSealId!=order.Seal.SealId || check.PaymentSealId!=payment.Seal.SealId
             || check.OrderManifestId!=cutoff.Order.ManifestId || check.PaymentManifestId!=cutoff.Payment.ManifestId
-            || check.CheckId==Guid.Empty || check.CheckedAtUtc<w.ToUtc || check.CheckedAtUtc>clock.GetUtcNow())
+            || check.EvidenceProtocolVersion!=3 || check.PosSealId!=pos.Seal.SealId || check.CheckId==Guid.Empty || check.CheckedAtUtc<w.ToUtc || check.CheckedAtUtc>clock.GetUtcNow())
             throw new InvalidOperationException("Sealed reconciliation invalid.");
+        var correction=CorrectionEvidenceTranslation.Read(pos.Manifest,check.CashCorrections);
         long gaps=0;
         if(check.Sales.Expected!=order.Manifest.Sales.Count || check.Payments.Expected!=order.Manifest.Sales.Count || check.Refunds.Expected!=payment.Manifest.Refunds.Count)
             throw new InvalidOperationException("Sealed inventories invalid.");
-        foreach(var count in new[]{check.Sales,check.Payments,check.Refunds})
+        foreach(var count in new[]{check.Sales,check.Payments,check.Refunds,check.CashCorrections!.Counts})
         {
             if(count is null || new[]{count.Expected,count.Matched,count.Missing,count.Conflicting,count.Unexpected}.Any(n=>n<0||n>20000)
                 || count.Expected!=count.Matched+count.Missing+count.Conflicting)throw new InvalidOperationException("Sealed counts invalid.");
@@ -71,7 +72,7 @@ public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySea
             new DaySealRecordChange(source,c.Revision,c.Attribution,c.RecordKind,c.RecordId,c.ParentId,c.BeforeStatus,c.AfterStatus,
                 c.BeforeFinancialVersion,c.AfterFinancialVersion,c.BeforeFinancialAtUtc,c.AfterFinancialAtUtc));
         var details=Details("Order",orderAfter.Changes).Concat(Details("Payment",paymentAfter.Changes)).Concat(Details("POS",posAfter.Changes)).ToArray();
-        return basis with{ObservedAtUtc=clock.GetUtcNow(),Cutoff=cutoff with{CheckId=check.CheckId,DeliveryComplete=check.DeliveryComplete,FinancialGaps=checked((int)gaps)},
+        return basis with{Corrections=correction,ObservedAtUtc=clock.GetUtcNow(),Cutoff=cutoff with{CheckId=check.CheckId,DeliveryComplete=check.DeliveryComplete,FinancialGaps=checked((int)gaps)},
             Seals=new(Ref(order.Seal),Ref(payment.Seal),Ref(pos.Seal),pending,
                 order.JournalComplete&&payment.JournalComplete&&pos.JournalComplete&&orderAfter.JournalComplete&&paymentAfter.JournalComplete&&posAfter.JournalComplete
                 && orderAfter.UnknownChanges==0&&paymentAfter.UnknownChanges==0&&posAfter.UnknownChanges==0,check.DeliveryComplete),
@@ -87,7 +88,7 @@ public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySea
             || s.Seal.ManifestId!=reviewed.ManifestId || s.Manifest.ManifestId!=reviewed.ManifestId
             || s.Manifest.Generation!=reviewed.Generation || s.Manifest.EvidenceVersion!=reviewed.EvidenceVersion
             || s.Seal.SourceRevision!=s.Manifest.SourceRevision || s.Seal.SourceRevision.Epoch!=reviewed.RevisionEpoch
-            || s.Seal.SourceRevision.Revision!=reviewed.SourceRevision || s.PendingChanges<0 || s.Manifest.EvidenceProtocolVersion!=2
+            || s.Seal.SourceRevision.Revision!=reviewed.SourceRevision || s.PendingChanges<0 || s.Manifest.EvidenceProtocolVersion!=(typeof(T)==typeof(PosDaySummary)?3:2)
             || s.AttributionProtocolVersion!=2 || s.UnknownChanges<0 || s.UnknownChanges>s.PendingChanges
             || s.Changes is null || s.Changes.Count>256 || s.Changes.Count>s.PendingChanges
             || s.ObservedChanges<s.PendingChanges || s.CurrentSummary is null

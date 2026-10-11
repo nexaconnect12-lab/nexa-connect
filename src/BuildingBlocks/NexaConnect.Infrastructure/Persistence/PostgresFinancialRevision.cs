@@ -23,7 +23,7 @@ public static class PostgresFinancialRevision
     }
 
     public static bool IsCurrent<T>(SourceCutoff<T> saved, SourceCutoff<T> current) =>
-        saved.EvidenceProtocolVersion == 2 && current.EvidenceProtocolVersion == 2
+        saved.EvidenceProtocolVersion is 2 or 3 && current.EvidenceProtocolVersion == saved.EvidenceProtocolVersion
         && saved.SourceRevision is { Epoch: var epoch, Revision: >= 0 } && epoch != Guid.Empty
         && saved.SourceRevision == current.SourceRevision
         && saved.EvidenceVersion.Length == 64 && saved.EvidenceVersion == current.EvidenceVersion;

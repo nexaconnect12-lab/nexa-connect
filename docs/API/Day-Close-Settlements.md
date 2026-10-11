@@ -1,5 +1,7 @@
 # Branch-day settlement
 
+Current correction-aware behavior is extended by [ADR-033](../Architecture/Decisions/ADR-033-correction-aware-day-close-evidence.md) and [the protocol-three contract](Correction-Day-Evidence.md). Fresh POS/combined evidence requires exact correction selection and delivery; historical protocol-two evidence remains readable but cannot authorize new readiness. Existing command identity, tenant, permission and financial state boundaries are preserved.
+
 POS owns this online THB workflow. It finalizes the exact approved snapshot after source preparation; it does not recalculate tax, move provider funds or post a correction.
 
 Customer routes:

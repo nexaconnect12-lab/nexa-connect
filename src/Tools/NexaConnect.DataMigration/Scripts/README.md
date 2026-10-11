@@ -1,6 +1,8 @@
 # Migration scripts
 
-POS 21 adds immutable correction replay audit; Reporting 21 adds separate correction facts/receipt hashes. Latest compatibility is 0.35.0. Retained source replay audit blocks downgrade; controlled Reporting projection rebuild requires retained original POS events. See [contract](../../../../docs/API/Cash-Correction-Reporting.md) and [operations](../../../../docs/Deployment/Cash-Correction-Reporting.md).
+POS 22 adds correction protocol guard and epoch ownership metadata on source_day_cutoffs; no table count changes (197 total, POS 50, Reporting 17). Compatibility is 0.36.0; retained protocol-three evidence requires forward recovery. See [contract](../../../../docs/API/Correction-Day-Evidence.md) and [operations](../../../../docs/Deployment/Correction-Day-Evidence.md).
+
+POS 21 adds immutable correction replay audit; Reporting 21 adds separate correction facts/receipt hashes. Those migrations were introduced at compatibility 0.35.0; current latest compatibility is 0.36.0. Retained source replay audit blocks downgrade; controlled Reporting projection rebuild requires retained original POS events. See [contract](../../../../docs/API/Cash-Correction-Reporting.md) and [operations](../../../../docs/Deployment/Cash-Correction-Reporting.md).
 
 POS 20 adds verified late-cash correction ledger/audit and posting-time journal guards; Authorization 15 grants posting permission. Application compatibility is 0.34.0. Empty rollback drops corrections before reviews/barriers; retained history requires forward recovery. See [rollout](../../../../docs/Deployment/Late-Cash-Corrections.md).
 
@@ -34,7 +36,7 @@ Create one directory per owning service and one subdirectory per sequential migr
 | Customer | 2 | 6 |
 | Payment | 18 | 21 |
 | Notification | 3 | 5 |
-| POS | 21 | 50 |
+| POS | 22 | 50 |
 | Media | 4 | 6 |
 | Reporting | 21 | 17 |
 

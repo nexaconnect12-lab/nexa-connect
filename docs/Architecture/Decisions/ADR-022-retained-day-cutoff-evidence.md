@@ -1,5 +1,7 @@
 # ADR-022: Retained source cutoffs and fresh day-close reconciliation
 
+Successor: [ADR-033](ADR-033-correction-aware-day-close-evidence.md) extends fresh POS captures and combined delivery reconciliation to protocol 3 with retained correction proof; Order/Payment remain protocol 2. The original evidence-only decision below records its introduction boundary.
+
 Revision addendum (2026-10-07): [ADR-023](ADR-023-revision-fenced-day-close-evidence.md) extends this foundation with durable branch revisions and exact-set delivery proof. The original observation-only decision below remains historical; source-write locking and settlement finalization remain open.
 
 Status: Accepted. Date: 2026-10-06.

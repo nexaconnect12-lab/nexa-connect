@@ -1,5 +1,7 @@
 # ADR-032: Separate correction Reporting and source-backed reconciliation
 
+Successor: [ADR-033](ADR-033-correction-aware-day-close-evidence.md) integrates the retained correction selection and independent delivery proof into cutoff/seal readiness and immutable settlement snapshots. This ADR records the separate projection/replay introduction; its original no-cutoff-change scope below remains historical.
+
 Status: Accepted and implemented; execution evidence is tracked [separately](../Evidence/Cash-Correction-Reporting-Acceptance.md).
 
 ADR-031 commits verified POS cash variance corrections and their original outbox publications. Reporting previously had no consumer for these events. Releasing the old cash tender or amending the settled drawer would violate immutable financial evidence and could double-count original sales.

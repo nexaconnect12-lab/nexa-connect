@@ -19,6 +19,14 @@ public sealed class PostgresCashCorrectionInventoryStore(NpgsqlDataSource source
         if (restaurant == Guid.Empty) throw new ArgumentException();
         await using var c = await source.OpenConnectionAsync(ct);
         await using var tx = await c.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+        var result = await QueryRetainedAsync(organization, restaurant, branch, from, to, c, tx, ct);
+        await tx.CommitAsync(ct); return result;
+    }
+
+    internal static async Task<(CashCorrectionManifest Manifest, IReadOnlyDictionary<Guid,string> Payloads)> QueryRetainedAsync(
+        Guid organization, Guid restaurant, Guid branch, DateTimeOffset from, DateTimeOffset to,
+        NpgsqlConnection c, NpgsqlTransaction tx, CancellationToken ct)
+    {
         await using var q = new NpgsqlCommand("""
             SELECT l.receipt::text,l.adjustment,l.posted_at_utc,l.posting_date,l.posting_from_utc,l.posting_to_utc,
                    o.id,o.payload::text,o.correlation_id,o.occurred_at_utc,o.contract_version,o.aggregate_id
@@ -56,7 +64,6 @@ public sealed class PostgresCashCorrectionInventoryStore(NpgsqlDataSource source
                 payloads.Add(e.EventId, r.GetString(7));
             }
         }
-        await tx.CommitAsync(ct);
         return (new(organization, restaurant, branch, from, to, DateTimeOffset.UtcNow, events), payloads);
     }
 }

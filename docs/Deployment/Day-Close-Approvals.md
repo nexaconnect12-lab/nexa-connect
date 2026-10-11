@@ -1,5 +1,7 @@
 # Day-close approval rollout
 
+Current correction-aware rollout uses POS 22 / Reporting 21 with matching binaries at 0.36.0. Follow [protocol-three migration, compatibility and recovery](Correction-Day-Evidence.md); preceding introduction versions and execution artifacts remain historical. New readiness requires explicit correction proof and old undecided preparations need coordinated recovery.
+
 For the current coordinated deployment, use [late-work review rollout](Late-Work-Reviews.md): Order 19 / Payment 18 / POS 19 / Authorization 14, compatibility 0.33.0, Reporting 20 unchanged. Version sets below identify the earlier capability boundary; current review-enabled binaries require the latest coordinated catalog.
 
 The preceding coordinated catalog also supports [temporary finalization preparation](Day-Close-Finalization-Preparation.md): Order 17 / Payment 16 / POS 16 / Authorization 12, compatibility 0.31.0. The POS 14 / Authorization 11 versions below describe the approval introduction boundary.

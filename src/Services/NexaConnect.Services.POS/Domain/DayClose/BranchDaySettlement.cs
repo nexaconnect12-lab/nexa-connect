@@ -46,7 +46,7 @@ public static class BranchDaySettlement
         var day = preparation.Identity;
         var snapshot = preparation.Approval.Snapshot;
         return new(decisionId, Guid.NewGuid(), correlationId, now, settlementId, day, preparation.Approval.ApprovalId,
-            preparation.Approval.SealVersion, snapshot with { Tenders = [..snapshot.Tenders], Issues = [..snapshot.Issues],
+            preparation.Approval.SealVersion, snapshot with { Tenders = [..snapshot.Tenders], Issues = [..snapshot.Issues], Corrections=snapshot.Corrections?.Copy(),
                 SealComparison=snapshot.SealComparison is null?null:snapshot.SealComparison with{Tenders=[..snapshot.SealComparison.Tenders],Changes=snapshot.SealComparison.Changes?.ToArray()} }, [..preparation.Sources]);
     }
 }

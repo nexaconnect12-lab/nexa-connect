@@ -10,8 +10,8 @@ public sealed class DayApprovalTests
     {
         static CutoffReference Ref()=>new(Guid.NewGuid(),1,new('a',64),Guid.NewGuid(),0);
         static DaySealReference Seal(CutoffReference r)=>new(Guid.NewGuid(),r.ManifestId,r.RevisionEpoch!.Value,r.SourceRevision!.Value);
-        var cutoff=new DayCutoffEvidence(Ref(),Ref(),Ref(),Guid.NewGuid(),true,0,true,2);
-        return DayClosePreparationTests.Evidence() with{Cutoff=cutoff,Seals=new(Seal(cutoff.Order),Seal(cutoff.Payment),Seal(cutoff.Pos),0,true,true)};
+        var cutoff=new DayCutoffEvidence(Ref(),Ref(),Ref(),Guid.NewGuid(),true,0,true,3);
+        return DayClosePreparationTests.Evidence() with{Corrections=new(cutoff.Pos.ManifestId,cutoff.Pos.RevisionEpoch!.Value,cutoff.Pos.SourceRevision!.Value,new('a',64),0,0,0,0,0,0,[]),Cutoff=cutoff,Seals=new(Seal(cutoff.Order),Seal(cutoff.Payment),Seal(cutoff.Pos),0,true,true)};
     }
     private static PreparationState Ready(DayEvidence e)=>new(Day,2,"ready_for_review",e,[],Now,PendingSealChanges:0);
     private static DayApprovalState Initial()=>new(0,"not_approved",null,"not_approved",Now);

@@ -21,7 +21,7 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
     int PendingCashReviews, string[] Issues, DateTimeOffset ObservedAtUtc, DateTimeOffset? OrderObservedAtUtc = null,
     DateTimeOffset? PaymentObservedAtUtc = null, DateTimeOffset? PosObservedAtUtc = null,
     Guid? RecordedCheckId = null, DateTimeOffset? RecordedCheckedAtUtc = null, DayCutoffEvidence? Cutoff = null,DaySealEvidence? Seals=null,
-    DaySealComparison? SealComparison=null)
+    DaySealComparison? SealComparison=null,DayCorrectionEvidence? Corrections=null)
 {
     public bool IsValid(DateTimeOffset now) => !string.IsNullOrWhiteSpace(TimeZone) && TimeZone.Length<=100
         && Currency is { Length:3 } && Currency.All(c=>c is >= 'A' and <= 'Z')
@@ -35,12 +35,14 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
             && SealComparison.NetSales==SealComparison.GrossSales-SealComparison.CompletedRefunds
             && SealComparison.UnknownChanges>=0 && SealComparison.CheckedAtUtc>=ToUtc && SealComparison.CheckedAtUtc<=now
             && (SealComparison.Changes is null || SealComparison.Changes.Length<=256 && SealComparison.Changes.All(c=>c.Source is "Order" or "Payment" or "POS"
-                && c.Revision>0 && c.Reason is "unknown" or "legacy_attribution" or "ownership_uncertain" or "missing_financial_history" or "unresolved_order" or "sales_date" or "tender_date" or "unresolved_payment" or "unresolved_refund" or "refund_date" or "unresolved_shift" or "unresolved_drawer" or "cash_close_date" or "cash_review"))
+                && c.Revision>0 && c.Reason is "unknown" or "legacy_attribution" or "ownership_uncertain" or "missing_financial_history" or "unresolved_order" or "sales_date" or "tender_date" or "unresolved_payment" or "unresolved_refund" or "refund_date" or "unresolved_shift" or "unresolved_drawer" or "cash_close_date" or "cash_review" or "cash_correction_date"))
             && SealComparison.Tenders is not null && SealComparison.Tenders.All(t=>!string.IsNullOrWhiteSpace(t.Method) && t.Amount>=0 && t.Currency==Currency))
         && Issues is not null && Issues.Length<=32 && Issues.All(x=>!string.IsNullOrWhiteSpace(x) && x.Length<=100)
         && (Cutoff is null || Cutoff.CheckId != Guid.Empty && Cutoff.FinancialGaps >= 0
             && new[]{Cutoff.Order,Cutoff.Payment,Cutoff.Pos}.All(r=>r is not null && r.ManifestId!=Guid.Empty
                 && r.Generation>0 && r.EvidenceVersion.Length==64 && r.EvidenceVersion.All(char.IsAsciiHexDigit)))
+        && (Corrections is null || Cutoff is not null && Corrections.IsValid(FromUtc,ToUtc)
+            && Corrections.ManifestId==Cutoff.Pos.ManifestId&&Corrections.RevisionEpoch==Cutoff.Pos.RevisionEpoch&&Corrections.SourceRevision==Cutoff.Pos.SourceRevision)
         && (Seals is null || Cutoff is not null && Seals.PendingChanges>=0
             && new[]{Seals.Order,Seals.Payment,Seals.Pos}.All(r=>r is not null && r.SealId!=Guid.Empty && r.ManifestId!=Guid.Empty && r.RevisionEpoch!=Guid.Empty && r.SourceRevision>=0)
             && Seals.Order.ManifestId==Cutoff.Order.ManifestId && Seals.Payment.ManifestId==Cutoff.Payment.ManifestId && Seals.Pos.ManifestId==Cutoff.Pos.ManifestId
@@ -52,11 +54,16 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
         .Concat(new[] { OrderVersion, PaymentVersion, PosVersion }.Any(x => x is null || x.Length != 64 || x.Any(c => !char.IsAsciiHexDigit(c)))
             ? ["source_evidence_unavailable"] : Array.Empty<string>())
         .Concat(Cutoff is { SourcesCurrent:false } ? ["cutoff_superseded"] : Array.Empty<string>())
-        .Concat(Cutoff is not null && (Cutoff.EvidenceProtocolVersion!=2
+        .Concat(Cutoff is not null && (Cutoff.EvidenceProtocolVersion!=3
             || new[]{Cutoff.Order,Cutoff.Payment,Cutoff.Pos}.Any(r=>r.RevisionEpoch is null || r.RevisionEpoch==Guid.Empty || r.SourceRevision is null or <0))
             ? ["source_revision_unavailable"] : Array.Empty<string>())
         .Concat(Cutoff is { DeliveryComplete:false } ? ["cutoff_delivery_unproven"] : Array.Empty<string>())
         .Concat(Cutoff is { FinancialGaps:>0 } ? ["cutoff_financial_gaps"] : Array.Empty<string>())
+        .Concat(Cutoff is not null && Corrections is null ? ["correction_evidence_unavailable"] : Array.Empty<string>())
+        .Concat(Corrections is {DeliveryComplete:false} ? ["correction_delivery_unproven"] : Array.Empty<string>())
+        .Concat(Corrections is {Missing:>0} ? ["correction_delivery_missing"] : Array.Empty<string>())
+        .Concat(Corrections is {Conflicting:>0} ? ["correction_delivery_conflicting"] : Array.Empty<string>())
+        .Concat(Corrections is {Unexpected:>0} ? ["correction_delivery_unexpected"] : Array.Empty<string>())
         .Concat(Seals is {PendingChanges:>0} ? ["sealed_changes_pending"] : Array.Empty<string>())
         .Concat(Seals is {JournalComplete:false} ? ["seal_journal_unavailable"] : Array.Empty<string>())
         .Concat(Seals is {DeliveryComplete:false} ? ["seal_delivery_unproven"] : Array.Empty<string>()).Distinct().Order().ToArray();
@@ -74,7 +81,8 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
             && Cutoff.Order==other.Cutoff.Order && Cutoff.Payment==other.Cutoff.Payment && Cutoff.Pos==other.Cutoff.Pos
             && Cutoff.SourcesCurrent==other.Cutoff.SourcesCurrent && Cutoff.FinancialGaps==other.Cutoff.FinancialGaps
             && Cutoff.DeliveryComplete==other.Cutoff.DeliveryComplete && Cutoff.EvidenceProtocolVersion==other.Cutoff.EvidenceProtocolVersion)
-        && Seals==other.Seals;
+        && Seals==other.Seals
+        && (Corrections is null ? other.Corrections is null : other.Corrections is not null&&Corrections.Same(other.Corrections));
 }
 public sealed record PreparationCommand(Guid BranchId, DateOnly BusinessDate, Guid OperationId, long ExpectedVersion, string ReasonCode,long? ReviewedCutoffVersion=null);
 public sealed record PreparationState(DayIdentity Identity, long Version, string Status, DayEvidence? Snapshot,
@@ -108,7 +116,7 @@ public sealed class BranchDayClose
         if(evidence is not null && !evidence.IsValid(now))evidence=null;
         var blockers = evidence?.Blockers() ?? ["source_unavailable"];
         state = state with { Version = state.Version + 1, Status = blockers.Length == 0 ? "ready_for_review" : "blocked",
-            Snapshot = evidence is null ? null : evidence with { Tenders = [..evidence.Tenders], Issues = [..evidence.Issues],SealComparison=CopyComparison(evidence.SealComparison) }, Blockers = blockers, UpdatedAtUtc = now, OperationId = null, ClaimId = null,
+            Snapshot = evidence is null ? null : evidence with { Tenders = [..evidence.Tenders], Issues = [..evidence.Issues],SealComparison=CopyComparison(evidence.SealComparison),Corrections=evidence.Corrections?.Copy() }, Blockers = blockers, UpdatedAtUtc = now, OperationId = null, ClaimId = null,
             LeaseUntilUtc = null, PreparingSubject = null, PendingCommand = null,PendingSealChanges=evidence?.Seals?.PendingChanges,LatestSealComparison=CopyComparison(evidence?.SealComparison) };
     }
     public bool Validate(DayEvidence? evidence, DateTimeOffset now)
@@ -122,7 +130,7 @@ public sealed class BranchDayClose
     }
     private static PreparationState Copy(PreparationState value) => value with { Blockers = [..value.Blockers],
         LatestSealComparison=value.LatestSealComparison is null?null:value.LatestSealComparison with{Tenders=[..value.LatestSealComparison.Tenders],Changes=value.LatestSealComparison.Changes?.ToArray()},
-        Snapshot = value.Snapshot is null ? null : value.Snapshot with { Tenders = [..value.Snapshot.Tenders], Issues = [..value.Snapshot.Issues],
+        Snapshot = value.Snapshot is null ? null : value.Snapshot with { Tenders = [..value.Snapshot.Tenders], Issues = [..value.Snapshot.Issues],Corrections=value.Snapshot.Corrections?.Copy(),
             SealComparison=value.Snapshot.SealComparison is null?null:value.Snapshot.SealComparison with{Tenders=[..value.Snapshot.SealComparison.Tenders],Changes=value.Snapshot.SealComparison.Changes?.ToArray()} } };
     private static DaySealComparison? CopyComparison(DaySealComparison? value)=>value is null?null:value with{Tenders=[..value.Tenders],Changes=value.Changes?.ToArray()};
 }
