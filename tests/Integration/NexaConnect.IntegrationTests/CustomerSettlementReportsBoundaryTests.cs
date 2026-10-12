@@ -23,6 +23,66 @@ public sealed class CustomerSettlementReportsBoundaryTests
 {
     private static readonly Guid Branch=Guid.NewGuid();
     private static string Path=>$"/bff/customer/reports/day-settlements?branchId={Branch}&fromDate=2026-09-01&toDate=2026-09-02";
+    private static string ExportPath => Path.Replace("day-settlements?", "day-settlements/export.csv?");
+    [Fact]
+    public async Task Export_requires_live_session_membership_sanitizes_failures_and_preserves_csv_bytes()
+    {
+        await using var factory = new Factory(); using var client = factory.CreateClient(Options());
+        using var anonymous = await client.GetAsync(ExportPath); Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        Assert.True(anonymous.Headers.CacheControl?.NoStore);
+        await SignIn(factory, client);
+        using var export = await client.GetAsync(ExportPath);
+        Assert.Equal(HttpStatusCode.OK, export.StatusCode); Assert.True(export.Headers.CacheControl?.NoStore);
+        Assert.Equal("text/csv", export.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("attachment", export.Content.Headers.ContentDisposition?.DispositionType);
+        Assert.True(factory.Port.LastRequest!.ExportCsv);
+        Assert.Equal(CsvBytes, await export.Content.ReadAsByteArrayAsync());
+        factory.Port.Allowed = false;
+        using var revoked = await client.GetAsync(ExportPath); Assert.Equal(HttpStatusCode.Forbidden, revoked.StatusCode);
+        Assert.Equal(1, factory.Port.Sends);
+        factory.Port.Allowed = true; factory.Port.Status = HttpStatusCode.ServiceUnavailable;
+        using var unavailable = await client.GetAsync(ExportPath); Assert.Equal(HttpStatusCode.ServiceUnavailable, unavailable.StatusCode);
+        Assert.Null(unavailable.Content.Headers.ContentDisposition);
+        Assert.DoesNotContain("downstream-sensitive", await unavailable.Content.ReadAsStringAsync());
+        factory.Port.Status = HttpStatusCode.OK; factory.Port.BadCsvType = true;
+        using var malformed = await client.GetAsync(ExportPath); Assert.Equal(HttpStatusCode.ServiceUnavailable, malformed.StatusCode);
+        factory.Port.BadCsvType = false;
+        using var invalid = await client.GetAsync(ExportPath.Replace("2026-09-02", "2026-11-02"));
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+    [Fact]
+    public async Task Export_adapter_forwards_protected_scope_and_correlation_and_ignores_upstream_filename()
+    {
+        await using var factory = new Factory { UseTransport = true }; using var client = factory.CreateClient(Options());
+        await SignIn(factory, client); client.DefaultRequestHeaders.Add("X-Correlation-ID", "settlement-export-test");
+        using var response = await client.GetAsync(ExportPath + "&organizationId=" + Guid.NewGuid());
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains($"organizations/{factory.Port.OrganizationId:D}/reports/day-settlements/export.csv?", factory.ReportingPath);
+        Assert.Equal("settlement-export-test", factory.ReportingCorrelation); Assert.Equal("settlement-export-test", factory.DirectoryCorrelation);
+        Assert.Equal("Bearer test-server-token", factory.ReportingToken);
+        Assert.Equal(factory.Port.OrganizationId.ToString("D"), factory.ReportingOrganization);
+        Assert.Equal(CsvBytes, await response.Content.ReadAsByteArrayAsync());
+        Assert.Contains(Branch.ToString(), response.Content.Headers.ContentDisposition?.FileNameStar);
+        Assert.DoesNotContain("untrusted", response.Content.Headers.ContentDisposition!.ToString());
+    }
+    private static readonly byte[] CsvBytes = System.Text.Encoding.UTF8.GetBytes("\uFEFF\"record_type\",\"organization_id\",\"branch_id\"\r\n\"observation\",\"scope\",\"branch\"\r\n");
+    private static HttpResponseMessage CsvResponse()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(CsvBytes) };
+        response.Content.Headers.ContentType = new("text/csv") { CharSet = "utf-8" };
+        response.Content.Headers.ContentDisposition = new("attachment") { FileName = "untrusted.csv" };
+        return response;
+    }
+    [Fact]
+    public async Task Oversized_export_transport_is_rejected_before_attachment()
+    {
+        await using var factory = new Factory { UseTransport = true, OversizedExport = true };
+        using var client = factory.CreateClient(Options()); await SignIn(factory, client);
+        client.DefaultRequestHeaders.Add("X-Correlation-ID", "settlement-export-test");
+        using var response = await client.GetAsync(ExportPath);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.True(response.Headers.CacheControl?.NoStore); Assert.Null(response.Content.Headers.ContentDisposition);
+    }
     [Fact] public async Task Report_requires_session_protected_tenant_and_current_membership()
     {
         await using var factory=new Factory();using var client=factory.CreateClient(Options());
@@ -104,7 +164,7 @@ public sealed class CustomerSettlementReportsBoundaryTests
     private sealed class Factory:WebApplicationFactory<CUSTOMERBFF::Program>
     {
         public CompletenessPort Port{get;}=new();
-        public bool UseTransport;
+        public bool UseTransport, OversizedExport;
         public string? DirectoryCorrelation,ReportingCorrelation,ReportingPath,ReportingOrganization,ReportingApplication,ReportingPortal,ReportingToken;
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -133,7 +193,9 @@ public sealed class CustomerSettlementReportsBoundaryTests
                         ReportingOrganization=request.Headers.GetValues(TenantContextHeaders.OrganizationId).Single();
                         ReportingApplication=request.Headers.GetValues(TenantContextHeaders.ApplicationCode).Single();
                         ReportingPortal=request.Headers.GetValues(TenantContextHeaders.PortalRequest).Single();ReportingToken=request.Headers.Authorization!.ToString();
-                        return new(HttpStatusCode.OK){Content=JsonContent.Create(new {status="not_checked",observation=(object?)null})};
+                        if (OversizedExport) return new(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[4 * 1024 * 1024 + 1]) };
+                        return request.RequestUri!.AbsolutePath.EndsWith("/export.csv") ? CsvResponse()
+                            : new(HttpStatusCode.OK){Content=JsonContent.Create(new {status="not_checked",observation=(object?)null})};
                     }));
             });
         }
@@ -142,11 +204,12 @@ public sealed class CustomerSettlementReportsBoundaryTests
     {protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct)=>Task.FromResult(send(request));}
     private sealed class CompletenessPort:ICustomerSettlementReportsPort
     {
-        public Guid OrganizationId{get;}=Guid.NewGuid();public bool Allowed=true,Throw;public int Sends;public HttpStatusCode Status=HttpStatusCode.OK;
+        public Guid OrganizationId{get;}=Guid.NewGuid();public bool Allowed=true,Throw,BadCsvType;public int Sends;public HttpStatusCode Status=HttpStatusCode.OK;
         public TenantContext? LastTenant;public SettlementReportsRequest? LastRequest;
         public string AccessSubject="operator";
         public Task<CurrentPlatformAccessResponse?> GetAccessAsync(string token,CancellationToken ct)=>Task.FromResult<CurrentPlatformAccessResponse?>(new(AccessSubject,Allowed?[new(OrganizationId,"test","Test","nexa_connect")]:[]));
         public Task<HttpResponseMessage> ReadAsync(TenantContext tenant,string token,SettlementReportsRequest request,CancellationToken ct)
-        {Assert.Equal("test-server-token",token);Sends++;LastTenant=tenant;LastRequest=request;if(Throw)throw new HttpRequestException("restricted-transport");return Task.FromResult(new HttpResponseMessage(Status){Content=JsonContent.Create(new{message="downstream-sensitive"})});}
+        {Assert.Equal("test-server-token",token);Sends++;LastTenant=tenant;LastRequest=request;if(Throw)throw new HttpRequestException("restricted-transport");
+            return Task.FromResult(request.ExportCsv && Status==HttpStatusCode.OK && !BadCsvType ? CsvResponse() : new HttpResponseMessage(Status){Content=JsonContent.Create(new{message="downstream-sensitive"})});}
     }
 }

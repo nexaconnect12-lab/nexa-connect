@@ -7,6 +7,11 @@ async function setup(page){
   if(p.endsWith("/me"))json={subjectId:"operator"};
   else if(p.endsWith("/access"))json={subjectId:"operator",organizations:[{organizationId:org,organizationCode:"one",organizationName:"Organization One",applicationCode:"nexa_connect"},{organizationId:other,organizationCode:"two",organizationName:"Organization Two",applicationCode:"nexa_connect"}]};
   else if(p==="/bff/customer/tenant"){if(route.request().method()==="POST")state.tenant={...state.tenant,...route.request().postDataJSON()};json=state.tenant;}
+  else if(p.endsWith("/reports/day-settlements/export.csv")){
+   if(state.failure)return route.fulfill({status:403,json:{detail:"private-upstream-detail"}});
+   if(state.delay)await new Promise(ok=>setTimeout(ok,state.delay));
+   return route.fulfill({contentType:state.malformed?"application/json":"text/csv; charset=utf-8",body:'\uFEFF"record_type","organization_id","branch_id","gross_sales","delivery_status"\r\n"settlement","'+state.tenant.organizationId+'","'+branch+'","999999999999999.9999","'+(state.missing?'missing':'matched')+'"\r\n'}).catch(()=>{});
+  }
   else if(p.endsWith("/reports/day-settlements")){
    if(state.failure)return route.fulfill({status:403,json:{detail:"private-upstream-detail"}});
    const now=new Date().toISOString();json={organizationId:state.malformed?other:state.tenant.organizationId,branchId:branch,fromDate:u.searchParams.get("fromDate"),toDate:u.searchParams.get("toDate"),sourceObservedAtUtc:now,comparedAtUtc:now,manifestHash:"A".repeat(64),status:state.missing?"gaps":"matched",expected:1,matched:state.missing?0:1,missing:state.missing?1:0,conflicting:0,unexpected:0,
@@ -23,3 +28,26 @@ test("shows exact financial columns and separate retained correction proof",asyn
 test("missing delivery remains a gap without changing financial values",async({page})=>{const s=await setup(page);s.missing=true;await load(page);await expect(page.getByText("Settlement delivery has gaps",{exact:true})).toBeVisible();await expect(page.getByText("999999999999999.9999",{exact:true})).toBeVisible();});
 test("denied and malformed responses clear rows and hide private diagnostics",async({page})=>{const s=await setup(page);await load(page);await expect(page.getByText("Settlement delivery matched",{exact:true})).toBeVisible();s.failure=true;await load(page);await expect(page.getByText("Settlement ledger unavailable.",{exact:false})).toBeVisible();await expect(page.getByText("999999999999999.9999",{exact:true})).toHaveCount(0);await expect(page.getByText("private-upstream-detail")).toHaveCount(0);s.failure=false;s.malformed=true;await load(page);await expect(page.getByText("Settlement ledger unavailable.",{exact:false})).toBeVisible();});
 test("date changes discard delayed stale results",async({page})=>{const s=await setup(page);s.delay=700;await load(page);await page.getByLabel("Settlement from date",{exact:true}).fill("2026-09-02");await page.waitForTimeout(900);await expect(page.getByText("Settlement delivery matched",{exact:true})).toHaveCount(0);await expect(page.getByText("999999999999999.9999",{exact:true})).toHaveCount(0);});
+test("downloads a fresh comparison with exact CSV values and a scoped filename",async({page})=>{
+ const s=await setup(page);await load(page);await expect(page.getByText("Settlement delivery matched",{exact:true})).toBeVisible();s.missing=true;
+ const request=page.waitForRequest(r=>new URL(r.url()).pathname.endsWith("/export.csv")),download=page.waitForEvent("download");
+ await page.getByRole("button",{name:"Download settlement CSV",exact:true}).click();
+ expect(new URL((await request).url()).searchParams.get("fromDate")).toBe("2026-09-01");
+ const file=await download;expect(file.suggestedFilename()).toBe(`day-settlements-${branch}-2026-09-01-2026-09-02.csv`);
+ const stream=await file.createReadStream(),chunks=[];for await(const chunk of stream)chunks.push(chunk);
+ const csv=Buffer.concat(chunks).toString("utf8");expect(csv).toContain('"999999999999999.9999","missing"');expect(csv).toContain(org);
+});
+test("failed and malformed exports clear stale values and never download diagnostics",async({page})=>{
+ const s=await setup(page),downloads=[];page.on("download",d=>downloads.push(d));await load(page);await expect(page.getByText("Settlement delivery matched",{exact:true})).toBeVisible();
+ s.failure=true;await page.getByRole("button",{name:"Download settlement CSV",exact:true}).click();
+ await expect(page.getByText("Settlement ledger unavailable.",{exact:false})).toBeVisible();await expect(page.getByText("999999999999999.9999",{exact:true})).toHaveCount(0);
+ s.failure=false;s.malformed=true;await page.getByRole("button",{name:"Download settlement CSV",exact:true}).click();
+ await expect(page.getByText("Settlement ledger unavailable.",{exact:false})).toBeVisible();await expect(page.getByText("private-upstream-detail")).toHaveCount(0);expect(downloads).toHaveLength(0);
+});
+test("changed dates and branch discard delayed export downloads",async({page})=>{
+ const s=await setup(page),downloads=[];page.on("download",d=>downloads.push(d));s.delay=700;
+ await page.getByRole("button",{name:"Download settlement CSV",exact:true}).click();await page.getByLabel("Settlement from date",{exact:true}).fill("2026-09-02");
+ await page.waitForTimeout(900);expect(downloads).toHaveLength(0);
+ await page.getByLabel("Settlement from date",{exact:true}).fill("2026-09-01");await page.getByRole("button",{name:"Download settlement CSV",exact:true}).click();
+ await page.getByLabel("End-of-day branch ID").fill(other);await page.waitForTimeout(900);expect(downloads).toHaveLength(0);
+});

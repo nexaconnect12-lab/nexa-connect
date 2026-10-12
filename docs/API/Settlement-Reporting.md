@@ -1,5 +1,7 @@
 # Settlement reporting
 
+The bounded [settlement CSV export](Settlement-Export.md) adds `GET .../day-settlements/export.csv` through Reporting and the Customer BFF. Each download runs a fresh authorized ledger comparison; original amounts, correction proof and delivery gaps remain distinct. Existing permissions and schemas apply; see [ADR-036](../Architecture/Decisions/ADR-036-bounded-settlement-export.md).
+
 Settlement original-event replay is now provided by [ADR-035](../Architecture/Decisions/ADR-035-audited-settlement-replay.md) and [the administrative runbook](../Deployment/Settlement-Replay.md). POS 23 adds two immutable audit tables; Reporting stays 22 and compatibility is 0.38.0 (201 tables, POS 52 / Reporting 19). Customer routes/permissions remain read-only; unknown original publication fields fail closed.
 
 `GET /api/pos/v1/customer/settlement-manifest?organizationId={id}&branchId={id}&fromDate=yyyy-MM-dd&toDate=yyyy-MM-dd` returns retained original settlement publications. Dates select the branch business date, inclusive from/exclusive to; they do not select UTC decision time. Maximum range31 dates,31 receipts and1000 correction items; response is at most2MiB. Upper date is bounded to UTC today plus one day to accommodate branch calendars. This grants no current-day settlement authority.

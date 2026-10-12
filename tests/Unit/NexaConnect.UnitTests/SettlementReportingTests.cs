@@ -38,11 +38,13 @@ public sealed class SettlementReportingTests
             _=>e with{Corrections=e.Corrections with{Items=[null!]}}};
         Assert.Throws<ArgumentException>(()=>SettlementReporting.Translate(new(null,e)));
     }
-    [Fact]
-    public async Task Authorization_denial_cannot_read_source_or_projection()
+    [Theory]
+    [InlineData(false)][InlineData(true)]
+    public async Task Authorization_denial_cannot_read_source_or_projection(bool export)
     {
-        var ports=new Ports();var e=Event();await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>new SettlementReporting(ports,ports,ports)
-            .ReadAsync(new(e.Settlement.OrganizationId,e.Settlement.BranchId,e.Settlement.BusinessDate,e.Settlement.BusinessDate.AddDays(1)),"Bearer token",default));
+        var ports=new Ports();var e=Event();var reports=new SettlementReporting(ports,ports,ports);
+        var range=new SettlementReportRange(e.Settlement.OrganizationId,e.Settlement.BranchId,e.Settlement.BusinessDate,e.Settlement.BusinessDate.AddDays(1));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(async()=>{if(export)await reports.ExportAsync(range,"Bearer token",default);else await reports.ReadAsync(range,"Bearer token",default);});
         Assert.Equal(0,ports.Reads);
     }
     private sealed class Ports:ISettlementFactRepository,ISettlementSource,IReportingCustomerAuthorizer

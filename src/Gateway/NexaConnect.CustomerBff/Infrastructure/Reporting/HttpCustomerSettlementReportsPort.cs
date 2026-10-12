@@ -19,6 +19,7 @@ public sealed class HttpCustomerSettlementReportsPort(HttpClient client, IHttpCl
     public async Task<HttpResponseMessage> ReadAsync(TenantContext tenant, string token, SettlementReportsRequest input, CancellationToken cancellationToken)
     {
         string path = $"api/reporting/v1/customer/organizations/{tenant.OrganizationId:D}/reports/day-settlements"
+            + (input.ExportCsv ? "/export.csv" : "")
             + $"?branchId={input.BranchId:D}&fromDate={Uri.EscapeDataString(input.FromDate.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture))}"
             + $"&toDate={Uri.EscapeDataString(input.ToDate.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture))}";
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
@@ -27,7 +28,7 @@ public sealed class HttpCustomerSettlementReportsPort(HttpClient client, IHttpCl
         request.Headers.Add(TenantContextHeaders.ApplicationCode, tenant.ApplicationCode);
         request.Headers.Add(TenantContextHeaders.PortalRequest, "customer");
         var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        try { await response.Content.LoadIntoBufferAsync(2 * 1024 * 1024, cancellationToken); return response; }
+        try { await response.Content.LoadIntoBufferAsync((input.ExportCsv ? 4 : 2) * 1024 * 1024, cancellationToken); return response; }
         catch { response.Dispose(); throw; }
     }
 }

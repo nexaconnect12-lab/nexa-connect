@@ -48,6 +48,8 @@ public sealed class SettlementReporting(ISettlementFactRepository repository,ISe
             ||facts.Select(f=>f.BusinessDate).Distinct().Count()!=facts.Length||facts.Sum(f=>f.Corrections?.Expected??0)>1000)throw new ArgumentException("Settlement source provenance mismatch.");
     }
     public Task<bool> ProjectAsync(SettlementPublication value,CancellationToken ct)=>repository.ProjectAsync(Translate(value),ct);
+    public async Task<byte[]> ExportAsync(SettlementReportRange range, string bearer, CancellationToken ct) =>
+        SettlementCsv.Render(await ReadAsync(range, bearer, ct), range);
     public async Task<SettlementReport> ReadAsync(SettlementReportRange range,string bearer,CancellationToken ct)
     {
         ValidateRange(range);using var deadline=CancellationTokenSource.CreateLinkedTokenSource(ct);deadline.CancelAfter(TimeSpan.FromSeconds(25));

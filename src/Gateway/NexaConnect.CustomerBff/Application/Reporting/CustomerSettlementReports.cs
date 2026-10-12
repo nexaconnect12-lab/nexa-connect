@@ -3,7 +3,7 @@ using NexaConnect.Contracts.Platform;
 
 namespace NexaConnect.CustomerBff.Application.Reporting;
 
-public sealed record SettlementReportsRequest(Guid BranchId, DateOnly FromDate, DateOnly ToDate);
+public sealed record SettlementReportsRequest(Guid BranchId, DateOnly FromDate, DateOnly ToDate, bool ExportCsv = false);
 
 public interface ICustomerSettlementReportsPort
 {
