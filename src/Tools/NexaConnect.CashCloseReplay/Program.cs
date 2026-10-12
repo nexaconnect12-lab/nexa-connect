@@ -10,6 +10,7 @@ using NexaConnect.Services.POS.Infrastructure.Messaging;
 using NexaConnect.Services.POS.Infrastructure.Persistence;
 using Npgsql;
 
+if (args.FirstOrDefault() == "--settlements") return await SettlementReplayCommand.RunAsync(args.Skip(1).ToArray());
 if (args.FirstOrDefault() == "--cash-corrections") return await CashCorrectionReplayCommand.RunAsync(args.Skip(1).ToArray());
 
 using var logging = NexaConnectObservabilityExtensions.CreateClientLoggerFactory("nexaconnect-cash-close-replay",

@@ -56,6 +56,7 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
     }
     [PosPostgresFact]public async Task Empty_migration_can_downgrade_and_reapply()
     {
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0023_settlement_replay/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0022_correction_day_evidence/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0021_cash_correction_replay/down.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0020_late_cash_corrections/down.sql")));
@@ -84,6 +85,7 @@ public sealed class DayCutoffPostgresTests:IAsyncLifetime
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0020_late_cash_corrections/up.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0021_cash_correction_replay/up.sql")));
         await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0022_correction_day_evidence/up.sql")));
+        await Sql(File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0023_settlement_replay/up.sql")));
         Assert.Equal(0L,await Scalar("SELECT count(*) FROM branch_day_cutoff_audit"));
     }
     [PosPostgresFact]public async Task Authorization_migration_backfills_roles_and_fresh_assignments_preserve_reader_preparer_separation()

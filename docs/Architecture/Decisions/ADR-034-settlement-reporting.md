@@ -2,6 +2,8 @@
 
 Status: Accepted
 
+Successor: [ADR-035](ADR-035-audited-settlement-replay.md) supplies audited original V1/V2 replay for gaps after queue creation. The original no-replay-tool scope below records ADR-034 at introduction.
+
 POS owns branch-day commit decisions, receipts, source barriers and original publications. Reporting needs an accountant-facing ledger that distinguishes committed evidence from delivery gaps without recomputing financial history or granting settlement authority.
 
 New POS commits atomically publish `pos.branch-day-settled.v2` with their receipt/audit/decision. V2 retains the original V1 financial vocabulary plus decision identity, exact selected UTC window and verified correction manifest/epoch/revision/hash/counts/items. The outer and nested event identities agree. Existing V1 outbox rows and receipts remain unchanged; no replacement V2 event is synthesized for old history. New commits publish one version, not both. Already-decided recovery reuses its original publication.

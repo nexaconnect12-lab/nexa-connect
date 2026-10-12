@@ -1,6 +1,6 @@
 # Finalization preparation rollout and recovery
 
-Current correction and settlement reporting rollout uses POS 22 / Reporting 22 with matching binaries at 0.37.0. Follow [protocol-three migration, compatibility and recovery](Correction-Day-Evidence.md); preceding introduction versions and execution artifacts remain historical. New readiness requires explicit correction proof and old undecided preparations need coordinated recovery.
+Current correction and settlement reporting rollout uses POS 23 / Reporting 22 with matching binaries at 0.38.0. Follow [protocol-three migration, compatibility and recovery](Correction-Day-Evidence.md); preceding introduction versions and execution artifacts remain historical. New readiness requires explicit correction proof and old undecided preparations need coordinated recovery.
 
 This document describes temporary preparation. [Durable settlement](../Deployment/Day-Close-Settlements.md) now promotes exact leases to permanent barriers. Once settlement intent owns preparation, expiry/cancel cannot release armed or committed protection; preparation GET reports finalizing/finalized and new prepare/cancel is rejected.
 

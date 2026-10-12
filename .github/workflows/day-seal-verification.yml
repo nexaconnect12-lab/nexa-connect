@@ -28,7 +28,7 @@ jobs:
         run: dotnet restore NexaConnect.sln
       - name: Verify financial and HTTP boundaries
         run: |
-          dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter "FullyQualifiedName~SettlementReportingTests|FullyQualifiedName~SettlementInventoryTests|FullyQualifiedName~FinalizationPreparationTests|FullyQualifiedName~DayApprovalTests|FullyQualifiedName~ExactDayAttributionTests|FullyQualifiedName~DayChangeAttributionTests|FullyQualifiedName~MigrationRunnerTests|FullyQualifiedName~DaySealTests|FullyQualifiedName~DayCutoffTests|FullyQualifiedName~DayClosePreparationTests|FullyQualifiedName~EndOfDayDraftTests|FullyQualifiedName~FinancialCompletenessTests" --verbosity minimal
+          dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter "FullyQualifiedName~SettlementReplayTests|FullyQualifiedName~SettlementReportingTests|FullyQualifiedName~SettlementInventoryTests|FullyQualifiedName~FinalizationPreparationTests|FullyQualifiedName~DayApprovalTests|FullyQualifiedName~ExactDayAttributionTests|FullyQualifiedName~DayChangeAttributionTests|FullyQualifiedName~MigrationRunnerTests|FullyQualifiedName~DaySealTests|FullyQualifiedName~DayCutoffTests|FullyQualifiedName~DayClosePreparationTests|FullyQualifiedName~EndOfDayDraftTests|FullyQualifiedName~FinancialCompletenessTests" --verbosity minimal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter "FullyQualifiedName~CustomerSettlementReportsBoundaryTests|FullyQualifiedName~CustomerFinalizationBoundaryTests|FullyQualifiedName~CustomerDayApprovalBoundaryTests|FullyQualifiedName~CustomerDaySealBoundaryTests|FullyQualifiedName~CustomerDayCutoffBoundaryTests|FullyQualifiedName~DayCloseHttpTests" --verbosity minimal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -42,6 +42,10 @@ jobs:
           docker pull rabbitmq:4-management
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./scripts/test-settlement-reporting.ps1 -ConfirmDisposableInfrastructure
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/test-settlement-replay.ps1 -ConfirmDisposableInfrastructure
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tests/Scripts/Test-SettlementReplayPreflight.ps1
       - name: Verify portal contracts
         working-directory: src/Frontend
         run: |
@@ -66,6 +70,7 @@ jobs:
           path: |
             .runstate/day-seals/*/verification.json
             .runstate/settlement-reporting/*/verification.json
+            .runstate/settlement-replay/*/verification.json
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 14

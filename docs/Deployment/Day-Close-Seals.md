@@ -1,6 +1,6 @@
 # Day-close seal rollout and recovery
 
-Current correction and settlement reporting rollout uses POS 22 / Reporting 22 with matching binaries at 0.37.0. Follow [protocol-three migration, compatibility and recovery](Correction-Day-Evidence.md); preceding introduction versions and execution artifacts remain historical. New readiness requires explicit correction proof and old undecided preparations need coordinated recovery.
+Current correction and settlement reporting rollout uses POS 23 / Reporting 22 with matching binaries at 0.38.0. Follow [protocol-three migration, compatibility and recovery](Correction-Day-Evidence.md); preceding introduction versions and execution artifacts remain historical. New readiness requires explicit correction proof and old undecided preparations need coordinated recovery.
 
 For the current coordinated deployment, use [late-work review rollout](Late-Work-Reviews.md): Order 19 / Payment 18 / POS 19 / Authorization 14, compatibility 0.33.0, Reporting 20 unchanged. Version sets below identify the earlier capability boundary; current review-enabled binaries require the latest coordinated catalog.
 
