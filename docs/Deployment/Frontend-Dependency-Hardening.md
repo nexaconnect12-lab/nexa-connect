@@ -19,4 +19,6 @@ npm run build
 
 The frontend verification workflow runs clean install, both audits, TypeScript, unit tests and both portal builds on Node 22 and 24. The cash-close, financial-completeness, end-of-day, day-close and cashier-to-day-close joined CI workflows run both audits after their clean install, before the acceptance launcher. Remote CI execution and configuring required branch protection remain separate operational steps.
 
+BFF publication performs its own clean install followed by `build:customer-portal` or `build:product-owner-portal`. These root workspace commands build the selected portal's TypeScript reference graph before Vite bundling, including ignored shared-package `dist` exports. Calling the workspace-local Vite command alone relies on a prior TypeScript build and fails on a fresh checkout. See [CI diagnosis and clean-checkout verification](CI-Clean-Checkout-Verification.md).
+
 Local verification and joined acceptance evidence are recorded in [the implementation handoff](../Architecture/Evidence/Frontend-Dependency-Hardening.md). Existing Vite chunk-size warnings remain a separate performance follow-up. No service ownership, financial invariant, tenant authorization, database schema, or public API changes in this slice.

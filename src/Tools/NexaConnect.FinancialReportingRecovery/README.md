@@ -1,5 +1,7 @@
 # Financial reporting recovery tool
 
+The integration-test project references this executable explicitly so its process acceptance test builds the tool as part of `dotnet test` on a fresh checkout. Standalone operators still build this project before invoking its DLL; generated binaries are not committed. See [clean-checkout CI diagnosis](../../../docs/Deployment/CI-Clean-Checkout-Verification.md).
+
 The [joined financial portal fixture](../NexaConnect.FinancialPortalAcceptance/README.md) invokes this executable with `--record` against exact disposable run-owned databases. It accepts exit1 as a recorded gap and exit0 as observed complete; this is test evidence, not a production operator credential grant or provider acceptance.
 
 Privileged, bounded operator inspection/replay for Order sales/payments and Payment refunds, followed by Reporting reconciliation. Default is read-only; `--apply` repairs source retention/outboxes and records the immediate observation; `--record` only records inspection. Reporting facts are never modified.

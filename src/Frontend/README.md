@@ -61,6 +61,8 @@ The Phase 7 Product Owner Portal is implemented in `apps/product-owner-portal`. 
 
 Run `npm ci --ignore-scripts`, both audit scripts, `npm run check`, and `npm test` from this directory. Package output is generated into each package's ignored `dist` directory. Consumers import only public package exports.
 
+For a single portal release, use `npm run build:customer-portal` or `npm run build:product-owner-portal` from this directory. Each command builds the portal's TypeScript project references before Vite resolves shared package exports. Both BFF publish targets use these commands after `npm ci --ignore-scripts`, so a fresh checkout needs no pre-existing package `dist` output. The workspace-local Vite build commands alone assume those references have already been built.
+
 The opt-in [Phase 8 joined browser acceptance](e2e/phase8/README.md) uses Playwright against the real local Customer Portal stack. It covers OIDC sign-in, tenant selection and cross-tenant denial, direct Media upload, safety completion, generated-variant downloads, and deletion. Missing credentials and seed identifiers skip the suite; normal frontend checks never contact external services.
 
 ## Trust boundaries

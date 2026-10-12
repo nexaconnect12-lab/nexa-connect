@@ -25,6 +25,7 @@
     <ProjectReference Include="..\..\..\src\BuildingBlocks\NexaConnect.Observability\NexaConnect.Observability.csproj" />
     <ProjectReference Include="..\..\..\src\Tools\NexaConnect.DataMigration\NexaConnect.DataMigration.csproj" Aliases="MIGRATIONS" />
     <ProjectReference Include="..\..\..\src\Tools\NexaConnect.CashCloseReplay\NexaConnect.CashCloseReplay.csproj" Aliases="SETTLEMENTREPLAY" />
+    <ProjectReference Include="..\..\..\src\Tools\NexaConnect.FinancialReportingRecovery\NexaConnect.FinancialReportingRecovery.csproj" Aliases="FINANCIALRECOVERY" />
     <ProjectReference Include="..\..\..\src\Gateway\NexaConnect.Gateway\NexaConnect.Gateway.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.POS\NexaConnect.Services.POS.csproj" Aliases="POS" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Authorization\NexaConnect.Services.Authorization.csproj" Aliases="AUTH" />

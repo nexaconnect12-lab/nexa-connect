@@ -6,6 +6,8 @@
   "workspaces": ["packages/*", "apps/*"],
   "scripts": {
     "build": "tsc -b && npm run build --workspace @nexaconnect/product-owner-portal && npm run build --workspace @nexaconnect/customer-portal",
+    "build:customer-portal": "tsc -b apps/customer-portal && npm run build --workspace @nexaconnect/customer-portal",
+    "build:product-owner-portal": "tsc -b apps/product-owner-portal && npm run build --workspace @nexaconnect/product-owner-portal",
     "check": "tsc -b --pretty false",
     "test": "vitest run",
     "audit:production": "npm audit --omit=dev --audit-level=moderate",
