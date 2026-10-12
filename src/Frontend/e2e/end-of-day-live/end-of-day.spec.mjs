@@ -84,7 +84,9 @@ test('filter and tenant changes fence delayed actual downstream responses',async
 });
 test('accountant workflow exposes no financial commands and rejects write route',async({page})=>{
   await signIn(page,s.reader);const writes=[];page.on('request',r=>{if(r.url().includes('/reports/')&&r.method()!=='GET')writes.push(r.method());});await loaded(page);
-  expect(writes).toHaveLength(0);await expect(page.getByRole('button',{name:/approve|lock|repair|replay|settle|record check/i})).toHaveCount(0);
+  expect(writes).toHaveLength(0);
+  await expect(page.getByRole('button',{name:'Load settlement ledger',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:/^(?:approve|lock|repair|replay|settle|record check|finalize|post|prepare|capture|seal|reseal|resume (?:preparation|cutoff|sealing|finalization)|replace interrupted|refresh (?:preparation|cutoff)|retry same (?:approval|settlement|preparation))(?:\s|$)/i})).toHaveCount(0);
   expect((await call(page,root,{})).status).toBe(405);
 });
 test('live owning-source permission revocation rejects an existing accountant session',async({page})=>{

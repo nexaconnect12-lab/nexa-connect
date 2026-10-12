@@ -1,5 +1,7 @@
 # Joined end-of-day portal acceptance
 
+On 2026-10-12, the accountant browser assertion was corrected to distinguish read-only `Load settlement ledger` from financial command actions. The original unanchored `settle` match incorrectly rejected the report button. Report-write observation and POST/405 verification remain mandatory. Follow-up local Windows run `43a23b11344c486997bc5e0a01680719` passed eight browser cases and six Authorization persistence cases with verified cleanup at dirty source base `c9528b60644d5c597bdeff6e1588546b4a1f592a`. Receipts: `.runstate/end-of-day-portal/43a23b11344c486997bc5e0a01680719/verification.json` and `src/Frontend/test-results/end-of-day-live/43a23b11344c486997bc5e0a01680719/summary.json`. Ubuntu follow-up remains unverified; see [CI diagnosis](CI-Clean-Checkout-Verification.md).
+
 The guarded launcher joins actual Keycloak login, Customer Portal/BFF, Platform Directory, Restaurant, Authorization, Order, Payment, POS and Reporting hosts. Source summary HTTP responses and browser financial responses are not mocked. PostgreSQL 17, Keycloak 26.7.0 and RabbitMQ 4 belong to a fresh generated Compose project; ports bind only to IPv4 loopback.
 
 ## Run

@@ -47,6 +47,8 @@ jobs:
           ./tests/Scripts/Test-CashierDayCutoffHostPreflight.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./tests/Scripts/Test-DayCutoffControlPreflight.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./tests/Scripts/Test-JoinedStartupDiagnostics.ps1
       - name: Prepare browser and validate acceptance guards
         working-directory: src/Frontend
         run: |

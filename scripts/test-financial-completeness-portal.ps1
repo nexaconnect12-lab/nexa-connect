@@ -4,6 +4,7 @@ param([switch]$ConfirmDisposableInfrastructure,[switch]$NoBuild,[string]$DockerE
 $ErrorActionPreference='Stop'
 if($CashierDayCutoff){$CashierDayClose=$true};if($CashierDayClose){$DayClose=$true};if($DayClose){$EndOfDay=$true}
 . (Join-Path $PSScriptRoot 'day-close-joined-helpers.ps1')
+. (Join-Path $PSScriptRoot 'joined-startup-diagnostics.ps1')
 if(-not $ConfirmDisposableInfrastructure){throw 'Pass -ConfirmDisposableInfrastructure to authorize generated local infrastructure, fixture writes and cleanup.'}
 if(-not(Get-Command $DockerExecutable -ErrorAction SilentlyContinue)){$DockerExecutable=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs/DockerDesktop/resources/bin/docker.exe'}
 . (Join-Path $PSScriptRoot 'payment-review-joined-helpers.ps1')
@@ -12,7 +13,7 @@ $runId=[Guid]::NewGuid().ToString('N');$kind=if($CashierDayCutoff){'cashier-day-
 $run=Join-Path $root ".runstate/$kind/$runId"
 $compose=@('compose','-f',(Join-Path $root "docker/$(if($CashierDayClose){'cashier-day-close'}elseif($DayClose){'end-of-day-portal'}else{$kind})/compose.yaml"),'-p',$projectName)
 $noRestore=@();if($EndOfDay){$noRestore=@('--no-restore')}
-$previous=@{};$processes=@();$created=$false;$passed=$false;$cleanup=$false;$authorizationPassed=$false
+$previous=@{};$processes=@();$created=$false;$passed=$false;$cleanup=$false;$authorizationPassed=$false;$startupDiagnostic=$null
 function Set-RunSetting([string]$key,[string]$value){if(-not $previous.ContainsKey($key)){$previous[$key]=[Environment]::GetEnvironmentVariable($key)};[Environment]::SetEnvironmentVariable($key,$value)}
 function Connection([string]$suffix,[string]$user,[string]$password){$b=[System.Data.Common.DbConnectionStringBuilder]::new();$b['Host']='127.0.0.1';$b['Port']=$pgPort;$b['Database']="nexa_review_it_${runId}_$suffix";$b['Username']=$user;$b['Password']=$password;return $b.ConnectionString}
 function Start-App($name,$assembly,$working,$settings,$port){
@@ -44,7 +45,11 @@ try{
     foreach($name in @('ADMIN_PASSWORD','MIGRATION_PASSWORD','RUNTIME_PASSWORD','KEYCLOAK_DB_PASSWORD','KEYCLOAK_ADMIN_PASSWORD','CLIENT_SECRET','READER_PASSWORD','RESOLVER_PASSWORD','SECONDMANAGER_PASSWORD','ACCOUNTANT_PASSWORD','RABBITMQ_PASSWORD')){Set-RunSetting "NEXACONNECT_JOINED_$name" ('Aa1!'+[Guid]::NewGuid().ToString('N')+[Guid]::NewGuid().ToString('N'))}
     $existing=@(& $DockerExecutable @compose ps -aq);if($LASTEXITCODE-ne 0-or$existing.Count-ne 0){throw 'Generated project must be empty.'}
     $created=$true;& $DockerExecutable @compose up -d --wait --wait-timeout 180
-    if($LASTEXITCODE-ne 0){throw 'Disposable infrastructure startup failed.'}
+    if($LASTEXITCODE-ne 0){
+        $startupDiagnostic=Get-JoinedBrokerStartupDiagnostic $DockerExecutable $compose $projectName
+        Write-Warning ('Disposable broker startup diagnostic: '+($startupDiagnostic | ConvertTo-Json -Compress))
+        throw 'Disposable infrastructure startup failed.'
+    }
     $pgPort=ConvertFrom-ReviewJoinedPort (& $DockerExecutable @compose port postgres 5432)
     $keycloakPort=ConvertFrom-ReviewJoinedPort (& $DockerExecutable @compose port keycloak 8080)
     $brokerPort=ConvertFrom-ReviewJoinedPort (& $DockerExecutable @compose port rabbitmq 5672)
@@ -204,7 +209,7 @@ finally{
     finally{
         foreach($key in $previous.Keys){try{[Environment]::SetEnvironmentVariable($key,$previous[$key])}catch{$failed=$true}}
         $cleanup=-not $failed
-        if(Test-Path $run){@{runId=$runId;passed=$passed;authorizationPassed=$authorizationPassed;cleanupVerified=$cleanup;productionVerified=$false;sourceRevision=(& git -C $root rev-parse HEAD);sourceDirty=[bool](& git -C $root status --porcelain);completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')}|ConvertTo-Json|Set-Content (Join-Path $run 'verification.json')}
+        if(Test-Path $run){@{runId=$runId;passed=$passed;authorizationPassed=$authorizationPassed;cleanupVerified=$cleanup;startupDiagnostic=$startupDiagnostic;productionVerified=$false;sourceRevision=(& git -C $root rev-parse HEAD);sourceDirty=[bool](& git -C $root status --porcelain);completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')}|ConvertTo-Json|Set-Content (Join-Path $run 'verification.json')}
     }
     if($failed){throw 'Disposable process, infrastructure, certificate or environment cleanup could not be verified.'}
 }

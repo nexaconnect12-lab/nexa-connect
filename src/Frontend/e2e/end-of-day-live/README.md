@@ -4,6 +4,8 @@ Run the [guarded launcher](../../../../scripts/test-end-of-day-portal.ps1) after
 
 Eight serial cases use actual OIDC, BFF, Reporting and owning Order/Payment/POS HTTP traffic. They prove Bangkok day totals/tenders/operational issues, delayed real event delivery, date/scope boundaries, real source/Reporting outages, stale filter/tenant fencing, read-only behavior and live source-permission/membership revocation. Neither browser routes nor source JSON responses are mocked. Synthetic historical fixtures and provider outcomes retain separate limitations.
 
+The accountant case permits the read-only `Load settlement ledger` control and matches financial commands by their action prefix, so a report name containing `settle` cannot be mistaken for a mutation. It still requires zero report writes and HTTP 405 for POST to the end-of-day report. Local follow-up verification passed all eight cases on 2026-10-12; see [CI diagnosis](../../../../docs/Deployment/CI-Clean-Checkout-Verification.md).
+
 Settings reuse the financial acceptance guard and additionally require explicit end-of-day mode, a closed exact Bangkok date/window and distinct generated source/listener ports. Two loopback TCP proxies hold or interrupt actual transport without inspecting bodies. Browser requests are allowed only to generated BFF/identity origins. Screenshots/traces/videos are off; safe reporting requires exactly eight unique passes without retries/skips. CI uploads only bounded summaries.
 
 See [execution, cleanup and exclusions](../../../../docs/Deployment/End-Of-Day-Portal-Acceptance.md). The existing [synthetic suite](../end-of-day/README.md) remains a separate component/UI contract gate.
