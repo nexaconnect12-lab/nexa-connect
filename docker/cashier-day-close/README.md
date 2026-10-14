@@ -1,5 +1,7 @@
 # Disposable cashier-to-day-close infrastructure
 
+RabbitMQ probes run as its broker user (`gosu rabbitmq rabbitmq-diagnostics`) to avoid a root probe creating an inaccessible Erlang cookie during server startup. The [owned local draft topology](../first-draft/README.md) extends this template with persistent generated volumes; the disposable cashier acceptance lifecycle still removes its own resources.
+
 If generated infrastructure startup fails, the shared launcher records only a bounded RabbitMQ startup diagnostic before cleanup: exit/running/OOM state and an allow-listed category. It verifies the generated project's ownership label and never publishes raw container logs or secrets. Read the retained `verification.json` and [CI follow-up](../../docs/Deployment/CI-Clean-Checkout-Verification.md); startup failure still fails the gate and does not trigger automatic retry.
 
 Audited settlement replay is implemented in POS 23 / Reporting 22 at compatibility 0.38.0. Administrative --settlements preview pins original V1/V2 payloads; execute records intent in the same source snapshot, append-only attempts and actual database-login attribution before/after broker calls. Original receipts, source revisions and dispatcher flags stay unchanged. No customer replay endpoint or grant is added. See [ADR-035](../../docs/Architecture/Decisions/ADR-035-audited-settlement-replay.md), [command](../../docs/API/Settlement-Replay.md) and [operations](../../docs/Deployment/Settlement-Replay.md).

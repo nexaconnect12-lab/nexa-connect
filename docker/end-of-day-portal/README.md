@@ -1,5 +1,7 @@
 # Disposable end-of-day portal infrastructure
 
+RabbitMQ health probes now run as the broker user through `gosu rabbitmq rabbitmq-diagnostics`. This prevents health/server cookie-creation ordering from producing a root-owned Erlang cookie. The [draft stack runbook](../../docs/Deployment/First-Draft-Test-Stack.md) links the controlled ownership-race regression and separates local verification from a pushed Ubuntu rerun.
+
 The [joined preparation launcher](../../scripts/test-day-close-portal.ps1) also uses this topology with POS 8 / Authorization 10, a third OIDC manager and an optional generated `NEXACONNECT_JOINED_SECONDMANAGER_PASSWORD`. It requires eleven preparation browser cases and six Authorization cases, and owns exact POS stop/restart handles. The original read-only launcher retains POS 7 / Authorization 9 and eight browser cases. No credential or fixture is shared across runs; see [guarded control, evidence and exclusions](../../docs/Deployment/Day-Close-Portal-Acceptance.md).
 
 Use only `scripts/test-end-of-day-portal.ps1 -ConfirmDisposableInfrastructure`. This isolated topology reuses the financial portal realm template and adds the seventh POS-owned database/runtime role. PostgreSQL 17 stores application data in tmpfs; Keycloak 26.7.0 has a separate disposable database; RabbitMQ 4 carries actual retained sale/refund events. All published listeners bind to IPv4 loopback with generated secrets and run-specific identity/database names.

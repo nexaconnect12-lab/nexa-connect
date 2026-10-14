@@ -1,0 +1,5 @@
+# Local draft identity/session smoke
+
+Run only through `scripts/test-first-draft-stack.ps1 -ConfirmDisposableInfrastructure`. The launcher validates its owned generated project, passes the synthetic customer-viewer password through process environment and performs real Keycloak/BFF login. The script verifies the authenticated subject, saves a private opaque-cookie storage state, and reuses it after BFF and full-stack restart. It records only boolean outcomes and disables screenshots/traces/video by using the direct Playwright API without capture.
+
+This proves configured Redis ticket persistence with the retained BFF key ring; it does not provision branch/product access or exercise checkout. Credentials/storage state stay under the restricted Windows run directory and are excluded from shareable artifacts. Verified cleanup removes storage state; cleanup failures preserve private state and record a failed bounded receipt. See [the runbook](../../../../docs/Deployment/First-Draft-Test-Stack.md).

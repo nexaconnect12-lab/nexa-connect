@@ -96,7 +96,7 @@ services:
       RABBITMQ_DEFAULT_PASS: ${NEXACONNECT_JOINED_RABBITMQ_PASSWORD:?Run the joined infrastructure launcher}
     ports: ["127.0.0.1::5672"]
     healthcheck:
-      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      test: [CMD, gosu, rabbitmq, rabbitmq-diagnostics, -q, ping]
       interval: 3s
       timeout: 5s
       retries: 40

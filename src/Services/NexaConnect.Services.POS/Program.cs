@@ -147,6 +147,7 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapGet("/health/live", () => Results.Ok(new { Status = "Healthy" })).AllowAnonymous();
 app.MapControllers();
 
 app.Run();

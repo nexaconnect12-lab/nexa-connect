@@ -1,6 +1,6 @@
 # Day-close preparation rollout and verification
 
-For the current coordinated deployment, use [late-work review rollout](Late-Work-Reviews.md): Order 19 / Payment 18 / POS 19 / Authorization 14, compatibility 0.33.0, Reporting 20 unchanged. Version sets below identify the earlier capability boundary; current review-enabled binaries require the latest coordinated catalog.
+For the current coordinated deployment, use Order 19 / Payment 18 / POS 23 / Authorization 15 / Reporting 22 with matching binaries at compatibility 0.38.0. Follow [settlement reporting rollout](Settlement-Reporting.md) and [current local draft catalog guidance](First-Draft-Test-Stack.md). Version sets below identify historical capability boundaries, not current deployment targets.
 
 Deploy POS migration 8 (`0008_day_close_preparations`) and Authorization 10 (`0010_day_close_permissions`), both minimum application 0.24.0, before enabling preparation. The standard migration launcher defaults to 0.38.0 for the current catalog, including durable settlement. Retain Order 11, Payment 10, Reporting 20 and Restaurant 3. Use independently owned database runtime credentials with only required schema/table privileges; do not deploy with migration-owner credentials.
 

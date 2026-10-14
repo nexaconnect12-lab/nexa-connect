@@ -2,7 +2,7 @@
 
 Current correction and settlement reporting rollout uses POS 23 / Reporting 22 with matching binaries at 0.38.0. Follow [protocol-three migration, compatibility and recovery](Correction-Day-Evidence.md); preceding introduction versions and execution artifacts remain historical. New readiness requires explicit correction proof and old undecided preparations need coordinated recovery.
 
-The versions below identify the settlement capability boundary. Current review-enabled binaries additionally require [late-work review rollout](Late-Work-Reviews.md): Order 19 / Payment 18 / POS 19 / Authorization 14 at compatibility 0.33.0, with Reporting 20 unchanged.
+For the current coordinated deployment, use Order 19 / Payment 18 / POS 23 / Authorization 15 / Reporting 22 with matching binaries at compatibility 0.38.0. Follow [settlement reporting rollout](Settlement-Reporting.md) and [current local draft catalog guidance](First-Draft-Test-Stack.md). Version sets below identify historical capability boundaries, not current deployment targets.
 
 Deploy **Order 18 / Payment 17 / POS 18 / Authorization 13**, minimum application compatibility **0.32.0**, matching Customer BFF/Portal and unchanged Reporting 20. Stop old financial writers during coordinated migration/deployment. POS 17 supplies its source barrier; POS 18 supplies the coordinator. Mixed versions cannot safely enforce permanent protection. The migration launcher defaults to 0.38.0.
 

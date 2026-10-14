@@ -1,5 +1,7 @@
 # Order Service
 
+Anonymous `GET /health/live` returns only `{ "status": "Healthy" }` after host startup; it is not database, authorization or order readiness. The [local draft stack](../../../docs/Deployment/First-Draft-Test-Stack.md) separately verifies schemas, workload audiences and active financial consumers before dispatcher activation. Existing `nexaconnect-order` JSON/correlation telemetry remains active; no customer financial authority is added.
+
 Correction-aware combined day-close now uses POS protocol 3 and requires correction delivery proof; Order retains schema 19 and protocol-two owning source manifests/seals. Deploy matching coordinated binaries as in [current contract](../../../docs/API/Correction-Day-Evidence.md) and [rollout](../../../docs/Deployment/Correction-Day-Evidence.md).
 
 The customer original-tender evidence route verifies the retained manual-tender event against immutable tender/paid receipt and exact scope before returning its original integration contract to the POS correction adapter. Missing/inconsistent history fails closed; correlation and safe Tender evidence boundary events apply. No new Order schema is added. See [correction contract](../../../docs/API/Late-Cash-Corrections.md) and [operations](../../../docs/Deployment/Late-Cash-Corrections.md).
