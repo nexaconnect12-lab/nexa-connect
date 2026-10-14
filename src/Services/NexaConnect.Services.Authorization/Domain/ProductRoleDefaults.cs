@@ -16,6 +16,7 @@ public static class ProductRoleDefaults
             "pos.cash-review.read", "pos.cash-review.resolve", "pos.day-close.read", "pos.day-close.prepare", "pos.day-close.approve", "pos.day-close.finalization.prepare", "pos.day-close.finalize", "pos.day-close.late-work.review", "pos.day-close.late-cash.post", "payment.refund.create", "payment.refund.read"
         ],
         "cashier" => ["catalog.menu.read", "inventory.stock.read", "inventory.reservation.create", "order.create", "order.read", "order.place", "order.manual-payment.confirm", "payment.intent.create", "payment.intent.read", "payment.refund.read", "customer.profile.read", "pos.shift.open", "pos.shift.close"],
+        "kitchen-operator" => ["catalog.menu.read", "kitchen.ticket.read", "kitchen.ticket.transition"],
         "inventory-controller" => ["inventory.stock.read", "inventory.stock.write", "inventory.reservation.create", "inventory.reservation.release"],
         "accountant" => ["order.read", "payment.intent.read", "payment.refund.read", "reporting.dashboard.read", "reporting.sales.read", "reporting.activity.read", "order.payment-review.read", "pos.cash-review.read", "pos.day-close.read"],
         "report-viewer" => ["catalog.menu.read", "inventory.stock.read", "order.read", "payment.intent.read", "customer.profile.read", "reporting.dashboard.read", "reporting.sales.read", "reporting.activity.read", "media.asset.read"],

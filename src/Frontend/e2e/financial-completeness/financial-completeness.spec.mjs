@@ -1,3 +1,4 @@
+import {mockOperationalDiscovery} from "../operational-discovery.mjs";
 import {test,expect} from "@playwright/test";
 const branch="11111111-1111-1111-1111-111111111111",otherBranch="22222222-2222-2222-2222-222222222222";
 const org="33333333-3333-3333-3333-333333333333",otherOrg="44444444-4444-4444-4444-444444444444";
@@ -30,7 +31,7 @@ async function setup(page){
     }else return route.fulfill({status:404});
     return route.fulfill({json}).catch(()=>{});
   });
-  await page.goto("/#reports");await page.getByLabel("Sales branch ID").fill(branch);
+  await mockOperationalDiscovery(page,[branch,otherBranch]);await page.goto("/#reports");await page.getByLabel("Sales branch").selectOption(branch);
   await page.getByLabel("Sales from UTC").fill("2026-09-01T00:00");await page.getByLabel("Sales to UTC").fill("2026-09-02T00:00");
   return state;
 }
@@ -62,7 +63,7 @@ test("dependency failure removes old observation while current totals remain ind
 });
 test("changing filters cancels a delayed response and permits a new request without stale evidence",async({page})=>{
   const state=await setup(page);state.delay=800;await load(page);
-  await expect.poll(()=>state.queries.length).toBe(2);await page.getByLabel("Sales branch ID").fill(otherBranch);
+  await expect.poll(()=>state.queries.length).toBe(2);await page.getByLabel("Sales branch").selectOption(otherBranch);
   state.delay=0;state.status="not_checked";await load(page);await expect(card(page).getByRole("status")).toContainText("Not checked");
   await page.waitForTimeout(1000);await expect(card(page).getByRole("status")).toContainText("Not checked");
   await expect(card(page).getByText("Observed complete",{exact:true})).toHaveCount(0);
@@ -70,7 +71,7 @@ test("changing filters cancels a delayed response and permits a new request with
 test("tenant switch clears results and aborts the previous tenant's pending read",async({page})=>{
   const state=await setup(page);await load(page);await expect(card(page).getByRole("status")).toContainText("Observed complete");state.delay=800;await load(page);
   await page.getByTitle("Organization One",{exact:false}).click();await page.getByTitle("Organization Two",{exact:false}).click();
-  await expect(page.getByLabel("Sales branch ID")).toHaveValue("");await page.waitForTimeout(1000);
+  await expect(page.getByLabel("Sales branch")).toHaveValue("");await page.waitForTimeout(1000);
   await expect(card(page).getByRole("table")).toHaveCount(0);await expect(page.getByRole("cell",{name:"THB 100",exact:true})).toHaveCount(0);
 });
 test("invalid open or overlong windows cannot send a request",async({page})=>{

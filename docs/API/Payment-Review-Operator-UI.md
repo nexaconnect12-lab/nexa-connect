@@ -28,7 +28,7 @@ Existing list/detail/resolve endpoints still enforce authorization on every requ
 
 ## Operator workflow and limits
 
-Enter a branch UUID supplied by the administrator, load reviews, and select a case. A UUID input is intentional: the existing organization-wide branch list requires organization-scoped administration and would exclude restaurant-scoped managers. Branch search/discovery and pagination are follow-up work.
+Select an authorized branch through [operational discovery](Operational-Branches.md), load reviews, and select a case. Discovery checks exact branch Payment Review read authority and does not require organization-wide branch administration. Owning reads and decisions still reauthorize every request. Review pagination remains follow-up work.
 
 Read-only operators see cases and history but no decision controls. Resolvers must enter a reason and explicitly confirm the selected action/order/reason. Do not enter card data, provider credentials, or personal information. Confirm void does **not** query the provider: independently reconcile payment evidence through the [operations runbook](../Deployment/Payment-Capture-Recovery-Runbook.md) first. It performs Inventory/Kitchen compensation before the Order commit. Resume payment returns the same bound intent to pending reconciliation; it does not initiate capture or create a new payment. Escalation leaves the case open with a new version.
 

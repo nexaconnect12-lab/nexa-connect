@@ -1,3 +1,4 @@
+import {mockOperationalDiscovery} from "../operational-discovery.mjs";
 import {test,expect} from "@playwright/test";
 const branch="11111111-1111-1111-1111-111111111111",store="22222222-2222-2222-2222-222222222222";
 async function setup(page){
@@ -17,7 +18,7 @@ async function setup(page){
     }else return route.fulfill({status:404});
     return route.fulfill({json});
   });
-  await page.goto("/#cash-close-reports");await page.getByLabel("Report branch UUID").fill(branch);await page.getByLabel("Report store UUID").fill(store);
+  await mockOperationalDiscovery(page,[branch,...(typeof other!=="undefined"?[other]:[])]);await page.goto("/#cash-close-reports");await page.getByLabel("Cash report branch").selectOption(branch);await page.getByLabel("Report store UUID").fill(store);
   await page.getByRole("button",{name:"Load cash-close report"}).click();return state;
 }
 test("late settlement refresh replaces approval and displays per-row freshness without writes",async({page})=>{

@@ -1,5 +1,7 @@
 # Database Guidelines
 
+Draft reference provisioning adds no schema. POS and Authorization own narrowly named draft-only Infrastructure adapters for reference store/terminal and financial-limit rows; every data value is parameterized and existing rows are preserved. Other reference operations reuse owning repositories. See [setup and transaction/replay boundaries](../Deployment/First-Draft-Provisioning.md).
+
 The [local first-draft stack](../Deployment/First-Draft-Test-Stack.md) derives service schema targets from migration metadata and previews/applies only to generated owning databases. It reuses the restricted cashier initialization: each runtime role has only its owning database access and no schema creation; history rights are reduced after migration to version-column SELECT. The lifecycle verifies these grants independently of HTTP liveness and preserves immutable-history downgrade rules. It does not migrate existing application databases or replace production credential/backup controls.
 
 Settlement original-event replay is now provided by [ADR-035](../Architecture/Decisions/ADR-035-audited-settlement-replay.md) and [the administrative runbook](../Deployment/Settlement-Replay.md). POS 23 adds two immutable audit tables; Reporting stays 22 and compatibility is 0.38.0 (201 tables, POS 52 / Reporting 19). Customer routes/permissions remain read-only; unknown original publication fields fail closed.

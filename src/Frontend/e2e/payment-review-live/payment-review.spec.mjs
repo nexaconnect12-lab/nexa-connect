@@ -31,7 +31,7 @@ async function signIn(page,identity){
   }
   await expect(page.getByText("Customer Portal",{exact:true}).first()).toBeVisible();
   const selected=await call(page,"/bff/customer/tenant",{organizationId:settings.organizationId,applicationCode:"nexa_connect"});expect(selected.status).toBe(200);
-  await page.goto("/#payment-reviews");await page.reload();await expect(page.getByLabel("Branch UUID")).toBeVisible();
+  await page.goto("/#payment-reviews");await page.reload();await expect(page.getByLabel("Payment review branch")).toBeVisible();
 }
 async function fixture(page,id,{fresh=true}={}){
   const result=await call(page,`${root}/${id}`);expect(result.status).toBe(200);
@@ -43,7 +43,7 @@ async function fixture(page,id,{fresh=true}={}){
   return review;
 }
 async function open(page,id){
-  await page.getByLabel("Branch UUID").fill(settings.branchId);await page.getByRole("button",{name:"Load reviews",exact:true}).click();
+  await page.getByLabel("Payment review branch").selectOption(settings.branchId);await page.getByRole("button",{name:"Load reviews",exact:true}).click();
   await page.getByRole("row").filter({hasText:id}).getByRole("button",{name:"View review"}).click();
   await expect(page.getByText("Immutable decision history",{exact:true})).toBeVisible();
 }
@@ -72,7 +72,7 @@ test("tenant switching and missing CSRF fail closed",async({page})=>{
   expect((await call(page,`${root}/${id}`)).status).toBe(404);
   expect((await call(page,`${root}/${id}/history`)).status).toBe(404);
   expect((await resolve(page,id,review,"escalate","acceptance cross tenant")).status).toBe(404);
-  await page.reload();await expect(page.getByLabel("Branch UUID")).toHaveValue("");await expect(page.getByText("Review details",{exact:true})).toHaveCount(0);
+  await page.reload();await expect(page.getByLabel("Payment review branch")).toHaveValue("");await expect(page.getByText("Review details",{exact:true})).toHaveCount(0);
 });
 
 test("competing sessions permit one commit and stale UI requires a new decision",async({page,browser})=>{

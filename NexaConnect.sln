@@ -97,6 +97,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaConnect.FinancialPortal
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaConnect.RefundAcceptance", "src\Tools\NexaConnect.RefundAcceptance\NexaConnect.RefundAcceptance.csproj", "{CBB55EE0-7AD8-4AFB-812C-FD064385CDAB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaConnect.FirstDraftProvisioning", "src\Tools\NexaConnect.FirstDraftProvisioning\NexaConnect.FirstDraftProvisioning.csproj", "{EBC7027E-CC23-4FE9-B7FC-4F019A959885}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -539,6 +541,18 @@ Global
 		{CBB55EE0-7AD8-4AFB-812C-FD064385CDAB}.Release|x64.Build.0 = Release|Any CPU
 		{CBB55EE0-7AD8-4AFB-812C-FD064385CDAB}.Release|x86.ActiveCfg = Release|Any CPU
 		{CBB55EE0-7AD8-4AFB-812C-FD064385CDAB}.Release|x86.Build.0 = Release|Any CPU
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885}.Debug|x64.Build.0 = Debug|Any CPU
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885}.Debug|x86.Build.0 = Debug|Any CPU
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885}.Release|x64.ActiveCfg = Release|Any CPU
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885}.Release|x64.Build.0 = Release|Any CPU
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885}.Release|x86.ActiveCfg = Release|Any CPU
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -588,5 +602,6 @@ Global
 		{785FBBE9-82DD-4117-8CBD-E266E1B9F4D3} = {DCB6FCB8-FF92-AC57-0842-1F72A354D6B1}
 		{B800D890-8E6B-4E3A-9538-C0B4936BE01F} = {DCB6FCB8-FF92-AC57-0842-1F72A354D6B1}
 		{CBB55EE0-7AD8-4AFB-812C-FD064385CDAB} = {DCB6FCB8-FF92-AC57-0842-1F72A354D6B1}
+		{EBC7027E-CC23-4FE9-B7FC-4F019A959885} = {DCB6FCB8-FF92-AC57-0842-1F72A354D6B1}
 	EndGlobalSection
 EndGlobal

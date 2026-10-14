@@ -363,6 +363,18 @@ app.MapPut("/bff/customer/memberships/{subjectId}", async (string subjectId, Cha
     return await ForwardJsonAsync(response, cancellationToken);
 }).RequireAuthorization("CustomerSession");
 
+app.MapGet("/bff/customer/operational-branches",async(string capability,HttpContext context,IHttpClientFactory clients,TenantSelectionCookie cookie,ILogger<Program> logger,CancellationToken c)=>
+{
+ context.Response.Headers.CacheControl="no-store";
+ TenantContext? tenant=ValidTenant(context,cookie);if(tenant is null||tenant.ApplicationCode!="nexa_connect")return Results.Unauthorized();
+ string? token=await GetCustomerAccessTokenAsync(context,c);if(string.IsNullOrWhiteSpace(token))return Results.Unauthorized();
+ using var request=new HttpRequestMessage(HttpMethod.Get,$"api/restaurant/v1/customer/organizations/{tenant.OrganizationId:D}/operational-branches?capability={Uri.EscapeDataString(capability)}");
+ request.Headers.Authorization=new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",token);
+ using HttpResponseMessage response=await clients.CreateClient("Restaurant").SendAsync(request,c);
+ if(!response.IsSuccessStatusCode)logger.LogWarning("Operational discovery downstream failure for organization {OrganizationId}, status {StatusCode}",tenant.OrganizationId,(int)response.StatusCode);
+ return await ForwardJsonAsync(response,c);
+}).RequireAuthorization("CustomerSession");
+
 app.MapMethods("/bff/customer/branches/{branchId?}",["GET","POST","PUT"],async(HttpContext context,IHttpClientFactory clients,TenantSelectionCookie cookie,ILogger<Program> logger,CancellationToken c)=>
 {
  TenantContext? tenant=ValidTenant(context,cookie);if(tenant is null||tenant.ApplicationCode!="nexa_connect")return Results.Unauthorized();string? token=await GetCustomerAccessTokenAsync(context,c);if(string.IsNullOrWhiteSpace(token))return Results.Unauthorized();

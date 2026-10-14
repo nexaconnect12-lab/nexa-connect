@@ -36,7 +36,7 @@ async function signIn(page,identity){
  expect((await call(page,'/bff/customer/tenant',{organizationId:f.organizationId,applicationCode:'nexa_connect'},false)).status).toBe(200);
  await page.goto('/#end-of-day');await page.reload();await filters(page);
 }
-async function filters(page){await page.getByLabel('End-of-day branch ID').fill(f.branchId);await page.getByLabel('End-of-day business date').fill(f.businessDate);}
+async function filters(page){await page.getByLabel('End-of-day branch').selectOption(f.branchId);await page.getByLabel('End-of-day business date').fill(f.businessDate);}
 async function load(page){const response=page.waitForResponse(r=>r.url().includes(root)&&!r.url().endsWith('/csrf')&&r.request().method()==='GET');await page.getByRole('button',{name:'Load preparation',exact:true}).click();const result=await response;expect(result.headers()['cache-control']).toContain('no-store');await expect(page.getByRole('button',{name:'Load preparation',exact:true})).toBeEnabled();return {status:result.status(),data:await result.json()};}
 async function press(page,name){const request=page.waitForRequest(r=>new URL(r.url()).pathname===root&&r.method()==='POST');const response=page.waitForResponse(r=>new URL(r.url()).pathname===root&&r.request().method()==='POST');await page.getByRole('button',{name,exact:true}).click();const input=(await request).postDataJSON(),result=await response;return {command:input,status:result.status(),data:await result.json()};}
 async function ready(page){const r=await load(page);expect(r.status).toBe(200);expect(r.data.status).toBe('ready_for_review');expect(r.data.validatedAtUtc).toBeTruthy();return r.data;}

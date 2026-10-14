@@ -1,3 +1,4 @@
+import {selectTamperedBranch} from "../operational-discovery.mjs";
 import {test,expect} from '@playwright/test';
 import {createServer,connect} from 'node:net';
 import {execFile} from 'node:child_process';
@@ -41,7 +42,7 @@ async function signIn(page,identity){
   await page.goto('/#reports');await page.reload();await filters(page);
 }
 async function filters(page){
-  await page.getByLabel('Sales branch ID').fill(f.branchId);
+  await page.getByLabel('Sales branch').selectOption(f.branchId);
   await page.getByLabel('Sales from UTC').fill(f.fromUtc.slice(0,16));await page.getByLabel('Sales to UTC').fill(f.toUtc.slice(0,16));
 }
 const card=page=>page.getByLabel('Financial reconciliation');
@@ -73,7 +74,7 @@ test('retained evidence progresses through not checked, gaps and real delivered 
 });
 test('branch and foreign tenant authorization deny the real report and clear financial evidence',async({page})=>{
   await signIn(page,s.reader);await complete(page);
-  await page.getByLabel('Sales branch ID').fill(f.deniedBranchId);expect(await load(page)).toBe(403);await empty(page);
+  await selectTamperedBranch(page,'Sales branch',f.deniedBranchId);expect(await load(page)).toBe(403);await empty(page);
   await filters(page);expect((await call(page,'/bff/customer/tenant',{organizationId:f.otherOrganizationId,applicationCode:'nexa_connect'})).status).toBe(200);
   expect(await load(page)).toBe(403);await empty(page);
 });
@@ -88,11 +89,11 @@ test('filter and tenant changes clear evidence while actual downstream requests 
   held=true;for(const socket of sockets)socket.destroy();
   await page.getByRole('button',{name:'Load sales report',exact:true}).click();
   await expect.poll(()=>pending.size).toBeGreaterThan(0);
-  await page.getByLabel('Sales branch ID').fill(f.deniedBranchId);release();await empty(page);
+  await selectTamperedBranch(page,'Sales branch',f.deniedBranchId);release();await empty(page);
   await filters(page);await complete(page);held=true;for(const socket of sockets)socket.destroy();
   await page.getByRole('button',{name:'Load sales report',exact:true}).click();await expect.poll(()=>pending.size).toBeGreaterThan(0);
   await page.getByTitle('Financial Acceptance', {exact:false}).click();await page.getByTitle('Other Tenant',{exact:false}).click();
-  await expect(page.getByLabel('Sales branch ID')).toHaveValue('');release();await empty(page);
+  await expect(page.getByLabel('Sales branch')).toHaveValue('');release();await empty(page);
   await page.waitForTimeout(500);await empty(page);
 });
 test('accountant read sends identical windows and exposes no financial write controls or route',async({page})=>{

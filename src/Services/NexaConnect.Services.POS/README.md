@@ -1,5 +1,7 @@
 # NexaConnect POS Service
 
+DraftStoreProvisioner is owner-local reference-only tooling, not an HTTP route. It restricts database names to generated draft POS databases and transactionally inserts/validates store and terminal identities without overwriting existing rows. No shifts/cash/settlements are seeded. See [draft setup](../../../docs/Deployment/First-Draft-Provisioning.md).
+
 Anonymous `GET /health/live` returns only `{ "status": "Healthy" }`; it does not certify database, settlement evidence or readiness. The [draft stack](../../../docs/Deployment/First-Draft-Test-Stack.md) coordinates migrations, enabled settlement/cash-publication recovery and active consumers with `nexaconnect-pos` JSON/correlation telemetry. It adds no historical clock override, new grant or offline finalization.
 
 Audited settlement replay is implemented in POS 23 / Reporting 22 at compatibility 0.38.0. Administrative --settlements preview pins original V1/V2 payloads; execute records intent in the same source snapshot, append-only attempts and actual database-login attribution before/after broker calls. Original receipts, source revisions and dispatcher flags stay unchanged. No customer replay endpoint or grant is added. See [ADR-035](../../../docs/Architecture/Decisions/ADR-035-audited-settlement-replay.md), [command](../../../docs/API/Settlement-Replay.md) and [operations](../../../docs/Deployment/Settlement-Replay.md).

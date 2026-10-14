@@ -1,5 +1,7 @@
 # Local first-draft infrastructure
 
+After stack Ready, use [slice 2 provisioning](../../docs/Deployment/First-Draft-Provisioning.md) for stable THB / Asia/Singapore scope, menu/stock and scoped identities. It uses the same lifecycle lock and current-user protected secrets, and does not reset financial/stock history on completed reruns.
+
 Use [the draft lifecycle](../../docs/Deployment/First-Draft-Test-Stack.md), not `docker compose up` directly. `scripts/first-draft-stack.ps1` supplies a generated `nexa-draft-<uuid>` project and secrets; it never imports the root `.env` or adopts existing application databases.
 
 The topology reuses the guarded cashier PostgreSQL initialization and Keycloak realm template. PostgreSQL application and identity data, RabbitMQ and Redis use project-owned named volumes and survive Stop/Start. All published ports bind to IPv4 loopback. Container labels and exact generated project identity guard cleanup. Reset removes only this project's containers/network/volumes after ownership checks.

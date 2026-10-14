@@ -1,3 +1,4 @@
+import {mockOperationalDiscovery} from "../operational-discovery.mjs";
 import {test,expect} from "@playwright/test";
 const branch="11111111-1111-1111-1111-111111111111",other="22222222-2222-2222-2222-222222222222";
 const org="33333333-3333-3333-3333-333333333333",otherOrg="44444444-4444-4444-4444-444444444444",restaurant="55555555-5555-5555-5555-555555555555";
@@ -22,7 +23,7 @@ async function setup(page){
     }else return route.fulfill({status:404});
     return route.fulfill({json}).catch(()=>{});
   });
-  await page.goto("/#end-of-day");await page.getByLabel("End-of-day branch ID").fill(branch);await page.getByLabel("End-of-day business date").fill("2026-09-01");
+  await mockOperationalDiscovery(page,[branch,...(typeof other!=="undefined"?[other]:[])]);await page.goto("/#end-of-day");await page.getByLabel("End-of-day branch").selectOption(branch);await page.getByLabel("End-of-day business date").fill("2026-09-01");
   return state;
 }
 const load=page=>page.getByRole("button",{name:"Load day draft"}).click();
@@ -38,14 +39,14 @@ for(const status of [403,503])test(`failure ${status} clears old totals and omit
 });
 test("filter changes and delayed old responses cannot restore stale results",async({page})=>{
   const state=await setup(page);state.delay=800;await load(page);await expect.poll(()=>state.reads).toBe(1);
-  await page.getByLabel("End-of-day branch ID").fill(other);state.delay=0;await load(page);
+  await page.getByLabel("End-of-day branch").selectOption(other);state.delay=0;await load(page);
   await expect(page.getByRole("cell",{name:"THB 222",exact:true})).toBeVisible();await page.waitForTimeout(1000);
   await expect(page.getByRole("cell",{name:"THB 100",exact:true})).toHaveCount(0);
 });
 test("tenant switch clears results and pending reads",async({page})=>{
   const state=await setup(page);await load(page);await expect(page.getByText("Asia/Bangkok",{exact:true})).toBeVisible();state.delay=800;await load(page);
   await page.getByTitle("Organization One",{exact:false}).click();await page.getByTitle("Organization Two",{exact:false}).click();
-  await expect(page.getByLabel("End-of-day branch ID")).toHaveValue("");await page.waitForTimeout(1000);await expect(page.getByRole("table")).toHaveCount(0);
+  await expect(page.getByLabel("End-of-day branch")).toHaveValue("");await page.waitForTimeout(1000);await expect(page.getByRole("table")).toHaveCount(0);
 });
 test("mismatched source scope cannot display financial data",async({page})=>{
   const state=await setup(page);state.wrongScope=true;await load(page);await expect(page.getByRole("status")).toContainText("unavailable");await expect(page.getByRole("table")).toHaveCount(0);

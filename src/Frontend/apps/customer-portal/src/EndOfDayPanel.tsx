@@ -1,3 +1,4 @@
+import {OperationalBranchPicker} from "./OperationalBranchPicker";
 import {CashCorrectionReportingPanel} from "./CashCorrectionReportingPanel";
 import {SettlementReportingPanel} from "./SettlementReportingPanel";
 import {DayFinalizationPanel} from "./DayFinalizationPanel";
@@ -35,7 +36,7 @@ export function EndOfDayPanel({organizationId}:{organizationId:string}){
     <Typography.Title level={2}>End-of-day reconciliation draft</Typography.Title>
     <Alert type="info" message="Read-only draft" description="Select a completed date in the branch timezone. This view does not approve, lock or certify settlement. Source reads happen separately; reload after resolving issues."/>
     <Form onFinish={()=>void load()} layout="vertical"><Space wrap>
-      <Form.Item label="Branch ID"><Input aria-label="End-of-day branch ID" value={branch} onChange={e=>{clear();setBranch(e.target.value.trim());}}/></Form.Item>
+      <Form.Item label="Branch ID"><OperationalBranchPicker capability="day-close" label="End-of-day branch" value={branch} onChange={value=>{clear();setBranch(value);}}/></Form.Item>
       <Form.Item label="Business date (branch local)"><Input aria-label="End-of-day business date" type="date" value={date} onChange={e=>{clear();setDate(e.target.value);}}/></Form.Item>
       <Button htmlType="submit" disabled={!input||busy} loading={busy}>Load day draft</Button>
     </Space></Form>

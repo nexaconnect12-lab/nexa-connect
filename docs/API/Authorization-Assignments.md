@@ -1,5 +1,7 @@
 # Authorization role assignments
 
+The branch-scoped kitchen-operator role is supported for new assignments, with only catalog.menu.read, kitchen.ticket.read and kitchen.ticket.transition. It gives no stock mutation, checkout, financial review or admin authority. See [operational discovery](Operational-Branches.md).
+
 ## Decision policy
 
 `POST /api/authorization/v1/decisions` evaluates the authenticated subject with `organizationId`, optional `restaurantId`/`branchId`, `permission`, and optional `amount`/`currency`. It returns `200` with `decisionId`, `granted` and `evaluatedLimit`, including denied decisions. Missing subject identity is forbidden. The caller must supply the resource's validated hierarchy; a decision is not proof of ownership by itself.
@@ -42,4 +44,4 @@ Example request:
 
 The endpoint returns `404` when no active matching scope or role/permission exists and `403` for non-administrators.
 
-Success returns `200` with `{ "assignmentId": "<uuid>" }`; repeating the same subject, role, and scope reactivates the assignment and returns its active identifier. Invalid or unsupported role/scope input returns `400`. Supported codes are `tenant-admin`, `store-manager`, `cashier`, `inventory-controller`, `accountant`, and `report-viewer`; the first two receive the full currently implemented tenant API permission set, while the remaining mappings are listed in [Business Service API Slices](Business-Service-API-Slices.md). Direct API authorization accepts `system-admin`, `platform-owner`, or `platform-admin`; the BFF additionally requires its `PlatformAdmin` session policy and same-origin mutation check before forwarding.
+Success returns `200` with `{ "assignmentId": "<uuid>" }`; repeating the same subject, role, and scope reactivates the assignment and returns its active identifier. Invalid or unsupported role/scope input returns `400`. Supported codes are `tenant-admin`, `store-manager`, `cashier`, `kitchen-operator`, `inventory-controller`, `accountant`, and `report-viewer`; the first two receive the full currently implemented tenant API permission set, while the remaining mappings are listed in [Business Service API Slices](Business-Service-API-Slices.md). Direct API authorization accepts `system-admin`, `platform-owner`, or `platform-admin`; the BFF additionally requires its `PlatformAdmin` session policy and same-origin mutation check before forwarding.

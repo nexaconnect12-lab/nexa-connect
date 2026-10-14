@@ -24,6 +24,7 @@ builder.Services.AddScoped<IAuthorizationScopeReader, PostgresAuthorizationScope
 builder.Services.AddScoped<IRestaurantProvisioning, RestaurantProvisioningService>();
 builder.Services.AddScoped<IRestaurantProvisioningRepository, PostgresRestaurantProvisioningRepository>();
 builder.Services.AddScoped<BranchManagement>();
+builder.Services.AddScoped<OperationalBranchDiscovery>();
 builder.Services.AddScoped<IBranchManagementRepository, PostgresBranchManagementRepository>();
 builder.Services.AddScoped<BranchProductConfigurationService>();
 builder.Services.AddScoped<IBranchProductConfigurationRepository, PostgresBranchProductConfigurationRepository>();

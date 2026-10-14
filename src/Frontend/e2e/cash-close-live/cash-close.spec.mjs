@@ -1,3 +1,4 @@
+import {selectTamperedBranch} from "../operational-discovery.mjs";
 import {test,expect} from '@playwright/test';
 import {createServer,connect} from 'node:net';
 import {execFile} from 'node:child_process';
@@ -32,7 +33,7 @@ async function signIn(page,identity){
   catch{throw new Error('OIDC acceptance failed; credentials suppressed.');}
   expect((await call(page,'/bff/customer/tenant',{organizationId:f.organizationId,applicationCode:'nexa_connect'})).status).toBe(200);
   await page.goto('/#cash-close-reports');await page.reload();
-  await page.getByLabel('Report branch UUID').fill(f.branchId);await page.getByLabel('Report store UUID').fill(f.storeId);
+  await page.getByLabel('Cash report branch').selectOption(f.branchId);await page.getByLabel('Report store UUID').fill(f.storeId);
   await page.getByLabel('Report from UTC').fill(new Date(Date.parse(f.occurredAtUtc)-86400000).toISOString().slice(0,16));
   await page.getByLabel('Report to UTC').fill(new Date(Date.parse(f.occurredAtUtc)+86400000).toISOString().slice(0,16));
 }
@@ -48,9 +49,9 @@ test('real snapshots propagate close, approval and late-settlement invalidation'
 });
 test('exact branch/store and foreign tenant access fail closed and clear rows',async({page})=>{
   await signIn(page,s.reader);await projected(page,'review_required','3 / 1');
-  await page.getByLabel('Report branch UUID').fill(f.deniedBranchId);await page.getByLabel('Report store UUID').fill(f.deniedStoreId);
+  await selectTamperedBranch(page,'Cash report branch',f.deniedBranchId);await page.getByLabel('Report store UUID').fill(f.deniedStoreId);
   expect(await load(page)).toBe(403);await expect(page.getByRole('cell',{name:f.sessionId,exact:true})).toHaveCount(0);
-  await page.getByLabel('Report branch UUID').fill(f.branchId); // valid branch with a store owned by another branch
+  await page.getByLabel('Cash report branch').selectOption(f.branchId); // valid branch with a store owned by another branch
   expect(await load(page)).toBe(403);
   expect((await call(page,'/bff/customer/tenant',{organizationId:f.otherOrganizationId,applicationCode:'nexa_connect'})).status).toBe(200);
   await page.getByLabel('Report store UUID').fill(f.storeId);expect(await load(page)).toBe(403);

@@ -1,3 +1,4 @@
+import {mockOperationalDiscovery} from "../operational-discovery.mjs";
 import {test,expect} from "@playwright/test";
 const org="33333333-3333-4333-8333-333333333333",branch="11111111-1111-4111-8111-111111111111",other="22222222-2222-4222-8222-222222222222";
 async function setup(page){
@@ -20,7 +21,7 @@ async function setup(page){
   }else return route.fulfill({status:404});
   return route.fulfill({json}).catch(()=>{});
  });
- await page.goto("/#end-of-day");await page.getByLabel("End-of-day branch ID").fill(branch);await page.getByLabel("End-of-day business date").fill("2026-09-01");
+ await mockOperationalDiscovery(page,[branch,...(typeof other!=="undefined"?[other]:[])]);await page.goto("/#end-of-day");await page.getByLabel("End-of-day branch").selectOption(branch);await page.getByLabel("End-of-day business date").fill("2026-09-01");
  await page.getByLabel("Settlement from date",{exact:true}).fill("2026-09-01");await page.getByLabel("Settlement to date (exclusive)").fill("2026-09-02");return state;
 }
 const load=page=>page.getByRole("button",{name:"Load settlement ledger",exact:true}).click();
@@ -49,5 +50,5 @@ test("changed dates and branch discard delayed export downloads",async({page})=>
  await page.getByRole("button",{name:"Download settlement CSV",exact:true}).click();await page.getByLabel("Settlement from date",{exact:true}).fill("2026-09-02");
  await page.waitForTimeout(900);expect(downloads).toHaveLength(0);
  await page.getByLabel("Settlement from date",{exact:true}).fill("2026-09-01");await page.getByRole("button",{name:"Download settlement CSV",exact:true}).click();
- await page.getByLabel("End-of-day branch ID").fill(other);await page.waitForTimeout(900);expect(downloads).toHaveLength(0);
+ await page.getByLabel("End-of-day branch").selectOption(other);await page.waitForTimeout(900);expect(downloads).toHaveLength(0);
 });

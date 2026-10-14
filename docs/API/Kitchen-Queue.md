@@ -22,7 +22,7 @@ The Customer BFF exposes the same suffixes beneath `/bff/customer/kitchen/branch
 
 ## Operator behavior and recovery
 
-Enter an administrator-supplied branch UUID and optional station code; organization-wide branch-list permission is unnecessary. Each page contains up to 50 tickets. The current page polls every ten seconds; **Refresh queue** returns to the first page. Read-only operators see disabled transition buttons. Branch, station, or tenant changes clear the displayed queue; leaving the panel aborts its pending browser requests.
+Select an authorized branch using [operational discovery](Operational-Branches.md) and an optional existing station code from the branch menu; organization-wide branch-list permission is unnecessary. All stations includes historical station codes absent from today's menu. Each page contains up to 50 tickets. The current page polls every ten seconds; **Refresh queue** returns to the first page. Read-only operators see disabled transition buttons. Branch, station, or tenant changes clear the displayed queue; leaving the panel aborts its pending browser requests.
 
 **Start → Ready → Complete** acts on one ticket with its displayed version. Buttons lock while reading or mutating and after a failed refresh. Requests have a 20-second browser timeout; the BFF Kitchen client has a 15-second timeout. A timeout does not prove that the server did not commit. After success, conflict, or response loss, the screen reads the affected ticket and refreshes the first page. It never automatically resends a transition and never persists mutation commands in browser storage. Reloading the browser requires a fresh queue read. Polling may restore actions once fresh authoritative queue state is available.
 

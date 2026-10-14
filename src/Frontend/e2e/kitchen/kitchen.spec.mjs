@@ -1,3 +1,4 @@
+import {mockOperationalDiscovery} from "../operational-discovery.mjs";
 import {test,expect} from "@playwright/test";
 const branch="11111111-1111-1111-1111-111111111111",ticket="22222222-2222-2222-2222-222222222222";
 async function setup(page,{readOnly=false,mode="success"}={}){
@@ -25,7 +26,7 @@ async function setup(page,{readOnly=false,mode="success"}={}){
     }else return route.fulfill({status:404});
     return route.fulfill({json});
   });
-  await page.goto("/#kitchen");await page.getByLabel("Kitchen branch UUID").fill(branch);await page.getByRole("button",{name:"Refresh queue"}).click();
+  await mockOperationalDiscovery(page,[branch,...(typeof other!=="undefined"?[other]:[])]);await page.goto("/#kitchen");await page.getByLabel("Kitchen branch").selectOption(branch);await page.getByRole("button",{name:"Refresh queue"}).click();
   return state;
 }
 
@@ -45,7 +46,7 @@ for(const mode of ["conflict","lost"]){
     const state=await setup(page,{mode});await page.getByRole("button",{name:"Start",exact:true}).click();
     await expect(page.getByText("Current ticket status: InProgress.",{exact:false})).toBeVisible();
     await expect(page.getByRole("button",{name:"Ready",exact:true})).toBeEnabled();expect(state.posts).toHaveLength(1);
-    await page.reload();await page.getByLabel("Kitchen branch UUID").fill(branch);await page.getByRole("button",{name:"Refresh queue"}).click();
+    await page.reload();await page.getByLabel("Kitchen branch").selectOption(branch);await page.getByRole("button",{name:"Refresh queue"}).click();
     await expect(page.getByRole("button",{name:"Ready",exact:true})).toBeEnabled();expect(state.posts).toHaveLength(1);
   });
 }
@@ -58,9 +59,9 @@ test("failed recovery locks actions until a successful explicit refresh",async({
 });
 test("station and page cursors are sent and tenant switch clears queue",async({page})=>{
   const state=await setup(page);await expect(page.getByRole("button",{name:"Start",exact:true})).toBeEnabled();
-  await page.getByLabel("Kitchen station").fill("grill");await page.getByRole("button",{name:"Refresh queue"}).click();
+  await page.getByLabel("Kitchen station").selectOption("grill");await page.getByRole("button",{name:"Refresh queue"}).click();
   await page.getByRole("button",{name:"Next page"}).click();await expect(page.getByRole("button",{name:"Next page"})).toBeDisabled();
   expect(state.queries.at(-1).get("station")).toBe("grill");expect(state.queries.at(-1).get("cursor")).toBe("next-position");
   await page.getByTitle("Organization One",{exact:false}).click();await page.getByTitle("Organization Two",{exact:false}).click();
-  await expect(page.getByLabel("Kitchen branch UUID")).toHaveValue("");await expect(page.getByText("2 × Burger")).toHaveCount(0);
+  await expect(page.getByLabel("Kitchen branch")).toHaveValue("");await expect(page.getByText("2 × Burger")).toHaveCount(0);
 });

@@ -1,3 +1,4 @@
+import {mockOperationalDiscovery} from "../operational-discovery.mjs";
 import {test,expect} from "@playwright/test";
 const branch="11111111-1111-1111-1111-111111111111",org="33333333-3333-3333-3333-333333333333",restaurant="55555555-5555-5555-5555-555555555555";
 const ref={manifestId:branch,generation:1,evidenceVersion:"a".repeat(64),revisionEpoch:org,sourceRevision:0};
@@ -72,7 +73,7 @@ async function setup(page){
   }else return route.fulfill({status:404});
   return route.fulfill({json});
  });
- await page.goto("/#end-of-day");await page.getByLabel("End-of-day branch ID").fill(branch);await page.getByLabel("End-of-day business date").fill("2026-09-01");return state;
+ await mockOperationalDiscovery(page,[branch,...(typeof other!=="undefined"?[other]:[])]);await page.goto("/#end-of-day");await page.getByLabel("End-of-day branch").selectOption(branch);await page.getByLabel("End-of-day business date").fill("2026-09-01");return state;
 }
 async function load(page){await page.getByRole("button",{name:"Load cutoff evidence",exact:true}).click();await page.getByRole("button",{name:"Load sealed evidence",exact:true}).click();}
 test("shows the sealed baseline beside historical source corrections",async({page})=>{

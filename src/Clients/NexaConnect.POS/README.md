@@ -1,5 +1,7 @@
 # NexaConnect POS
 
+Slice 2 draft provisioning replaces only the owned generated terminal configuration with stable THB / Asia/Singapore scope IDs. Both retained and published settings survive stack rebuilds; existing local recovery remains untouched. See [setup and scoped logins](../../../docs/Deployment/First-Draft-Provisioning.md).
+
 Checked-in settings default to THB `cash_manual`, `EnableOmiseTestCheckout=false` and no workstation-specific QR path. The [first-draft launcher](../../../docs/Deployment/First-Draft-Test-Stack.md) publishes separate run-scoped client settings for cash/manual PromptPay without modifying existing protected terminal state. Initial scope UUIDs require slice 2 provisioning before POS use. Singapore timezone belongs to Restaurant branch setup; PDF printing uses the Windows path. Test cards remain a separate opt-in.
 
 The Receipts workspace includes manager-authorized refunds for captured provider payments. Configure `Services:PaymentApi`. The client saves the Payment intent, operation ID, amount, currency, and reason in protected local state before the command; a lost response is verified through the operation lookup and blocks another refund. Completed immutable receipts can be printed or reprinted. This control does not refund manual cash or PromptPay settlements.

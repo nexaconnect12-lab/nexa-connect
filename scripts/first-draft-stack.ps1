@@ -345,7 +345,8 @@ try {
     }
     $state.status='Ready';Save-State
     Write-Output "Draft Ready. RunId=$RunId Portal=$($state.urls.Bff)"
-    Write-Output 'Branch/menu/roles are not provisioned. Complete slice 2 before launching POS. Configuration/credentials/logs remain in the protected run directory.'
+    if($state.provisionedBranch){Write-Output 'Retained branch/menu/role setup is provisioned; live workflow access remains authoritative.'}
+    else {Write-Output 'Run scripts/provision-first-draft.ps1 before launching POS. Configuration/credentials/logs remain in the protected run directory.'}
 } catch {
     if($Action -in @('Start','Restart')) {
         $state.status='Failed';Save-State

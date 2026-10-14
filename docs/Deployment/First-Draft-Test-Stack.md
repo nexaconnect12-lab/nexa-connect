@@ -1,6 +1,8 @@
 # First-draft local test stack
 
-This is the slice 1 implementation for the [November plan](../Planning/November-2026-First-Draft.md). It coordinates normal production application hosts with their normal clocks on a local Windows PC: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Kitchen, Order, Payment, POS, Reporting and Customer BFF/portal. No historical clock switch or financial fixture is enabled. The selected test scope is THB cash/manual PromptPay, Singapore business timezone and PDF receipt printing. Branch/menu/product-role provisioning remains slice 2.
+After Ready, run the [slice 2 provisioner](First-Draft-Provisioning.md) before launching POS. It creates stable branch/store/terminal IDs and scoped accounts, retains reference edits/revocation on completed reruns and updates the separate generated POS settings. Joined financial workflows remain later acceptance slices.
+
+This is the slice 1 implementation for the [November plan](../Planning/November-2026-First-Draft.md). It coordinates normal production application hosts with their normal clocks on a local Windows PC: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Kitchen, Order, Payment, POS, Reporting and Customer BFF/portal. No historical clock switch or financial fixture is enabled. The selected test scope is THB cash/manual PromptPay, Singapore business timezone and PDF receipt printing. The separate [slice 2 provisioner](First-Draft-Provisioning.md) supplies branch/menu/product-role records.
 
 ## Setup and lifecycle
 

@@ -1,3 +1,4 @@
+import {selectTamperedBranch} from "../operational-discovery.mjs";
 import {test,expect} from '@playwright/test';
 import {createServer,connect} from 'node:net';
 import {execFile} from 'node:child_process';
@@ -30,7 +31,7 @@ async function fixture(action){
   catch{throw new Error('End-of-day fixture operation failed; sensitive diagnostics suppressed.');}
 }
 async function call(page,path,body){return page.evaluate(async({path,body})=>{const r=await fetch(path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});return {status:r.status};},{path,body});}
-async function filters(page){await page.getByLabel('End-of-day branch ID').fill(f.branchId);await page.getByLabel('End-of-day business date').fill(f.businessDate);}
+async function filters(page){await page.getByLabel('End-of-day branch').selectOption(f.branchId);await page.getByLabel('End-of-day business date').fill(f.businessDate);}
 async function signIn(page,identity){
   const allowed=new Set([s.baseURL,new URL(s.issuer).origin]);
   await page.context().route('**/*',r=>allowed.has(new URL(r.request().url()).origin)?r.continue():r.abort());
@@ -66,7 +67,11 @@ test('completed adjacent and future dates respect branch-local boundaries',async
   await page.getByLabel('End-of-day business date').fill('2099-01-01');expect((await load(page)).status()).toBe(400);await empty(page);
 });
 test('branch and tenant boundaries deny live reads and clear old totals',async({page})=>{
-  await signIn(page,s.reader);await loaded(page);await page.getByLabel('End-of-day branch ID').fill(f.deniedBranchId);expect((await load(page)).status()).toBe(403);await empty(page);
+  await signIn(page,s.reader);await loaded(page);
+  await expect(page.getByLabel('End-of-day branch').locator(`option[value="${f.deniedBranchId}"]`)).toHaveCount(0);
+  // Simulate a tampered selector to retain the owning backend denial check.
+  await page.getByLabel('End-of-day branch').evaluate((element,id)=>element.add(new Option('Tampered denial fixture',id)),f.deniedBranchId);
+  await selectTamperedBranch(page,'End-of-day branch',f.deniedBranchId);expect((await load(page)).status()).toBe(403);await empty(page);
   await filters(page);expect((await call(page,'/bff/customer/tenant',{organizationId:f.otherOrganizationId,applicationCode:'nexa_connect'})).status).toBe(200);
   expect((await load(page)).status()).toBe(403);await empty(page);
 });
@@ -77,10 +82,10 @@ test('owning Payment and Reporting transport outages return unavailable without 
 test('filter and tenant changes fence delayed actual downstream responses',async({page})=>{
   await signIn(page,s.resolver);await loaded(page);reporting.hold();
   await page.getByRole('button',{name:'Load day draft',exact:true}).click();await expect.poll(reporting.pending).toBeGreaterThan(0);
-  await page.getByLabel('End-of-day branch ID').fill(f.deniedBranchId);reporting.release();await empty(page);
+  await selectTamperedBranch(page,'End-of-day branch',f.deniedBranchId);reporting.release();await empty(page);
   await filters(page);await loaded(page);reporting.hold();await page.getByRole('button',{name:'Load day draft',exact:true}).click();await expect.poll(reporting.pending).toBeGreaterThan(0);
   await page.getByTitle('Financial Acceptance',{exact:false}).click();await page.getByTitle('Other Tenant',{exact:false}).click();
-  await expect(page.getByLabel('End-of-day branch ID')).toHaveValue('');reporting.release();await empty(page);await page.waitForTimeout(500);await empty(page);
+  await expect(page.getByLabel('End-of-day branch')).toHaveValue('');reporting.release();await empty(page);await page.waitForTimeout(500);await empty(page);
 });
 test('accountant workflow exposes no financial commands and rejects write route',async({page})=>{
   await signIn(page,s.reader);const writes=[];page.on('request',r=>{if(r.url().includes('/reports/')&&r.method()!=='GET')writes.push(r.method());});await loaded(page);

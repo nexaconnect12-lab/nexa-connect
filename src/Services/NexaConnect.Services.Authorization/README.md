@@ -1,5 +1,7 @@
 # Authorization Service
 
+The new branch-scoped kitchen-operator assignment contains only catalog.menu.read, kitchen.ticket.read and kitchen.ticket.transition. New assignment operations materialize these permissions through the existing repository; no schema migration or broader realm role is required. Draft-only owning Infrastructure tooling inserts a bounded late-cash THB subject limit without overwriting/reviving existing limits. See [draft provisioning](../../../docs/Deployment/First-Draft-Provisioning.md).
+
 Authorization 15 grants pos.day-close.late-cash.post to manager defaults and backfills existing roles. It does not create approval limits: an applicable active financial_approval_limits action/currency cap must be configured. POS sends the verified positive amount and THB in live decisions, including exact retries. Missing/too-small caps deny posting; accountants remain read-only by default. See [correction contract](../../../docs/API/Late-Cash-Corrections.md) and [operations](../../../docs/Deployment/Late-Cash-Corrections.md).
 
 Authorization 14 backfills pos.day-close.late-work.review only for tenant-admin/store-manager; new assignment defaults match. Accountants/cashiers receive no default review grant. Live decisions also apply on exact retry. Downgrade removes role links and overrides after routes are disabled; see [review rollout](../../../docs/Deployment/Late-Work-Reviews.md).

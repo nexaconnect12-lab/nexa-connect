@@ -1,6 +1,8 @@
 # NexaConnect
 
-For the November one-branch Windows/PDF-printer draft, use the [isolated local test stack](docs/Deployment/First-Draft-Test-Stack.md). It coordinates normal service hosts, owned persistent infrastructure and manual THB checkout with explicit Redis sessions; branch/menu/role setup follows in slice 2. Checked-in POS defaults use cash with test-card checkout disabled. This is local test tooling, not production or offline certification.
+Slice 2 adds [owned draft provisioning](docs/Deployment/First-Draft-Provisioning.md), four scoped test accounts and permission-filtered operational branch/station selection. THB / Asia/Singapore reference data is repeatable without resetting sold stock or revoked access; joined checkout acceptance remains slice 3.
+
+For the November one-branch Windows/PDF-printer draft, use the [isolated local test stack](docs/Deployment/First-Draft-Test-Stack.md). It coordinates normal service hosts, owned persistent infrastructure and manual THB checkout with explicit Redis sessions; the separate slice 2 provisioner supplies branch/menu/role setup. Checked-in POS defaults use cash with test-card checkout disabled. This is local test tooling, not production or offline certification.
 
 Bounded settlement CSV export is implemented through Reporting, the Customer BFF and Portal under existing read permissions. Each download compares one branch and up to 31 business dates afresh, preserving original V1/V2 totals, separate corrections, delivery gaps and provenance. No migration or new grant is required; POS 23 / Reporting 22 and compatibility 0.38.0 remain applicable. See [contract](docs/API/Settlement-Export.md), [ADR-036](docs/Architecture/Decisions/ADR-036-bounded-settlement-export.md) and [verification](docs/Architecture/Evidence/Settlement-Export-Acceptance.md).
 

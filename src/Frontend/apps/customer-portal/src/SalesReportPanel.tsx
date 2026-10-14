@@ -1,3 +1,4 @@
+import {OperationalBranchPicker} from "./OperationalBranchPicker";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Card, Descriptions, Form, Input, Space, Table, Tag, Typography } from "antd";
 import { ApiError, createApiClient } from "@nexaconnect/api-client";
@@ -47,7 +48,7 @@ export function SalesReportPanel({organizationId}:{organizationId:string}) {
     <Typography.Title level={2}>Sales report</Typography.Title>
     <Form layout="vertical" onFinish={()=>void load()}>
       <Space wrap>
-        <Form.Item label="Branch ID"><Input aria-label="Sales branch ID" value={branch} onChange={e=>{clear();setBranch(e.target.value.trim());}}/></Form.Item>
+        <Form.Item label="Branch ID"><OperationalBranchPicker capability="reports" label="Sales branch" value={branch} onChange={value=>{clear();setBranch(value);}}/></Form.Item>
         <Form.Item label="From (UTC, inclusive)"><Input aria-label="Sales from UTC" type="datetime-local" value={from} onChange={e=>{clear();setFrom(e.target.value);}}/></Form.Item>
         <Form.Item label="To (UTC, exclusive)"><Input aria-label="Sales to UTC" type="datetime-local" value={to} onChange={e=>{clear();setTo(e.target.value);}}/></Form.Item>
       </Space>
