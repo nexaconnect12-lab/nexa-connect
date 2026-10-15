@@ -5,7 +5,7 @@ import {createServer} from 'node:http';
 import {draftToken} from './draft-auth.mjs';
 
 const env=process.env,run=env.NEXACONNECT_DRAFT_RUN,mode=env.NEXACONNECT_DRAFT_CHECKOUT_MODE;
-if(!/^[a-f0-9]{32}$/.test(run)||!['baseline','interrupted','recovered','broker-paused','broker-resumed'].includes(mode))throw new Error('Invalid joined draft mode.');
+if(!/^[a-f0-9]{32}$/.test(run)||!['baseline','interrupted','recovered','broker-paused','broker-resumed','manager'].includes(mode))throw new Error('Invalid joined draft mode.');
 const state=JSON.parse(await readFile(env.NEXACONNECT_DRAFT_STATE,'utf8')),ref=JSON.parse(await readFile(env.NEXACONNECT_DRAFT_REFERENCE,'utf8'));
 if(state.runId!==run||ref.runId!==run||!ref.completed||state.realm!==`nexa-review-it-${run}`||state.authority!==`http://127.0.0.1:${state.infrastructure.keycloak}/realms/${state.realm}`)throw new Error('Owned draft required.');
 for(const [name,value] of Object.entries(state.urls)){const url=new URL(value);if(url.hostname!=='127.0.0.1'||url.protocol!==(name==='Bff'?'https:':'http:'))throw new Error('Owned loopback endpoints required.');}
@@ -94,6 +94,43 @@ try{
   assert((await stock())[ref.products[0]]===97,'Restart duplicated stock deduction');memo.checks.processRecovery=true;
  }else if(mode==='broker-paused'){
   stage='broker-outage-settlement';const value=await quote('broker');assert((await place(value)).status===200,'Broker outage blocked durable manual checkout');assert((await settle(value)).status===201,'Broker outage lost settlement');assert(await orderState(value.command.orderId)==='Paid','Broker outage lost Paid state');memo.checks.brokerDurableCommit=true;
+ }else if(mode==='manager'){
+  stage='manager-sales-evidence';
+  const fromUtc=new Date(Date.now()-3600000).toISOString(),toUtc=new Date(Date.now()+1000).toISOString();
+  const range=new URLSearchParams({branchId:ref.branchId,fromUtc,toUtc});
+  const reportPath=`/api/reporting/v1/customer/organizations/${ref.organizationId}/reports/sales?${range}`;
+  const total=memo.orders.cash.amount+memo.orders.promptpay.amount+memo.orders.broker.amount;
+  await poll(async()=>{const report=await send('Reporting',reportPath,undefined,'store-manager');return report.status===200&&report.data.items.length===3&&report.data.grossSales===total&&report.data.refundedAmount===0&&report.data.netSales===total;},'Actual sale evidence did not match');
+  assert((await send('Reporting',reportPath,undefined,'accountant')).status===200,'Accountant cannot read sales');
+  assert((await send('Reporting',reportPath,undefined,'cashier')).status===403,'Cashier acquired reporting authority');
+  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Singapore',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  assert((await send('Reporting',`/api/reporting/v1/customer/organizations/${ref.organizationId}/reports/end-of-day?`+new URLSearchParams({branchId:ref.branchId,businessDate:today}),undefined,'store-manager')).status===400,'Current branch day was admitted for closing');
+  const originalReceipts={};
+  for(const name of ['cash','promptpay','broker']){const value=memo.orders[name];const receipt=await send('Order',`/api/order/v1/orders/${value.command.orderId}/receipt?branchId=${ref.branchId}`);assert(receipt.status===200,'Sale receipt missing');originalReceipts[name]=receipt.data;}
+  assert(originalReceipts.promptpay.tender==='promptpay_manual'&&originalReceipts.cash.tender==='cash','Tender evidence mixed');
+  stage='cash-close-and-variance';
+  const summary=(await send('POS',`/api/pos/v1/cash-sessions/${memo.sessionId}/summary`)).data;
+  assert(summary.netMovementAmount===memo.orders.cash.amount+memo.orders.broker.amount,'PromptPay changed cash drawer');
+  const close={actualClosingAmount:summary.expectedClosingAmount-5,expectedConcurrencyVersion:summary.concurrencyVersion};
+  assert((await send('POS',`/api/pos/v1/cash-sessions/${memo.sessionId}/close`,{...close,expectedConcurrencyVersion:close.expectedConcurrencyVersion+1})).status===409,'Stale drawer close accepted');
+  assert((await send('POS',`/api/pos/v1/cash-sessions/${memo.sessionId}/close`,close)).status===204,'Drawer close failed');
+  assert((await send('POS',`/api/pos/v1/shifts/${memo.shiftId}/close`,undefined,'cashier','POST')).status===204,'Shift close failed');
+  const reviewPath=`/api/pos/v1/cash-reviews/${memo.sessionId}`,scope={organizationId:ref.organizationId,branchId:ref.branchId,storeId:ref.storeId};
+  const review=await send('POS',reviewPath+'?'+new URLSearchParams(scope),undefined,'store-manager');assert(review.status===200&&review.data.session.varianceAmount===-5,'Drawer variance missing');
+  const command={...scope,decision:'approve',reason:'Fictional five THB test variance reviewed',expectedSessionVersion:review.data.session.sessionVersion,expectedReviewVersion:review.data.session.reviewVersion,idempotencyKey:randomUUID()};
+  assert((await send('POS',reviewPath+'/decisions',command,'accountant')).status===403,'Accountant mutated cash review');
+  const competing={...command,idempotencyKey:randomUUID()};
+  const decisions=await Promise.all([send('POS',reviewPath+'/decisions',command,'store-manager'),send('POS',reviewPath+'/decisions',competing,'store-manager')]);
+  assert(decisions.map(x=>x.status).sort().join(',')==='200,409','Concurrent variance reviews did not fence');
+  const winner=decisions[0].status===200?command:competing;
+  assert((await send('POS',reviewPath+'/decisions',winner,'store-manager')).status===200,'Original review replay failed');
+  assert((await send('POS',reviewPath+'/decisions',{...winner,reason:'Changed retained command'},'store-manager')).status===409,'Changed review replay accepted');
+  const history=await send('POS',reviewPath+'?'+new URLSearchParams(scope),undefined,'accountant');assert(history.status===200&&history.data.history.length===1,'Cash review audit duplicated');
+  assert((await settle(memo.orders.cash)).status===200,'Original settlement cannot replay after closure');
+  stage='immutable-sale-after-review';
+  for(const name of ['cash','promptpay','broker']){const value=memo.orders[name];const receipt=await send('Order',`/api/order/v1/orders/${value.command.orderId}/receipt?branchId=${ref.branchId}`);assert(JSON.stringify(receipt.data)===JSON.stringify(originalReceipts[name]),'Variance review rewrote sale receipt');}
+  const final=await send('Reporting',reportPath,undefined,'store-manager');assert(final.status===200&&final.data.grossSales===total&&final.data.netSales===total&&final.data.refundedAmount===0,'Variance changed sales/refunds');
+  memo.checks.managerReconciliation=true;
  }else{
   stage='broker-delivery-recovery';const value=memo.orders.broker;assert((await settle(value)).status===200,'Broker recovery duplicated settlement');const receipt=await send('Order',`/api/order/v1/orders/${value.command.orderId}/receipt?branchId=${ref.branchId}`);assert(receipt.status===200,'Broker recovery lost receipt');
   await poll(async()=>{const response=await send('POS',`/api/pos/v1/cash-sessions/${memo.sessionId}/summary`);return response.data?.netMovementAmount===memo.orders.cash.amount+value.amount;},'Cash projection did not recover');memo.checks.brokerRecovery=true;

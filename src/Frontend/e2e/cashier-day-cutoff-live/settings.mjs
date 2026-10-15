@@ -11,7 +11,8 @@ export function readSettings(env){
  if(ports.some(n=>!Number.isInteger(n)||n<1024||n>65535)||new Set(ports).size!==ports.length)throw new Error('Distinct local ports required.');
  if(dirname(dirname(resolve(env[p+'STATE_PATH']))).split(/[\\/]/).pop()!=='cashier-day-cutoff')throw new Error('Cashier run directory required.');
  const refs=s.fixture.cashier;if(!refs||Object.keys(refs).length!==3||new Set(Object.values(refs)).size!==3||Object.values(refs).some(x=>typeof x!=='string'||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(x)||/^0{8}(?:-0{4}){3}-0{12}$/.test(x)))throw new Error('Reference fixture required.');
- if(!/^\d{4}-\d{2}-\d{2}$/.test(s.fixture.businessDate)||Date.parse(s.fixture.businessDate+'T00:00:00+07:00')!==Date.parse(s.fixture.fromUtc)||Date.parse(s.fixture.toUtc)-Date.parse(s.fixture.fromUtc)!==86400000)throw new Error('Completed Bangkok branch day required.');
+ const timeZone=s.fixture.timeZone??'Asia/Bangkok',offset=timeZone==='Asia/Singapore'?'+08:00':'+07:00';
+ if(!['Asia/Bangkok','Asia/Singapore'].includes(timeZone)||!/^\d{4}-\d{2}-\d{2}$/.test(s.fixture.businessDate)||Date.parse(s.fixture.businessDate+'T00:00:00'+offset)!==Date.parse(s.fixture.fromUtc)||Date.parse(s.fixture.toUtc)-Date.parse(s.fixture.fromUtc)!==86400000)throw new Error('Completed supported branch day required.');
  const secondManager={username:env[p+'SECOND_MANAGER_USERNAME'],password:env[p+'SECOND_MANAGER_PASSWORD']};
  if(!secondManager.username||!secondManager.password||[s.reader.username,s.resolver.username].includes(secondManager.username))throw new Error('Distinct managers required.');
  const accountant={username:env[p+'ACCOUNTANT_USERNAME'],password:env[p+'ACCOUNTANT_PASSWORD']};if(!accountant.username||!accountant.password||[s.reader.username,s.resolver.username,secondManager.username].includes(accountant.username))throw new Error('Distinct accountant required.');

@@ -1,5 +1,7 @@
 # Source day seals and late-change tracking
 
+Reporting entry-role filters include `customer-user` alongside the existing customer roles. This aligns scoped draft provisioning with these routes; live organization, branch and product-permission checks remain required and the realm role grants no financial authority. See [Slice 5 manager acceptance](../Deployment/First-Draft-Manager.md). No request/response or schema change is introduced.
+
 Current correction-aware behavior is extended by [ADR-033](../Architecture/Decisions/ADR-033-correction-aware-day-close-evidence.md) and [the protocol-three contract](Correction-Day-Evidence.md). Fresh POS/combined evidence requires exact correction selection and delivery; historical protocol-two evidence remains readable but cannot authorize new readiness. Existing command identity, tenant, permission and financial state boundaries are preserved.
 
 The online, single-branch THB workflow retains three immutable source seals against a reviewed cutoff and separately reports relevant later source revisions. It does not approve/finalize settlement. [ADR-024](../Architecture/Decisions/ADR-024-source-day-seals-and-late-change-journals.md) defines seal atomicity and recovery; [ADR-026](../Architecture/Decisions/ADR-026-exact-historical-day-attribution.md) defines current exact historical selection and manager detail. ADR-025 records the preceding conservative attribution boundary.

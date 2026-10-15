@@ -1,5 +1,7 @@
 # Customer product configuration, reporting, and media
 
+Reporting entry-role filters include `customer-user` alongside the existing customer roles. This aligns scoped draft provisioning with these routes; live organization, branch and product-permission checks remain required and the realm role grants no financial authority. See [Slice 5 manager acceptance](../Deployment/First-Draft-Manager.md). No request/response or schema change is introduced.
+
 The Customer Portal adds a read-only end-of-day draft through `/bff/customer/reports/end-of-day` and the Reporting organization route. A completed local business date uses Restaurant-owned timezone metadata; customer-authorized Order/Payment/POS reads supply source amounts and unresolved work, alongside separate Reporting projection/check evidence. No settlement approval or repair occurs. See [contract and owning permissions](End-Of-Day-Draft.md).
 
 Restaurant configuration now includes taxPercent and taxInclusive, plus currency in reads. PUT omits tax fields to preserve them; explicit zero/false resets them. Rates support at most two decimals. These settings affect newly confirmed THB checkout only; historical orders preserve accepted prices. See [pricing contract and rollout](Order-Pricing.md).

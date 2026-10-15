@@ -1,5 +1,7 @@
 # First-draft local test stack
 
+For Slice 5, use the [manager guide](First-Draft-Manager.md). The normal draft retains real clocks; historical completed-day checks run in a separate guarded disposable test host, not through a production clock setting. Reporting accepts the scoped customer-user entry role with existing live product authorization. Actual next-day staff acceptance remains pending.
+
 After provisioning, use [Windows terminal packaging/install/update](First-Draft-Windows-POS.md) for Slice 4. It preserves protected terminal recovery separately from application releases. New manual settlement requires the POS admission endpoint; generated `Services:POS` wiring already supplies the address. Interactive WPF/PDF acceptance is recorded separately.
 
 Infrastructure loopback ports are generated up front and retained in run metadata,

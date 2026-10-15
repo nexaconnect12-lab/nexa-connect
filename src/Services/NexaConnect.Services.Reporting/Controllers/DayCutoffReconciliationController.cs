@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using NexaConnect.Contracts.Reporting;
 using NexaConnect.Services.Reporting.Application;
 namespace NexaConnect.Services.Reporting.Controllers;
-[ApiController,Authorize(Roles="customer-owner,customer-admin,customer-manager,customer-viewer")]
+[ApiController,Authorize(Roles="customer-owner,customer-admin,customer-manager,customer-user,customer-viewer")]
 [ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
 [Route("api/reporting/v1/customer/day-cutoff-reconciliation")]
 public sealed class DayCutoffReconciliationController(DayCutoffReconciliation application,ILogger<DayCutoffReconciliationController> logger):ControllerBase

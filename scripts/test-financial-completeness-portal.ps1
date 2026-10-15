@@ -1,6 +1,6 @@
 #requires -Version 7.0
 [CmdletBinding()]
-param([switch]$ConfirmDisposableInfrastructure,[switch]$NoBuild,[string]$DockerExecutable='docker',[switch]$EndOfDay,[switch]$DayClose,[switch]$CashierDayClose,[switch]$CashierDayCutoff)
+param([switch]$ConfirmDisposableInfrastructure,[switch]$NoBuild,[string]$DockerExecutable='docker',[switch]$EndOfDay,[switch]$DayClose,[switch]$CashierDayClose,[switch]$CashierDayCutoff,[ValidateSet('Asia/Bangkok','Asia/Singapore')][string]$BusinessTimeZone='Asia/Bangkok')
 $ErrorActionPreference='Stop'
 if($CashierDayCutoff){$CashierDayClose=$true};if($CashierDayClose){$DayClose=$true};if($DayClose){$EndOfDay=$true}
 . (Join-Path $PSScriptRoot 'day-close-joined-helpers.ps1')
@@ -93,6 +93,7 @@ try{
     $settings=@{ENABLED='1';CONFIRM_DISPOSABLE='1';RUN_ID=$runId;STATE_PATH=(Join-Path $run 'fixture.json');READER_SUBJECT=$subjects.reader;RESOLVER_SUBJECT=$subjects.resolver;FIXTURE_DLL=$fixtureDll;RECOVERY_DLL=(Join-Path $root "src/Tools/NexaConnect.FinancialReportingRecovery/bin/Debug/net10.0/NexaConnect.FinancialReportingRecovery.dll")}
     foreach($e in $settings.GetEnumerator()){Set-RunSetting "NEXACONNECT_FINANCIAL_PORTAL_$($e.Key)" $e.Value}
     Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CUTOFF $(if($CashierDayCutoff){'1'}else{'0'})
+    Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_BUSINESS_TIMEZONE $BusinessTimeZone
     if($CashierDayCutoff){Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_ACCOUNTANT_SUBJECT $subjects.accountant}
     Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_DAY_CLOSE $(if($DayClose){'1'}else{'0'})
     if($DayClose){Set-RunSetting NEXACONNECT_FINANCIAL_PORTAL_SECOND_MANAGER_SUBJECT $subjects.secondmanager}
@@ -114,6 +115,7 @@ try{
         if($LASTEXITCODE-ne0){throw 'Run-owned PKCE callback configuration failed.'}
     }
     $common=@{ASPNETCORE_ENVIRONMENT='Development';Authentication__Authority=$authority;Authentication__Audience='nexaconnect-api';Authentication__RequireHttpsMetadata='false';Services__PlatformDirectory=$urls.PlatformDirectory;Services__Authorization=$urls.Authorization;Services__Restaurant=$urls.Restaurant;WorkloadIdentity__Authority=$authority;WorkloadIdentity__ClientSecret=$env:NEXACONNECT_JOINED_CLIENT_SECRET;WorkloadIdentity__ClientId='nexaconnect-pos-service'}
+    $common.DOTNET_ENVIRONMENT='Development'
     $broker="amqp://acceptance:$([Uri]::EscapeDataString($env:NEXACONNECT_JOINED_RABBITMQ_PASSWORD))@127.0.0.1:$brokerPort/"
     for($i=0;$i-lt 4;$i++){
         $name=$serviceNames[$i];$dir=Join-Path $root "src/Services/NexaConnect.Services.$name"
@@ -130,7 +132,7 @@ try{
             $name=@('Order','Payment','POS')[$i];$dir=Join-Path $root "src/Services/NexaConnect.Services.$name"
             if(-not $NoBuild){& dotnet build $dir @noRestore --verbosity minimal -m:1;if($LASTEXITCODE-ne 0){throw "$name build failed."}}
             $config=$common.Clone();$config["ConnectionStrings__$name"]=[Environment]::GetEnvironmentVariable('NEXACONNECT_FINANCIAL_PORTAL_DB_'+$name.ToUpperInvariant());$config.Persistence__Provider='PostgreSQL'
-            $config.Services__Order=$urls.Order;$config.Services__Payment=$urls.Payment
+            $config.Services__Order=$urls.Order;$config.Services__Payment=$urls.Payment;$config.Services__POS=$urls.POS
             if($DayClose -and $name-eq'POS'){$config.Services__Reporting="http://127.0.0.1:$proxyListener/"}
             $config.WorkloadIdentity__ClientId=if($name-eq'POS'){'nexaconnect-pos-service'}elseif($name-eq'Order'){'nexaconnect-order-service'}else{'nexaconnect-payment-service'}
             $config.Outbox__Enabled='false';$config.OrderSettlementConsumer__Enabled='false';$config.CashClosePublication__Enabled='false';$config.WorkflowRecovery__Enabled='false';$config.PaymentRecovery__Enabled='false'
@@ -196,7 +198,7 @@ try{
     $suite=if($CashierDayCutoff){'cashier-day-cutoff-live'}elseif($CashierDayClose){'cashier-day-close-live'}elseif($DayClose){'day-close-live'}elseif($EndOfDay){'end-of-day-live'}else{'financial-completeness-live'}
     try{if($DayClose){Invoke-DayCloseJoinedBrowser}else{& npx playwright test --config "playwright.$suite.config.mjs"};if(-not $DayClose -and $LASTEXITCODE-ne 0){throw 'Joined browser acceptance failed.'}}finally{Pop-Location}
     $summary=Get-Content (Join-Path $root "src/Frontend/test-results/$suite/$runId/summary.json") -Raw|ConvertFrom-Json
-    $expected=if($CashierDayCutoff){17}elseif($CashierDayClose){5}elseif($DayClose){11}elseif($EndOfDay){8}else{7}
+    $expected=if($CashierDayCutoff){18}elseif($CashierDayClose){5}elseif($DayClose){11}elseif($EndOfDay){8}else{7}
     if(-not $summary.verified-or$summary.passed-ne $expected-or$summary.total-ne $expected){throw 'All distinct scenarios must pass without skips.'};$passed=$true
 }
 finally{
@@ -209,8 +211,9 @@ finally{
     finally{
         foreach($key in $previous.Keys){try{[Environment]::SetEnvironmentVariable($key,$previous[$key])}catch{$failed=$true}}
         $cleanup=-not $failed
-        if(Test-Path $run){@{runId=$runId;passed=$passed;authorizationPassed=$authorizationPassed;cleanupVerified=$cleanup;startupDiagnostic=$startupDiagnostic;productionVerified=$false;sourceRevision=(& git -C $root rev-parse HEAD);sourceDirty=[bool](& git -C $root status --porcelain);completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')}|ConvertTo-Json|Set-Content (Join-Path $run 'verification.json')}
+        if(Test-Path $run){@{runId=$runId;passed=$passed;authorizationPassed=$authorizationPassed;cleanupVerified=$cleanup;businessTimeZone=$BusinessTimeZone;expectedBrowserScenarios=$(if($CashierDayCutoff){18}else{0});startupDiagnostic=$startupDiagnostic;productionVerified=$false;sourceRevision=(& git -C $root rev-parse HEAD);sourceDirty=[bool](& git -C $root status --porcelain);completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')}|ConvertTo-Json|Set-Content (Join-Path $run 'verification.json')}
     }
     if($failed){throw 'Disposable process, infrastructure, certificate or environment cleanup could not be verified.'}
 }
 Write-Output "Joined $kind acceptance passed; evidence: $run/verification.json"
+if($CashierDayCutoff){[pscustomobject]@{evidenceKind='draft-manager-historical';evidencePath=(Join-Path $run 'verification.json')}}

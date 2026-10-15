@@ -19,8 +19,8 @@ internal static class CutoffAcceptanceFixture
         if(action is not("revoke-day-close-read" or "restore-day-close-read" or "revoke-day-close-prepare" or "restore-day-close-prepare" or "revoke-manager-source" or "restore-manager-source"))return false;
         string subject=action is "revoke-day-close-read" or "restore-day-close-read"?options.Accountant!:options.Resolver;
         string permission=action is "revoke-day-close-read" or "restore-day-close-read"?"pos.day-close.read":action is "revoke-day-close-prepare" or "restore-day-close-prepare"?"pos.day-close.prepare":"payment.refund.read";
-        await using var update=auth.CreateCommand("UPDATE authorization_user_permission_overrides SET effect=$3 WHERE subject_id=$1 AND permission_code=$2 AND status='active' AND scope_id IN(SELECT id FROM authorization_resource_scopes WHERE organization_id=$4)");
-        update.Parameters.AddWithValue(subject);update.Parameters.AddWithValue(permission);update.Parameters.AddWithValue(action is "restore-manager-source" or "restore-day-close-prepare" or "restore-day-close-read"?"allow":"deny");update.Parameters.AddWithValue(state.OrganizationId);
+        await using var update=auth.CreateCommand("UPDATE authorization_user_permission_overrides SET effect=$3 WHERE subject_id=$1 AND permission_code=$2 AND status='active' AND scope_id IN(SELECT id FROM authorization_resource_scopes WHERE organization_id=$4 AND ($2 <> 'pos.day-close.read' OR branch_id=$5))");
+        update.Parameters.AddWithValue(subject);update.Parameters.AddWithValue(permission);update.Parameters.AddWithValue(action is "restore-manager-source" or "restore-day-close-prepare" or "restore-day-close-read"?"allow":"deny");update.Parameters.AddWithValue(state.OrganizationId);update.Parameters.AddWithValue(state.BranchId);
         if(await update.ExecuteNonQueryAsync(ct)!=1)throw new InvalidOperationException();return true;
     }
     public static async Task ProofAsync(FixtureOptions options,CancellationToken ct)

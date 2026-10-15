@@ -1,5 +1,7 @@
 # Single-branch end-of-day reconciliation draft
 
+Reporting entry-role filters include `customer-user` alongside the existing customer roles. This aligns scoped draft provisioning with these routes; live organization, branch and product-permission checks remain required and the realm role grants no financial authority. See [Slice 5 manager acceptance](../Deployment/First-Draft-Manager.md). No request/response or schema change is introduced.
+
 The Customer Portal **End-of-day draft** is a read-only observation of one completed branch business date. Reporting orchestrates authorized owning-service reads; it never connects to their databases, runs financial repair, approves reviews or closes a day. `status` is always `draft`. See [ADR-020](../Architecture/Decisions/ADR-020-branch-end-of-day-draft.md) and the [deployment guide](../Deployment/End-Of-Day-Draft.md).
 
 ## Routes and access

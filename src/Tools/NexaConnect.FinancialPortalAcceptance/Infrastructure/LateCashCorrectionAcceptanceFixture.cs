@@ -18,7 +18,7 @@ internal static class LateCashCorrectionAcceptanceFixture
   if(action=="correction-reference")
   {
    if(File.Exists(path))throw new InvalidOperationException();await using var restaurant=NpgsqlDataSource.Create(options.Connection("restaurant"));
-   var branch=await new RestaurantProvisioningService(new PostgresRestaurantProvisioningRepository(restaurant)).CreateBranchAsync(state.RestaurantId,new("correction","Correction acceptance","THB","Asia/Bangkok"),"acceptance",ct)??throw new InvalidOperationException();
+   var branch=await new RestaurantProvisioningService(new PostgresRestaurantProvisioningRepository(restaurant)).CreateBranchAsync(state.RestaurantId,new("correction","Correction acceptance","THB",options.BusinessTimeZone),"acceptance",ct)??throw new InvalidOperationException();
    var reference=new CorrectionReference(branch.BranchId,Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid());
    await using var store=pos.CreateCommand("INSERT INTO stores(id,restaurant_id,branch_id,code,name,operational_status,created_at_utc,created_by,updated_at_utc,updated_by) VALUES($1,$2,$3,'correction','Correction acceptance','active',now(),'acceptance',now(),'acceptance')");store.Parameters.AddWithValue(reference.StoreId);store.Parameters.AddWithValue(state.RestaurantId);store.Parameters.AddWithValue(reference.BranchId);await store.ExecuteNonQueryAsync(ct);
    var assignments=new AuthorizationAssignmentService(new PostgresAuthorizationAssignmentRepository(auth));

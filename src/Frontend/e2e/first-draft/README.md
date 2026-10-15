@@ -1,5 +1,13 @@
 # Local draft identity/session smoke
 
+Slice 5 adds `test-first-draft-checkout.ps1 -ConfirmDisposableInfrastructure -VerifyManagerFlow`.
+After real checkout and recovery, manager mode verifies mixed cash/PromptPay sales,
+cash-only drawer attribution, current-day closing rejection, version-fenced close and
+variance review, accountant read-only access and unchanged sale receipts. The separate
+two-stage manager launcher also requires eighteen historical Singapore cutoff/settlement/
+CSV cases and cleanup; it never changes clocks in this normal draft stack. See the
+[manager guide](../../../../docs/Deployment/First-Draft-Manager.md).
+
 Slice 4 extends joined checkout with invalid-terminal/wrong-cashier rejection and workload-only admission checks. `test-first-draft-checkout.ps1 -ConfirmDisposableInfrastructure -VerifyTerminalPackage` additionally builds, installs, repeats install and verifies an owned Windows terminal package without launching the UI or registering its callback. Existing user recovery is read-only during preflight; unrelated scope correctly blocks installation. See [Windows guide](../../../../docs/Deployment/First-Draft-Windows-POS.md).
 
 checkout.mjs and draft-auth.mjs run through scripts/test-first-draft-checkout.ps1 -ConfirmDisposableInfrastructure. They use real POS PKCE/customer roles, owning checkout/Kitchen commands, normal clocks and the isolated stack. Tokens stay in memory; the private command journal enables exact retries. See [coverage and recovery boundaries](../../../../docs/Deployment/First-Draft-Checkout.md).

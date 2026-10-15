@@ -6,7 +6,7 @@ using NexaConnect.Services.Reporting.Application;
 
 namespace NexaConnect.Services.Reporting.Controllers;
 
-[ApiController, Authorize(Roles = "customer-owner,customer-admin,customer-manager,customer-viewer")]
+[ApiController, Authorize(Roles = "customer-owner,customer-admin,customer-manager,customer-user,customer-viewer")]
 [Route("api/reporting/v1/customer/organizations/{organizationId:guid}")]
 public sealed class CustomerReportingController(ReportingQueries queries,ActivityService activity, IReportingCustomerAuthorizer authorizer, ILogger<CustomerReportingController> logger, FinancialCompleteness completeness) : ControllerBase
 {

@@ -1,5 +1,7 @@
 # Bounded settlement CSV export
 
+Slice 5 adds actual API/BFF CSV acceptance against a real finalized receipt: missing publication retains original totals with gaps; resumed original delivery becomes matched; accountant reads succeed while denied/revoked/unavailable POS source blocks download without an attachment. UI download preserves receipt identity/provenance. See [manager evidence](../Deployment/First-Draft-Manager.md); existing CSV semantics and limits are unchanged.
+
 Reporting exports a fresh [settlement ledger observation](Settlement-Reporting.md) for one authorized branch and up to 31 business dates. The file preserves original financial history and explicitly includes delivery gaps and unavailable legacy proof. It is not a completeness certificate, accounting journal, new settlement balance or repair command.
 
 ## Routes and access

@@ -24,7 +24,7 @@ internal static class CashierReferenceFixture
         };
         if(options.Cutoff)
         {
-            foreach(var value in counts){long expected=value.Key=="drawers"?1:value.Key=="reviews"?3:2;if(value.Value!=expected)throw new InvalidOperationException();}
+            foreach(var value in counts){long expected=value.Key=="reviews"?3:2;if(value.Value!=expected)throw new InvalidOperationException();}
         }
         else if(counts.Values.Any(n=>n!=1))throw new InvalidOperationException();
         var decisions=new List<Guid>();

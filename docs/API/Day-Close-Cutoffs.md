@@ -1,5 +1,7 @@
 # Day-close cutoff evidence
 
+Reporting entry-role filters include `customer-user` alongside the existing customer roles. This aligns scoped draft provisioning with these routes; live organization, branch and product-permission checks remain required and the realm role grants no financial authority. See [Slice 5 manager acceptance](../Deployment/First-Draft-Manager.md). No request/response or schema change is introduced.
+
 Current correction-aware behavior is extended by [ADR-033](../Architecture/Decisions/ADR-033-correction-aware-day-close-evidence.md) and [the protocol-three contract](Correction-Day-Evidence.md). Fresh POS/combined evidence requires exact correction selection and delivery; historical protocol-two evidence remains readable but cannot authorize new readiness. Existing command identity, tenant, permission and financial state boundaries are preserved.
 
 Ready cutoff evidence can now be pinned by the separate [source day-seal workflow](Day-Close-Seals.md). Cutoff manifests and state remain independent; sealing requires the reviewed cutoff version and does not change their meaning or approve settlement.

@@ -71,8 +71,8 @@ try
                 if(!await platform.ChangeMembershipAsync(id,subject,new(subject,"active"),actor,ct))throw new InvalidOperationException();
         }
         var restaurant=new RestaurantProvisioningService(restaurantRepository);
-        var r=await restaurant.CreateRestaurantAsync(new(org.OrganizationId,"financial","Financial Restaurant","THB",options.EndOfDay ? "Asia/Bangkok" : "Etc/UTC"),actor,ct);
-        var branch=await restaurant.CreateBranchAsync(r.RestaurantId,new("allowed","Allowed Branch","THB",options.EndOfDay ? "Asia/Bangkok" : "Etc/UTC"),actor,ct)??throw new InvalidOperationException();
+        var r=await restaurant.CreateRestaurantAsync(new(org.OrganizationId,"financial","Financial Restaurant","THB",options.EndOfDay ? options.BusinessTimeZone : "Etc/UTC"),actor,ct);
+        var branch=await restaurant.CreateBranchAsync(r.RestaurantId,new("allowed","Allowed Branch","THB",options.EndOfDay ? options.BusinessTimeZone : "Etc/UTC"),actor,ct)??throw new InvalidOperationException();
         var denied=await restaurant.CreateBranchAsync(r.RestaurantId,new("denied","Denied Branch","THB","Etc/UTC"),actor,ct)??throw new InvalidOperationException();
         var assignments=new AuthorizationAssignmentService(assignmentsRepository);
         await assignments.AssignAsync(new(options.Reader,org.OrganizationId,r.RestaurantId,branch.BranchId,args[0]=="provision-cashier"?"cashier":"accountant"),actor,ct);
@@ -83,17 +83,17 @@ try
         {
             if(!options.DayClose || Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_CASHIER_DAY_CLOSE")!="1") throw new ArgumentException();
             var reference=await CashierReferenceFixture.CreateAsync(options,org.OrganizationId,r.RestaurantId,branch.BranchId,ct);
-            var cashierZone=TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
+            var cashierZone=TimeZoneInfo.FindSystemTimeZoneById(options.BusinessTimeZone);
             var date=DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,cashierZone).DateTime).AddDays(-1);
             var start=new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(date.ToDateTime(TimeOnly.MinValue),cashierZone));
-            var cashierState=new FixtureState(options.RunId,org.OrganizationId,other.OrganizationId,r.RestaurantId,branch.BranchId,denied.BranchId,start,start.AddDays(1),date.ToString("yyyy-MM-dd"),Cashier:reference);
+            var cashierState=new FixtureState(options.RunId,org.OrganizationId,other.OrganizationId,r.RestaurantId,branch.BranchId,denied.BranchId,start,start.AddDays(1),date.ToString("yyyy-MM-dd"),Cashier:reference,TimeZone:options.BusinessTimeZone);
             await File.WriteAllTextAsync(options.StatePath,JsonSerializer.Serialize(cashierState,json),ct);
             await File.WriteAllTextAsync(Path.Combine(Path.GetDirectoryName(options.StatePath)!,"clock.json"),JsonSerializer.Serialize(new{runId=options.RunId,mode="historical",atUtc=start.AddHours(10)},json),ct);
             return 0;
         }
         stage="retained-sources";
         bool day=options.EndOfDay;
-        var zone=TimeZoneInfo.FindSystemTimeZoneById("Asia/Bangkok");
+        var zone=TimeZoneInfo.FindSystemTimeZoneById(options.BusinessTimeZone);
         var businessDate=DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow,zone).DateTime).AddDays(-1);
         var from=new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(businessDate.ToDateTime(TimeOnly.MinValue),zone));
         var until=from.AddDays(1);
@@ -199,7 +199,7 @@ try
 }
 catch(Exception exception){Console.Error.WriteLine($"Financial portal fixture failed at {stage} ({exception.GetType().Name}, SQLSTATE={(exception as PostgresException)?.SqlState??"none"}); sensitive details suppressed.");return 1;}
 
-internal sealed record FixtureState(string RunId,Guid OrganizationId,Guid OtherOrganizationId,Guid RestaurantId,Guid BranchId,Guid DeniedBranchId,DateTimeOffset FromUtc,DateTimeOffset ToUtc,string? BusinessDate=null,PosFixtureIds? Pos=null,CashierReference? Cashier=null);
+internal sealed record FixtureState(string RunId,Guid OrganizationId,Guid OtherOrganizationId,Guid RestaurantId,Guid BranchId,Guid DeniedBranchId,DateTimeOffset FromUtc,DateTimeOffset ToUtc,string? BusinessDate=null,PosFixtureIds? Pos=null,CashierReference? Cashier=null,string TimeZone="Asia/Bangkok");
 internal sealed class FixtureClock(DateTimeOffset now):TimeProvider { public override DateTimeOffset GetUtcNow()=>now; }
 internal sealed record FixtureOptions(string RunId,string Reader,string Resolver,string StatePath)
 {
@@ -210,6 +210,7 @@ internal sealed record FixtureOptions(string RunId,string Reader,string Resolver
     public string? Accountant=>Cutoff?Required("ACCOUNTANT_SUBJECT"):null;
     public IEnumerable<string> Subjects=>Cutoff?[Reader,Resolver,SecondManager!,Accountant!]:DayClose?[Reader,Resolver,SecondManager!]:[Reader,Resolver];
     public bool EndOfDay=>Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_END_OF_DAY")=="1";
+    public string BusinessTimeZone=>Environment.GetEnvironmentVariable("NEXACONNECT_FINANCIAL_PORTAL_BUSINESS_TIMEZONE")??"Asia/Bangkok";
     public static FixtureOptions Read()
     {
         string run=Required("RUN_ID");
@@ -219,6 +220,7 @@ internal sealed record FixtureOptions(string RunId,string Reader,string Resolver
         string path=Path.GetFullPath(Required("STATE_PATH"));
         if(Path.GetFileName(path)!="fixture.json"||new DirectoryInfo(Path.GetDirectoryName(path)!).Name!=run)throw new ArgumentException();
         var options=new FixtureOptions(run,reader,resolver,path);
+        if(options.BusinessTimeZone is not ("Asia/Bangkok" or "Asia/Singapore"))throw new ArgumentException();
         if(options.DayClose && (!options.EndOfDay || !Guid.TryParse(options.SecondManager,out var other) || other==Guid.Parse(reader) || other==Guid.Parse(resolver)))throw new ArgumentException();
         if(options.Cutoff && (!options.DayClose || !Guid.TryParse(options.Accountant,out _) || options.Subjects.Distinct().Count()!=4 || new DirectoryInfo(Path.GetDirectoryName(path)!).Parent!.Name!="cashier-day-cutoff"))throw new ArgumentException();
         return options;

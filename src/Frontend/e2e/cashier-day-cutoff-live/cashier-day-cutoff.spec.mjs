@@ -8,6 +8,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {readSettings} from './settings.mjs';
 import {scenarios} from './scenarios.mjs';
+import {verifyCsv,readQuotedCsv} from './csv-evidence.mjs';
 const s=readSettings(process.env),f=s.fixture,r=s.refs,root='/bff/customer/day-close-cutoffs';
 function faultProxy(port,target){
  const sockets=new Set(),pending=new Set();let enabled=true,held=false;
@@ -26,7 +27,8 @@ function faultProxy(port,target){
   close:async()=>{held=false;for(const sock of sockets)sock.destroy();pending.clear();await new Promise(ok=>server.close(ok));}};
 }
 const reporting=faultProxy(s.proxyPort,s.reportingPort),payment=faultProxy(s.sourceProxyPort,s.paymentPort);
-let api,cashier,manager,secondManager,shift,session,order,amount,settlement,receipt,completed,completedIdentity=s.resolver;
+const exportRange=()=>new URLSearchParams({branchId:f.branchId,fromDate:f.businessDate,toDate:new Date(Date.parse(f.businessDate+'T00:00:00Z')+86400000).toISOString().slice(0,10)});
+let api,cashier,manager,secondManager,shift,session,secondSession,order,amount,settlement,receipt,completed,completedIdentity=s.resolver;
 test.describe.configure({mode:'serial'});
 test.beforeAll(async()=>{api=await request.newContext();await reporting.start();await payment.start();});
 test.afterAll(async()=>{cashier=manager=secondManager=undefined;await api?.dispose();await reporting.close();await payment.close();});
@@ -76,8 +78,8 @@ test(scenarios[0],async({browser})=>{
 const window=()=>({organizationId:f.organizationId,restaurantId:f.restaurantId,branchId:f.branchId,fromUtc:f.fromUtc,toUtc:f.toUtc});
 const sourcePath=(service,id,w=window())=>`/api/${service}/v1/customer/day-cutoffs/${id}?${new URLSearchParams(w)}`;
 async function proof(){return JSON.parse(await fixture('cutoff-proof'));}
-async function review(){
- const path=`/api/pos/v1/cash-reviews/${session}`,query=new URLSearchParams({organizationId:f.organizationId,branchId:f.branchId,storeId:r.storeId});
+async function review(cashSession=session){
+ const path=`/api/pos/v1/cash-reviews/${cashSession}`,query=new URLSearchParams({organizationId:f.organizationId,branchId:f.branchId,storeId:r.storeId});
  const detail=await send('pos',path+'?'+query,manager);expect(detail.status).toBe(200);
  const decision={organizationId:f.organizationId,branchId:f.branchId,storeId:r.storeId,decision:'approve',reason:'Verified acceptance variance',expectedSessionVersion:detail.data.session.sessionVersion,expectedReviewVersion:detail.data.session.reviewVersion,idempotencyKey:randomUUID()};
  expect((await send('pos',path+'/decisions',cashier,decision)).status).toBe(403);
@@ -86,7 +88,7 @@ async function review(){
  expect((await send('pos',path+'/decisions',manager,decision)).status).toBe(200);expect((await send('pos',path+'/decisions',manager,{...decision,reason:'Changed replay'})).status).toBe(409);
  return accepted.data.session;
 }
-function clock(mode){writeFileSync(s.clockPath+'.tmp',JSON.stringify(mode==='live'?{runId:s.runId,mode}:{runId:s.runId,mode,atUtc:new Date(Date.parse(f.fromUtc)+10*3600000).toISOString()}));renameSync(s.clockPath+'.tmp',s.clockPath);}
+function clock(mode,hour=10){writeFileSync(s.clockPath+'.tmp',JSON.stringify(mode==='live'?{runId:s.runId,mode}:{runId:s.runId,mode,atUtc:new Date(Date.parse(f.fromUtc)+hour*3600000).toISOString()}));renameSync(s.clockPath+'.tmp',s.clockPath);}
 async function ready(page){const result=await loadUi(page);expect(result.status).toBe('ready_for_review');expect(result.snapshot.cutoff.sourcesCurrent).toBe(true);expect(result.snapshot.cutoff.financialGaps).toBe(0);return result;}
 async function refresh(page){await loadUi(page);const result=await prepareUi(page,'Refresh cutoff evidence');expect(result.status).toBe(200);expect(result.data.status).toBe('ready_for_review');completed=result.command;completedIdentity=s.resolver;return result.data;}
 async function reportingTotal(){const query=new URLSearchParams({branchId:f.branchId,fromUtc:f.fromUtc,toUtc:f.toUtc});const response=await api.get(`http://127.0.0.1:${s.reportingPort}/api/reporting/v1/customer/organizations/${f.organizationId}/reports/sales?${query}`,{headers:{Authorization:'Bearer '+manager,'X-Correlation-ID':'cashier-'+s.runId}});return response.status()===200?(await response.json()).grossSales:undefined;}
@@ -199,21 +201,27 @@ test(scenarios[14],async({page,browser})=>{
  const cancelledResponse=page.waitForResponse(r=>r.url().endsWith(path+'/cancel')&&r.request().method()==='POST');await page.getByRole('button',{name:'Cancel finalization preparation',exact:true}).click();const cancelled=await cancelledResponse;expect(cancelled.status()).toBe(200);expect((await cancelled.json()).status).toBe('cancelled');
 });
 test(scenarios[8],async({page,browser})=>{
- cashier=await token(browser,s.reader);manager=await token(browser,s.resolver);await signIn(page,s.resolver);const before=await ready(page);clock('historical');
+ cashier=await token(browser,s.reader);manager=await token(browser,s.resolver);await signIn(page,s.resolver);const before=await ready(page);clock('historical',11);
  try{
+  const opened=await send('pos','/api/pos/v1/shifts/open',cashier,{branchId:f.branchId,storeId:r.storeId,terminalId:r.terminalId,shiftNumber:'SECOND-'+s.runId.slice(0,8)});expect(opened.status).toBe(200);
+  const drawer=await send('pos','/api/pos/v1/cash-sessions/open',cashier,{shiftId:opened.data.shiftId,storeId:r.storeId,currency:'THB',openingAmount:0});expect(drawer.status).toBe(200);secondSession=drawer.data.cashSessionId;
   const input={organizationId:f.organizationId,restaurantId:f.restaurantId,branchId:f.branchId,currency:'THB',paymentMethod:'cash_manual',idempotencyKey:randomUUID(),lines:[{productId:r.productId,quantity:1}]};
   const quote=await send('order','/api/order/v1/workflows/quote',cashier,input);expect(quote.status).toBe(200);expect(quote.data.pricing.totalAmount).toBe(amount);
   const placed=await send('order','/api/order/v1/workflows/place',cashier,{...input,pricingFingerprint:quote.data.fingerprint});expect(placed.status).toBe(200);
   const settled=await send('order',`/api/order/v1/orders/${placed.data.orderId}/manual-settlement`,cashier,{...settlement,idempotencyKey:randomUUID()});expect(settled.status).toBe(201);
+  await expect.poll(async()=> (await send('pos',`/api/pos/v1/cash-sessions/${secondSession}/summary`,cashier)).data?.netMovementAmount).toBe(amount);
+  const summary=(await send('pos',`/api/pos/v1/cash-sessions/${secondSession}/summary`,cashier)).data;
+  expect((await send('pos',`/api/pos/v1/cash-sessions/${secondSession}/close`,cashier,{actualClosingAmount:0,expectedConcurrencyVersion:summary.concurrencyVersion})).status).toBe(204);
+  expect((await send('pos',`/api/pos/v1/shifts/${opened.data.shiftId}/close`,cashier,undefined,'POST')).status).toBe(204);
  }finally{clock('live');}
- await expect.poll(async()=> (await send('pos',`/api/pos/v1/cash-sessions/${session}/summary`,cashier)).data?.netMovementAmount).toBe(2*amount);await expect.poll(reportingTotal).toBe(2*amount);
+ expect((await send('pos',`/api/pos/v1/cash-sessions/${session}/summary`,cashier)).data.netMovementAmount).toBe(amount);await expect.poll(reportingTotal).toBe(2*amount);
  const invalid=await loadUi(page);expect(invalid.status).toBe('blocked');expect(invalid.blockers).toContain('cutoff_superseded');expect(invalid.snapshot).toEqual(before.snapshot);await expect(page.getByText('ready for review',{exact:true})).toHaveCount(0);
  const old=await send('order',sourcePath('order',before.snapshot.cutoff.order.manifestId),manager);expect(old.status).toBe(200);expect(old.data.current).toBe(false);expect(old.data.manifest.sales).toHaveLength(1);
  const sealRead=await page.request.get(`/bff/customer/day-close-seals?branchId=${f.branchId}&businessDate=${f.businessDate}`);expect(sealRead.status()).toBe(200);
  const changedSeal=await sealRead.json();expect(changedSeal.status).toBe('blocked');expect(changedSeal.blockers).toContain('sealed_changes_pending');expect(changedSeal.pendingSealChanges).toBeGreaterThan(0);expect(changedSeal.snapshot.seals).toEqual(sealedDay.snapshot.seals);
  const approvalRead=await page.request.get(`/bff/customer/day-close-approvals?branchId=${f.branchId}&businessDate=${f.businessDate}`);expect(approvalRead.status()).toBe(200);
  const superseded=await approvalRead.json();expect(superseded.status).toBe('superseded');expect(superseded.decision.approvalId).toBe(approvedDay.decision.approvalId);expect(superseded.decision.snapshot.seals).toEqual(sealedDay.snapshot.seals);
- expect((await review()).varianceAmount).toBe(-amount-5);const fresh=await refresh(page);expect(fresh.snapshot.grossSales).toBe(2*amount);expect(fresh.snapshot.cutoff.order.manifestId).not.toBe(before.snapshot.cutoff.order.manifestId);
+ expect((await review(secondSession)).varianceAmount).toBe(-amount);const fresh=await refresh(page);expect(fresh.snapshot.grossSales).toBe(2*amount);expect(fresh.snapshot.cashVariance).toBe(-amount-5);expect(fresh.snapshot.cutoff.order.manifestId).not.toBe(before.snapshot.cutoff.order.manifestId);
 });
 test(scenarios[9],async({page})=>{
  await signIn(page,s.resolver);await ready(page);payment.outage();try{
@@ -234,7 +242,8 @@ test(scenarios[11],async({page,browser})=>{
  }finally{await reader.close();await second.close();}
  expect((await send('order',`/api/order/v1/orders/${order}/receipt?branchId=${f.branchId}`,cashier)).data).toEqual(receipt);
  expect((await send('order',`/api/order/v1/orders/${order}/manual-settlement`,cashier,settlement)).status).toBe(200);
- const summary=(await send('pos',`/api/pos/v1/cash-sessions/${session}/summary`,cashier)).data;expect(summary.movements).toHaveLength(2);expect(summary.status).toBe('closed');
+ const summary=(await send('pos',`/api/pos/v1/cash-sessions/${session}/summary`,cashier)).data;expect(summary.movements).toHaveLength(1);expect(summary.status).toBe('closed');
+ const secondSummary=(await send('pos',`/api/pos/v1/cash-sessions/${secondSession}/summary`,cashier)).data;expect(secondSummary.movements).toHaveLength(1);expect(secondSummary.status).toBe('closed');
  await expect(fixture('deliver')).rejects.toThrow('Acceptance fixture failed');await expect(fixture('late-cash')).rejects.toThrow('Acceptance fixture failed');
  expect(JSON.parse(await fixture('cashier-proof')).verified).toBe(true);expect((await proof()).authorizationVerified).toBe(true);
 });
@@ -249,6 +258,7 @@ test(scenarios[15],async({page,browser})=>{
  await clickLoad('Load sealed evidence','/bff/customer/day-close-seals');
  await clickLoad('Load approval','/bff/customer/day-close-approvals');
  const approved=await clickPost('Approve reviewed seal','/bff/customer/day-close-approvals');
+ await control('stop-pos');await control('start-pos-held-publication');
  await clickLoad('Load finalization preparation','/bff/customer/day-close-finalization-preparations');
  const prepared=await clickPost('Prepare finalization','/bff/customer/day-close-finalization-preparations');
  const path='/bff/customer/day-close-settlements',query='?branchId='+f.branchId+'&businessDate='+f.businessDate;
@@ -259,6 +269,8 @@ test(scenarios[15],async({page,browser})=>{
  await expect(page.getByText('Immutable settlement receipt',{exact:true})).toBeVisible();
  expect((await bff(page,path,finalized.command)).data.settlement.receipt).toEqual(receipt);
  const ledgerQuery='?'+new URLSearchParams({branchId:f.branchId,fromDate:f.businessDate,toDate:new Date(Date.parse(f.businessDate+'T00:00:00Z')+86400000).toISOString().slice(0,10)});
+ await verifyCsv(await page.request.get('/bff/customer/reports/day-settlements/export.csv'+ledgerQuery),receipt,f,'missing');
+ await control('stop-pos');await control('start-pos');
  await expect.poll(async()=>{const report=await bff(page,'/bff/customer/reports/day-settlements'+ledgerQuery);return report.status===200&&report.data.status==='matched'&&report.data.expected===1&&report.data.matched===1&&report.data.items[0].settlementId===finalized.data.settlement.id&&report.data.items[0].correctionEvidence==='verified';},{timeout:45000,intervals:[500,1000]}).toBe(true);
  await page.getByLabel('Settlement from date',{exact:true}).fill(f.businessDate);await page.getByLabel('Settlement to date (exclusive)').fill(new Date(Date.parse(f.businessDate+'T00:00:00Z')+86400000).toISOString().slice(0,10));
  await page.getByRole('button',{name:'Load settlement ledger',exact:true}).click();await expect(page.getByText('Settlement delivery matched',{exact:true})).toBeVisible();
@@ -355,4 +367,31 @@ test(scenarios[16],async({page,browser})=>{
  await page.getByLabel('Correction from (UTC)').fill(new Date(Date.now()-3600000).toISOString().slice(0,19).replace(/:00$/,''));await page.getByLabel('Correction to (UTC, exclusive)').fill(new Date().toISOString().slice(0,19).replace(/:00$/,''));
  await page.getByRole('button',{name:'Compare cash correction delivery',exact:true}).click();await expect(page.getByText('Cash correction delivery matched',{exact:true})).toBeVisible();
  const proof=JSON.parse(await fixture('cash-correction-proof'));expect(proof).toMatchObject({verified:true,corrections:1,audits:1,publications:1,custodyRetained:true,originalCashUnchanged:true,authorizationVerified:true});
+});
+
+test(scenarios[17],async({page,browser})=>{
+ await signIn(page,s.resolver);
+ const query='?branchId='+f.branchId+'&businessDate='+f.businessDate;
+ const day=await bff(page,'/bff/customer/reports/end-of-day'+query);expect(day.status).toBe(200);expect(day.data.branch.timeZone).toBe(f.timeZone??'Asia/Bangkok');
+ const receipt=(await bff(page,'/bff/customer/day-close-settlements'+query)).data.settlement.receipt;
+ const path='/bff/customer/reports/day-settlements/export.csv?'+exportRange();
+ const rows=await verifyCsv(await page.request.get(path),receipt,f);
+ expect(rows.filter(r=>r.record_type==='correction')).toHaveLength(receipt.snapshot.corrections?.items.length??0);
+ await page.getByLabel('Settlement from date',{exact:true}).fill(f.businessDate);
+ await page.getByLabel('Settlement to date (exclusive)').fill(exportRange().get('toDate'));
+ const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download settlement CSV',exact:true}).click();
+ const download=await downloaded;expect(download.suggestedFilename()).toContain(f.branchId);
+ const stream=await download.createReadStream(),chunks=[];for await(const chunk of stream)chunks.push(chunk);
+ const downloadedRows=readQuotedCsv(Buffer.concat(chunks).toString('utf8'));
+ expect(downloadedRows.find(r=>r.record_type==='settlement').event_id).toBe(receipt.eventId);
+ expect(downloadedRows.find(r=>r.record_type==='settlement').cash_variance).toBe(rows.find(r=>r.record_type==='settlement').cash_variance);
+ const context=await browser.newContext({baseURL:s.baseURL,ignoreHTTPSErrors:true});try{
+  const accountant=await context.newPage();await signIn(accountant,s.accountant);
+  await verifyCsv(await accountant.request.get(path),receipt,f);
+  const denied=await accountant.request.get(path.replace(f.branchId,f.deniedBranchId));expect(denied.status()).toBe(403);expect(denied.headers()['content-disposition']).toBeUndefined();
+  await fixture('revoke-day-close-read');try{const revoked=await accountant.request.get(path);expect(revoked.status()).toBe(403);expect(revoked.headers()['content-disposition']).toBeUndefined();}finally{await fixture('restore-day-close-read');}
+ }finally{await context.close();}
+ await control('stop-pos');try{const unavailable=await page.request.get(path);expect(unavailable.status()).toBe(503);expect(unavailable.headers()['content-disposition']).toBeUndefined();}finally{await control('start-pos');}
+ await verifyCsv(await page.request.get(path),receipt,f);
+ expect((await bff(page,'/bff/customer/day-close-settlements'+query)).data.settlement.receipt).toEqual(receipt);
 });
