@@ -73,7 +73,17 @@ function Save-DraftSecrets([string]$Path,$Secrets) {
 function Read-DraftSecrets([string]$Path) {
     return (Import-Clixml -LiteralPath $Path | ConvertFrom-SecureString -AsPlainText) | ConvertFrom-Json -AsHashtable
 }
-function Set-DraftComposeEnvironment($Secrets,[string]$RunId,[int]$BffPort) {
+function Set-DraftComposeEnvironment($Secrets,[string]$RunId,[int]$BffPort,$Infrastructure=@{}) {
+    $portNames=@{postgres='POSTGRES';keycloak='KEYCLOAK';rabbitmq='RABBITMQ';redis='REDIS'}
+    if($Infrastructure.Count){
+        $ports=@($BffPort)
+        foreach($name in $portNames.Keys){
+            $port=0
+            if(-not $Infrastructure.Contains($name) -or -not [int]::TryParse([string]$Infrastructure[$name],[ref]$port) -or $port -lt 1024 -or $port -gt 65535){throw 'Draft infrastructure requires generated loopback ports.'}
+            $ports+=$port
+        }
+        if(($ports|Sort-Object -Unique).Count -ne $ports.Count){throw 'Draft infrastructure ports must be distinct.'}
+    }
     $previous = @{}
     foreach ($entry in $Secrets.GetEnumerator()) {
         $name = 'NEXACONNECT_JOINED_' + $entry.Key
@@ -84,6 +94,11 @@ function Set-DraftComposeEnvironment($Secrets,[string]$RunId,[int]$BffPort) {
         $previous[$entry.Key] = [Environment]::GetEnvironmentVariable($entry.Key,'Process')
         [Environment]::SetEnvironmentVariable($entry.Key,[string]$entry.Value,'Process')
     }
+    if($Infrastructure.Count){foreach($entry in $portNames.GetEnumerator()){
+        $name='NEXACONNECT_DRAFT_'+$entry.Value+'_PORT'
+        $previous[$name]=[Environment]::GetEnvironmentVariable($name,'Process')
+        [Environment]::SetEnvironmentVariable($name,[string]$Infrastructure[$entry.Key],'Process')
+    }}
     return $previous
 }
 function Restore-DraftEnvironment($Previous) {

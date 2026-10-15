@@ -1,7 +1,7 @@
 #requires -Version 7.4
 [CmdletBinding()]
 param(
-    [ValidateSet('Validate','Start','Status','Stop','Reset','Restart')][string]$Action='Validate',
+    [ValidateSet('Validate','Start','Status','Stop','StopService','Reset','Restart')][string]$Action='Validate',
     [string]$RunId,
     [ValidateSet('cash_manual','promptpay_manual')][string]$PaymentMethod='cash_manual',
     [string]$QrImagePath,
@@ -96,7 +96,8 @@ function Start-DraftApp([string]$Name) {
             [Environment]::SetEnvironmentVariable($entry.Key,[string]$entry.Value,'Process')
         }
         $url=$script:state.urls[$Name]
-        $process=Start-Process (Get-Command dotnet).Source -ArgumentList @("`"$assembly`"",'--urls',$url) -WorkingDirectory $directory -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $run "$Name.log") -RedirectStandardError (Join-Path $run "$Name.error.log")
+        if($settings.ASPNETCORE_ENVIRONMENT -ne 'Development' -or $settings.DOTNET_ENVIRONMENT -ne 'Development'){throw 'Draft child host environment must be explicitly configured.'}
+        $process=Start-Process (Get-Command dotnet).Source -ArgumentList @("`"$assembly`"",'--urls',$url) -Environment $settings -WorkingDirectory $directory -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $run "$Name.log") -RedirectStandardError (Join-Path $run "$Name.error.log")
         $script:state.processes[$Name]=@{id=$process.Id;startTicks=$process.StartTime.ToUniversalTime().Ticks;assemblyName=$assemblyName}
         Save-State
     } finally { Restore-DraftEnvironment $old }
@@ -125,7 +126,7 @@ function Set-Configurations {
     $broker="amqp://acceptance:$([Uri]::EscapeDataString($script:secrets.RABBITMQ_PASSWORD))@127.0.0.1:$($script:state.infrastructure.rabbitmq)/"
     $script:configurations=@{}
     foreach ($name in @($catalog.Keys)+@('Bff')) {
-        $config=@{ASPNETCORE_ENVIRONMENT='Development';Authentication__Authority=$authority;Authentication__Audience='nexaconnect-api';Authentication__RequireHttpsMetadata='false';Persistence__Provider='PostgreSQL';Observability__OtlpEnabled='false';CardCheckout__EnableOmiseTestCheckout='false';PaymentProvider__Adapter='Disabled';OmiseWebhooks__Enabled='false';Outbox__Enabled='false';Outbox__BatchSize='0'}
+        $config=@{ASPNETCORE_ENVIRONMENT='Development';DOTNET_ENVIRONMENT='Development';Authentication__Authority=$authority;Authentication__Audience='nexaconnect-api';Authentication__RequireHttpsMetadata='false';Persistence__Provider='PostgreSQL';Observability__OtlpEnabled='false';CardCheckout__EnableOmiseTestCheckout='false';PaymentProvider__Adapter='Disabled';OmiseWebhooks__Enabled='false';Outbox__Enabled='false';Outbox__BatchSize='0'}
         foreach ($dependency in $catalog.Keys) { $config['Services__'+$dependency]=$script:state.urls[$dependency] }
         $config.Services__Media='https://media.example.invalid/'
         if($name -ne 'Bff'){$config['ConnectionStrings__'+$name]=New-Connection $name}
@@ -206,10 +207,10 @@ if($newRun) {
     $secrets=@{}
     foreach($name in @('ADMIN_PASSWORD','MIGRATION_PASSWORD','RUNTIME_PASSWORD','KEYCLOAK_DB_PASSWORD','KEYCLOAK_ADMIN_PASSWORD','CLIENT_SECRET','READER_PASSWORD','RESOLVER_PASSWORD','SECONDMANAGER_PASSWORD','ACCOUNTANT_PASSWORD','RABBITMQ_PASSWORD','REDIS_PASSWORD','CERT_PASSWORD')){$secrets[$name]='Aa1!'+[Guid]::NewGuid().ToString('N')+[Guid]::NewGuid().ToString('N')}
     Save-DraftSecrets $secretPath $secrets
-    $free=@(Get-ReviewJoinedFreePorts 11);$urls=[ordered]@{};$index=0
+    $free=@(Get-ReviewJoinedFreePorts 15);$urls=[ordered]@{};$index=0
     foreach($name in $catalog.Keys){$urls[$name]="http://127.0.0.1:$($free[$index])/";$index++}
     $urls.Bff="https://127.0.0.1:$($free[10])/"
-    $state=@{runId=$RunId;project=$project;status='Starting';paymentMethod=$PaymentMethod;realm="nexa-review-it-$RunId";urls=$urls;processes=@{};infrastructure=@{};authority='';applicationCompatibility=$compatibility;schemaTargets=$catalog;provisionedBranch=$false}
+    $state=@{runId=$RunId;project=$project;status='Starting';paymentMethod=$PaymentMethod;realm="nexa-review-it-$RunId";urls=$urls;processes=@{};infrastructure=@{postgres=$free[11];keycloak=$free[12];rabbitmq=$free[13];redis=$free[14]};authority='';applicationCompatibility=$compatibility;schemaTargets=$catalog;provisionedBranch=$false}
     Save-State
 } else {
     $state=Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json -AsHashtable
@@ -217,7 +218,11 @@ if($newRun) {
     $secrets=Read-DraftSecrets $secretPath
 }
 Assert-DraftUrls $state.urls
-$previous=Set-DraftComposeEnvironment $secrets $RunId ([uri]$state.urls.Bff).Port
+if($state.infrastructure.Count){
+    $allPorts=@($state.urls.Values|ForEach-Object{([uri]$_).Port})+@($state.infrastructure.Values)
+    if(($allPorts|Sort-Object -Unique).Count -ne $allPorts.Count){throw 'Application and infrastructure ports must be distinct.'}
+}
+$previous=Set-DraftComposeEnvironment $secrets $RunId ([uri]$state.urls.Bff).Port $state.infrastructure
 try {
     Assert-LocalDocker
     Assert-ContainerOwnership
@@ -228,7 +233,10 @@ try {
     }
     if($Action -eq 'Status') {
         $health=[ordered]@{}
-        foreach($name in $state.processes.Keys){$record=$state.processes[$name];$actual=Get-Process -Id $record.id -ErrorAction SilentlyContinue;$health[$name]=Assert-DraftProcess $record $actual}
+        foreach($name in @($catalog.Keys)+@('Bff')){
+            if(-not $state.processes.Contains($name)){$health[$name]=$false;continue}
+            $record=$state.processes[$name];$actual=Get-Process -Id $record.id -ErrorAction SilentlyContinue;$health[$name]=Assert-DraftProcess $record $actual
+        }
         [pscustomobject]@{runId=$RunId;status=$state.status;applicationProcesses=$health;portal=$state.urls.Bff;branchProvisioned=$state.provisionedBranch}
         & docker @compose ps --format '{{.Service}} {{.State}} {{.Health}}'
         return
@@ -246,6 +254,12 @@ try {
             if(Test-Path -LiteralPath (Join-Path $run 'local.pfx')){Remove-Item -LiteralPath (Join-Path $run 'local.pfx')}
         } else {Invoke-OwnedCompose @('stop');$state.status='Stopped';Save-State}
         Write-Output "Draft $Action verified for $RunId."
+        return
+    }
+    if($Action -eq 'StopService') {
+        if($state.status -ne 'Ready'){throw 'StopService requires a Ready draft.'}
+        Stop-DraftApp $Service
+        Write-Output "Owned draft $Service stopped for interruption testing."
         return
     }
     if($Action -eq 'Restart') {
@@ -277,7 +291,7 @@ try {
     foreach($entry in @{postgres=5432;keycloak=8080;rabbitmq=5672;redis=6379}.GetEnumerator()){
         $published=& docker @compose port $entry.Key $entry.Value
         if($LASTEXITCODE -ne 0){throw 'Infrastructure port lookup failed.'}
-        $state.infrastructure[$entry.Key]=ConvertFrom-ReviewJoinedPort $published
+        if($state.infrastructure[$entry.Key] -ne (ConvertFrom-ReviewJoinedPort $published)){throw 'Owned infrastructure listener differs from its retained generated port.'}
     }
     $state.authority="http://127.0.0.1:$($state.infrastructure.keycloak)/realms/$($state.realm)";Save-State
     Wait-DraftHttp ($state.authority+'/.well-known/openid-configuration')

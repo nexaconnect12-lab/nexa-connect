@@ -51,8 +51,7 @@ public sealed class PaymentReconciliationApplicationService(
             }
             if (string.Equals(capture.Outcome, "failed", StringComparison.Ordinal))
             {
-                await inventory.ReleaseAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
-                await kitchen.CancelTicketAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
+                await OrderPreparationCompensation.CancelAndReleaseAsync(order, inventory, kitchen, cancellationToken);
                 order.MarkPaymentFailed();
                 await PersistAsync(order, new PaymentFailedV1(Guid.NewGuid(), reconciliation.CorrelationId,
                     clock.GetUtcNow(), order.Id, capture.Reason ?? "capture_failed"), cancellationToken);
@@ -72,8 +71,7 @@ public sealed class PaymentReconciliationApplicationService(
 
         if (string.Equals(reconciliation.Outcome, "failed", StringComparison.Ordinal))
         {
-            await inventory.ReleaseAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
-            await kitchen.CancelTicketAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
+            await OrderPreparationCompensation.CancelAndReleaseAsync(order, inventory, kitchen, cancellationToken);
             order.MarkPaymentFailed();
             await PersistAsync(order, new PaymentFailedV1(Guid.NewGuid(), reconciliation.CorrelationId,
                 clock.GetUtcNow(), order.Id, reconciliation.FailureCode ?? "provider_declined"), cancellationToken);
@@ -122,8 +120,7 @@ public sealed class PaymentReconciliationApplicationService(
         {
             // Both downstream operations are idempotent by order identity. A redelivery retries
             // incomplete compensation before the terminal Order transition is committed.
-            await inventory.ReleaseAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
-            await kitchen.CancelTicketAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
+            await OrderPreparationCompensation.CancelAndReleaseAsync(order, inventory, kitchen, cancellationToken);
             order.MarkPaymentFailed();
             await PersistAsync(order, new PaymentFailedV1(Guid.NewGuid(), reconciliation.CorrelationId,
                 clock.GetUtcNow(), order.Id, failureCode ?? "capture_failed"), cancellationToken);
@@ -180,8 +177,7 @@ public sealed class PaymentReconciliationApplicationService(
 
         if (string.Equals(status, "voided", StringComparison.Ordinal))
         {
-            await inventory.ReleaseAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
-            await kitchen.CancelTicketAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
+            await OrderPreparationCompensation.CancelAndReleaseAsync(order, inventory, kitchen, cancellationToken);
             order.MarkPaymentFailed();
             await PersistAsync(order, new PaymentFailedV1(Guid.NewGuid(), correlationId, clock.GetUtcNow(),
                 order.Id, "authorization_voided"), cancellationToken);

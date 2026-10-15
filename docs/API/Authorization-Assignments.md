@@ -1,5 +1,7 @@
 # Authorization role assignments
 
+New `tenant-admin`, `store-manager` and `cashier` assignments include the existing `order.cancel` permission, matching migration-8 backfill. This default correction adds no new permission or financial limit.
+
 The branch-scoped kitchen-operator role is supported for new assignments, with only catalog.menu.read, kitchen.ticket.read and kitchen.ticket.transition. It gives no stock mutation, checkout, financial review or admin authority. See [operational discovery](Operational-Branches.md).
 
 ## Decision policy

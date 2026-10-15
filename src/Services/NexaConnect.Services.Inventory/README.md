@@ -2,7 +2,7 @@
 
 [Draft provisioning](../../../docs/Deployment/First-Draft-Provisioning.md) uses the owning stock repository for initial fictional stock, with existing audit/outbox behavior. Initial resume skips already present balances; completed reruns never replenish consumed stock. No reservation, release or sale is seeded.
 
-Order's pre-payment cancellation calls the existing idempotent reservation release only after Kitchen cancellation succeeds. A Kitchen terminal conflict therefore retains Inventory for investigation. Missing reservations remain an idempotent success boundary; dependency failures leave the durable Order cancellation pending for retry. No Inventory schema or public contract changed.
+Order's pre-payment cancellation and provider-failure placement/recovery/reconciliation/manager void paths call the existing idempotent reservation release only after Kitchen cancellation succeeds. A Kitchen terminal conflict therefore retains Inventory for investigation. Missing reservations remain an idempotent success boundary; dependency failures leave the durable Order cancellation pending for retry. No Inventory schema or public contract changed.
 
 Owns branch stock balances and reservations. The API exposes stock inspection, stock adjustment, and reservation endpoints under `/api/inventory/v1/branches/{branchId}`. It uses the in-memory adapter by default; set `Persistence:Provider=PostgreSQL` and `ConnectionStrings:Inventory` to use durable stock and transactional reservation updates.
 

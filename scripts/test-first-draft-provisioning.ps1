@@ -25,7 +25,7 @@ try {
  Browser-Verify 'repeat'
  # Owning Authorization test fixture: psql variables quote the subject as a data value. No cross-service mutation.
  $reference=Get-Content (Join-Path $run 'reference.json') -Raw|ConvertFrom-Json
- $previous=Set-DraftComposeEnvironment $secrets $RunId ([uri]$state.urls.Bff).Port
+ $previous=Set-DraftComposeEnvironment $secrets $RunId ([uri]$state.urls.Bff).Port $state.infrastructure
  try {
   $compose=Get-DraftComposeArguments $root $RunId
   "UPDATE authorization_role_assignments SET status='revoked' WHERE subject_id=:'subject'; UPDATE authorization_user_permission_overrides SET status='revoked' WHERE subject_id=:'subject';" |

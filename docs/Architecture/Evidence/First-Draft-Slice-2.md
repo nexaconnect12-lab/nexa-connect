@@ -21,6 +21,8 @@ Recorded verification:
 | End-of-day / prepare / cutoff browser regressions | 11 / 8 / 8 passed |
 | Seal / approval / finalization / late-cash browser regressions | 22 passed |
 | Settlement / payment review / cash-close browser regressions | 7 / 5 / 4 passed |
+| Financial-completeness browser regressions | 9 passed |
+| Frontend unit tests / production build | 76 passed / passed |
 | Real PKCE/OIDC and live reference/access verification | passed; owned cleanup verified |
 
 The first live evidence is
@@ -34,6 +36,29 @@ the retained journal resumed without duplicating stock or reference IDs. Browser
 contain no screenshots, traces, stored tokens or passwords. Evidence keeps ordinary clocks;
 no joined sales, shifts or receipts are seeded/proven by these checks.
 
-Final fresh-run, frontend test/build and documentation-audit evidence are recorded below
-once completed. Slices 3–7 remain required for joined cashier/Kitchen failure recovery,
-Windows POS/PDF printing, real financial transitions, release hardening and solo UAT.
+The final fresh run is
+`.runstate/first-draft/5e71775106ed429b9e1492c71553424a/provisioning-verification.json`:
+all live checks passed and owned cleanup is verified. Final Unit and Kitchen regressions
+were rerun after the last owner-local and station-clearing edits. Total affected browser
+regressions: 80 passed. Frontend production build retains its existing large-bundle advisory.
+
+The first required `documentation_maintainer` audit attempt failed because the account
+usage limit was reached. A subsequent retry and final follow-up audit passed during
+slice 3 completion. The primary resolved API role lists, branch-selector instructions,
+stack/provisioning status, ownership/replay/failure boundaries and canonical summary drift.
+The successful audit also reviewed the later retained-port and host-environment fixes.
+`git diff --check` passed.
+
+Documentation updated: root README; both `AI/architecture/project_overview.md` and
+`docs/Architecture/Project-Architecture.md`; this evidence; November first-draft plan;
+API Operational-Branches, Authorization-Assignments, Business-Service-API-Slices,
+Kitchen-Queue, Payment-Review-Operator-UI, Financial-Reporting-Completeness and
+Cash-Close-Reporting; Database-Guidelines; Identity Client-Matrix; deployment First-Draft-Test-Stack
+and First-Draft-Provisioning; docker/first-draft README; POS client, Frontend, Customer BFF,
+Restaurant, Authorization, Catalog, Inventory, Kitchen and POS service READMEs; new
+FirstDraftProvisioning tool README and first-draft browser verification README.
+
+At the slice 2 boundary, slices 3–7 remained. Joined cashier/Kitchen failure recovery is
+subsequently verified in [slice 3 evidence](First-Draft-Slice-3.md); slices 4–7 remain for
+Windows POS/PDF printing, further financial transitions, release hardening and solo UAT.
+No environment remains running from verification.

@@ -54,11 +54,14 @@ $probe='NEXACONNECT_JOINED_GUARD_PROBE'
 $original=[Environment]::GetEnvironmentVariable($probe,'Process')
 try {
     [Environment]::SetEnvironmentVariable($probe,'before','Process')
-    $previous=Set-DraftComposeEnvironment @{GUARD_PROBE='synthetic-private-value'} $id 12345
+    $previous=Set-DraftComposeEnvironment @{GUARD_PROBE='synthetic-private-value'} $id 12345 @{postgres=12346;keycloak=12347;rabbitmq=12348;redis=12349}
+    if($env:NEXACONNECT_DRAFT_RABBITMQ_PORT -ne '12348'){throw 'Retained broker port was not supplied.'};$passed++
     Restore-DraftEnvironment $previous
     if([Environment]::GetEnvironmentVariable($probe,'Process') -ne 'before'){throw 'Environment was not restored.'};$passed++
 } finally {[Environment]::SetEnvironmentVariable($probe,$original,'Process')}
 $stateSource=Get-Content (Join-Path $root 'scripts/first-draft-stack.ps1') -Raw
+Expect-Rejection { Set-DraftComposeEnvironment @{} $id 12345 @{postgres=12346;keycloak=12347;rabbitmq=12345;redis=12349} }
+Expect-Rejection { Set-DraftComposeEnvironment @{} $id 12345 @{postgres=0;keycloak=12347;rabbitmq=12348;redis=12349} }
 if($stateSource -match 'Stop-Process\s+-Name|docker\s+system\s+prune'){throw 'Unscoped cleanup was introduced.'};$passed++
 if($IsWindows) {
     $fakeId=[Guid]::NewGuid().ToString('N');$fakeRun=Get-DraftRunDirectory $root $fakeId

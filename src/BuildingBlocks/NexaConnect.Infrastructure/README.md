@@ -1,5 +1,7 @@
 # NexaConnect Infrastructure
 
+`AddPostgresOutbox` explicitly constructs the publisher with its own lazy RabbitMQ connection. A consumer's registered `IConnection` cannot be injected into that publisher. Closed or failed owned connections are replaced on later publication; existing publisher confirms and durable outbox retry semantics remain unchanged. Delivery can repeat after an uncertain acknowledgement, so owning consumers still deduplicate effects. `OutboxConnectionOwnershipTests` verifies that resolving the publisher neither resolves a consumer connection nor connects eagerly. See [draft broker recovery verification](../../../docs/Deployment/First-Draft-Checkout.md).
+
 `AddNexaConnectBffSessionCache` honors explicit `ConnectionStrings:BffSessionCache` in every environment. Development/Test fall back to memory only without a connection; production still requires Redis. Six cache-configuration regressions protect these boundaries. The [draft lifecycle](../../../docs/Deployment/First-Draft-Test-Stack.md) verifies actual Redis-backed OIDC session persistence with an independent session namespace and key ring.
 
 Low-level revision comparison supports matching protocol-two or protocol-three versions without context business policy. POS owns correction selection and admission; shared retention remains mechanical and stores owner-supplied bounded payloads. No cross-owner database access. See [contract](../../../docs/API/Correction-Day-Evidence.md) and [operations](../../../docs/Deployment/Correction-Day-Evidence.md).

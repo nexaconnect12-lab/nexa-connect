@@ -163,10 +163,11 @@ public sealed class OrderPaymentCaptureReconciliationTests
         await Assert.ThrowsAsync<HttpRequestException>(()=>service.ApplyAsync(message,default));
         Assert.Equal(OrderStatus.PaymentPending,order.Status);
         Assert.Null(repository.Event);
+        Assert.Equal(0,inventory.ReleaseCalls);
 
         Assert.True(await service.ApplyAsync(message,default));
         Assert.Equal(OrderStatus.PaymentFailed,order.Status);
-        Assert.Equal(2,inventory.ReleaseCalls);
+        Assert.Equal(1,inventory.ReleaseCalls);
         Assert.Equal(2,kitchen.CancelCalls);
     }
 

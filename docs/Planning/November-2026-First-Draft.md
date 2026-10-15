@@ -1,6 +1,6 @@
 # November 2026 first draft: implementation slices and prompts
 
-Slice 2 implements [scoped draft provisioning and operational selectors](../Deployment/First-Draft-Provisioning.md). Local evidence is tracked in [slice 2 verification](../Architecture/Evidence/First-Draft-Slice-2.md). Slices 3–7 remain required for joined checkout/recovery, Windows printing, financial acceptance and UAT.
+Slice 2 implements [scoped draft provisioning and operational selectors](../Deployment/First-Draft-Provisioning.md). Local evidence is tracked in [slice 2 verification](../Architecture/Evidence/First-Draft-Slice-2.md). Slice 3 implements [joined checkout and recovery](../Deployment/First-Draft-Checkout.md), with executed status tracked separately in [slice 3 evidence](../Architecture/Evidence/First-Draft-Slice-3.md). Windows printing, financial acceptance and UAT remain slices 4–7.
 
 Prepared on 14 October 2026 from the current repository. The user selected one branch with Windows POS, online cash/manual PromptPay, the kitchen queue and manager portal. This is a controlled test draft, not production certification.
 

@@ -187,6 +187,11 @@ public sealed class OrderWorkflowController(PlaceOrderWorkflow workflow, IOrderT
             return StatusCode(503, new { error = "Checkout is temporarily unavailable. Verify the original order." });
         }
         catch (OverflowException) { return BadRequest(new { error = "Order amount exceeds the supported range." }); }
+        catch (OrderCancellationConflictException)
+        {
+            logger.LogWarning("Order payment compensation blocked by terminal preparation; inventory retained");
+            return Conflict(new { code = "preparation_requires_review", error = "Preparation is completed. The unpaid order requires operator investigation; inventory remains reserved." });
+        }
         catch (InvalidOperationException exception) { return UnprocessableEntity(new { error = exception.Message }); }
     }
 }

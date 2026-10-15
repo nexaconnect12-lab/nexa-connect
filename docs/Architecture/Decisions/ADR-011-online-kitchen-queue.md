@@ -3,6 +3,10 @@
 - Status: Accepted for the development slice
 - Date: 2026-09-22
 
+## Follow-up: 2026-10-14
+
+The original consequence below records the earlier Inventory-before-Kitchen provider compensation. [Draft slice 3](../../Deployment/First-Draft-Checkout.md) corrects placement, workflow recovery, payment reconciliation and manager-confirmed void paths to confirm Kitchen cancellation before Inventory release, matching the explicit operator cancellation saga. Completed preparation or an unconfirmed Kitchen outcome now retains stock and unresolved workflow state. Existing historical releases are not repaired; automated wastage/refund policy and production acceptance remain separate work.
+
 ## Context
 
 Kitchen already owns tenant-scoped tickets, station snapshots, legal status transitions, optimistic concurrency and atomic audit/outbox writes. Operators cannot discover their active work through a queue. Order creates kitchen work before payment, including manual tenders that settle only after cashier confirmation. Branch-edge hardware, offline authorization and device deployment remain undecided.

@@ -1,5 +1,7 @@
 # Authoritative checkout pricing
 
+Direct placement additionally returns 409 preparation_requires_review when ordinary provider-failure compensation encounters completed Kitchen preparation. Inventory stays reserved and the unpaid Order requires investigation; this is not a pricing_changed response or successful cancellation. Normal manual-tender quote/placement remains unchanged.
+
 The online THB checkout now uses Restaurant-owned branch settings and an Order-owned commercial snapshot. POS previews server pricing, asks for confirmation, and saves the quote fingerprint with the original checkout identity before submission. This slice does not add discounts, modifiers, refunds, offline quoting, fiscal receipts or printer support.
 
 ## Pricing policy

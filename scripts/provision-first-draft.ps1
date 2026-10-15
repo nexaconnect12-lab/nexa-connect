@@ -13,7 +13,7 @@ try {
  if($state.runId -ne $RunId -or $state.project -ne "nexa-draft-$RunId" -or $state.realm -ne "nexa-review-it-$RunId" -or $state.status -ne 'Ready'){throw 'Only the owned Ready draft may be provisioned.'}
  Assert-DraftUrls $state.urls
  $secrets=Read-DraftSecrets (Join-Path $run 'secrets.clixml')
- $composeEnvironment=Set-DraftComposeEnvironment $secrets $RunId ([uri]$state.urls.Bff).Port
+ $composeEnvironment=Set-DraftComposeEnvironment $secrets $RunId ([uri]$state.urls.Bff).Port $state.infrastructure
  foreach($entry in $composeEnvironment.GetEnumerator()){$old[$entry.Key]=$entry.Value}
  if($env:DOCKER_HOST -or (& docker context inspect --format '{{.Endpoints.docker.Host}}') -notmatch '^npipe://'){throw 'Local Docker Desktop required.'}
  $compose=Get-DraftComposeArguments $root $RunId

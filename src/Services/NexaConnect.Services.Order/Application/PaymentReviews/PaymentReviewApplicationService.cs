@@ -64,8 +64,7 @@ public sealed class PaymentReviewApplicationService(IOrderRepository orders,IInv
         {
             if(resolution=="confirm_void")
             {
-                await inventory.ReleaseAsync(order.OrganizationId,order.Id,order.BranchId,cancellationToken);
-                await kitchen.CancelTicketAsync(order.OrganizationId,order.Id,order.BranchId,cancellationToken);
+                await OrderPreparationCompensation.CancelAndReleaseAsync(order, inventory, kitchen, cancellationToken);
                 order.ResolvePaymentReviewAsVoided();
             }
             else if(resolution=="resume_payment") order.ResumePaymentPending();

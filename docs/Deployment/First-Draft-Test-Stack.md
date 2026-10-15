@@ -1,5 +1,24 @@
 # First-draft local test stack
 
+Infrastructure loopback ports are generated up front and retained in run metadata,
+then explicitly bound by Compose and checked against actual published listeners.
+Each new run allocates fifteen distinct ports: eleven application listeners and four
+infrastructure bindings (PostgreSQL, Keycloak, RabbitMQ and Redis). The helper supplies
+the four `NEXACONNECT_DRAFT_*_PORT` values transiently from retained metadata.
+Docker Desktop can reassign an ephemeral host port on container stop/start; retained
+bindings keep recovery clients on the original address. Existing retained runs with
+populated infrastructure metadata can Stop/Start with the new Compose definition while
+preserving owned volumes. A port collision fails safely. Older initial failed runs without
+infrastructure ports require reviewed metadata recovery or an explicitly confirmed owned
+reset/new run; credentials are never regenerated over retained secrets.
+
+Owned StopService interruption testing is available for a selected service; Status includes missing expected processes as false. Ready is the retained lifecycle marker, not current dependency readiness. Restart preserves generated state and still checks financial consumers; see [joined checkout sequencing](First-Draft-Checkout.md).
+
+Every child host receives explicit `ASPNETCORE_ENVIRONMENT=Development` and
+`DOTNET_ENVIRONMENT=Development` through `Start-Process -Environment`, including restart.
+An inherited Production environment cannot select the child's hosting mode; this
+restriction is local draft tooling, not a production deployment setting.
+
 After Ready, run the [slice 2 provisioner](First-Draft-Provisioning.md) before launching POS. It creates stable branch/store/terminal IDs and scoped accounts, retains reference edits/revocation on completed reruns and updates the separate generated POS settings. Joined financial workflows remain later acceptance slices.
 
 This is the slice 1 implementation for the [November plan](../Planning/November-2026-First-Draft.md). It coordinates normal production application hosts with their normal clocks on a local Windows PC: Platform Directory, Authorization, Restaurant, Catalog, Inventory, Kitchen, Order, Payment, POS, Reporting and Customer BFF/portal. No historical clock switch or financial fixture is enabled. The selected test scope is THB cash/manual PromptPay, Singapore business timezone and PDF receipt printing. The separate [slice 2 provisioner](First-Draft-Provisioning.md) supplies branch/menu/product-role records.

@@ -1,5 +1,7 @@
 # NexaConnect
 
+Slice 3 adds the [joined draft checkout runner](docs/Deployment/First-Draft-Checkout.md), real cashier/Kitchen commands and owned interruption/broker checks. Order compensation confirms Kitchen cancellation before releasing stock; new cashier/manager assignments include existing cancellation authority. Verification status is recorded in the slice 3 evidence.
+
 Slice 2 adds [owned draft provisioning](docs/Deployment/First-Draft-Provisioning.md), four scoped test accounts and permission-filtered operational branch/station selection. THB / Asia/Singapore reference data is repeatable without resetting sold stock or revoked access; joined checkout acceptance remains slice 3.
 
 For the November one-branch Windows/PDF-printer draft, use the [isolated local test stack](docs/Deployment/First-Draft-Test-Stack.md). It coordinates normal service hosts, owned persistent infrastructure and manual THB checkout with explicit Redis sessions; the separate slice 2 provisioner supplies branch/menu/role setup. Checked-in POS defaults use cash with test-card checkout disabled. This is local test tooling, not production or offline certification.

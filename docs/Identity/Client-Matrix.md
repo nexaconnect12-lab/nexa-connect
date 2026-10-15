@@ -1,5 +1,7 @@
 # Keycloak Client Matrix
 
+New product `tenant-admin`, `store-manager` and `cashier` assignments include existing `order.cancel` authority, matching Authorization migration 8. Keycloak clients, realm roles, tokens and audiences are unchanged; cancellation still requires live owning-service authorization.
+
 Draft setup creates four customer-user realm identities with product scopes: branch cashier, branch kitchen-operator, restaurant store-manager and branch accountant. Product grants remain independent of realm entry roles; only the manager receives the bounded subject late-cash limit. See [draft setup](../Deployment/First-Draft-Provisioning.md).
 
 The [local first-draft stack](../Deployment/First-Draft-Test-Stack.md) imports a generated private realm using the existing client template, verifies seven workload API audiences and creates only an identity-level `draft-smoke` customer-viewer. It uses no production identities or secrets. The separate slice 2 provisioner supplies product membership, cashier/Kitchen/manager/accountant grants and financial limits; an authenticated smoke session does not authorize product operations. Existing POS public PKCE and Customer BFF cookie/client separation remain intact.

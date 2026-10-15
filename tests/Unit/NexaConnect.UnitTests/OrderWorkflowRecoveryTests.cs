@@ -143,6 +143,20 @@ public sealed class OrderWorkflowRecoveryTests
         Assert.Empty(repository.Events);
     }
 
+    [Fact]
+    public async Task CompletedPreparationKeepsStockAndUnpaidRecoveryStateForInvestigation()
+    {
+        OrderAggregate order=CreateProviderOrder(Guid.NewGuid());order.MarkInventoryReserved();order.MarkKitchenAccepted();
+        var repository=new RecoveryRepository(order);var inventory=new RecoveryInventory();
+        var service=new OrderWorkflowRecoveryService(repository,inventory,new RecoveryKitchen(blocked:true),
+            new RecoveryPayment(new PaymentResult(false,Guid.NewGuid(),"declined","failed")));
+        await Assert.ThrowsAsync<NexaConnect.Services.Order.Application.Cancellations.OrderCancellationConflictException>(()=>
+            service.RecoverNextAsync(TimeSpan.FromSeconds(30),TimeSpan.Zero,default));
+        Assert.Equal(0,inventory.ReleaseCalls);Assert.Empty(repository.Events);
+        Assert.Equal(OrderStatus.KitchenAccepted,repository.Current.Status);
+        Assert.Equal("preparation_requires_review",repository.LastErrorCategory);
+    }
+
     private static OrderAggregate CreateProviderOrder(Guid orderId)
     {
         OrderAggregate order = OrderAggregate.Create(orderId, Guid.NewGuid(), Guid.NewGuid(),
@@ -204,7 +218,7 @@ public sealed class OrderWorkflowRecoveryTests
         }
     }
 
-    private sealed class RecoveryKitchen : IKitchenPort
+    private sealed class RecoveryKitchen(bool blocked = false) : IKitchenPort
     {
         public int Calls { get; private set; }
         public int CancelCalls { get; private set; }
@@ -218,6 +232,7 @@ public sealed class OrderWorkflowRecoveryTests
             CancellationToken cancellationToken)
         {
             CancelCalls++;
+            if (blocked) throw new NexaConnect.Services.Order.Application.Cancellations.OrderCancellationConflictException("Completed preparation");
             return Task.CompletedTask;
         }
     }

@@ -1,5 +1,7 @@
 # Pre-payment order cancellation
 
+Slice 3 corrects new role assignment defaults to include the established order.cancel grant, matching migration 8 for existing roles. Ordinary provider-failure compensation now also confirms Kitchen cancellation before releasing stock; it remains separate from this retained operator-cancellation operation. See [joined acceptance and unresolved-state guidance](../Deployment/First-Draft-Checkout.md).
+
 `POST /api/order/v1/orders/{orderId}/cancellations` records and executes an operator-requested cancellation before payment. It is an online, branch-scoped command and requires an authenticated user subject plus a live `order.cancel` decision. Tenant administrators, store managers, and cashiers receive that permission through Authorization migration 8.
 
 ## Request

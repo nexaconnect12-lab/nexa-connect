@@ -36,7 +36,7 @@ try {
     $checks.anonymousLiveness=$true
     $secrets=Read-DraftSecrets (Join-Path $run 'secrets.clixml')
     $compose=Get-DraftComposeArguments $root $RunId
-    $previous=Set-DraftComposeEnvironment $secrets $RunId ([uri]$state.urls.Bff).Port
+    $previous=Set-DraftComposeEnvironment $secrets $RunId ([uri]$state.urls.Bff).Port $state.infrastructure
     $oldPgPassword=[Environment]::GetEnvironmentVariable('PGPASSWORD','Process')
     try {
         [Environment]::SetEnvironmentVariable('PGPASSWORD',$secrets.RUNTIME_PASSWORD,'Process')

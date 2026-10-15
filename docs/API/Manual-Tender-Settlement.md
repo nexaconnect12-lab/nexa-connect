@@ -1,5 +1,9 @@
 # Manual tender settlement
 
+Terminal checks remain split: Order requires a nonempty caller-supplied terminal identity but performs no POS registration preflight. POS validates terminal/store/branch/shift ownership while projecting the settled event. The [draft checkout runner](../Deployment/First-Draft-Checkout.md) uses a valid active terminal/drawer and does not certify forged terminal admission.
+
+The [joined draft runner](../Deployment/First-Draft-Checkout.md) uses real scoped identities and owning shift/drawer/checkout/manual-settlement commands. It simulates manual PromptPay verification without real transfer and tests stock/ticket/settlement retries and broker recovery. It supplies no physical printing or manual-tender refund acceptance.
+
 During placement, Order includes organization/application tenant headers on Inventory reservation and release calls. Trusted Inventory calls with both valid headers use tenant persistence; calls with neither retain legacy behavior and partial/invalid context is rejected. Inventory `5xx` responses raise a sanitized dependency failure rather than becoming persisted business rejection text. POS accepts a matching terminal `Rejected` or `PaymentFailed` placement result, including HTTP `409`, as permission to release its checkout lock; it does not unlock on arbitrary conflicts or intermediate states.
 
 `POST /api/order/v1/orders/{orderId}/manual-settlement` records Bangkok MVP cash or manually verified PromptPay settlement. It requires bearer authentication with a user subject, matching `X-Nexa-Organization-Id`, `X-Nexa-Application-Code: nexa_connect`, and branch-scoped `order.manual-payment.confirm` authorization.

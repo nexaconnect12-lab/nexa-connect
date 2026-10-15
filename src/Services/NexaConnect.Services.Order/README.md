@@ -1,5 +1,7 @@
 # Order Service
 
+Provider-failure compensation is centralized in Application OrderPreparationCompensation: Kitchen cancellation must succeed before Inventory release. Placement maps completed preparation to 409 preparation_requires_review; recovery retains unpaid state with that safe category. Reconciliation and manager void review preserve their unresolved state on compensation failure. Existing nexaconnect-order JSON/correlation telemetry applies. See [joined draft checks and limitations](../../../docs/Deployment/First-Draft-Checkout.md).
+
 Anonymous `GET /health/live` returns only `{ "status": "Healthy" }` after host startup; it is not database, authorization or order readiness. The [local draft stack](../../../docs/Deployment/First-Draft-Test-Stack.md) separately verifies schemas, workload audiences and active financial consumers before dispatcher activation. Existing `nexaconnect-order` JSON/correlation telemetry remains active; no customer financial authority is added.
 
 Correction-aware combined day-close now uses POS protocol 3 and requires correction delivery proof; Order retains schema 19 and protocol-two owning source manifests/seals. Deploy matching coordinated binaries as in [current contract](../../../docs/API/Correction-Day-Evidence.md) and [rollout](../../../docs/Deployment/Correction-Day-Evidence.md).

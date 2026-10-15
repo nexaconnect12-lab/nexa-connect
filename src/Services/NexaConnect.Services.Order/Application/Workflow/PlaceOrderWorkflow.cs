@@ -226,8 +226,7 @@ public sealed class PlaceOrderWorkflow(
         }
         if (!paid.Completed || paid.PaymentId is null)
         {
-            await inventory.ReleaseAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
-            await kitchen.CancelTicketAsync(order.OrganizationId,order.Id, order.BranchId, cancellationToken);
+            await OrderPreparationCompensation.CancelAndReleaseAsync(order, inventory, kitchen, cancellationToken);
             order.MarkPaymentFailed();
             await PersistAsync(order, new PaymentFailedV1(
                 Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id,
