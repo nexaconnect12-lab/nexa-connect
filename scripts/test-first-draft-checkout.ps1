@@ -1,6 +1,6 @@
 #requires -Version 7.4
 [CmdletBinding()]
-param([switch]$ConfirmDisposableInfrastructure)
+param([switch]$ConfirmDisposableInfrastructure,[switch]$VerifyTerminalPackage)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
 . (Join-Path $PSScriptRoot 'payment-review-joined-helpers.ps1')
@@ -49,6 +49,17 @@ function Owner-Sql([string]$Suffix,[string]$Sql,[hashtable]$Variables=@{}){
 try{
  & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -RunId $RunId -ConfirmTestResources
  & (Join-Path $PSScriptRoot 'provision-first-draft.ps1') -RunId $RunId -ConfirmTestResources
+ if($VerifyTerminalPackage){
+  & (Join-Path $PSScriptRoot 'first-draft-terminal.ps1') -Action Package -RunId $RunId
+  $packages=@(Get-ChildItem (Join-Path $run 'terminal-packages') -Directory)
+  if($packages.Count -ne 1){throw 'Expected one fresh terminal package.'}
+  $installation=Join-Path $run 'terminal-install'
+  & (Join-Path $PSScriptRoot 'first-draft-terminal.ps1') -Action Install -PackageDirectory $packages[0].FullName -InstallDirectory $installation
+  & (Join-Path $PSScriptRoot 'first-draft-terminal.ps1') -Action Install -PackageDirectory $packages[0].FullName -InstallDirectory $installation
+  $status=& (Join-Path $PSScriptRoot 'first-draft-terminal.ps1') -Action Status -InstallDirectory $installation
+  if($status.runId -cne $RunId){throw 'Installed terminal identity mismatch.'}
+  $checks.terminalPackage=$true
+ }
  $state=Get-Content (Join-Path $run 'state.json') -Raw|ConvertFrom-Json -AsHashtable
  $secrets=Read-DraftSecrets (Join-Path $run 'secrets.clixml')
  $settings=@{NEXACONNECT_DRAFT_RUN=$RunId;NEXACONNECT_DRAFT_STATE=(Join-Path $run 'state.json');NEXACONNECT_DRAFT_REFERENCE=(Join-Path $run 'reference.json');NEXACONNECT_DRAFT_CHECKOUT_MODE='baseline';NEXACONNECT_DRAFT_CASHIER_PASSWORD=$secrets.READER_PASSWORD;NEXACONNECT_DRAFT_KITCHEN_PASSWORD=$secrets.SECONDMANAGER_PASSWORD;NEXACONNECT_DRAFT_MANAGER_PASSWORD=$secrets.RESOLVER_PASSWORD;NEXACONNECT_DRAFT_ACCOUNTANT_PASSWORD=$secrets.ACCOUNTANT_PASSWORD;PGPASSWORD=$secrets.RUNTIME_PASSWORD}

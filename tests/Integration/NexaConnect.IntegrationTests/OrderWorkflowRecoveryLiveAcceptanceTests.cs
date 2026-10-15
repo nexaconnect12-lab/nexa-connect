@@ -111,7 +111,7 @@ public sealed class OrderWorkflowRecoveryLiveAcceptanceTests
         Assert.Equal(1, await EventCountAsync(dataSource, dependencyRetry.Id, nameof(KitchenTicketCreatedV1)));
 
         OrderAggregate payable = Assert.IsType<OrderAggregate>(await repository.GetAsync(submitted.Id, default));
-        var settlementService = new ManualTenderApplicationService(repository);
+        var settlementService = new ManualTenderApplicationService(repository,new FixtureManualTenderAdmission());
         var settlement = await settlementService.ConfirmAsync(new ConfirmManualTenderCommand(
             payable.OrganizationId, payable.BranchId, payable.Id, Guid.NewGuid(), Guid.NewGuid(), "cash",
             payable.TotalAmount, "THB", false, null, "order-recovery-acceptance", Guid.NewGuid(), Guid.NewGuid()), default);

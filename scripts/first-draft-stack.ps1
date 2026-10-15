@@ -301,6 +301,8 @@ try {
         $payload=$payload.PadRight($payload.Length+(4-$payload.Length%4)%4,'=')
         $claims=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payload)) | ConvertFrom-Json
         if(@($claims.aud) -notcontains 'nexaconnect-api'){throw 'Draft workload audience validation failed.'}
+        if($name -eq 'Order' -and ($claims.azp -cne 'nexaconnect-order-service' -or
+            $claims.preferred_username -cne 'service-account-nexaconnect-order-service')){throw 'Draft Order workload principal validation failed; update the access-token username mapper and obtain fresh credentials.'}
     }
     foreach($name in $catalog.Keys) {
         $key='NEXACONNECT_'+$name.ToUpperInvariant()+'_DB';$old=[Environment]::GetEnvironmentVariable($key,'Process')

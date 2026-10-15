@@ -117,7 +117,9 @@ public partial class MainWindow : Window
         _authentication.StatusChanged += OnStatusChanged;
         sessionTimer.Tick += SessionTimer_Tick;
         sessionTimer.Start();
-        StatusText.Text = pendingCashReviewAttempt is null
+        StatusText.Text = pendingCheckout is not null
+            ? $"Original order {pendingCheckout.OrderId:D} needs verification. Sign in, then verify this order; do not collect again."
+            : pendingCashReviewAttempt is null
             ? "Ready to sign in. Service connectivity is checked when you perform an action."
             : "A cash-review decision needs verification. Sign in and load Cash review to reconcile it.";
         UpdateCartTotal();
@@ -1226,7 +1228,10 @@ public partial class MainWindow : Window
                     document.PageWidth = dialog.PrintableAreaWidth;
                     document.PageHeight = dialog.PrintableAreaHeight;
                     dialog.PrintDocument(((System.Windows.Documents.IDocumentPaginatorSource)document).DocumentPaginator, "Sales receipt");
+                    ReceiptStatusText.Text = "Receipt submitted to Windows printing. Verify the saved PDF or printer output. Payment is unchanged; reprint this same receipt if needed.";
                 }
+                else if (generation == receiptSessionGeneration && IsSignedIn())
+                    ReceiptStatusText.Text = "Printing cancelled. Payment is unchanged. Print / reprint uses the same paid receipt; do not collect again.";
             }
         }
         catch (Exception)

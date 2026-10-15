@@ -25,7 +25,7 @@ public sealed partial class DaySealPostgresTests
   var sourceClock=new SealClock(Window.FromUtc.AddMinutes(90));var repository=new OrderDb.PostgresOrderRepository(order,sourceClock);
   var aggregate=OrderDomain.OrderAggregate.Create(Guid.NewGuid(),organization,branch,[new OrderDomain.OrderLine(Guid.NewGuid(),"Rice",10,1,"kitchen")],"THB",restaurantId:restaurant);
   aggregate.Submit();aggregate.MarkInventoryReserved();aggregate.MarkKitchenAccepted();await repository.SaveAsync(aggregate,default);
-  var result=await new OrderApp.ManualTenderApplicationService(repository,sourceClock).ConfirmAsync(new(organization,branch,aggregate.Id,terminalId,Guid.NewGuid(),"cash",10,"THB",false,null,"manager",Guid.NewGuid(),Guid.NewGuid()),default);Assert.NotNull(result);
+  var result=await new OrderApp.ManualTenderApplicationService(repository,new FixtureManualTenderAdmission(sourceClock),sourceClock).ConfirmAsync(new(organization,branch,aggregate.Id,terminalId,Guid.NewGuid(),"cash",10,"THB",false,null,"manager",Guid.NewGuid(),Guid.NewGuid()),default);Assert.NotNull(result);
   await using var query=order.CreateCommand("SELECT payload::text FROM outbox_messages WHERE aggregate_id=$1 AND event_type='order.manual-tender-settled.v1'");query.Parameters.AddWithValue(aggregate.Id);
   var tender=JsonSerializer.Deserialize<OrderManualTenderSettledV1>((string)(await query.ExecuteScalarAsync())!,new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
   Assert.Equal(tender,await new OrderDb.PostgresManualTenderEvidenceStore(order).ReadAsync(organization,restaurant,branch,tender.EventId,default));

@@ -82,6 +82,11 @@ if (builder.Configuration.GetValue<bool>("PaymentReconciliationConsumer:Enabled"
     builder.Services.AddPaymentReconciliationConsumer(builder.Configuration);
 }
 builder.Services.AddTransient<OutboundTokenHandler>();
+builder.Services.AddHttpClient<IManualTenderAdmission, HttpManualTenderAdmission>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Services:POS"] ?? "https://pos.example.invalid/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+}).AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
 builder.Services.AddSingleton<IOutboundAccessTokenProvider, KeycloakClientCredentialsTokenProvider>();
 builder.Services.AddHttpClient<IBranchPricingPort, HttpBranchPricingPort>(client =>
     client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")))

@@ -1,6 +1,8 @@
 # Manual tender settlement
 
-Terminal checks remain split: Order requires a nonempty caller-supplied terminal identity but performs no POS registration preflight. POS validates terminal/store/branch/shift ownership while projecting the settled event. The [draft checkout runner](../Deployment/First-Draft-Checkout.md) uses a valid active terminal/drawer and does not certify forged terminal admission.
+New settlements now require [POS-owned terminal admission](Terminal-Admission.md) before Paid commit. Unknown/inactive terminals, wrong cashier shifts and missing cash drawers return `409 terminal_not_ready`; dependency failures return `503 terminal_admission_unavailable`. Order requires `Services:POS` and matching POS binaries. Exact committed replay remains recoverable without current POS readiness; this preflight adds no schema or distributed lock.
+
+POS retains terminal/store/branch/shift validation when projecting the settled event. Admission is a point-in-time observation, so it does not serialize later closure or revocation with Order commit. The [draft checkout runner](../Deployment/First-Draft-Checkout.md) exercises unknown-terminal and wrong-cashier rejection before a valid settlement; broader distributed fencing remains outside this contract.
 
 The [joined draft runner](../Deployment/First-Draft-Checkout.md) uses real scoped identities and owning shift/drawer/checkout/manual-settlement commands. It simulates manual PromptPay verification without real transfer and tests stock/ticket/settlement retries and broker recovery. It supplies no physical printing or manual-tender refund acceptance.
 

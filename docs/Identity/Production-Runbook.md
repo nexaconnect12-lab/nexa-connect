@@ -1,5 +1,15 @@
 # Keycloak Production Runbook
 
+Before enabling manual-tender terminal admission, apply the reviewed
+`order-service-account-username` mapper to the persisted `nexaconnect-order-service` client:
+user property `username`, claim `preferred_username`, JSON String, access token enabled,
+ID token/userinfo disabled. Preserve API audience and credentials-only flows. Obtain a fresh
+Order workload token and privately verify `azp=nexaconnect-order-service`,
+`preferred_username=service-account-nexaconnect-order-service` and audience `nexaconnect-api`.
+Restarting Keycloak does not re-import persisted realms. No client, secret or role grant
+is added. The draft terminal guard suite validates the template; target-token verification
+and rollout remain deployment-owned. See [admission](../API/Terminal-Admission.md).
+
 Before enabling durable settlement, apply the reviewed `pos-service-account-username` mapper to the existing persisted `nexaconnect-pos-service` client: user property `username`, claim `preferred_username`, JSON String, access token enabled, ID token/userinfo disabled. Preserve its `nexaconnect-api` audience and credentials-only flows. Startup import skips an existing realm, and POS does not request optional `profile` scope. Obtain a fresh workload token after the migration (restart POS or allow its cached token to expire), then privately verify the exact service-account claim and API audience. Run `scripts/test-keycloak-realm.ps1` for template validation; no token, secret or body belongs in logs/evidence. See [Keycloak lifecycle](../../docker/keycloak/README.md) and [settlement rollout](../Deployment/Day-Close-Settlements.md).
 
 Authorization 13 grants live pos.day-close.finalize to tenant-admin/store-manager defaults, without accountant/cashier grants. Finalize also requires live pos.day-close.read. Durable recovery delegates an already-authorized POS intent to its existing nexaconnect-pos-service client-credentials identity; each internal source endpoint requires authenticated exact azp plus preferred_username=service-account-nexaconnect-pos-service and the configured API audience. Customer bearer sessions cannot drive source decisions. Keep its existing secret restricted to POS; no new identity client or secret is added. Revocation prevents new customer commands while durable recovery finishes recorded intent. See [settlement security and rollout](../Deployment/Day-Close-Settlements.md).

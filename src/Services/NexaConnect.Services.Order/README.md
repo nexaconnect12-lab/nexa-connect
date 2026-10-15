@@ -1,6 +1,12 @@
 # Order Service
 
+New manual-tender commits require [POS terminal admission](../../../docs/API/Terminal-Admission.md) through `Services:POS` with existing Order client credentials and validated correlation propagation. POS checks active scope, cashier shift and cash drawer; Order retains settlement/receipt/audit/outbox ownership. Exact committed replay precedes admission. Matching POS binaries are required; unavailable POS fails closed before Paid. No migration; admission is an observation rather than cross-service atomic fencing. Query `Manual tender terminal admission` / `Manual settlement admission unavailable` in `nexaconnect-order` by correlation; logs exclude bodies and tender values.
+
 Provider-failure compensation is centralized in Application OrderPreparationCompensation: Kitchen cancellation must succeed before Inventory release. Placement maps completed preparation to 409 preparation_requires_review; recovery retains unpaid state with that safe category. Reconciliation and manager void review preserve their unresolved state on compensation failure. Existing nexaconnect-order JSON/correlation telemetry applies. See [joined draft checks and limitations](../../../docs/Deployment/First-Draft-Checkout.md).
+
+Admission requires `preferred_username=service-account-nexaconnect-order-service` as well
+as matching `azp` and API audience. Persisted realms need the reviewed access-token-only
+Order username mapper and a fresh token; see [identity rollout](../../../docker/keycloak/README.md).
 
 Anonymous `GET /health/live` returns only `{ "status": "Healthy" }` after host startup; it is not database, authorization or order readiness. The [local draft stack](../../../docs/Deployment/First-Draft-Test-Stack.md) separately verifies schemas, workload audiences and active financial consumers before dispatcher activation. Existing `nexaconnect-order` JSON/correlation telemetry remains active; no customer financial authority is added.
 

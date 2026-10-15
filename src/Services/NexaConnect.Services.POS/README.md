@@ -1,5 +1,7 @@
 # NexaConnect POS Service
 
+The [manual-tender admission endpoint](../../../docs/API/Terminal-Admission.md) accepts exact Order client credentials only and resolves Restaurant scope before its service-owned active-terminal/store, cashier-shift and THB-cash-drawer read. Customer tokens cannot invoke it. No schema or new grant; the returned observation time is not a distributed lock. Query `Manual tender admission` in `nexaconnect-pos` with correlation; bodies/subjects/tender values are excluded from boundary logs. Deploy with the matching Order binary and its `Services:POS` configuration.
+
 DraftStoreProvisioner is owner-local reference-only tooling, not an HTTP route. It restricts database names to generated draft POS databases and transactionally inserts/validates store and terminal identities without overwriting existing rows. No shifts/cash/settlements are seeded. See [draft setup](../../../docs/Deployment/First-Draft-Provisioning.md).
 
 Anonymous `GET /health/live` returns only `{ "status": "Healthy" }`; it does not certify database, settlement evidence or readiness. The [draft stack](../../../docs/Deployment/First-Draft-Test-Stack.md) coordinates migrations, enabled settlement/cash-publication recovery and active consumers with `nexaconnect-pos` JSON/correlation telemetry. It adds no historical clock override, new grant or offline finalization.

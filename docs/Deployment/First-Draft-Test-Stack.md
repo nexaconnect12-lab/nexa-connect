@@ -1,7 +1,14 @@
 # First-draft local test stack
 
+After provisioning, use [Windows terminal packaging/install/update](First-Draft-Windows-POS.md) for Slice 4. It preserves protected terminal recovery separately from application releases. New manual settlement requires the POS admission endpoint; generated `Services:POS` wiring already supplies the address. Interactive WPF/PDF acceptance is recorded separately.
+
 Infrastructure loopback ports are generated up front and retained in run metadata,
 then explicitly bound by Compose and checked against actual published listeners.
+
+Startup also validates Order's API audience, exact `azp` and service-account username
+claim for manual-tender admission. Existing persisted realms require a reviewed Order
+access-token username mapper update and fresh workload token; see [realm lifecycle](../../docker/keycloak/README.md).
+
 Each new run allocates fifteen distinct ports: eleven application listeners and four
 infrastructure bindings (PostgreSQL, Keycloak, RabbitMQ and Redis). The helper supplies
 the four `NEXACONNECT_DRAFT_*_PORT` values transiently from retained metadata.

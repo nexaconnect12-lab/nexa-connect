@@ -1,5 +1,7 @@
 # NexaConnect
 
+Slice 4 adds [Windows draft packaging/install/update](docs/Deployment/First-Draft-Windows-POS.md), read-only protected-recovery preflight, clearer print outcomes and [POS-owned terminal admission](docs/API/Terminal-Admission.md) before new manual settlements. Automated execution and pending interactive WPF/PDF checks are tracked in slice 4 evidence; no device acceptance is implied by a successful build.
+
 Slice 3 adds the [joined draft checkout runner](docs/Deployment/First-Draft-Checkout.md), real cashier/Kitchen commands and owned interruption/broker checks. Order compensation confirms Kitchen cancellation before releasing stock; new cashier/manager assignments include existing cancellation authority. Verification status is recorded in the slice 3 evidence.
 
 Slice 2 adds [owned draft provisioning](docs/Deployment/First-Draft-Provisioning.md), four scoped test accounts and permission-filtered operational branch/station selection. THB / Asia/Singapore reference data is repeatable without resetting sold stock or revoked access; joined checkout acceptance remains slice 3.

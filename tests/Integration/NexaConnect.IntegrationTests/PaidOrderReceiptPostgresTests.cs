@@ -50,7 +50,7 @@ public sealed class PaidOrderReceiptPostgresTests
             Assert.Equal(payment,applied.Publications.Single().PaymentId);
             Assert.Equal(1L,await new NpgsqlCommand("SELECT count(*) FROM order_sale_replay_audit WHERE actor='test-operator'",connection).ExecuteScalarAsync());
             var promptpay = Create("promptpay_manual"); await repo.SaveAsync(promptpay,default);
-            var settlement = await new ORDER::NexaConnect.Services.Order.Application.ManualTenders.ManualTenderApplicationService(repo)
+            var settlement = await new ORDER::NexaConnect.Services.Order.Application.ManualTenders.ManualTenderApplicationService(repo,new FixtureManualTenderAdmission())
                 .ConfirmAsync(new(org,branch,promptpay.Id,Guid.NewGuid(),Guid.NewGuid(),"promptpay_manual",10m,"THB",true,"test-ref","cashier",Guid.NewGuid(),Guid.NewGuid()),default);
             var evidence = (await replay.RunAsync(org,branch,from,to,false,default)).Publications.Single(v => v.OrderId == promptpay.Id);
             Assert.Equal("manual_settlement",evidence.PaymentOrigin); Assert.Equal("promptpay_manual",evidence.Method);

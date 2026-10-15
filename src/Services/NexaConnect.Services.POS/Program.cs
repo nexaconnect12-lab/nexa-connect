@@ -43,6 +43,8 @@ builder.Services.AddScoped<CashSessionApplicationService>();
 builder.Services.AddScoped<CashReviewApplicationService>();
 builder.Services.AddScoped<OrderSettlementProjectionService>();
 builder.Services.AddScoped<TerminalEnrollmentApplicationService>();
+builder.Services.AddScoped<IManualTenderAdmissionStore, PostgresManualTenderAdmissionStore>();
+builder.Services.AddScoped<ManualTenderAdmission>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddOrderSettlementConsumer(builder.Configuration);
 

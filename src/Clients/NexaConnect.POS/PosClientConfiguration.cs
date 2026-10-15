@@ -27,6 +27,8 @@ public sealed record PosClientConfiguration(
 {
     public void ValidateCheckout()
     {
+        if (ClientId != "nexaconnect-pos" || RedirectUri != "nexaconnect-pos://oauth/callback")
+            throw new InvalidDataException("The POS public client and registered callback must match the installed protocol.");
         foreach (var (name, value) in new[] { ("Authority", Authority), ("PosApi", PosApi), ("OrderApi", OrderApi), ("CatalogApi", CatalogApi) }
             .Concat(string.IsNullOrWhiteSpace(PaymentApi) ? [] : [("PaymentApi", PaymentApi)]))
             if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
@@ -48,9 +50,9 @@ public sealed record PosClientConfiguration(
             throw new InvalidDataException("Session:TokenRefreshLeadSeconds must be between 15 and 240.");
     }
 
-    public static PosClientConfiguration Load()
+    public static PosClientConfiguration Load(string? configurationPath = null)
     {
-        string path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        string path = configurationPath ?? Path.Combine(AppContext.BaseDirectory, "appsettings.json");
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
         JsonElement root = document.RootElement;
         JsonElement identity = root.GetProperty("Identity");

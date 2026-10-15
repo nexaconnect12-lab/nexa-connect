@@ -1,5 +1,7 @@
 # Database Guidelines
 
+Slice 4 adds no migration. POS terminal-admission queries are service-owned parameterized Infrastructure reads; Order never reads POS tables. Admission observation is outside the Order transaction and is not an atomic cross-service lock. Windows install preflight opens the existing schema-2 local database read-only, verifies protected scope/pending checkout and rejects legacy/schema conflicts; it does not migrate, purge or copy recovery. See [terminal deployment](../Deployment/First-Draft-Windows-POS.md).
+
 Draft reference provisioning adds no schema. POS and Authorization own narrowly named draft-only Infrastructure adapters for reference store/terminal and financial-limit rows; every data value is parameterized and existing rows are preserved. Other reference operations reuse owning repositories. See [setup and transaction/replay boundaries](../Deployment/First-Draft-Provisioning.md).
 
 The [local first-draft stack](../Deployment/First-Draft-Test-Stack.md) derives service schema targets from migration metadata and previews/applies only to generated owning databases. It reuses the restricted cashier initialization: each runtime role has only its owning database access and no schema creation; history rights are reduced after migration to version-column SELECT. The lifecycle verifies these grants independently of HTTP liveness and preserves immutable-history downgrade rules. It does not migrate existing application databases or replace production credential/backup controls.

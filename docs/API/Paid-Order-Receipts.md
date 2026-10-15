@@ -1,5 +1,7 @@
 # Paid order receipts
 
+Windows print cancellation and spool submission now have explicit payment-preserving messages. A successful spool call does not certify that a PDF was saved or printed. See [Windows draft acceptance](../Deployment/First-Draft-Windows-POS.md) for the required PDF inspection/reprint/failure checks.
+
 Order issues one version-1 ordinary sales receipt when an Order first reaches `Paid`. The receipt is an immutable snapshot of the accepted line names, quantities and unit prices; accepted subtotal, service charge, tax and total; currency; tender; Order identity; tenant scope; and payment-completion timestamp. Its stable number is `R-{ORDER_ID_N_FORMAT}`. It is not a jurisdiction-specific tax invoice.
 
 Every production application path that changes an Order to Paid issues the snapshot before committing: foreground provider checkout, provider workflow recovery, authorization/capture reconciliation, and manual cash or visually verified PromptPay settlement. PostgreSQL stores `receipt_snapshot` on the Order row in the same transaction as Paid and the completion outbox record. A failed transaction exposes neither state nor receipt. Concurrent completion can construct multiple candidates, but row serialization and first-value preservation retain one snapshot; deterministic payment-event identity suppresses duplicate completion records. Reloading or replaying a Paid Order never regenerates it.

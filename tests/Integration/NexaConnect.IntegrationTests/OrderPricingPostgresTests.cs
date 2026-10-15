@@ -97,7 +97,7 @@ public sealed class OrderPricingPostgresTests
             var recovered = (await new PostgresOrderRepository(source).GetAsync(stored.Id, default))!;
             Assert.Equal(117.70m, recovered.TotalAmount);
 
-            var tenders = new ManualTenderApplicationService(repository);
+            var tenders = new ManualTenderApplicationService(repository,new FixtureManualTenderAdmission());
             var command = new ConfirmManualTenderCommand(organization, branch, stored.Id, Guid.NewGuid(), Guid.NewGuid(),
                 "cash", recovered.TotalAmount, "THB", false, null, "cashier", Guid.NewGuid(), Guid.NewGuid());
             Assert.Null(await tenders.ConfirmAsync(command with { OrganizationId = Guid.NewGuid() }, default));

@@ -52,6 +52,10 @@ public sealed class OrdersController(IOrderApplicationService orders, IOrderTena
             if (result is null) return NotFound();
             return result.Replayed ? Ok(result) : StatusCode(StatusCodes.Status201Created, result);
         }
+        catch (ManualTenderAdmissionConflictException)
+        { logger.LogWarning("Manual settlement rejected by POS terminal admission"); return Conflict(new { code = "terminal_not_ready", error = "Verify the registered terminal, cashier shift and cash drawer before confirming the original payment." }); }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        { logger.LogWarning("Manual settlement admission unavailable; category {Category}", exception.GetType().Name); return StatusCode(503, new { code = "terminal_admission_unavailable", error = "Verify the original payment when POS is available. Do not collect again." }); }
         catch (ArgumentException exception) { return BadRequest(new { error = exception.Message }); }
         catch (InvalidOperationException exception) { return Conflict(new { error = exception.Message }); }
     }

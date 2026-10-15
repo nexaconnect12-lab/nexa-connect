@@ -1,5 +1,17 @@
 # Deployment Guide
 
+New manual settlements require matching Order/POS binaries and a reachable HTTPS Order
+`Services__POS` address. POS accepts only the existing exact Order workload identity; retain
+API-audience issuance and Order's `Authentication__TokenEndpoint`, `Authentication__ClientId`
+and protected `Authentication__ClientSecret` used by its outbound token handler. Update
+persisted realms with the access-token-only Order username mapper and obtain a fresh token
+carrying `preferred_username=service-account-nexaconnect-order-service`; a Keycloak restart
+does not re-import existing realms. See the [realm lifecycle](../../docker/keycloak/README.md).
+No database migration or new grant is required. Deploy POS admission before enabling the changed Order checkout;
+dependency loss blocks new Paid commits while committed exact retries remain recoverable.
+See [terminal admission and its observation limits](../API/Terminal-Admission.md) and
+[Windows draft installation](First-Draft-Windows-POS.md).
+
 Current catalog deployment uses application compatibility `0.38.0`: Order 19, Payment 18, POS 23, Reporting 22 and Authorization 15, with matching binaries/Customer BFF/portal. Earlier version sets below describe the releases that introduced each capability, not the latest targets. Preview the actual service migration catalog before deployment. For the November local Windows draft, use the [owned test stack](First-Draft-Test-Stack.md); it does not reuse root application databases or certify production acceptance.
 
 Temporary finalization preparation was introduced with Order 17 / Payment 16 / POS 16 / Authorization 12, compatibility 0.31.0 and matching BFF/Portal, with Reporting 20 unchanged. Use the current catalog targets above for latest deployment. Stop old affected hosts, migrate independently owned sources and coordinator, then enable routes. Apply runtime fence/generation privileges and synchronized clocks. See [rollout and recovery](Day-Close-Finalization-Preparation.md).

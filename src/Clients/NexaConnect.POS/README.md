@@ -1,6 +1,11 @@
 # NexaConnect POS
 
+Use [slice 4 Windows deployment](../../../docs/Deployment/First-Draft-Windows-POS.md) for fresh win-x64 packaging, hashed per-user releases, scope-preserving install/update and Launch/Status. `--validate-install` performs read-only current-user recovery/configuration preflight without protocol registration, authentication or schema migration. Updates never overwrite the separate POS recovery directory. Primary startup registers the public PKCE callback; secondary callbacks cannot redirect registration and release only owned mutexes. Startup names pending original Orders; print cancellation/submission messages preserve Paid and require PDF/output verification. Interactive session and PDF checks are tracked separately from automated evidence.
+
 Slice 2 draft provisioning replaces only the owned generated terminal configuration with stable THB / Asia/Singapore scope IDs. Both retained and published settings survive stack rebuilds; existing local recovery remains untouched. See [setup and scoped logins](../../../docs/Deployment/First-Draft-Provisioning.md).
+
+Primary callback registration follows successful configuration/recovery construction, so
+starting a wrong-scope release cannot take over the retained terminal's callback.
 
 Checked-in settings default to THB `cash_manual`, `EnableOmiseTestCheckout=false` and no workstation-specific QR path. The [first-draft launcher](../../../docs/Deployment/First-Draft-Test-Stack.md) publishes separate run-scoped client settings for cash/manual PromptPay without modifying existing protected terminal state. Initial scope UUIDs require slice 2 provisioning before POS use. Singapore timezone belongs to Restaurant branch setup; PDF printing uses the Windows path. Test cards remain a separate opt-in.
 

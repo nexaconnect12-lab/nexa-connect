@@ -152,7 +152,7 @@ public sealed class OrderMigrationRunnerAcceptanceTests
         order.Submit();order.MarkInventoryReserved();order.MarkKitchenAccepted();
         var repository=new PostgresOrderRepository(source);
         await repository.SaveAsync(order,default);
-        var service=new ManualTenderApplicationService(repository);
+        var service=new ManualTenderApplicationService(repository,new FixtureManualTenderAdmission());
         var command=new ConfirmManualTenderCommand(order.OrganizationId,order.BranchId,order.Id,Guid.NewGuid(),
             Guid.NewGuid(),"cash",order.TotalAmount,"THB",false,null,"migration-acceptance",Guid.NewGuid(),Guid.NewGuid());
         var result=Assert.IsType<ORDER::NexaConnect.Services.Order.Application.ManualTenders.ManualTenderResult>(

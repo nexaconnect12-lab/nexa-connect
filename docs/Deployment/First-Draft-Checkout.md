@@ -86,11 +86,14 @@ limit is added. Existing nexaconnect-order/kitchen/inventory/POS JSON and correl
 applies. Query `Order payment compensation blocked`, `preparation_requires_review` and
 `CorrelationId`; logs exclude tokens, request bodies, bank references and monetary values.
 
-Terminal-admission coverage is limited to the correctly provisioned active terminal and
-drawer. Order checks a nonempty caller-supplied terminal identity on manual settlement;
-it does not preflight terminal registration through POS. POS separately validates
-terminal/store/branch/shift ownership when projecting the settlement. Forged terminal
-admission and its recovery outcome remain a follow-up boundary, not verified coverage.
+Slice 4 adds [POS terminal admission](../API/Terminal-Admission.md) before a new manual
+settlement, including active scope, cashier shift and cash drawer checks. The joined
+runner now attempts an unknown terminal and another cashier's shift before the original
+successful settlement, and rejects customer calls to the workload endpoint. POS retains
+historical projection validation; admission is a point-in-time observation, not a
+distributed reservation. Slice 3 evidence retains the earlier implementation boundary.
 
-See [slice 3 evidence](../Architecture/Evidence/First-Draft-Slice-3.md) for executed results.
-Windows/PDF printing, actual next-day reconciliation and release/UAT gates remain slices 4–7.
+See [slice 3 evidence](../Architecture/Evidence/First-Draft-Slice-3.md) for the original executed
+results and [slice 4 evidence](../Architecture/Evidence/First-Draft-Slice-4.md) for the admission
+and terminal-package extension. Interactive Windows/PDF checks, actual next-day reconciliation
+and release/UAT gates remain separately recorded acceptance work across slices 4–7.

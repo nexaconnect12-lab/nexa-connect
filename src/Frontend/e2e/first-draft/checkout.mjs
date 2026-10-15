@@ -65,6 +65,15 @@ try{
   const contention=await Promise.all([transition(rows[0],'InProgress'),transition(rows[0],'InProgress')]);assert(contention.map(r=>r.status).sort().join(',')==='200,409','Kitchen contention did not reject stale version');
   const winner=contention.find(r=>r.status===200).data;for(const target of ['Ready','Completed']){const reply=await transition(target==='Ready'?winner:cash.ready,target);assert(reply.status===200,'Kitchen advance failed');cash.ready=reply.data;}
   await complete(rows[1]);assert(await orderState(cash.command.orderId)==='KitchenAccepted','Kitchen completion falsely paid Order');
+  stage='terminal-admission';
+  const admissionCommand={organizationId:ref.organizationId,branchId:ref.branchId,terminalId:randomUUID(),idempotencyKey:randomUUID(),method:'cash',amount:cash.amount,currency:'THB',receiptConfirmed:true};
+  const invalidTerminal=await send('Order',`/api/order/v1/orders/${cash.command.orderId}/manual-settlement`,admissionCommand);
+  assert(invalidTerminal.status===409&&invalidTerminal.data.code==='terminal_not_ready','Unknown terminal admitted payment');
+  const wrongCashier=await send('Order',`/api/order/v1/orders/${cash.command.orderId}/manual-settlement`,{...admissionCommand,terminalId:ref.terminalId},'store-manager');
+  assert(wrongCashier.status===409&&wrongCashier.data.code==='terminal_not_ready','Another cashier shift admitted payment');
+  assert(await orderState(cash.command.orderId)==='KitchenAccepted','Rejected admission changed Order state');
+  assert((await send('Order',`/api/order/v1/orders/${cash.command.orderId}/receipt?branchId=${ref.branchId}`)).status===404,'Rejected admission created a receipt');
+  assert((await send('POS','/api/pos/v1/internal/manual-tender-admission',{organizationId:ref.organizationId,restaurantId:ref.restaurantId,branchId:ref.branchId,terminalId:ref.terminalId,operatorSubjectId:'forged',method:'cash',currency:'THB'})).status===403,'Customer invoked workload admission');
   stage='cash-settlement-and-receipt';const results=await Promise.all([settle(cash),settle(cash)]);assert(results.map(r=>r.status).sort().join(',')==='200,201','Concurrent exact settlement failed');assert(results[0].data.settlementId===results[1].data.settlementId,'Settlement identity changed');
   assert((await send('Order',`/api/order/v1/orders/${cash.command.orderId}/manual-settlement`,{...cash.settlement,amount:cash.amount+1})).status===409,'Changed settlement replay accepted');
   const receipt=await send('Order',`/api/order/v1/orders/${cash.command.orderId}/receipt?branchId=${ref.branchId}`);assert(receipt.status===200,'Paid receipt missing');cash.receipt=receipt.data;

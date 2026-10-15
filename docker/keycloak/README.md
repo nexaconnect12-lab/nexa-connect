@@ -1,5 +1,17 @@
 # NexaConnect Keycloak
 
+Manual-tender terminal admission requires the existing confidential Order client to issue
+`azp=nexaconnect-order-service`, audience `nexaconnect-api` and
+`preferred_username=service-account-nexaconnect-order-service`. The template adds the
+access-token-only `order-service-account-username` user-property mapper (`username` →
+`preferred_username`, string claim; ID-token/userinfo emission disabled). It does not rely
+on the optional `profile` scope or add clients, secrets or role grants. Apply a reviewed
+mapper update to persisted realms and obtain a fresh Order workload token (restart Order
+or wait for cached credentials to expire) before enabling the changed checkout. Keycloak
+restart does not re-import a persisted realm. Fresh draft startup validates Order `azp`,
+service-account username and API audience without printing tokens. The terminal guard
+suite validates the mapper template. See [admission](../../docs/API/Terminal-Admission.md).
+
 Durable day settlement uses the existing confidential `nexaconnect-pos-service` client. Its access token must include `azp=nexaconnect-pos-service`, audience `nexaconnect-api` and `preferred_username=service-account-nexaconnect-pos-service`. The realm template adds the access-token-only `pos-service-account-username` user-property mapper (`username` → `preferred_username`); it does not depend on requesting the optional `profile` scope. Standard browser flow and direct access grants remain disabled; service accounts remain enabled. No new client or secret is added. Persisted realms require an explicit reviewed mapper migration and a fresh workload token (restart POS or allow the cached token to expire); restarting Keycloak does not re-import an existing realm. Run `scripts/test-keycloak-realm.ps1` to validate the template and validate a newly issued token privately before enabling finalization. See [settlement rollout](../../docs/Deployment/Day-Close-Settlements.md) and [client matrix](../../docs/Identity/Client-Matrix.md).
 
 The development realm includes a dedicated `nexaconnect-media-service` confidential workload client used for Catalog owner validation. Set `NEXACONNECT_MEDIA_SERVICE_CLIENT_SECRET` from `.env`; never reuse a browser or another service's secret.
