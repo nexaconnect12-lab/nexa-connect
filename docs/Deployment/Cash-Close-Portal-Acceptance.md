@@ -1,10 +1,14 @@
 # Joined cash-close portal acceptance
 
+Browser fixture failures distinguish the existing 30-second child timeout from allowlisted stage/type/SQLSTATE diagnostics. Other child output remains suppressed; no raw exception body or connection string is forwarded. `settings.test.mjs` covers both classification and redaction, and the draft release runner executes it. Scenario counts, no-retry policy and application behavior are unchanged.
+
 The opt-in runner joins the real Customer Portal, Customer BFF, Reporting, POS, Restaurant, Authorization and Platform Directory with a disposable Keycloak realm, PostgreSQL 17 and RabbitMQ 4. It does not mock BFF responses or service authorization. The read-only report remains eventually consistent and does not certify settlement or completeness.
+
+Current branch selection uses `capability=cash-close`, authorized with existing `pos.cash-review.read` rather than unrelated day-close authority. The generated OIDC users receive the `customer-user` realm entry role; their scoped product assignments still determine all financial access. Child hosts explicitly use .NET/ASP.NET Core Development environments. These corrections let the pinned Authorization 7 graph exercise the current selector without adding permissions or bypasses. The [Slice 6 release gate](First-Draft-Release.md) includes all five browser cases and validates the typed exact-run receipt, source revision and cleanup; current execution outcomes are recorded separately.
 
 ## Run locally
 
-Requires PowerShell 7, the repository's .NET SDK, Node/npm, Playwright Chromium and a local Docker socket. Run from the repository root:
+Requires PowerShell 7, the repository's .NET SDK, Node 22.12+ (22.x) or 24+ with npm, Playwright Chromium and a local Docker socket. Run from the repository root:
 
 ```powershell
 Push-Location src/Frontend
@@ -33,7 +37,9 @@ Reporting's actual RabbitMQ binding must exist before POS publication starts. A 
 
 ## Evidence and cleanup
 
-Exactly five unique browser cases must pass, with no skips, retries or repeated cases. Browser summaries live at `src/Frontend/test-results/cash-close-live/<run-id>/summary.json`; runner evidence lives at `.runstate/cash-close-portal/<run-id>/verification.json`. A successful browser result is insufficient unless `cleanupVerified` is also true and the launcher exits successfully. Verification is written after child-process, Compose and certificate cleanup and environment restoration; a failure in any phase clears the cleanup flag. The runner records source revision and whether the working tree was dirty.
+Exactly six Authorization PostgreSQL cases and five unique browser cases must pass, with no skips, retries or repeated browser cases. Browser summaries live at `src/Frontend/test-results/cash-close-live/<run-id>/summary.json`; runner evidence lives at `.runstate/cash-close-portal/<run-id>/verification.json`. Require `passed`, `authorizationPassed` and `cleanupVerified` to be true and the launcher to exit successfully. Verification is written after child-process, Compose and certificate cleanup and environment restoration; a failure in any phase clears the cleanup flag. The runner records source revision and whether the working tree was dirty. The local Authorization TRX is excluded from CI uploads.
+
+Local Windows acceptance passed on 2026-09-27: six database cases and five browser cases, with verified cleanup. See [recorded provenance and limitations](../Architecture/Evidence/Cash-Close-Portal-Acceptance.md). Twelve focused Authorization unit cases also passed. Remote CI and production acceptance are not established by this result.
 
 Local fixture identifiers and service logs remain under the run directory and are excluded from CI uploads. Treat local diagnostic and Playwright failure artifacts as restricted; they may contain synthetic financial data. Application services use the shared structured logging/correlation foundation (`nexaconnect-customer-bff`, `nexaconnect-reporting`, `nexaconnect-pos`); follow the safe [cash-close diagnostic queries](Cash-Close-Recovery.md). The fixture CLI emits bounded stage/type/SQLSTATE failures, never exception bodies or connection strings.
 
@@ -44,3 +50,5 @@ The `Joined cash-close portal gate` GitHub job runs this matrix on Ubuntu with .
 ## POS workload audience prerequisite
 
 The development realm explicitly maps `nexaconnect-api` into POS workload access tokens so the scanner can resolve Restaurant hierarchy. Existing realms need an explicit reviewed mapper update; realm import skips existing realms. Obtain a new workload token after updating the mapper (restart the local POS host or allow its cached token to expire). Token validation remains unchanged. This requirement also applies outside the disposable harness.
+
+The joined CI job runs both production and full-tree npm audits before acceptance, rejecting moderate-or-higher advisories. Use Node 22.12+ (22.x) or 24+; see [frontend dependency policy](Frontend-Dependency-Hardening.md).

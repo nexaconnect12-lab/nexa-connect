@@ -33,8 +33,14 @@ public sealed class PostgresOmiseWebhookInbox(NpgsqlDataSource source) : IOmiseW
     }
     public async Task FinishAsync(WebhookClaim claim, string outcome, TimeSpan retryDelay, int maximumAttempts, CancellationToken token)
     {
-        if (outcome is not ("retry" or "completed" or "rejected")) throw new ArgumentException("Invalid webhook outcome.");
-        string status = outcome == "retry" ? claim.Attempts >= maximumAttempts ? "exhausted" : "pending" : outcome;
+        if (outcome is not ("retry" or "completed" or "rejected" or "barrier_held" or "late_captured")) throw new ArgumentException("Invalid webhook outcome.");
+        string status = outcome switch
+        {
+            "barrier_held" => "pending",
+            "late_captured" => "completed",
+            "retry" => claim.Attempts >= maximumAttempts ? "exhausted" : "pending",
+            _ => outcome
+        };
         await using var command = source.CreateCommand("""
             UPDATE omise_webhook_inbox SET status=$1,claim_id=NULL,locked_until_utc=NULL,next_attempt_at_utc=now()+$2,
               completed_at_utc=CASE WHEN $1='pending' THEN NULL ELSE now() END

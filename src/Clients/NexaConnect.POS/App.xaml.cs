@@ -11,12 +11,21 @@ public partial class App : Application
     private const string MutexName = "NexaConnect.POS.SingleInstance";
     private const string CallbackPipeName = "NexaConnect.POS.Callback";
     private Mutex? _mutex;
+    private bool _ownsMutex;
     private PosAuthentication? _authentication;
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        EnsureProtocolRegistration();
+        // Installer preflight is read-only and never registers callbacks, opens the
+        // workspace, starts authentication or migrates/deletes recovery state.
+        if (e.Args is ["--validate-install"])
+        {
+            try { LocalPosDatabase.ValidateExistingScope(PosClientConfiguration.Load()); Shutdown(0); }
+            catch (Exception) { Shutdown(2); }
+            return;
+        }
         _mutex = new Mutex(true, MutexName, out bool ownsMutex);
+        _ownsMutex = ownsMutex;
         if (!ownsMutex)
         {
             if (e.Args.Length > 0)
@@ -61,6 +70,14 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        // A wrong-scope installation must not take over the original terminal's callback.
+        try { EnsureProtocolRegistration(); }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        {
+            MessageBox.Show("The sign-in callback could not be registered for this Windows account. Repair the draft installation before signing in.",
+                "Terminal setup required", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Shutdown(); return;
+        }
         MainWindow = window;
         window.Show();
         if (e.Args.Length > 0)
@@ -88,7 +105,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _authentication?.Dispose();
-        _mutex?.ReleaseMutex();
+        if (_ownsMutex) _mutex?.ReleaseMutex();
         _mutex?.Dispose();
         base.OnExit(e);
     }

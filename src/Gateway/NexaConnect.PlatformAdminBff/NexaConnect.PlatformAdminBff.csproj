@@ -4,7 +4,7 @@
   <ItemGroup><ProjectReference Include="..\..\BuildingBlocks\NexaConnect.Infrastructure\NexaConnect.Infrastructure.csproj"/><ProjectReference Include="..\..\BuildingBlocks\NexaConnect.Observability\NexaConnect.Observability.csproj"/></ItemGroup>
   <Target Name="BuildProductOwnerPortal" BeforeTargets="ComputeFilesToPublish" Condition="'$(SkipProductOwnerPortalBuild)' != 'true'">
     <Exec WorkingDirectory="$(MSBuildProjectDirectory)\..\..\Frontend" Command="npm ci --ignore-scripts" />
-    <Exec WorkingDirectory="$(MSBuildProjectDirectory)\..\..\Frontend" Command="npm run build --workspace @nexaconnect/product-owner-portal" />
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)\..\..\Frontend" Command="npm run build:product-owner-portal" />
     <ItemGroup>
       <ProductOwnerPortalFiles Include="$(MSBuildProjectDirectory)\..\..\Frontend\apps\product-owner-portal\dist\**\*" />
       <ResolvedFileToPublish Include="@(ProductOwnerPortalFiles)">

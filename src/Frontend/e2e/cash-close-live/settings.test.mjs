@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {readSettings} from './settings.mjs';
 import {completeEvidence} from './safe-reporter.mjs';
+import {fixtureFailure} from './fixture-diagnostics.mjs';
 const run='a'.repeat(32),id='11111111-1111-1111-1111-111111111111';
 function environment(){
   const temp=mkdtempSync(join(tmpdir(),'cash-portal-'));mkdirSync(join(temp,run));
@@ -31,4 +32,13 @@ test('evidence requires all five unique scenarios and rejects skips or retries',
   assert.equal(completeEvidence('passed',results.slice(1)),false);
   assert.equal(completeEvidence('passed',[...results,results[0]]),false);
   assert.equal(completeEvidence('passed',results.map((r,i)=>i===0?{...r,status:'skipped'}:r)),false);
+});
+test('fixture diagnostics distinguish timeout and allowlisted stage/type/SQLSTATE',()=>{
+  assert.match(fixtureFailure('late',{killed:true,signal:'SIGTERM',stderr:'private'}),/timed out after 30000ms/);
+  assert.match(fixtureFailure('late',{stderr:'Cash-close fixture failed at connections (PostgresException, SQLSTATE=40001); sensitive details suppressed.\r\n'}),/connections \(PostgresException, SQLSTATE=40001\)/);
+});
+test('fixture diagnostics never propagate arbitrary child output or operation names',()=>{
+  for(const error of [{message:'sensitive',stderr:'sensitive',stdout:'sensitive'},{stderr:'Cash-close fixture failed at sensitive (SecretException, SQLSTATE=none); sensitive details suppressed.'}]){
+    assert.equal(fixtureFailure('private-operation',error),'Fixture unknown failed; sensitive diagnostics suppressed.');
+  }
 });

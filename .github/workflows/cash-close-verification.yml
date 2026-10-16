@@ -32,10 +32,16 @@ jobs:
         run: ./scripts/test-keycloak-realm.ps1
       - name: Verify authorization policy and audit failure behavior
         run: dotnet test tests/Unit/NexaConnect.UnitTests --filter FullyQualifiedName~AuthorizationPolicyTests --verbosity minimal
+      - name: Verify authorization domain boundaries
+        run: dotnet test tests/Architecture/NexaConnect.ArchitectureTests --filter FullyQualifiedName~AuthorizationDomainDependencyTests --verbosity minimal
       - name: Prepare browser and validate acceptance guards
         working-directory: src/Frontend
         run: |
           npm ci --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run audit:production
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run audit:all
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test e2e/cash-close-live/settings.test.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -1,0 +1,5 @@
+# Joined day-close browser gate
+
+Use `scripts/test-day-close-portal.ps1 -ConfirmDisposableInfrastructure` from repository root. `npm run test:day-close:guards` runs four fail-closed configuration/evidence checks; `test:e2e:day-close:live` requires the complete generated environment and active runner-owned restart controller, so invoke it only via the launcher. Eleven named real-OIDC cases exercise actual BFF/POS/Reporting/source HTTP, persisted state/replay/concurrency, exact process restart/resume/replacement, late/same-total evidence, outages/deadline and live revocation. The separate synthetic browser suite remains unchanged.
+
+The safe reporter records only run ID, counts/status/time and safe scenario titles; raw assertion errors, response bodies, identities, tokens, cookies and connection strings are suppressed from console. Screenshot/video/trace retention is disabled. Only bounded summary and runner verification JSON may be uploaded. Local diagnostics are restricted and excluded. See [fixture scope, guarded control and release limits](../../../../docs/Deployment/Day-Close-Portal-Acceptance.md).

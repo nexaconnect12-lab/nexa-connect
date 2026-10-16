@@ -22,13 +22,20 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
             "Count and receipt checked", 4, 1);
         PendingCheckout checkout = PendingCheckout.Create(PosCheckoutIntegrationTests.Configuration(), [new(Guid.NewGuid(), 2)]);
         var first = new LocalPosStore(directory, protector);
+        Guid lastReceiptOrderId = Guid.NewGuid();
+        var pendingRefund = new LocalPendingRefundState(Guid.NewGuid(), Guid.NewGuid(), 25m, "THB", "customer_request");
+        var lastRefund = new LocalRefundReference(Guid.NewGuid(), Guid.NewGuid());
+        first.SaveLastReceipt(lastReceiptOrderId);
         first.SaveActiveShift(shift);
         first.SaveCashSession(cash);
         first.SavePendingCheckout(checkout);
         first.SavePendingSettlement(settlement);
         first.SavePendingCashReview(cashReview, configuration);
+        first.SavePendingRefund(pendingRefund);
+        first.SaveLastRefund(lastRefund.PaymentIntentId, lastRefund.OperationId);
 
         var restarted = new LocalPosStore(directory, protector);
+        Assert.Equal(lastReceiptOrderId, restarted.LoadLastReceipt()!.OrderId);
         Assert.Equal(shift, restarted.LoadActiveShift());
         Assert.Equal(cash, restarted.LoadCashSession());
         PendingCheckout restoredCheckout = restarted.LoadPendingCheckout()!;
@@ -37,6 +44,9 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
         Assert.Equal(checkout.Lines, restoredCheckout.Lines);
         Assert.Equal(settlement, restarted.LoadPendingSettlement());
         Assert.Equal(cashReview, restarted.LoadPendingCashReview(configuration));
+        Assert.Equal(pendingRefund, restarted.LoadPendingRefund());
+        Assert.Equal(lastRefund, restarted.LoadLastRefund());
+        Assert.Equal(lastReceiptOrderId, restarted.LoadLastReceipt()!.OrderId);
 
         restarted.ClearCheckoutAndSettlement();
 
@@ -45,6 +55,10 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
         Assert.Equal(shift, restarted.LoadActiveShift());
         Assert.Equal(cash, restarted.LoadCashSession());
         Assert.Equal(cashReview, restarted.LoadPendingCashReview(configuration));
+        Assert.Equal(pendingRefund, restarted.LoadPendingRefund());
+        restarted.ClearPendingRefund();
+        Assert.Null(restarted.LoadPendingRefund());
+        Assert.Equal(lastRefund, restarted.LoadLastRefund());
         Assert.DoesNotContain("SHIFT-SQLITE", Encoding.UTF8.GetString(File.ReadAllBytes(Path.Combine(directory, "pos-state.db"))));
         Assert.Equal("2", Scalar("PRAGMA user_version;"));
         Assert.Equal("wal", Scalar("PRAGMA journal_mode;"));
@@ -214,6 +228,24 @@ public sealed class PosLocalSqliteStoreTests : IDisposable
 
         restarted.ClearPendingCashReview();
         Assert.Null(restarted.LoadPendingCashReview(configuration));
+    }
+
+    [Fact]
+    public void Pending_cancellation_preserves_exact_replay_fields_and_rejects_incomplete_state()
+    {
+        var expected = new LocalPendingSettlementState(Guid.NewGuid(), 75m, "THB", Guid.NewGuid(),
+            CancellationStatus: "pending", CancellationReason: "Customer changed order");
+        var first = new LocalPosStore(directory, protector);
+        first.SavePendingSettlement(expected);
+
+        var restarted = new LocalPosStore(directory, protector);
+        Assert.Equal(expected, restarted.LoadPendingSettlement());
+        Assert.Throws<InvalidDataException>(() => restarted.SavePendingSettlement(
+            expected with { CancellationReason = null }));
+        Assert.Throws<InvalidDataException>(() => restarted.SavePendingSettlement(
+            expected with { CancellationStatus = "unknown" }));
+        Assert.Throws<InvalidDataException>(() => restarted.SavePendingSettlement(
+            expected with { CancellationReason = " changed" }));
     }
 
     [Fact]

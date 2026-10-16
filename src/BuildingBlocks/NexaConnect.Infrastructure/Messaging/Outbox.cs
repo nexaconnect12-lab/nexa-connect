@@ -276,7 +276,11 @@ public static class OutboxServiceCollectionExtensions
         string configuredConnection = configuration["Outbox:ConnectionString"]
             ?? throw new InvalidOperationException("Outbox:ConnectionString is required when PostgreSQL outbox persistence is enabled.");
         _ = new Uri(configuredConnection);
-        services.AddSingleton<IOutboxTransport, RabbitMqOutboxTransport>();
+        // A service's consumer may register IConnection. DI's greediest-constructor
+        // selection must not turn the publisher into a borrower of that connection.
+        // The publisher owns its lazy/reconnectable connection independently.
+        services.AddSingleton<IOutboxTransport>(provider =>
+            new RabbitMqOutboxTransport(provider.GetRequiredService<IOptions<OutboxOptions>>()));
         services.AddHostedService<OutboxDispatcher>();
         return services;
     }

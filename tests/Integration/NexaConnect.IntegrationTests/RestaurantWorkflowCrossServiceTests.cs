@@ -65,35 +65,41 @@ public sealed class RestaurantWorkflowCrossServiceTests : IClassFixture<Restaura
         Guid productId = Guid.NewGuid();
         await EnsureSuccess(catalog.PostAsJsonAsync(
             $"/api/catalog/v1/branches/{RestaurantWorkflowServiceFixture.BranchId:D}/menu-items",
-            new CatalogCreateMenuItem(productId, "E2E Burger", 12.50m, "USD", "grill")));
+            new CatalogCreateMenuItem(productId, "E2E Burger", 12.50m, "THB", "grill")));
         await EnsureSuccess(inventory.PutAsJsonAsync(
             $"/api/inventory/v1/branches/{RestaurantWorkflowServiceFixture.BranchId:D}/stock/{productId:D}",
             new { quantity = 5m }));
 
         string idempotencyKey = $"e2e-{Guid.NewGuid():N}";
-        HttpResponseMessage placed = await order.PostAsJsonAsync(
-            "/api/order/v1/workflows/place",
-            new
+        var command = new
             {
                 restaurantId = RestaurantWorkflowServiceFixture.RestaurantId,
                 organizationId = RestaurantWorkflowServiceFixture.OrganizationId,
                 branchId = RestaurantWorkflowServiceFixture.BranchId,
-                currency = "USD",
+                currency = "THB",
                 paymentMethod = "cash",
                 idempotencyKey,
                 lines = new[] { new { productId, quantity = 1 } }
-            });
+            };
+        using var quoteResponse = await order.PostAsJsonAsync("/api/order/v1/workflows/quote", command);
+        Assert.Equal(HttpStatusCode.OK, quoteResponse.StatusCode);
+        var quote = (await quoteResponse.Content.ReadFromJsonAsync<ORDER::NexaConnect.Services.Order.Application.Orders.OrderQuote>())!;
+        using var placed = await order.PostAsJsonAsync("/api/order/v1/workflows/place", new
+        {
+            command.restaurantId, command.organizationId, command.branchId, command.currency,
+            command.paymentMethod, command.idempotencyKey, command.lines, pricingFingerprint = quote.Fingerprint
+        });
 
         Assert.Equal(HttpStatusCode.OK, placed.StatusCode);
         WorkflowResult result = (await placed.Content.ReadFromJsonAsync<WorkflowResult>())!;
         Assert.Equal(4, result.Status);
-        Assert.Equal(12.50m, result.TotalAmount);
+        Assert.Equal(14.71m, result.TotalAmount);
 
         HttpResponseMessage orderRead = await order.GetAsync($"/api/order/v1/orders/{result.OrderId:D}");
         Assert.Equal(HttpStatusCode.OK, orderRead.StatusCode);
         OrderResponse persisted = (await orderRead.Content.ReadFromJsonAsync<OrderResponse>())!;
         Assert.Equal("Paid", persisted.Status);
-        Assert.Equal(12.50m, persisted.TotalAmount);
+        Assert.Equal(14.71m, persisted.TotalAmount);
 
         IReadOnlyCollection<InventoryStockItem> stock = (await inventory.GetFromJsonAsync<IReadOnlyCollection<InventoryStockItem>>(
             $"/api/inventory/v1/branches/{RestaurantWorkflowServiceFixture.BranchId:D}/stock"))!;
@@ -216,6 +222,8 @@ public sealed class OrderFactory : WebApplicationFactory<OrderProgram>
         });
         builder.ConfigureServices(services =>
         {
+            services.RemoveAll<ORDER::NexaConnect.Services.Order.Application.Orders.IBranchPricingPort>();
+            services.AddSingleton<ORDER::NexaConnect.Services.Order.Application.Orders.IBranchPricingPort, TestBranchPricingPort>();
             services.RemoveAll<OrderMenuPort>();
             services.RemoveAll<OrderInventoryPort>();
             services.RemoveAll<OrderKitchenPort>();
@@ -425,4 +433,10 @@ internal sealed class SuccessfulPaymentAuthorizationService(RecordingPaymentInte
         return Task.FromResult<PaymentIntent?>(intents.CompleteAuthorization(organizationId, id,
             lease.Intent.ConcurrencyVersion, true, $"test-{id:N}", null, context));
     }
+}
+
+internal sealed class TestBranchPricingPort : ORDER::NexaConnect.Services.Order.Application.Orders.IBranchPricingPort
+{
+    public Task<ORDER::NexaConnect.Services.Order.Domain.PricingPolicy> GetAsync(Guid organizationId, Guid restaurantId, Guid branchId, CancellationToken cancellationToken)
+        => Task.FromResult(new ORDER::NexaConnect.Services.Order.Domain.PricingPolicy(1, 7, false, 10));
 }

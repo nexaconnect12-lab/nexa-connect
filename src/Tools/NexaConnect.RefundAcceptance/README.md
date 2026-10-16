@@ -1,0 +1,7 @@
+# Hosted refund acceptance tool
+
+Run through `scripts/test-refund-hosted.ps1`; this fixture is never a deployable service. `provision` establishes owning service fixtures with real adapter authorization/capture; `run` authenticates disposable users, starts/restarts its exact Payment process and requires all hosted scenarios. The [runbook](../../../docs/Deployment/Hosted-Refund-Acceptance.md) defines the simulator and separate Omise matrix, safeguards, evidence, configuration and limitations.
+
+All settings use `NEXACONNECT_REFUND_`: explicit `ENABLED=1`, `CONFIRM_DISPOSABLE=1`, 32-hex `RUN_ID`, distinct UUID subjects and exact `.runstate/refund-hosted/<run-id>/fixture.json` are required. `DB_*` accepts only loopback `nexa_review_it_<run-id>_<service>` connections with no search path. Service URLs and the generated authority/provider are supplied by the launcher. Omise additionally requires explicit confirmation, test-secret validation and fresh ephemeral tokens. Product HTTP children never inherit the fixture credentials/token environment; their settings are explicitly selected.
+
+Service-owned persistence handles source provisioning. Test-only `Infrastructure/FixtureStore.cs` contains parameterized fixture limit/override setup and read-only invariant verification; completed-row mutation probes run in rolled-back transactions. Payment owns every tested refund command and recovery; the tool never inserts refunds or Reporting facts. Source schema versions remain unchanged. Guard checks and the hosted matrix are the verification entry points.

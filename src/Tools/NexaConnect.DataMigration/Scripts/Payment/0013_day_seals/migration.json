@@ -1,0 +1,7 @@
+{
+  "minimumApplicationVersion": "0.27.0",
+  "version": 13,
+  "transactional": true,
+  "name": "day_seals",
+  "downgradeSafety": "destructive"
+}

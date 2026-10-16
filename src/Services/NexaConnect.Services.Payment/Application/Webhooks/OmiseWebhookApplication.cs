@@ -47,6 +47,11 @@ public interface IOmiseWebhookInbox
 public interface IWebhookPaymentRecovery
 {
     Task<bool> ReconcileAsync(PaymentIntent intent, PaymentMutationContext context, CancellationToken token);
+    async Task<OmiseWebhookProcessResult> ReconcileEventAsync(string eventId, PaymentIntent intent, PaymentMutationContext context, CancellationToken token)
+    {
+        bool committed = await ReconcileAsync(intent, context, token);
+        return new(committed ? "completed" : "retry", committed);
+    }
 }
 
 public sealed class OmiseWebhookIngress(IOmiseWebhookInbox inbox)
@@ -75,7 +80,6 @@ public sealed class OmiseWebhookProcessor(IOmiseEventVerifier verifier, IPayment
         // Delayed notifications never regress terminal state or start a new financial command.
         if (intent.Status is not ("authorizing" or "unknown" or "capturing" or "capture_unknown" or "voiding" or "void_unknown"))
             return new("completed", false);
-        bool reconciled = await recovery.ReconcileAsync(intent, new("omise-webhook-recovery", claim.CorrelationId), token);
-        return new(reconciled ? "completed" : "retry", reconciled);
+        return await recovery.ReconcileEventAsync(claim.EventId, intent, new("omise-webhook-recovery", claim.CorrelationId), token);
     }
 }

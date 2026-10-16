@@ -68,6 +68,8 @@ try{
         $users[$role]="cash-$role-$($runId.Substring(0,8))";$user=$users[$role];$passwordVariable='NEXACONNECT_'+$role.ToUpperInvariant()+'_PASSWORD'
         $subject=& $DockerExecutable @compose exec -T keycloak sh -c "/opt/keycloak/bin/kcadm.sh create users -r '$realm' -s username='$user' -s firstName='Cash' -s lastName='Acceptance' -s email='$user@nexa.invalid' -s emailVerified=true -s enabled=true -i && /opt/keycloak/bin/kcadm.sh set-password -r '$realm' --username '$user' --new-password `"`$$passwordVariable`" >/dev/null"
         if($LASTEXITCODE-ne 0){throw 'Identity creation failed.'};$subjects[$role]=$subject.Trim()
+        & $DockerExecutable @compose exec -T keycloak sh -c "/opt/keycloak/bin/kcadm.sh add-roles -r '$realm' --uusername '$user' --rolename customer-user >/dev/null"
+        if($LASTEXITCODE-ne 0){throw 'Customer entry-role assignment failed.'}
     }
     $fixtureProject=Join-Path $root 'src/Tools/NexaConnect.CashClosePortalAcceptance'
     $fixtureDll=Join-Path $fixtureProject 'bin/Debug/net10.0/NexaConnect.CashClosePortalAcceptance.dll'
@@ -82,6 +84,7 @@ try{
     $urls=@{};for($i=0;$i-lt 5;$i++){$urls[$serviceNames[$i]]="http://127.0.0.1:$($ports[$i])/"}
     $authority="http://127.0.0.1:$keycloakPort/realms/$realm"
     $common=@{ASPNETCORE_ENVIRONMENT='Development';Authentication__Authority=$authority;Authentication__Audience='nexaconnect-api';Authentication__RequireHttpsMetadata='false';Services__PlatformDirectory=$urls.PlatformDirectory;Services__Authorization=$urls.Authorization;Services__Restaurant=$urls.Restaurant;WorkloadIdentity__Authority=$authority;WorkloadIdentity__ClientSecret=$env:NEXACONNECT_JOINED_CLIENT_SECRET;WorkloadIdentity__ClientId='nexaconnect-pos-service'}
+    $common.DOTNET_ENVIRONMENT='Development'
     $broker="amqp://acceptance:$([Uri]::EscapeDataString($env:NEXACONNECT_JOINED_RABBITMQ_PASSWORD))@127.0.0.1:$brokerPort/"
     for($i=0;$i-lt 5;$i++){
         $name=$serviceNames[$i];$dir=Join-Path $root "src/Services/NexaConnect.Services.$name"
@@ -126,8 +129,9 @@ finally{
     finally{
         foreach($key in $previous.Keys){try{[Environment]::SetEnvironmentVariable($key,$previous[$key])}catch{$failed=$true}}
         $cleanup=-not $failed
-        if(Test-Path $run){@{runId=$runId;passed=$passed;authorizationPassed=$authorizationPassed;cleanupVerified=$cleanup;productionVerified=$false;sourceRevision=(& git -C $root rev-parse HEAD);sourceDirty=[bool](& git -C $root status --porcelain);completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')}|ConvertTo-Json|Set-Content (Join-Path $run 'verification.json')}
+        if(Test-Path $run){@{runId=$runId;passed=$passed;authorizationPassed=$authorizationPassed;caseCount=$(if($passed){5}else{0});cleanupVerified=$cleanup;productionVerified=$false;sourceRevision=(& git -C $root rev-parse HEAD);sourceDirty=[bool](& git -C $root status --porcelain);completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')}|ConvertTo-Json|Set-Content (Join-Path $run 'verification.json')}
     }
     if($failed){throw 'Disposable process, infrastructure, certificate or environment cleanup could not be verified.'}
 }
 Write-Output "Joined cash-close portal acceptance passed; evidence: $run/verification.json"
+[pscustomobject]@{evidenceKind='draft-release-cash-portal';evidencePath=(Join-Path $run 'verification.json')}

@@ -11,7 +11,8 @@ public sealed class PosPendingSettlementRecoveryTests : IDisposable
     public void Pending_settlement_survives_new_store_instance_with_identical_retry_fields()
     {
         var expected = new LocalPendingSettlementState(Guid.NewGuid(), 120m, "THB", Guid.NewGuid(),
-            "promptpay_manual", true, "receipt-reference", true);
+            "promptpay_manual", true, "receipt-reference", true, CancellationStatus: "pending",
+            CancellationReason: "Customer changed order");
         new LocalPosStore(directory).SavePendingSettlement(expected);
 
         LocalPendingSettlementState? restored = new LocalPosStore(directory).LoadPendingSettlement();
@@ -19,6 +20,7 @@ public sealed class PosPendingSettlementRecoveryTests : IDisposable
         Assert.Equal(expected, restored);
         byte[] stored = File.ReadAllBytes(Path.Combine(directory, "pos-state.db"));
         Assert.True(stored.AsSpan().IndexOf("receipt-reference"u8) < 0);
+        Assert.True(stored.AsSpan().IndexOf("Customer changed order"u8) < 0);
     }
 
     [PosDpapiAcceptanceFact]

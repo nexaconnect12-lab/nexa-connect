@@ -22,7 +22,7 @@ public sealed class ReportingQueriesTests
     private sealed class Repository : IReportingReadRepository
     {
         public ReportingRange? Range;
-        public Task<DashboardSummary> DashboardAsync(ReportingRange range, CancellationToken c) { Range = range; return Task.FromResult(new DashboardSummary(0, 0, 0, 0, null, null)); }
-        public Task<SalesReport> SalesAsync(ReportingRange range, CancellationToken c) { Range = range; return Task.FromResult(new SalesReport(range, [], 0, null, null)); }
+        public Task<DashboardSummary> DashboardAsync(ReportingRange range, CancellationToken c) { Range = range; return Task.FromResult(new DashboardSummary(0, 0, 0, 0, 0, null, null)); }
+        public Task<SalesReport> SalesAsync(ReportingRange range, CancellationToken c) { Range = range; return Task.FromResult(new SalesReport(range, [], 0, 0, 0, null, null)); }
     }
 }

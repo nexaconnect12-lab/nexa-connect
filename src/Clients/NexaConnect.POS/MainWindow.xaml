@@ -174,7 +174,7 @@
                   <PasswordBox x:Name="CardTokenBox" MaxLength="100" PasswordChanged="CardToken_Changed" AutomationProperties.Name="Fresh Omise test token" Margin="0,0,0,12" />
                 </StackPanel>
                 <Button x:Name="PlaceOrderButton" Content="Send order · Continue to payment" Click="PlaceOrder_Click" Style="{StaticResource Primary}" ToolTipService.ShowOnDisabled="True" />
-                <TextBlock Text="Menu total. Final amount is confirmed by the order service." FontSize="12" Foreground="#63756A" TextWrapping="Wrap" />
+                <TextBlock x:Name="PricingBreakdownText" Text="Review server pricing before confirming the order." FontSize="12" Foreground="#63756A" TextWrapping="Wrap" />
               </StackPanel>
             </Grid>
           </Border>
@@ -200,6 +200,9 @@
               </StackPanel>
               <TextBlock Text="Confirm only after receiving the exact amount. If the result is uncertain, verify the existing payment; do not collect again." TextWrapping="Wrap" Margin="0,16" Foreground="#63756A" />
               <Button x:Name="PaidButton" Content="Confirm payment received" Click="Paid_Click" Style="{StaticResource Primary}" />
+              <TextBlock Text="Cancellation reason" Margin="0,16,0,0" />
+              <TextBox x:Name="CancellationReasonTextBox" MaxLength="200" AutomationProperties.Name="Cancellation reason" />
+              <Button x:Name="CancelOrderButton" Content="Cancel unpaid order" Click="CancelOrder_Click" ToolTipService.ShowOnDisabled="True" />
             </StackPanel>
           </Border>
         </ScrollViewer>
@@ -352,6 +355,32 @@
               </ScrollViewer>
             </Border>
           </Grid>
+        </Grid>
+      </TabItem>
+      <TabItem x:Name="ReceiptsTab" Header="Receipts">
+        <Grid Margin="0,16,0,0">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+          <WrapPanel>
+            <TextBox x:Name="ReceiptOrderIdTextBox" Width="320" AutomationProperties.Name="Receipt order ID" />
+            <Button x:Name="LoadReceiptButton" Content="Load receipt" Click="LoadReceipt_Click" />
+            <Button x:Name="PrintReceiptButton" Content="Print / reprint" Click="PrintReceipt_Click" IsEnabled="False" />
+          </WrapPanel>
+          <TextBlock Grid.Row="1" x:Name="ReceiptStatusText" Text="Enter a paid order ID. Loading or printing never collects payment." TextWrapping="Wrap" Margin="0,8" />
+          <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,8">
+            <StackPanel>
+              <TextBlock Text="Provider refund" Style="{StaticResource Heading}" />
+              <TextBlock Text="Managers can refund a captured card payment. Keep the payment intent ID and operation identity until the result is verified." TextWrapping="Wrap" Foreground="#63756A" />
+              <WrapPanel>
+                <StackPanel Margin="0,0,12,0"><TextBlock Text="Payment intent ID" /><TextBox x:Name="RefundPaymentIntentIdTextBox" Width="300" /></StackPanel>
+                <StackPanel Margin="0,0,12,0"><TextBlock Text="Amount THB" /><TextBox x:Name="RefundAmountTextBox" Width="120" /></StackPanel>
+                <StackPanel><TextBlock Text="Reason" /><ComboBox x:Name="RefundReasonComboBox" Width="180" SelectedIndex="0"><ComboBoxItem Content="Customer request" Tag="customer_request" /><ComboBoxItem Content="Duplicate charge" Tag="duplicate_charge" /><ComboBoxItem Content="Item unavailable" Tag="item_unavailable" /><ComboBoxItem Content="Service issue" Tag="service_issue" /><ComboBoxItem Content="Other" Tag="other" /></ComboBox></StackPanel>
+              </WrapPanel>
+              <WrapPanel><Button x:Name="RefundButton" Content="Issue refund" Click="Refund_Click" Style="{StaticResource Primary}" /><Button x:Name="LoadRefundButton" Content="Verify pending refund" Click="LoadRefund_Click" /><Button x:Name="PrintRefundButton" Content="Print refund receipt" Click="PrintRefund_Click" IsEnabled="False" /></WrapPanel>
+              <TextBlock x:Name="RefundStatusText" Text="No refund pending." TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+          <TextBlock Grid.Row="3" Text="Receipt preview" FontWeight="SemiBold" Margin="0,8" />
+          <FlowDocumentScrollViewer Grid.Row="4" x:Name="ReceiptPreview" IsToolBarVisible="False" />
         </Grid>
       </TabItem>
       <TabItem Header="Terminal &amp; sync">

@@ -1,0 +1,19 @@
+# ADR-035: Audited original settlement event replay
+
+Status: Accepted
+
+ADR-034 exposes exact settlement delivery gaps. A durable queue created after original POS dispatch cannot recover those events by consumer restart alone. Administrators need a bounded original-event replay path that preserves financial history and does not turn the customer ledger into a repair surface.
+
+Extend the existing `NexaConnect.CashCloseReplay` executable with a separate first switch `--settlements`. Credentials, business-date selection and audit are distinct from cash-close and correction modes. Preview requires explicit organization, Restaurant, branch, inclusive/exclusive business dates and a limit of 1–31 receipts. It performs SELECT only and never contacts the broker. Selection retains the same committed receipt/outbox provenance as the customer inventory, including original V1/V2 JSON payloads. Unknown, missing, unsupported or inconsistent original evidence fails closed; no replacement or enrichment is synthesized.
+
+The preview hash binds exact scope, dates, limit and ordered original IDs/version/raw-payload hashes. Execute requires that hash, asserted operator UUID and an allow-listed `retry` or `rebuild` reason. POS reselects and validates the reviewed hash and inserts its immutable run intent in one local repeatable-read transaction. A changed selection creates no intent and publishes nothing. New commits after this observation remain legal and belong to a later preview; the replay is not a global watermark or financial fence.
+
+Every event gets an append-only started record before broker I/O and confirmed record afterward. Original routing version, IDs, correlation, time, aggregate and retained payload bytes are forwarded. An interruption retains a run UUID for inspection; an intent commit response may be uncertain, so its row can exist or be absent. Fresh preview/new execution republishes original identities and appends a new run; Reporting deduplicates. Conflicts remain rejected, never overwritten. Broker confirmation means routing, not projection; operators must verify the exact ledger afterward.
+
+POS 23 adds two owned audit tables: run selection/identity hashes and attempt outcomes, with actual PostgreSQL `session_user` attribution forced on insertion. Attempts must belong to that run's reviewed selection; confirmation requires started history. Updates/deletes/truncation and retained-history downgrade are refused. No source financial tables, dispatcher flags, revision journals, Reporting facts or checkpoints are mutated. Catalog grows to 201 tables, POS 52 / Reporting 19. Reporting stays22; compatibility 0.38.0 is required for audited execution.
+
+This is an administrative PostgreSQL/broker boundary. Operator UUID is asserted attribution, not customer authorization; credential issuance and reviewed scope are operational controls. Separate preview/execution logins receive only source SELECT and, for execution, audit SELECT/INSERT plus broker publication authority. The CLI adds no customer/BFF endpoint, grant or workload bypass. No database transaction spans broker calls.
+
+Use shared structured JSON/OTLP under `nexaconnect-settlement-replay`, original event correlation during publication, safe run/category logs, and no financial payloads, amounts, tokens, arbitrary headers or secrets. Runtime implementation stays in POS Application/Infrastructure with no shared business model. General projection rebuild, exports, reversals, provider/fiscal corrections and offline settlement remain separate.
+
+See [command contract](../../API/Settlement-Replay.md), [operations](../../Deployment/Settlement-Replay.md), [verification](../Evidence/Settlement-Replay-Acceptance.md), [ADR-034](ADR-034-settlement-reporting.md) and [ADR-032](ADR-032-cash-correction-reporting.md).

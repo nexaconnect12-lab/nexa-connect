@@ -1,0 +1,7 @@
+{
+  "minimumApplicationVersion": "0.28.0",
+  "version": 15,
+  "transactional": true,
+  "name": "day_change_attribution",
+  "downgradeSafety": "destructive"
+}

@@ -1,0 +1,31 @@
+using System.Net;
+using NexaConnect.Contracts.Platform;
+
+namespace NexaConnect.CustomerBff.Application.Reporting;
+
+public sealed record CashCorrectionReportsRequest(Guid BranchId, DateTimeOffset FromUtc, DateTimeOffset ToUtc);
+
+public interface ICustomerCashCorrectionReportsPort
+{
+    Task<CurrentPlatformAccessResponse?> GetAccessAsync(string token, CancellationToken cancellationToken);
+    Task<HttpResponseMessage> ReadAsync(TenantContext tenant, string token, CashCorrectionReportsRequest request, CancellationToken cancellationToken);
+}
+
+public sealed class CustomerCashCorrectionReports(ICustomerCashCorrectionReportsPort port)
+{
+    public async Task<HttpResponseMessage> ReadAsync(TenantContext tenant, string token, CashCorrectionReportsRequest request, CancellationToken cancellationToken)
+    {
+        if (request.BranchId == Guid.Empty || request.FromUtc == default || request.ToUtc <= request.FromUtc
+            || request.ToUtc - request.FromUtc > TimeSpan.FromDays(31) || request.ToUtc > DateTimeOffset.UtcNow)
+            return new(HttpStatusCode.BadRequest);
+        if (tenant.ApplicationCode != "nexa_connect") return new(HttpStatusCode.Forbidden);
+
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        var access = await port.GetAccessAsync(token, deadline.Token);
+        if (access?.SubjectId != tenant.SubjectId || access.Organizations?.Any(x =>
+                x.OrganizationId == tenant.OrganizationId && x.ApplicationCode == tenant.ApplicationCode) != true)
+            return new(HttpStatusCode.Forbidden);
+        return await port.ReadAsync(tenant, token, request, deadline.Token);
+    }
+}

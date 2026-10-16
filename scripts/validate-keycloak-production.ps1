@@ -40,6 +40,7 @@ $required = @(
     'KEYCLOAK_SMTP_PASSWORD',
     'KEYCLOAK_TEMP_ADMIN_PASSWORD',
     'NEXACONNECT_WEB_BFF_CLIENT_SECRET',
+    'NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET',
     'NEXACONNECT_ADMIN_BFF_CLIENT_SECRET',
     'NEXACONNECT_WEB_BFF_REDIRECT_URI',
     'NEXACONNECT_WEB_BFF_POST_LOGOUT_REDIRECT_URI',
@@ -69,6 +70,7 @@ $secretKeys = @(
     'KEYCLOAK_DB_PASSWORD',
     'KEYCLOAK_SMTP_PASSWORD',
     'NEXACONNECT_WEB_BFF_CLIENT_SECRET',
+    'NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET',
     'NEXACONNECT_ADMIN_BFF_CLIENT_SECRET'
 )
 foreach ($key in $secretKeys) {
@@ -77,6 +79,7 @@ foreach ($key in $secretKeys) {
     }
 }
 
+if (@($values.GetEnumerator() | Where-Object { $_.Key -ne 'NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET' -and $_.Key -like '*CLIENT_SECRET' -and $_.Value -eq $values.NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET }).Count -gt 0) { throw 'Reporting must use a distinct confidential client secret.' }
 if ($values.NEXACONNECT_WEB_BFF_CLIENT_SECRET -eq $values.NEXACONNECT_ADMIN_BFF_CLIENT_SECRET) {
     throw 'Every confidential client must use a distinct secret.'
 }

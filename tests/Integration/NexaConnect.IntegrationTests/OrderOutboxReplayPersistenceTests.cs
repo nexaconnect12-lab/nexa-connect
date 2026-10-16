@@ -116,7 +116,7 @@ public sealed class OrderOutboxReplayPersistenceTests : IAsyncLifetime
         }
 
         string migrations=Path.Combine(FindRepositoryRoot(),"src","Tools","NexaConnect.DataMigration","Scripts","Order");
-        foreach(string version in new[]{"0001_initial_schema","0002_payment_capture_reconciliation","0003_payment_void_reconciliation","0004_payment_review_resolution"})
+        foreach(string version in new[]{"0001_initial_schema","0002_payment_capture_reconciliation","0003_payment_void_reconciliation","0004_payment_review_resolution","0005_manual_tender_settlement","0006_pre_payment_workflow_recovery","0007_provider_payment_workflow_recovery","0008_authoritative_pricing"})
         {await using var command=new NpgsqlCommand(await File.ReadAllTextAsync(Path.Combine(migrations,version,"up.sql")),connection);await command.ExecuteNonQueryAsync();}
     }
 

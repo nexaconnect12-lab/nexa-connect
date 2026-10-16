@@ -1,4 +1,7 @@
 using System.Text.Json;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using NexaConnect.Observability;
 using Microsoft.Extensions.Options;
 using NexaConnect.Contracts.IntegrationEvents;
 using NexaConnect.Infrastructure.Messaging;
@@ -25,6 +28,9 @@ public sealed class PaymentReconciliationConsumer(
     ILogger<PaymentReconciliationConsumer> logger) : BackgroundService
 {
     private const string Consumer = "order.payment-reconciled.v1";
+    private static readonly ActivitySource Activities=new("nexaconnect-order");
+    private static readonly Meter Meter=new("nexaconnect-order");
+    private static readonly Counter<long> Outcomes=Meter.CreateCounter<long>("order.payment_reconciliation.outcomes");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -55,7 +61,8 @@ public sealed class PaymentReconciliationConsumer(
 
     private async Task HandleAsync(IChannel channel, BasicDeliverEventArgs delivery, CancellationToken cancellationToken)
     {
-        Guid? eventId = null;
+        using var activity=Activities.StartActivity("payment-reconciliation.process",ActivityKind.Consumer);
+        IDisposable? correlation=null,logging=null;
         try
         {
             IIntegrationEvent message = delivery.RoutingKey switch
@@ -68,7 +75,10 @@ public sealed class PaymentReconciliationConsumer(
                 "payment.void-reconciled.v1" => (IIntegrationEvent?)JsonSerializer.Deserialize<PaymentVoidReconciledV1>(delivery.Body.Span),
                 _ => throw new JsonException("Unsupported payment reconciliation routing key.")
             } ?? throw new JsonException("Payment reconciliation event is empty.");
-            eventId = message.EventId;
+            if(message.EventId==Guid.Empty)throw new ArgumentException("Event identity required.");
+            var correlationId=(message.CorrelationId==Guid.Empty?Guid.NewGuid():message.CorrelationId).ToString("D");
+            correlation=CorrelationContext.Push(correlationId);
+            logging=logger.BeginScope(new Dictionary<string,object>{["CorrelationId"]=correlationId,["TraceId"]=activity?.TraceId.ToString()??string.Empty});
             InboxClaimResult claim = await inbox.ClaimAsync(message.EventId, Consumer, TimeSpan.FromMinutes(2), cancellationToken);
             if (claim == InboxClaimResult.Busy)
             {
@@ -77,14 +87,21 @@ public sealed class PaymentReconciliationConsumer(
             }
             if (claim == InboxClaimResult.Completed)
             {
+                await using var completedScope=scopeFactory.CreateAsyncScope();
+                await completedScope.ServiceProvider.GetRequiredService<LatePaymentReconciliation>().DispositionAsync(message,delivery.RoutingKey,cancellationToken);
                 await channel.BasicAckAsync(delivery.DeliveryTag, false, cancellationToken);
+                Outcomes.Add(1,new KeyValuePair<string,object?>("outcome","replayed"));
                 return;
             }
             try
             {
                 await using var scope = scopeFactory.CreateAsyncScope();
                 var handler = scope.ServiceProvider.GetRequiredService<PaymentReconciliationApplicationService>();
-                bool applied = message switch
+                var late=scope.ServiceProvider.GetRequiredService<LatePaymentReconciliation>();
+                var disposition=await late.DispositionAsync(message,delivery.RoutingKey,cancellationToken);
+                bool lateCaptured=disposition=="committed";
+                bool applied;
+                try { applied = disposition=="committed" || disposition!="armed" && (message switch
                 {
                     PaymentAuthorizationReconciledV1 authorization => await handler.ApplyAsync(authorization, cancellationToken),
                     PaymentCaptureReconciledV1 capture => await handler.ApplyAsync(capture, cancellationToken),
@@ -93,17 +110,28 @@ public sealed class PaymentReconciliationConsumer(
                     PaymentVoidUncertainV1 value => await handler.ApplyAsync(value, cancellationToken),
                     PaymentVoidReconciledV1 value => await handler.ApplyAsync(value, cancellationToken),
                     _ => false
-                };
+                });
+                if(disposition=="armed")await Task.Delay(TimeSpan.FromSeconds(1),cancellationToken);
+                }
+                catch (Npgsql.PostgresException e) when (e.SqlState == "PDS01")
+                {
+                    applied = await scope.ServiceProvider.GetRequiredService<LatePaymentReconciliation>().CaptureAsync(message, delivery.RoutingKey, cancellationToken);
+                    lateCaptured=applied;
+                    if (!applied) await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+                    logger.LogInformation("Payment reconciliation deferred by settlement; custody {Captured}", applied);
+                }
                 if (!applied)
                 {
+                    Outcomes.Add(1,new KeyValuePair<string,object?>("outcome",disposition=="armed"?"held":"retry"));
                     await inbox.ReleaseAsync(message.EventId, Consumer, "order_not_ready", cancellationToken);
                     await channel.BasicNackAsync(delivery.DeliveryTag, false, true, cancellationToken);
                     return;
                 }
                 await inbox.MarkCompletedAsync(message.EventId, Consumer, cancellationToken);
                 await channel.BasicAckAsync(delivery.DeliveryTag, false, cancellationToken);
-                logger.LogInformation("Payment reconciliation event {EventId} was applied for organization {OrganizationId}",
-                    message.EventId, GetOrganizationId(message));
+                var outcome=lateCaptured?"late_captured":"applied";
+                Outcomes.Add(1,new KeyValuePair<string,object?>("outcome",outcome));activity?.SetTag("outcome",outcome);
+                logger.LogInformation("Payment reconciliation delivery completed; outcome {Outcome}",outcome);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
@@ -111,28 +139,21 @@ public sealed class PaymentReconciliationConsumer(
                 throw;
             }
         }
-        catch (Exception exception) when (exception is JsonException or ArgumentException or InvalidOperationException)
+        catch (Exception exception) when (exception is JsonException or ArgumentException or InvalidOperationException or NexaConnect.Infrastructure.Persistence.SnapshotOperationConflictException)
         {
-            logger.LogWarning(exception, "Rejected payment reconciliation event {EventId}", eventId);
+            logger.LogWarning("Rejected payment reconciliation event; category {Category}",exception.GetType().Name);
+            activity?.SetStatus(ActivityStatusCode.Error);Outcomes.Add(1,new KeyValuePair<string,object?>("outcome","dead_lettered"));
             await channel.BasicNackAsync(delivery.DeliveryTag, false, false, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            logger.LogError(exception, "Payment reconciliation event {EventId} processing failed", eventId);
+            logger.LogError("Payment reconciliation processing failed; category {Category}",exception.GetType().Name);
+            activity?.SetStatus(ActivityStatusCode.Error);Outcomes.Add(1,new KeyValuePair<string,object?>("outcome","retry"));
             await channel.BasicNackAsync(delivery.DeliveryTag, false, true, cancellationToken);
         }
+        finally {logging?.Dispose();correlation?.Dispose();}
     }
 
-    private static Guid GetOrganizationId(IIntegrationEvent message) => message switch
-    {
-        PaymentAuthorizationReconciledV1 value => value.OrganizationId,
-        PaymentCaptureReconciledV1 value => value.OrganizationId,
-        PaymentVoidedV1 value => value.OrganizationId,
-        PaymentVoidFailedV1 value => value.OrganizationId,
-        PaymentVoidUncertainV1 value => value.OrganizationId,
-        PaymentVoidReconciledV1 value => value.OrganizationId,
-        _ => Guid.Empty
-    };
 }
 
 public static class PaymentReconciliationConsumerRegistration

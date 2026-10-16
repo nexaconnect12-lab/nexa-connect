@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Services/NexaConnect.Services.Order/NexaConnect.Services.Order.csproj" Aliases="ORDER" />
+    <ProjectReference Include="../../Services/NexaConnect.Services.Payment/NexaConnect.Services.Payment.csproj" Aliases="PAYMENT" />
+    <ProjectReference Include="../../Services/NexaConnect.Services.Reporting/NexaConnect.Services.Reporting.csproj" Aliases="REPORTING" />
+  </ItemGroup>
+</Project>

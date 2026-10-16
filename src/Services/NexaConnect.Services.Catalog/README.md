@@ -1,5 +1,7 @@
 # Catalog Service
 
+[Draft provisioning](../../../docs/Deployment/First-Draft-Provisioning.md) uses the owning menu repository with synthetic actor/correlation for three reference menu items. Initial resume preserves existing products; completed reruns do not overwrite edited prices. Existing audit/outbox behavior applies. The portal station picker derives station codes from the live authorized menu.
+
 Owns branch menu items and price/preparation snapshots. The current API exposes `GET` and `POST /api/catalog/v1/branches/{branchId}/menu-items` through Application-owned `IMenuCatalog` and an Infrastructure adapter. Catalog uses the in-memory adapter by default; set `Persistence:Provider=PostgreSQL` and `ConnectionStrings:Catalog` to use the durable menu-item repository.
 
 In PostgreSQL mode, every menu-item upsert transactionally appends an immutable Catalog audit record and two outbox messages: `catalog.menu-item.changed.v1` carries the tenant, branch, product, price, availability, and preparation snapshot; `catalog.audit.v1` carries only scoped identifiers, action, actor, and outcome. These rows are always committed with the menu mutation. Enable dispatch with `Outbox:Enabled=true` and configure `Outbox:ConnectionString` with the RabbitMQ URI. The shared transport connects lazily on its first publication attempt and replaces a closed or failed owned connection. When dispatch is disabled or the broker is unavailable, committed rows remain for later retry. The in-memory adapter is intentionally non-durable and does not publish events.

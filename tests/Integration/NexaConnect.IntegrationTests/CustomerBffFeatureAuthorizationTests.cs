@@ -40,12 +40,14 @@ public sealed class CustomerBffFeatureAuthorizationTests
         await using var factory = new CustomerBffFactory();
         using HttpClient client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect=false, BaseAddress=new Uri("https://localhost") });
         using var request=new HttpRequestMessage(new HttpMethod(method),path);
-        if(method=="PUT") request.Content=System.Net.Http.Json.JsonContent.Create(new{status="active"});
+        if(method is "PUT" or "POST") request.Content=System.Net.Http.Json.JsonContent.Create(new{status="active"});
         using HttpResponseMessage response=await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.Unauthorized,response.StatusCode); Assert.Null(response.Headers.Location);
     }
 
     [Theory]
+    [InlineData("POST", "/bff/customer/orders/branches/11111111-1111-1111-1111-111111111111/quote")]
+    [InlineData("POST", "/bff/customer/orders/branches/11111111-1111-1111-1111-111111111111/place")]
     [InlineData("GET", "/bff/customer/branches")]
     [InlineData("POST", "/bff/customer/branches")]
     [InlineData("PUT", "/bff/customer/branches/11111111-1111-1111-1111-111111111111")]
@@ -56,6 +58,7 @@ public sealed class CustomerBffFeatureAuthorizationTests
     [InlineData("PUT", "/bff/customer/configuration/branches/11111111-1111-1111-1111-111111111111")]
     [InlineData("GET", "/bff/customer/dashboard")]
     [InlineData("GET", "/bff/customer/reports/sales")]
+    [InlineData("GET", "/bff/customer/reports/day-settlements")]
     [InlineData("GET", "/bff/customer/media")]
     [InlineData("POST", "/bff/customer/media/uploads")]
     [InlineData("POST", "/bff/customer/media/11111111-1111-1111-1111-111111111111/complete")]
@@ -65,7 +68,7 @@ public sealed class CustomerBffFeatureAuthorizationTests
     [InlineData("DELETE", "/bff/customer/media/11111111-1111-1111-1111-111111111111?expectedVersion=1")]
     [InlineData("GET", "/bff/customer/activity")]
     [InlineData("GET", "/bff/customer/notifications/11111111-1111-1111-1111-111111111111")]
-    public async Task New_management_routes_require_a_customer_session(string method,string path){await using var factory=new CustomerBffFactory();using HttpClient client=factory.CreateClient(new WebApplicationFactoryClientOptions{AllowAutoRedirect=false,BaseAddress=new Uri("https://localhost")});using var request=new HttpRequestMessage(new HttpMethod(method),path);if(method=="PUT")request.Content=System.Net.Http.Json.JsonContent.Create(new{});using HttpResponseMessage response=await client.SendAsync(request);Assert.Equal(HttpStatusCode.Unauthorized,response.StatusCode);}
+    public async Task New_management_routes_require_a_customer_session(string method,string path){await using var factory=new CustomerBffFactory();using HttpClient client=factory.CreateClient(new WebApplicationFactoryClientOptions{AllowAutoRedirect=false,BaseAddress=new Uri("https://localhost")});using var request=new HttpRequestMessage(new HttpMethod(method),path);if(method is "PUT" or "POST")request.Content=System.Net.Http.Json.JsonContent.Create(new{});using HttpResponseMessage response=await client.SendAsync(request);Assert.Equal(HttpStatusCode.Unauthorized,response.StatusCode);}
 
     private sealed class CustomerBffFactory : WebApplicationFactory<CUSTOMERBFF::Program>
     {

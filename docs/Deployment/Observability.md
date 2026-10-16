@@ -1,5 +1,7 @@
 # Observability and centralized logging
 
+The [local Slice 6 gate](First-Draft-Release.md) runs existing Unit observability/redaction tests, Payment HTTP/database readiness checks and cash-close Prometheus rule fixtures. Standalone draft OTLP remains disabled, and no alert stack or external receiver is provisioned. Rule checks are not receiver delivery; the solo tester observes failures manually. Existing service names, correlations and production receiver requirements are unchanged.
+
 ## Implemented foundation
 
 `NexaConnect.Observability` is the shared ASP.NET Core operational-telemetry library. Platform Directory, Platform Admin BFF, Customer BFF, Catalog, Inventory, Order, Kitchen, Payment, Customer, POS, Authorization, and Restaurant adopt it. It provides:

@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using NexaConnect.Services.Payment.Application.Intents;
+using NexaConnect.Services.Payment.Application.Refunds;
 
 namespace NexaConnect.Services.Payment.Infrastructure.Providers;
 
@@ -177,6 +178,67 @@ public sealed class OmisePaymentProvider : IPaymentProvider
             : new(ProviderVoidOutcome.Unknown, null, "provider_void_status_unknown");
     }
 
+    public async Task<ProviderRefundResult> RefundAsync(PaymentIntent intent, PaymentRefund refund, CancellationToken cancellationToken)
+    {
+        ProviderRefundResult existing = await FindRefundAsync(intent, refund, cancellationToken);
+        if (existing.Outcome != ProviderRefundOutcome.Unknown || existing.FailureReason != "provider_refund_status_missing") return existing;
+        WireResult chargeWire = await ResolveAsync(intent, cancellationToken);
+        if (!Matches(chargeWire.Charge, intent) || !CapturedForRefund(chargeWire.Charge!))
+            return new(ProviderRefundOutcome.Unknown, null, chargeWire.Failure ?? "provider_charge_mismatch");
+        long? amount = MinorAmount(refund);
+        if (amount is null) return new(ProviderRefundOutcome.Failed, null, "provider_request_invalid");
+        RefundWire wire = await SendRefundAsync(HttpMethod.Post, $"charges/{chargeWire.Charge!.Id}/refunds",
+            new() { ["amount"] = amount.Value.ToString(CultureInfo.InvariantCulture),
+                ["metadata[nexa_refund_id]"] = refund.Id.ToString("D"),
+                ["metadata[nexa_payment_intent_id]"] = intent.Id.ToString("D") }, cancellationToken);
+        return EvaluateRefund(wire.Refund, intent, refund, wire.Failure);
+    }
+
+    public Task<ProviderRefundResult> GetRefundStatusAsync(PaymentIntent intent, PaymentRefund refund, CancellationToken cancellationToken) =>
+        FindRefundAsync(intent, refund, cancellationToken);
+
+    private async Task<ProviderRefundResult> FindRefundAsync(PaymentIntent intent, PaymentRefund refund, CancellationToken cancellationToken)
+    {
+        if (!ValidChargeId(intent.ProviderAuthorizationId)) return new(ProviderRefundOutcome.Unknown, null, "provider_charge_mismatch");
+        if (!string.IsNullOrWhiteSpace(refund.ProviderRefundId))
+        {
+            if (!ValidRefundId(refund.ProviderRefundId)) return new(ProviderRefundOutcome.Unknown, null, "provider_refund_mismatch");
+            RefundWire found = await SendRefundAsync(HttpMethod.Get,
+                $"charges/{intent.ProviderAuthorizationId}/refunds/{refund.ProviderRefundId}", null, cancellationToken);
+            return EvaluateRefund(found.Refund, intent, refund, found.Failure);
+        }
+        RefundWire listed = await SendRefundAsync(HttpMethod.Get,
+            $"charges/{intent.ProviderAuthorizationId}/refunds?limit=20&order=reverse_chronological", null, cancellationToken, true);
+        if (listed.Failure is not null) return new(ProviderRefundOutcome.Unknown, null, listed.Failure);
+        Refund[] candidates = listed.List?.Data?.Where(x => x.Metadata?.GetValueOrDefault("nexa_refund_id") == refund.Id.ToString("D")).ToArray() ?? [];
+        return candidates.Length == 0 ? new(ProviderRefundOutcome.Unknown, null, "provider_refund_status_missing")
+            : candidates.Length == 1 ? EvaluateRefund(candidates[0], intent, refund, null)
+            : new(ProviderRefundOutcome.Unknown, null, "provider_refund_ambiguous");
+    }
+
+    private static ProviderRefundResult EvaluateRefund(Refund? value, PaymentIntent intent, PaymentRefund refund, string? failure)
+    {
+        long? amount = MinorAmount(refund);
+        if (value is not { Object: "refund", LiveMode: false } || !ValidRefundId(value.Id)
+            || value.Charge != intent.ProviderAuthorizationId || value.Amount != amount
+            || !string.Equals(value.Currency, refund.Currency, StringComparison.OrdinalIgnoreCase)
+            || value.Metadata?.GetValueOrDefault("nexa_refund_id") != refund.Id.ToString("D")
+            || value.Metadata.GetValueOrDefault("nexa_payment_intent_id") != intent.Id.ToString("D"))
+            return new(ProviderRefundOutcome.Unknown, null, failure ?? "provider_refund_mismatch");
+        return value.Status == "closed" ? new(ProviderRefundOutcome.Refunded, value.Id, null)
+            : value.Status == "failed" ? new(ProviderRefundOutcome.Failed, null, "provider_refund_failed")
+            : new(ProviderRefundOutcome.Unknown, null, failure ?? "provider_refund_status_unknown");
+    }
+
+    private bool CapturedForRefund(Charge charge)
+    {
+        if (charge.Paid != true || charge.Reversed != false || charge.Amount is not > 0) return false;
+        if (charge.CapturedAmount is not null) return charge.CapturedAmount == charge.Amount;
+        return (charge.AuthorizationType == "final_auth" || charge.AuthorizationType is null && HasTrustedFullCaptureContext(charge))
+            && charge.Status == "successful" && charge.Authorized == true && charge.Capture == false
+            && charge.Capturable == false && charge.Reversible == false;
+    }
+
     private async Task<WireResult> ResolveAsync(PaymentIntent intent, CancellationToken cancellationToken)
     {
         if (!string.IsNullOrEmpty(intent.ProviderAuthorizationId))
@@ -218,7 +280,11 @@ public sealed class OmisePaymentProvider : IPaymentProvider
             || intent.Amount > long.MaxValue / 100m || decimal.Truncate(intent.Amount * 100m) != intent.Amount * 100m) return null;
         return (long)(intent.Amount * 100m);
     }
+    private static long? MinorAmount(PaymentRefund refund) => refund.Currency == "THB" && refund.Amount > 0
+        && refund.Amount <= long.MaxValue / 100m && decimal.Truncate(refund.Amount * 100m) == refund.Amount * 100m
+        ? (long)(refund.Amount * 100m) : null;
     private static bool ValidChargeId(string? id) => Regex.IsMatch(id ?? "", "^chrg_(test_)?[a-z0-9]{10,64}$");
+    private static bool ValidRefundId(string? id) => Regex.IsMatch(id ?? "", "^rfnd_(test_)?[a-z0-9]{10,64}$");
     private static bool Matches(Charge? charge, PaymentIntent intent) => charge is { Object: "charge", LiveMode: false }
         && charge.Paid is not null && charge.Authorized is not null && charge.Reversed is not null
         && charge.Status is "pending" or "successful" or "failed" or "expired" or "reversed"
@@ -301,6 +367,27 @@ public sealed class OmisePaymentProvider : IPaymentProvider
         return bytes.AsSpan(0, count).ToArray();
     }
 
+    private async Task<RefundWire> SendRefundAsync(HttpMethod method, string path, Dictionary<string,string>? fields,
+        CancellationToken cancellationToken, bool list = false)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(method, path);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(secret + ":")));
+            request.Headers.Add("Omise-Version", "2019-05-29");
+            if (method == HttpMethod.Post) request.Content = new FormUrlEncodedContent(fields ?? []);
+            using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.NotFound) return new(null, "provider_refund_status_missing");
+            if (!response.IsSuccessStatusCode) return new(null, $"provider_http_{(int)response.StatusCode}");
+            byte[] bytes = await ReadBoundedBodyAsync(response, cancellationToken);
+            return list ? new(null, null, JsonSerializer.Deserialize<RefundList>(bytes))
+                : new(JsonSerializer.Deserialize<Refund>(bytes), null);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or JsonException
+            || exception is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        { return new(null, exception is JsonException ? "provider_response_invalid" : exception is OperationCanceledException ? "provider_timeout" : "provider_transport_failure"); }
+    }
+
     private sealed class ProviderError
     {
         [JsonPropertyName("object")] public string? Object { get; init; }
@@ -308,6 +395,19 @@ public sealed class OmisePaymentProvider : IPaymentProvider
     }
 
     private sealed record WireResult(Charge? Charge, string? Failure, SearchResult? Search = null);
+    private sealed record RefundWire(Refund? Refund, string? Failure, RefundList? List = null);
+    private sealed class RefundList { [JsonPropertyName("data")] public Refund[]? Data { get; init; } }
+    private sealed class Refund
+    {
+        [JsonPropertyName("object")] public string? Object { get; init; }
+        [JsonPropertyName("id")] public string? Id { get; init; }
+        [JsonPropertyName("livemode")] public bool? LiveMode { get; init; }
+        [JsonPropertyName("charge")] public string? Charge { get; init; }
+        [JsonPropertyName("amount")] public long? Amount { get; init; }
+        [JsonPropertyName("currency")] public string? Currency { get; init; }
+        [JsonPropertyName("status")] public string? Status { get; init; }
+        [JsonPropertyName("metadata")] public Dictionary<string,string>? Metadata { get; init; }
+    }
     private sealed class SearchResult
     {
         [JsonPropertyName("total_pages")] public int? TotalPages { get; init; }

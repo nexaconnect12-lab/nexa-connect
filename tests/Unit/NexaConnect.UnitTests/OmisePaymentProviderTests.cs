@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NexaConnect.Services.Payment.Application.Intents;
+using NexaConnect.Services.Payment.Application.Refunds;
 using NexaConnect.Services.Payment.Infrastructure;
 using NexaConnect.Services.Payment.Infrastructure.Providers;
 
@@ -657,6 +658,36 @@ public sealed class OmisePaymentProviderTests
         Assert.Equal(ProviderCaptureOutcome.Unknown, (await provider.GetCaptureStatusAsync(intent, default)).Outcome);
         Assert.Single(handler.Requests);
         Assert.StartsWith("GET /search", handler.Requests[0]);
+    }
+
+    [Fact]
+    public async Task Refund_uses_minor_units_bound_metadata_and_status_only_response_loss_recovery()
+    {
+        PaymentIntent intent = Intent() with { Status = "captured", ProviderAuthorizationId = ChargeId, ProviderCaptureId = ChargeId };
+        Guid refundId = Guid.NewGuid();
+        var refund = new PaymentRefund(refundId, intent.OrganizationId, intent.RestaurantId, intent.BranchId, intent.OrderId,
+            intent.Id, Guid.NewGuid(), 5.25m, "THB", "customer_request", "processing", "manager", Guid.NewGuid(),
+            DateTimeOffset.UtcNow, null, null, null, null);
+        var paid = Charge(intent, paid: true);
+        var providerRefund = new Dictionary<string, object?>
+        {
+            ["object"]="refund", ["id"]="rfnd_test_abcdefghijklmnopqrstuvwxyz", ["livemode"]=false,
+            ["charge"]=ChargeId, ["amount"]=525, ["currency"]="THB", ["status"]="closed",
+            ["metadata"]=new Dictionary<string,string>{{"nexa_refund_id",refundId.ToString("D")},{"nexa_payment_intent_id",intent.Id.ToString("D")}}
+        };
+        var (provider, handler) = Provider(new { data = Array.Empty<object>() }, paid, providerRefund,
+            new { data = new[] { providerRefund } });
+
+        ProviderRefundResult command = await provider.RefundAsync(intent, refund, default);
+        string commandBody = Uri.UnescapeDataString(handler.Body ?? string.Empty);
+        ProviderRefundResult recovered = await provider.GetRefundStatusAsync(intent, refund, default);
+
+        Assert.Equal(ProviderRefundOutcome.Refunded, command.Outcome);
+        Assert.Equal(ProviderRefundOutcome.Refunded, recovered.Outcome);
+        Assert.Equal("POST /charges/" + ChargeId + "/refunds", handler.Requests[2]);
+        Assert.Contains("amount=525", commandBody);
+        Assert.Contains("metadata[nexa_refund_id]=" + refundId.ToString("D"), commandBody);
+        Assert.StartsWith("GET /charges/" + ChargeId + "/refunds?", handler.Requests[3]);
     }
 
     private sealed class StubHandler(object[] responses) : HttpMessageHandler
