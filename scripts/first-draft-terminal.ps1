@@ -35,10 +35,8 @@ if($Action -eq 'Package'){
             $config.Pos.PromptPayQrImagePath=$leaf
         }
         $config | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $destination 'appsettings.json')
-        $revision=(& git -C $root rev-parse HEAD).Trim()
-        $dirty=([string](& git -C $root status --porcelain)).Length -gt 0
-        if((Get-DraftCandidate $root).inputHash -cne $candidate.inputHash -or $revision -cne $candidate.revision){throw 'Executable inputs changed during packaging; package cannot be handed over.'}
-        @{format=1;releaseId=$release;runId=$RunId;sourceRevision=$revision;sourceDirty=$dirty;sourceInputHash=$candidate.inputHash;runtime='win-x64 framework-dependent .NET 10 Windows Desktop';scope=$scope;files=(Get-TerminalFileHashes $destination)} |
+        Assert-TerminalCandidateUnchanged $candidate (Get-DraftCandidate $root)
+        @{format=1;releaseId=$release;runId=$RunId;sourceRevision=$candidate.revision;sourceDirty=$candidate.dirty;sourceInputHash=$candidate.inputHash;runtime='win-x64 framework-dependent .NET 10 Windows Desktop';scope=$scope;files=(Get-TerminalFileHashes $destination)} |
             ConvertTo-Json -Depth 10 | Set-Content (Join-Path $destination 'terminal-package.json')
         [void](Read-TerminalPackage $destination)
         Write-Output "Draft terminal package: $destination"

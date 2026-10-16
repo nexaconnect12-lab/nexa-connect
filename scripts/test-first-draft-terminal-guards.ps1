@@ -1,6 +1,7 @@
 #requires -Version 7.4
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'first-draft-terminal-helpers.ps1')
+. (Join-Path $PSScriptRoot 'first-draft-release-helpers.ps1')
 $testRoot=Join-Path ([IO.Path]::GetTempPath()) ('nexa-terminal-it-'+[Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 $checks=0
@@ -11,6 +12,25 @@ try{
         [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $scriptName),[ref]$tokens,[ref]$parseErrors)
         if($parseErrors){throw "Terminal script syntax failed: $scriptName"};$checks++
     }
+    # Exercise actual Git's empty clean-status output, not a fabricated status string.
+    $source=Join-Path $testRoot 'source'
+    New-Item -ItemType Directory -Path (Join-Path $source 'scripts') -Force|Out-Null
+    Set-Content (Join-Path $source 'scripts/input.txt') 'synthetic input'
+    & git -C $source init -q
+    & git -C $source add scripts/input.txt
+    & git -C $source -c user.name='NexaConnect Guard' -c user.email='guard@nexa.invalid' commit -q -m 'Synthetic source fixture'
+    if($LASTEXITCODE -ne 0){throw 'Unable to create local source fixture.'}
+    $clean=Get-DraftCandidate $source
+    if($clean.dirty -isnot [bool] -or $clean.dirty){throw 'Clean Git source was marked dirty.'};$checks++
+    Assert-TerminalCandidateUnchanged $clean (Get-DraftCandidate $source);$checks++
+    Add-Content (Join-Path $source 'scripts/input.txt') 'changed input'
+    $changed=Get-DraftCandidate $source
+    Rejected {Assert-TerminalCandidateUnchanged $clean $changed}
+    Assert-TerminalCandidateUnchanged $changed (Get-DraftCandidate $source);$checks++
+    $invalid=@{revision=$clean.revision;inputHash=$clean.inputHash;dirty='false'}
+    Rejected {Assert-TerminalCandidateUnchanged $clean $invalid}
+    $invalid=@{revision=$clean.revision;inputHash=$clean.inputHash;dirty=$true}
+    Rejected {Assert-TerminalCandidateUnchanged $clean $invalid}
     $configuration=@{Identity=@{Authority='http://127.0.0.1:18500/realms/nexa-review-it-test';ClientId='nexaconnect-pos';RedirectUri='nexaconnect-pos://oauth/callback'};Services=@{PosApi='http://127.0.0.1:18501/';OrderApi='http://127.0.0.1:18502/';CatalogApi='http://127.0.0.1:18503/'};Pos=@{OrganizationId=[Guid]::NewGuid();RestaurantId=[Guid]::NewGuid();BranchId=[Guid]::NewGuid();StoreId=[Guid]::NewGuid();TerminalId=[Guid]::NewGuid();Currency='THB';PaymentMethod='cash_manual';EnableOmiseTestCheckout=$false}}
     $scope=Get-TerminalScope $configuration
     Assert-TerminalScopeEqual $scope (Get-TerminalScope $configuration);$checks++

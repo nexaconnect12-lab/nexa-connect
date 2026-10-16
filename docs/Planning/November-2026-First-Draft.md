@@ -1,5 +1,10 @@
 # November 2026 first draft: implementation slices and prompts
 
+Slice 8 is release preparation and acceptance execution using the existing Slice 7 tools.
+Its [evidence and outstanding blockers](../Architecture/Evidence/First-Draft-Slice-8.md)
+record candidate CI, retained environment/package preparation, corrective changes and
+the pending installation and real user drill. This adds no business-feature scope.
+
 Slice 7 implements [acceptance recording and the solo tester handover](../Deployment/First-Draft-UAT.md), with [executed tooling evidence and explicit pending gates](../Architecture/Evidence/First-Draft-Slice-7.md). Actual Windows/PDF, real next-day testing and the user's final acceptance remain pending.
 
 Slice 6 implements the [local candidate gate and isolated restore drill](../Deployment/First-Draft-Release.md). Its [executed evidence](../Architecture/Evidence/First-Draft-Slice-6.md) distinguishes local input/build/schema identity and recovery verification from clean-checkout CI, restored application-graph disaster recovery and pending Windows/PDF/real next-day user acceptance.

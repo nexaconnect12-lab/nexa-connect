@@ -26,6 +26,9 @@ asset hashes. Child receipts record their scope and cleanup separately.
 Required gates are:
 
 - Lifecycle, terminal, manager, release and UAT safety guards.
+  Terminal guards include an actual disposable clean/changed Git repository; they need
+  normal local Git metadata write access. Cash-close browser diagnostic/redaction guards
+  also run alongside the cashier settings guards before infrastructure matrices.
 - Unit with Windows DPAPI acceptance enabled, Architecture and Payment health HTTP tests;
   every required TRX test must execute and pass without skips.
 - Fresh `npm ci --ignore-scripts`, TypeScript check, frontend tests, both portal builds,

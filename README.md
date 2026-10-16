@@ -1,5 +1,7 @@
 # NexaConnect
 
+Slice 8 prepares the retained Windows/PDF draft and fixes clean-checkout package identity handling. [Release preparation evidence](docs/Architecture/Evidence/First-Draft-Slice-8.md) separates original PR merge-check CI from corrective working-tree verification, installation/recovery blockers and pending user acceptance.
+
 Slice 7 adds the [solo Windows/PDF acceptance script and handover](docs/Deployment/First-Draft-UAT.md), candidate/package-bound operator records, blocker/retest tracking and a safe report. [Verification status](docs/Architecture/Evidence/First-Draft-Slice-7.md) keeps actual user testing, clean-candidate CI and final acceptance pending.
 
 Cash-close reports now discover branches using existing cash-review authority through the `cash-close` capability, so cash-review readers need no unrelated day-close permission. Exact-store reads remain independently authorized; see [contract](docs/API/Operational-Branches.md).

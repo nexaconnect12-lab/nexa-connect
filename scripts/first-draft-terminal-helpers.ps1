@@ -1,5 +1,9 @@
 # Local draft package integrity and scope checks. Hashes detect drift; they are not signatures.
 Set-StrictMode -Version Latest
+function Assert-TerminalCandidateUnchanged($Before,$After) {
+    if($Before.dirty -isnot [bool] -or $After.dirty -isnot [bool] -or $Before.revision -cne $After.revision -or
+       $Before.inputHash -cne $After.inputHash -or $Before.dirty -ne $After.dirty){throw 'Source identity changed during packaging; package cannot be handed over.'}
+}
 function Assert-TerminalPath([string]$Path) {
     $full=[IO.Path]::GetFullPath($Path)
     $cursor=$full

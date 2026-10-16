@@ -34,6 +34,7 @@ try {
         Native {npm ci --ignore-scripts}
         foreach($command in @('check','test','build','audit:production','audit:all')){Native {npm run $command};$checks["frontend:$command"]=$true}
         Native {node --test e2e/cashier-day-cutoff-live/settings.test.mjs}
+        Native {node --test e2e/cash-close-live/settings.test.mjs}
     } finally {Pop-Location}
     foreach($matrix in @(@('test-day-seals.ps1','draft-release-seals','day-seals',64),@('test-settlement-reporting.ps1','draft-release-reporting','settlement-reporting',9),@('test-settlement-replay.ps1','draft-release-replay','settlement-replay',6))){
         Write-Output "Running $($matrix[0])"

@@ -4,6 +4,7 @@ import {createServer,connect} from 'node:net';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {readSettings} from './settings.mjs';
+import {fixtureFailure} from './fixture-diagnostics.mjs';
 const s=readSettings(process.env),f=s.fixture,root='/bff/customer/reports/cash-close';
 let proxy,enabled=true;const sockets=new Set();
 test.describe.configure({mode:'serial'});
@@ -20,7 +21,7 @@ test.beforeAll(async()=>{
 test.afterAll(async()=>{for(const socket of sockets)socket.destroy();if(proxy)await new Promise(resolve=>proxy.close(resolve));});
 async function fixture(action){
   try{await promisify(execFile)('dotnet',[s.fixtureDll,action],{timeout:30000,windowsHide:true});}
-  catch{throw new Error(`Fixture ${action} failed; sensitive diagnostics suppressed.`);}
+  catch(error){throw new Error(fixtureFailure(action,error));}
 }
 async function call(page,path,body){return page.evaluate(async({path,body})=>{const r=await fetch(path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});let data;try{data=await r.json();}catch{}return {status:r.status,data};},{path,body});}
 async function signIn(page,identity){

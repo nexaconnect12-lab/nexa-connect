@@ -1,5 +1,7 @@
 # NexaConnect Project Architecture
 
+Slice 8 [release preparation](../../docs/Architecture/Evidence/First-Draft-Slice-8.md) uses the existing retained one-branch topology. Packaging handles clean Git output through typed candidate identities and rejects identity/dirty-state drift. Cash-close browser fixtures expose only allowlisted failure stage/type/SQLSTATE or a bounded timeout category. No application contract, schema, authority or financial behavior changes; current release, profile-install and user acceptance blockers remain explicit.
+
 Slice 7 adds local [UAT and handover tooling](../../docs/Deployment/First-Draft-UAT.md): immutable source/package/release binding, explicit operator attestations, defect/retest gates and allowlisted reports. Terminal manifests now include the executable input hash. No application contract, financial ownership, schema or role changes. Actual Windows/PDF, real next-day and exact-candidate CI remain user/release gates; see [evidence](../../docs/Architecture/Evidence/First-Draft-Slice-7.md).
 
 Slice 6 also corrects cash-close branch discovery to use existing `pos.cash-review.read` through `capability=cash-close`; Portal/BFF/Restaurant retain their existing tenant, correlation and live authorization boundaries. Reporting/POS still authorize the exact store. No role grant or schema changes; see [contract](../../docs/API/Operational-Branches.md).

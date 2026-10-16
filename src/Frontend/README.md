@@ -1,5 +1,7 @@
 # NexaConnect frontend foundations
 
+The cash-close browser fixture now distinguishes a 30-second child-process timeout from allowlisted fixture stage/type/SQLSTATE failures. Arbitrary child stdout/stderr and exception messages remain suppressed. The release gate runs diagnostic/redaction guard tests; retries and required scenario counts are unchanged. See [acceptance guide](../../docs/Deployment/Cash-Close-Portal-Acceptance.md).
+
 Cash-close reports use `cash-close` operational discovery under existing `pos.cash-review.read`; day-close permission is independent. Store UUID remains required and Reporting/POS repeat exact-store authorization. See [contract](../../docs/API/Operational-Branches.md).
 
 The [Slice 6 release gate](../../docs/Deployment/First-Draft-Release.md) installs locked dependencies without lifecycle scripts, runs check/test/both portal builds and independent production/full audits, then executes joined normal-clock and historical Singapore acceptance. The first-draft checkout runner adds manager-resumed fresh-authentication receipt/review reads and original settlement replay after the isolated restore drill resumes the original graph.

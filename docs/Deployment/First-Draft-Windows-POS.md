@@ -1,5 +1,7 @@
 # Windows first-draft terminal (slice 4)
 
+Slice 8 corrects clean-checkout packaging: empty `git status` output is represented by the shared candidate's Boolean dirty flag rather than a nullable string's length. Before/after revision, executable hash and dirty state must agree. The terminal guards exercise a real disposable clean/changed Git checkout; local sandbox restrictions may require running that fixture with normal Git filesystem access. See [current preparation evidence](../Architecture/Evidence/First-Draft-Slice-8.md).
+
 For final testing use the [Slice 7 acceptance and handover](First-Draft-UAT.md). New package manifests include `sourceInputHash`; packaging rejects executable input or HEAD changes during publish. Older packages retain the existing install checks, but cannot bind to a new UAT record without that hash. The record does not replace actual installation, recovery, session or saved-PDF verification below.
 
 Use one Windows x64 PC, PowerShell 7.4+, .NET 10 SDK to package and .NET 10 **Windows Desktop
