@@ -5,7 +5,7 @@ import {createServer} from 'node:http';
 import {draftToken} from './draft-auth.mjs';
 
 const env=process.env,run=env.NEXACONNECT_DRAFT_RUN,mode=env.NEXACONNECT_DRAFT_CHECKOUT_MODE;
-if(!/^[a-f0-9]{32}$/.test(run)||!['baseline','interrupted','recovered','broker-paused','broker-resumed','manager'].includes(mode))throw new Error('Invalid joined draft mode.');
+if(!/^[a-f0-9]{32}$/.test(run)||!['baseline','interrupted','recovered','broker-paused','broker-resumed','manager','manager-resumed'].includes(mode))throw new Error('Invalid joined draft mode.');
 const state=JSON.parse(await readFile(env.NEXACONNECT_DRAFT_STATE,'utf8')),ref=JSON.parse(await readFile(env.NEXACONNECT_DRAFT_REFERENCE,'utf8'));
 if(state.runId!==run||ref.runId!==run||!ref.completed||state.realm!==`nexa-review-it-${run}`||state.authority!==`http://127.0.0.1:${state.infrastructure.keycloak}/realms/${state.realm}`)throw new Error('Owned draft required.');
 for(const [name,value] of Object.entries(state.urls)){const url=new URL(value);if(url.hostname!=='127.0.0.1'||url.protocol!==(name==='Bff'?'https:':'http:'))throw new Error('Owned loopback endpoints required.');}
@@ -94,6 +94,14 @@ try{
   assert((await stock())[ref.products[0]]===97,'Restart duplicated stock deduction');memo.checks.processRecovery=true;
  }else if(mode==='broker-paused'){
   stage='broker-outage-settlement';const value=await quote('broker');assert((await place(value)).status===200,'Broker outage blocked durable manual checkout');assert((await settle(value)).status===201,'Broker outage lost settlement');assert(await orderState(value.command.orderId)==='Paid','Broker outage lost Paid state');memo.checks.brokerDurableCommit=true;
+ }else if(mode==='manager-resumed'){
+  stage='resumed-manager-evidence';
+  const query=new URLSearchParams({organizationId:ref.organizationId,branchId:ref.branchId,storeId:ref.storeId});
+  const review=await send('POS',`/api/pos/v1/cash-reviews/${memo.sessionId}?${query}`,undefined,'accountant');
+  assert(review.status===200&&review.data.history.length===1&&review.data.session.varianceAmount===-5,'Resumed review changed');
+  for(const name of ['cash','promptpay','broker']){const receipt=await send('Order',`/api/order/v1/orders/${memo.orders[name].command.orderId}/receipt?branchId=${ref.branchId}`);assert(receipt.status===200&&receipt.data.orderId===memo.orders[name].command.orderId,'Resumed receipt missing');}
+  assert((await settle(memo.orders.cash)).status===200,'Resumed settlement replay failed');
+  memo.checks.managerResumed=true;
  }else if(mode==='manager'){
   stage='manager-sales-evidence';
   const fromUtc=new Date(Date.now()-3600000).toISOString(),toUtc=new Date(Date.now()+1000).toISOString();

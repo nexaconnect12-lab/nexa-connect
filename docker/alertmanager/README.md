@@ -1,5 +1,7 @@
 # Alertmanager
 
+Slice 6 [local release hardening](../../docs/Deployment/First-Draft-Release.md) runs cash-close rule fixtures but provisions no receiver. The standalone draft has no external alert notification; its tester watches status/results manually. A passing local gate does not certify receiver delivery.
+
 `scripts/test-payment-review-isolated.ps1` additionally runs the same rehearsal receiver/configuration in a generated project using dynamic loopback ports. It does not reset the root Compose alert containers. See [isolated acceptance infrastructure](../payment-review-acceptance/README.md).
 
 Local alert routing UI on `127.0.0.1:9093`. The checked-in receiver intentionally sends no external notifications; it exists to validate Prometheus-to-Alertmanager routing without leaking development alerts. State persists in `alertmanager-data`.

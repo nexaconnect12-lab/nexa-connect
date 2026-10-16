@@ -1,5 +1,9 @@
 # NexaConnect frontend foundations
 
+Cash-close reports use `cash-close` operational discovery under existing `pos.cash-review.read`; day-close permission is independent. Store UUID remains required and Reporting/POS repeat exact-store authorization. See [contract](../../docs/API/Operational-Branches.md).
+
+The [Slice 6 release gate](../../docs/Deployment/First-Draft-Release.md) installs locked dependencies without lifecycle scripts, runs check/test/both portal builds and independent production/full audits, then executes joined normal-clock and historical Singapore acceptance. The first-draft checkout runner adds manager-resumed fresh-authentication receipt/review reads and original settlement replay after the isolated restore drill resumes the original graph.
+
 [Slice 5 manager acceptance](../../docs/Deployment/First-Draft-Manager.md) extends real-OIDC cutoff coverage to eighteen cases, including actual settlement CSV UI download, missing/recovered publication, accountant reads and denied/revoked/unavailable owning-source boundaries. Singapore historical calendar fixtures are explicit and test-only; a real next-day drill remains separate.
 
 Operational Kitchen, Payment Review, end-of-day, sales and cash-close panels use live permission-filtered branch discovery. Kitchen station choices derive from authorized menu snapshots; scope changes discard old workflow state. See [contract](../../docs/API/Operational-Branches.md) and [draft provisioning verification](../../docs/Deployment/First-Draft-Provisioning.md).

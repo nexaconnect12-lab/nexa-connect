@@ -2,6 +2,8 @@
 
 The opt-in runner joins the real Customer Portal, Customer BFF, Reporting, POS, Restaurant, Authorization and Platform Directory with a disposable Keycloak realm, PostgreSQL 17 and RabbitMQ 4. It does not mock BFF responses or service authorization. The read-only report remains eventually consistent and does not certify settlement or completeness.
 
+Current branch selection uses `capability=cash-close`, authorized with existing `pos.cash-review.read` rather than unrelated day-close authority. The generated OIDC users receive the `customer-user` realm entry role; their scoped product assignments still determine all financial access. Child hosts explicitly use .NET/ASP.NET Core Development environments. These corrections let the pinned Authorization 7 graph exercise the current selector without adding permissions or bypasses. The [Slice 6 release gate](First-Draft-Release.md) includes all five browser cases and validates the typed exact-run receipt, source revision and cleanup; current execution outcomes are recorded separately.
+
 ## Run locally
 
 Requires PowerShell 7, the repository's .NET SDK, Node 22.12+ (22.x) or 24+ with npm, Playwright Chromium and a local Docker socket. Run from the repository root:

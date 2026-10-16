@@ -10,6 +10,7 @@ realm roles alone grant no product access. Suspended, closed and denied branches
 | --- | --- |
 | `kitchen` | `kitchen.ticket.read` |
 | `day-close` | `pos.day-close.read` |
+| `cash-close` | `pos.cash-review.read` |
 | `reports` | `reporting.dashboard.read` |
 | `payment-review` | `order.payment-review.read` |
 | `catalog` | `catalog.menu.read` |
@@ -34,6 +35,8 @@ and `CorrelationId`; no tokens, cookies, bodies, arbitrary headers or financial 
 are logged. Discovery has no cached permission snapshot; reload after access changes.
 
 Kitchen, Payment Review, end-of-day, sales and cash-close reports use selectors.
+Cash-close uses its own `cash-close` capability so cash-review readers need no unrelated
+day-close permission. The report still independently checks exact POS store access.
 Changing branch clears prior workflow state; tenant changes remount operational
 panels. Discovery failure blocks selection and prompts a reload. Store UUID remains
 a required cash-close report filter; the draft terminal configuration provides it.

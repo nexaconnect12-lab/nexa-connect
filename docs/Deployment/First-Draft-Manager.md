@@ -1,5 +1,7 @@
 # First-draft manager and financial evidence (slice 5)
 
+For release hardening, the [Slice 6 runner](First-Draft-Release.md) extends the normal-clock manager stage with an isolated quiesced database/configuration restore comparison and fresh-authentication reads after original-stack resumption. The separate historical Singapore gate remains unchanged. Neither automated clock nor restore comparison establishes real next-day or Windows/PDF acceptance.
+
 The draft uses one THB branch with `Asia/Singapore` business dates. The user tests cashier,
 Kitchen, manager and accountant through separate identities. Manual PromptPay is fictional
 human confirmation in automation; no bank transfer, automatic reconciliation, fiscal

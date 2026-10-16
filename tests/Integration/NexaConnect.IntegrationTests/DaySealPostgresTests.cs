@@ -165,7 +165,8 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
         Assert.Equal(original,changed.Snapshot!.Seals);Assert.True(changed.PendingSealChanges>0);
         var source=await OrderSealAsync(Window,original.Order.SealId,"token",default);
         Assert.True(source.JournalComplete);Assert.NotEmpty(source.Changes);Assert.True(source.PendingChanges>0);
-        await Sql(order,"UPDATE orders SET created_at_utc=$1 WHERE id=$2",Window.ToUtc.AddHours(1),late.Id);
+        // The exclusive boundary is already next-day trading, even just after UTC midnight.
+        await Sql(order,"UPDATE orders SET created_at_utc=$1 WHERE id=$2",Window.ToUtc,late.Id);
         var refreshed=await Workflow.PrepareAsync(organization,Command(reviewed.Version),new("manager","token"),default);
         var resealed=await Sealing.SealAsync(organization,SealCommand(refreshed.Version,changed.Version),new("manager","token"),default);
         Assert.Equal("ready_for_review",resealed.Status);Assert.NotEqual(original.Order.SealId,resealed.Snapshot!.Seals!.Order.SealId);

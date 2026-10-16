@@ -50,7 +50,8 @@ public sealed partial class DaySealPostgresTests
         await Sealing.ReadAsync(organization,branch,Date,new("manager","token"),default); // Seal invalidation and approval supersession share the POS transaction.
         var changed=await Approvals.ReadAsync(organization,branch,Date,new("manager","token"),default);
         Assert.Equal("superseded",changed.Status);Assert.Null(changed.ValidatedAtUtc);Assert.Equal(result.Decision!.ApprovalId,changed.Decision!.ApprovalId);Assert.Equal(result.Decision.Snapshot.Seals,changed.Decision.Snapshot.Seals);
-        await Sql(this.order,"UPDATE orders SET created_at_utc=$1 WHERE id=$2",Window.ToUtc.AddHours(1),order.Id);
+        // Keep next-day evidence in the past; +1 hour is future-dated near UTC midnight.
+        await Sql(this.order,"UPDATE orders SET created_at_utc=$1 WHERE id=$2",Window.ToUtc,order.Id);
         Assert.Equal("superseded",(await Approvals.ReadAsync(organization,branch,Date,new("manager","token"),default)).Status);
     }
     [ReportingDatabaseFact]

@@ -1,5 +1,11 @@
 # NexaConnect Unit Tests
 
+`OperationalBranchDiscoveryTests` verifies Kitchen and cash-close discovery against exact live
+organization/restaurant/branch permission, hiding denied/inactive branches. Cash-close uses
+`pos.cash-review.read` independently of `pos.day-close.read`; actual report store authorization
+remains a separate owning check. The [Slice 6 gate](../../../docs/Deployment/First-Draft-Release.md)
+runs the complete Unit suite with protected-state acceptance enabled and rejects skips.
+
 `DaySealTests` protect source Domain eligibility, pinned review/resume, stale completion fencing, immutable late-change evidence, journal/delivery blockers and sealed-set Reporting authorization/proof. `DayChangeAttributionTests` cover before/after timestamps, exclusive UTC boundaries and unknown/incomplete anchors in each owning Domain. Migration catalog tests now expect Order 15 / Payment 14 / POS 12. See [seal verification](../../../docs/Architecture/Evidence/Day-Close-Seals.md).
 
 `DayCutoffTests` additionally reject legacy/unproven delivery, preserve revision equality boundaries, require current revision-bound sources and reject changed retained revision identities. The revision foundation was introduced in Order 13 / Payment 12 / POS 10; current catalog expectations use the attribution versions above. See [revision protocol](../../../docs/Architecture/Decisions/ADR-023-revision-fenced-day-close-evidence.md).

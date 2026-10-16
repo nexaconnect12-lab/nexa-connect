@@ -1,6 +1,6 @@
 #requires -Version 7.4
 [CmdletBinding()]
-param([switch]$ConfirmDisposableInfrastructure,[switch]$VerifyTerminalPackage,[switch]$VerifyManagerFlow)
+param([switch]$ConfirmDisposableInfrastructure,[switch]$VerifyTerminalPackage,[switch]$VerifyManagerFlow,[switch]$VerifyReleaseRecovery)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
 . (Join-Path $PSScriptRoot 'payment-review-joined-helpers.ps1')
@@ -105,7 +105,12 @@ FROM authorization_resource_scopes WHERE organization_id=:'organization'::uuid A
  if((Owner-Sql 'inventory' "SELECT count(DISTINCT reservation_id) FROM inventory_reservation_lines WHERE organization_id=:'organization'::uuid AND order_id=:'interrupted_order'::uuid;" $variables) -ne '1'){throw 'Interrupted checkout duplicated Inventory reservation.'}
  if((Owner-Sql 'order' "SELECT count(*) FROM orders WHERE organization_id=:'organization'::uuid AND receipt_snapshot IS NOT NULL;" $variables) -ne '3'){throw 'Paid receipt count mismatch.'}
  $checks.owningDatabaseEffects=$true
- if($VerifyManagerFlow){Phase 'manager'}
+ if($VerifyManagerFlow -or $VerifyReleaseRecovery){Phase 'manager'}
+ if($VerifyReleaseRecovery){
+  & (Join-Path $PSScriptRoot 'test-first-draft-restore.ps1') -RunId $RunId -ConfirmDisposableInfrastructure
+  Phase 'manager-resumed'
+  $checks.restoreRecovery=$true
+ }
  $passed=$true
 }finally{
  Restore-DraftEnvironment $old
@@ -117,4 +122,4 @@ FROM authorization_resource_scopes WHERE organization_id=:'organization'::uuid A
  if(-not $cleanup){throw 'Joined draft cleanup could not be verified.'}
 }
 Write-Output "Joined draft checkout verification passed: $run/checkout-verification.json"
-if($VerifyManagerFlow){[pscustomobject]@{evidenceKind='draft-manager-normal';evidencePath=(Join-Path $run 'checkout-verification.json')}}
+if($VerifyManagerFlow -or $VerifyReleaseRecovery){[pscustomobject]@{evidenceKind='draft-manager-normal';evidencePath=(Join-Path $run 'checkout-verification.json')}}

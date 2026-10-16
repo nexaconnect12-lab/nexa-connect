@@ -1,5 +1,7 @@
 # Database Guidelines
 
+Slice 6 adds no schema or migration. Its [administrative local restore drill](../Deployment/First-Draft-Release.md) stops all owned writers, restores ten service databases and Keycloak into isolated clones, and checks successful original-archive DDL restoration and separately compares exact data/sequence dumps and owner/permission statements without bypassing financial history guards in original stores. Role backups and configuration copies are private; service ownership is unchanged. Broker/Redis and restored-graph recovery remain separate.
+
 Slice 4 adds no migration. POS terminal-admission queries are service-owned parameterized Infrastructure reads; Order never reads POS tables. Admission observation is outside the Order transaction and is not an atomic cross-service lock. Windows install preflight opens the existing schema-2 local database read-only, verifies protected scope/pending checkout and rejects legacy/schema conflicts; it does not migrate, purge or copy recovery. See [terminal deployment](../Deployment/First-Draft-Windows-POS.md).
 
 Draft reference provisioning adds no schema. POS and Authorization own narrowly named draft-only Infrastructure adapters for reference store/terminal and financial-limit rows; every data value is parameterized and existing rows are preserved. Other reference operations reuse owning repositories. See [setup and transaction/replay boundaries](../Deployment/First-Draft-Provisioning.md).

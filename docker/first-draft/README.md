@@ -1,5 +1,7 @@
 # Local first-draft infrastructure
 
+The [Slice 6 restore drill](../../docs/Deployment/First-Draft-Release.md) quiesces a disposable draft, backs up ten service databases plus Keycloak and restores into separately label-owned, network-isolated PostgreSQL clones using exact source image IDs. Compose topology and schema are unchanged; original broker/Redis volumes stay retained. Private backups include credentials/financial data and must not enter shared artifacts.
+
 Compose binds generated retained loopback ports from NEXACONNECT_DRAFT_POSTGRES_PORT,
 NEXACONNECT_DRAFT_KEYCLOAK_PORT, NEXACONNECT_DRAFT_RABBITMQ_PORT and NEXACONNECT_DRAFT_REDIS_PORT.
 The lifecycle supplies these transient variables from its private state; do not put them

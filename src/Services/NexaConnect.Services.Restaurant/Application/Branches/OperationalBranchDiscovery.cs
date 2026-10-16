@@ -8,6 +8,7 @@ public sealed class OperationalBranchDiscovery(IBranchManagementRepository repos
     {
         "kitchen" => "kitchen.ticket.read",
         "day-close" => "pos.day-close.read",
+        "cash-close" => "pos.cash-review.read",
         "reports" => "reporting.dashboard.read",
         "payment-review" => "order.payment-review.read",
         "catalog" => ProductPermissions.CatalogMenuRead,

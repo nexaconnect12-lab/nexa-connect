@@ -1,5 +1,7 @@
 # First-draft local test stack
 
+Slice 6 adds [candidate verification and a quiesced isolated restore drill](First-Draft-Release.md), including owning service and Keycloak databases, copied configuration/key ring and same-account credentials. Clone databases have no network or published ports. Original broker/Redis volumes are retained rather than restored; the original graph resumes. See executed evidence for status; production backup restoration and clean-commit CI remain distinct gates.
+
 For Slice 5, use the [manager guide](First-Draft-Manager.md). The normal draft retains real clocks; historical completed-day checks run in a separate guarded disposable test host, not through a production clock setting. Reporting accepts the scoped customer-user entry role with existing live product authorization. Actual next-day staff acceptance remains pending.
 
 After provisioning, use [Windows terminal packaging/install/update](First-Draft-Windows-POS.md) for Slice 4. It preserves protected terminal recovery separately from application releases. New manual settlement requires the POS admission endpoint; generated `Services:POS` wiring already supplies the address. Interactive WPF/PDF acceptance is recorded separately.

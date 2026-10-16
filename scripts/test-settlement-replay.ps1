@@ -57,3 +57,4 @@ try {
         @{runId=$runId;sourceRevision=$sourceRevision;sourceDirty=$sourceDirty;passed=($passed -and $cleanupVerified);caseCount=$caseCount;cleanupVerified=$cleanupVerified;productionVerified=$false;completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidenceDirectory 'verification.json') -Encoding utf8
     }
 }
+[pscustomobject]@{evidenceKind='draft-release-replay';evidencePath=(Join-Path $evidenceDirectory 'verification.json')}

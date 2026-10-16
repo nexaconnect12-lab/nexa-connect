@@ -1,5 +1,7 @@
 # Local draft identity/session smoke
 
+Slice 6 adds manager-resumed mode, run by checkout with -VerifyReleaseRecovery after its quiesced isolated database/configuration restore drill. Fresh PKCE reads retained receipts/review and replays the original settlement after original-stack resumption. Clone application startup and Windows/PDF behavior are not claimed. See [release guide](../../../../docs/Deployment/First-Draft-Release.md).
+
 Slice 5 adds `test-first-draft-checkout.ps1 -ConfirmDisposableInfrastructure -VerifyManagerFlow`.
 After real checkout and recovery, manager mode verifies mixed cash/PromptPay sales,
 cash-only drawer attribution, current-day closing rejection, version-fenced close and

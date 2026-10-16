@@ -5,19 +5,21 @@ namespace NexaConnect.UnitTests;
 
 public sealed class OperationalBranchDiscoveryTests
 {
-    [Fact]
-    public async Task DiscoveryChecksExactLiveBranchScopeAndHidesDeniedOrInactiveBranches()
+    [Theory]
+    [InlineData("kitchen","kitchen.ticket.read")]
+    [InlineData("cash-close","pos.cash-review.read")]
+    public async Task DiscoveryChecksExactLiveBranchScopeAndHidesDeniedOrInactiveBranches(string capability,string expectedPermission)
     {
         Guid org=Guid.NewGuid(),restaurant=Guid.NewGuid(),allowed=Guid.NewGuid(),denied=Guid.NewGuid();
         var rows=new[] { Row(org,restaurant,allowed,"active"),Row(org,restaurant,denied,"active"),Row(org,restaurant,Guid.NewGuid(),"closed") };
         var authorization=new Authorizer(allowed);
         var discovery=new OperationalBranchDiscovery(new Repository(rows),authorization);
-        var result=await discovery.ListAsync(org,"kitchen","Bearer opaque",default);
+        var result=await discovery.ListAsync(org,capability,"Bearer opaque",default);
         Assert.Equal(allowed,Assert.Single(result).BranchId);
         Assert.Equal(2,authorization.Calls.Count);
-        Assert.All(authorization.Calls,call=>{Assert.Equal(org,call.Org);Assert.Equal(restaurant,call.Restaurant);Assert.Equal("kitchen.ticket.read",call.Permission);});
+        Assert.All(authorization.Calls,call=>{Assert.Equal(org,call.Org);Assert.Equal(restaurant,call.Restaurant);Assert.Equal(expectedPermission,call.Permission);});
         authorization.Granted=false;
-        Assert.Empty(await discovery.ListAsync(org,"kitchen","Bearer opaque",default));
+        Assert.Empty(await discovery.ListAsync(org,capability,"Bearer opaque",default));
     }
     [Fact]
     public async Task InvalidCapabilityOrOrganizationCannotQueryRepository()

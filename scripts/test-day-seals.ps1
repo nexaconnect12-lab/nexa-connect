@@ -11,7 +11,7 @@ $containerStarted=$false;$passed=$false;$cleanupVerified=$false;$caseCount=0
 $sourceRevision=(& git rev-parse HEAD).Trim()
 $sourceDirty=!!(& git status --porcelain)
 $temporaryPassword=[guid]::NewGuid().ToString('N')
-$variables=@('NEXACONNECT_ENVIRONMENT','NEXACONNECT_POS_INTEGRATION_DB','NEXACONNECT_REPORTING_INTEGRATION_DB')
+$variables=@('NEXACONNECT_ENVIRONMENT','NEXACONNECT_POS_INTEGRATION_DB','NEXACONNECT_REPORTING_INTEGRATION_DB','NEXACONNECT_PAYMENT_INTEGRATION_DB')
 $prior=@{};foreach($name in $variables){$prior[$name]=[Environment]::GetEnvironmentVariable($name)}
 try {
     & $dockerPath run --pull never --detach --name $ownedContainer -e "POSTGRES_PASSWORD=$temporaryPassword" -e POSTGRES_DB=day_close_it -p '127.0.0.1::5432' postgres:17-alpine | Out-Null
@@ -27,7 +27,8 @@ try {
     $env:NEXACONNECT_ENVIRONMENT='Testing'
     $env:NEXACONNECT_POS_INTEGRATION_DB="Host=127.0.0.1;Port=$dbPort;Database=day_close_it;Username=postgres;Password=$temporaryPassword"
     $env:NEXACONNECT_REPORTING_INTEGRATION_DB=$env:NEXACONNECT_POS_INTEGRATION_DB
-    dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter '(FullyQualifiedName~DayCutoffPostgresTests|FullyQualifiedName~DaySealPostgresTests|FullyQualifiedName~EndOfDaySourcePostgresTests|FullyQualifiedName~DayCutoffPipelineTests|FullyQualifiedName~SourceFinancialRevisionPostgresTests|FullyQualifiedName~FinancialCompletenessPipelineTests)&FullyQualifiedName!~Hosted_outboxes_survive&FullyQualifiedName!~Hosted_correction_consumer&FullyQualifiedName!~Settlement_reporting_hosted_consumer&FullyQualifiedName!~Settlement_replay_cli_restricted' -v quiet --logger 'console;verbosity=normal' --logger 'trx;LogFileName=seals.trx' --results-directory $evidenceDirectory
+    $env:NEXACONNECT_PAYMENT_INTEGRATION_DB=$env:NEXACONNECT_POS_INTEGRATION_DB
+    dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter '(FullyQualifiedName~DayCutoffPostgresTests|FullyQualifiedName~DaySealPostgresTests|FullyQualifiedName~EndOfDaySourcePostgresTests|FullyQualifiedName~DayCutoffPipelineTests|FullyQualifiedName~SourceFinancialRevisionPostgresTests|FullyQualifiedName~FinancialCompletenessPipelineTests|FullyQualifiedName~PaymentDatabaseReadinessHealthCheckTests)&FullyQualifiedName!~Hosted_outboxes_survive&FullyQualifiedName!~Hosted_correction_consumer&FullyQualifiedName!~Settlement_reporting_hosted_consumer&FullyQualifiedName!~Settlement_replay_cli_restricted' -v quiet --logger 'console;verbosity=normal' --logger 'trx;LogFileName=seals.trx' --results-directory $evidenceDirectory
     if($LASTEXITCODE -ne 0){throw 'Day-seal PostgreSQL acceptance failed.'}
     [xml]$testResult=Get-Content -LiteralPath (Join-Path $evidenceDirectory 'seals.trx') -Raw
     $counters=$testResult.TestRun.ResultSummary.Counters
@@ -47,3 +48,4 @@ try {
         @{runId=$runId;sourceRevision=$sourceRevision;sourceDirty=$sourceDirty;passed=($passed -and $cleanupVerified);caseCount=$caseCount;cleanupVerified=$cleanupVerified;productionVerified=$false;completedAtUtc=[DateTimeOffset]::UtcNow.ToString('O')} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidenceDirectory 'verification.json') -Encoding utf8
     }
 }
+[pscustomobject]@{evidenceKind='draft-release-seals';evidencePath=(Join-Path $evidenceDirectory 'verification.json')}
