@@ -11,6 +11,7 @@ $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
 . (Join-Path $PSScriptRoot 'first-draft-terminal-helpers.ps1')
+. (Join-Path $PSScriptRoot 'first-draft-release-helpers.ps1')
 if(-not $IsWindows){throw 'Draft terminal packaging/install requires Windows.'}
 if($Action -eq 'Package'){
     $run=Get-DraftRunDirectory $root $RunId
@@ -20,6 +21,7 @@ if($Action -eq 'Package'){
         if($state.runId -cne $RunId -or $state.status -ne 'Ready' -or -not $state.provisionedBranch){throw 'Package requires the provisioned Ready draft.'}
         $config=Get-Content (Join-Path $run 'pos-configuration.json') -Raw | ConvertFrom-Json
         $scope=Get-TerminalScope $config
+        $candidate=Get-DraftCandidate $root
         $release=[Guid]::NewGuid().ToString('N')
         $destination=Join-Path $run "terminal-packages/$release"
         New-Item -ItemType Directory -Path $destination | Out-Null
@@ -35,7 +37,8 @@ if($Action -eq 'Package'){
         $config | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $destination 'appsettings.json')
         $revision=(& git -C $root rev-parse HEAD).Trim()
         $dirty=([string](& git -C $root status --porcelain)).Length -gt 0
-        @{format=1;releaseId=$release;runId=$RunId;sourceRevision=$revision;sourceDirty=$dirty;runtime='win-x64 framework-dependent .NET 10 Windows Desktop';scope=$scope;files=(Get-TerminalFileHashes $destination)} |
+        if((Get-DraftCandidate $root).inputHash -cne $candidate.inputHash -or $revision -cne $candidate.revision){throw 'Executable inputs changed during packaging; package cannot be handed over.'}
+        @{format=1;releaseId=$release;runId=$RunId;sourceRevision=$revision;sourceDirty=$dirty;sourceInputHash=$candidate.inputHash;runtime='win-x64 framework-dependent .NET 10 Windows Desktop';scope=$scope;files=(Get-TerminalFileHashes $destination)} |
             ConvertTo-Json -Depth 10 | Set-Content (Join-Path $destination 'terminal-package.json')
         [void](Read-TerminalPackage $destination)
         Write-Output "Draft terminal package: $destination"

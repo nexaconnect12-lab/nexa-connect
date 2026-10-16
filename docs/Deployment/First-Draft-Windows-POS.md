@@ -1,5 +1,7 @@
 # Windows first-draft terminal (slice 4)
 
+For final testing use the [Slice 7 acceptance and handover](First-Draft-UAT.md). New package manifests include `sourceInputHash`; packaging rejects executable input or HEAD changes during publish. Older packages retain the existing install checks, but cannot bind to a new UAT record without that hash. The record does not replace actual installation, recovery, session or saved-PDF verification below.
+
 Use one Windows x64 PC, PowerShell 7.4+, .NET 10 SDK to package and .NET 10 **Windows Desktop
 Runtime** to run. Start/provision the [owned stack](First-Draft-Test-Stack.md) first. The
 terminal uses THB with Asia/Singapore branch dates and manual cash/fictional PromptPay.

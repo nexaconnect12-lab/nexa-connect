@@ -1,5 +1,7 @@
 # NexaConnect POS
 
+For final solo testing, use the [Slice 7 acceptance and handover guide](../../../docs/Deployment/First-Draft-UAT.md). New terminal manifests record `sourceInputHash`; packaging rejects source-input or HEAD changes during publication. UAT binds the verified package to an unchanged source candidate and local release receipt. Actual installation, active-release selection, recovery, callback and saved-PDF results remain explicit operator checks.
+
 Use [slice 4 Windows deployment](../../../docs/Deployment/First-Draft-Windows-POS.md) for fresh win-x64 packaging, hashed per-user releases, scope-preserving install/update and Launch/Status. `--validate-install` performs read-only current-user recovery/configuration preflight without protocol registration, authentication or schema migration. Updates never overwrite the separate POS recovery directory. Primary startup registers the public PKCE callback; secondary callbacks cannot redirect registration and release only owned mutexes. Startup names pending original Orders; print cancellation/submission messages preserve Paid and require PDF/output verification. Interactive session and PDF checks are tracked separately from automated evidence.
 
 Slice 2 draft provisioning replaces only the owned generated terminal configuration with stable THB / Asia/Singapore scope IDs. Both retained and published settings survive stack rebuilds; existing local recovery remains untouched. See [setup and scoped logins](../../../docs/Deployment/First-Draft-Provisioning.md).

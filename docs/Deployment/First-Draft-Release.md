@@ -25,7 +25,7 @@ asset hashes. Child receipts record their scope and cleanup separately.
 
 Required gates are:
 
-- Lifecycle, terminal, manager and release safety guards.
+- Lifecycle, terminal, manager, release and UAT safety guards.
 - Unit with Windows DPAPI acceptance enabled, Architecture and Payment health HTTP tests;
   every required TRX test must execute and pass without skips.
 - Fresh `npm ci --ignore-scripts`, TypeScript check, frontend tests, both portal builds,
@@ -52,6 +52,11 @@ Bundle-size advisories do not replace independent dependency-audit exit-code gat
 Before distribution, commit the reviewed candidate, rerun from the intended clean checkout
 and retain passing CI for that exact commit. Base-commit CI does not attest these working-tree
 changes. No automatic commit, push or workflow dispatch occurs.
+
+Use the [Slice 7 UAT record and handover](First-Draft-UAT.md) to bind the new candidate
+receipt to a retained user environment and a package with the same source input hash.
+All required user cases remain explicit operator attestations; a local gate never marks
+Windows/PDF, actual next-day or final user acceptance as passed.
 
 ## Isolated restore drill
 

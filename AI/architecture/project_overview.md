@@ -1,5 +1,7 @@
 # NexaConnect Project Architecture
 
+Slice 7 adds local [UAT and handover tooling](../../docs/Deployment/First-Draft-UAT.md): immutable source/package/release binding, explicit operator attestations, defect/retest gates and allowlisted reports. Terminal manifests now include the executable input hash. No application contract, financial ownership, schema or role changes. Actual Windows/PDF, real next-day and exact-candidate CI remain user/release gates; see [evidence](../../docs/Architecture/Evidence/First-Draft-Slice-7.md).
+
 Slice 6 also corrects cash-close branch discovery to use existing `pos.cash-review.read` through `capability=cash-close`; Portal/BFF/Restaurant retain their existing tenant, correlation and live authorization boundaries. Reporting/POS still authorize the exact store. No role grant or schema changes; see [contract](../../docs/API/Operational-Branches.md).
 
 Slice 6 adds [local candidate hardening and recovery tooling](../../docs/Deployment/First-Draft-Release.md), binding executable input/build hashes to schema targets and strict joined/PostgreSQL/broker/frontend checks. A quiesced disposable draft restores ten owning databases plus Keycloak into network-isolated clones and verifies same-account configuration copies; the original graph resumes. No production topology, financial ownership or schema changes. Restored-graph recovery, clean-checkout CI for local changes and real next-day/Windows-PDF acceptance remain distinct gates; see [executed evidence](../../docs/Architecture/Evidence/First-Draft-Slice-6.md).

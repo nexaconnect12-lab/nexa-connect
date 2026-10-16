@@ -1,5 +1,7 @@
 # NexaConnect
 
+Slice 7 adds the [solo Windows/PDF acceptance script and handover](docs/Deployment/First-Draft-UAT.md), candidate/package-bound operator records, blocker/retest tracking and a safe report. [Verification status](docs/Architecture/Evidence/First-Draft-Slice-7.md) keeps actual user testing, clean-candidate CI and final acceptance pending.
+
 Cash-close reports now discover branches using existing cash-review authority through the `cash-close` capability, so cash-review readers need no unrelated day-close permission. Exact-store reads remain independently authorized; see [contract](docs/API/Operational-Branches.md).
 
 Slice 6 adds the [local release-candidate gate and isolated restore drill](docs/Deployment/First-Draft-Release.md): source/build/schema identities, strict backend/frontend/broker gates, quiesced service/Keycloak database restoration and same-account configuration checks. [Executed evidence](docs/Architecture/Evidence/First-Draft-Slice-6.md) distinguishes local verification from clean-checkout CI, a restored application graph and pending Windows/PDF and real next-day user gates.

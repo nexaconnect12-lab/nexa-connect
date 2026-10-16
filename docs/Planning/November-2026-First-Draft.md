@@ -1,6 +1,8 @@
 # November 2026 first draft: implementation slices and prompts
 
-Slice 6 implements the [local candidate gate and isolated restore drill](../Deployment/First-Draft-Release.md). Its [executed evidence](../Architecture/Evidence/First-Draft-Slice-6.md) distinguishes local input/build/schema identity and recovery verification from clean-checkout CI, restored application-graph disaster recovery and pending Windows/PDF/real next-day user acceptance. Slice 7 remains final user testing and handover.
+Slice 7 implements [acceptance recording and the solo tester handover](../Deployment/First-Draft-UAT.md), with [executed tooling evidence and explicit pending gates](../Architecture/Evidence/First-Draft-Slice-7.md). Actual Windows/PDF, real next-day testing and the user's final acceptance remain pending.
+
+Slice 6 implements the [local candidate gate and isolated restore drill](../Deployment/First-Draft-Release.md). Its [executed evidence](../Architecture/Evidence/First-Draft-Slice-6.md) distinguishes local input/build/schema identity and recovery verification from clean-checkout CI, restored application-graph disaster recovery and pending Windows/PDF/real next-day user acceptance.
 
 Slice 5 adds [manager financial acceptance](../Deployment/First-Draft-Manager.md), combining normal-clock cash/PromptPay reconciliation with guarded historical Singapore settlement/CSV checks. Executed status is in [slice 5 evidence](../Architecture/Evidence/First-Draft-Slice-5.md); the real next-day solo drill and Windows/PDF acceptance are still distinct gates.
 

@@ -18,7 +18,7 @@ $prior=@{NEXACONNECT_ENVIRONMENT=$env:NEXACONNECT_ENVIRONMENT;NEXACONNECT_POS_DP
 function Native([scriptblock]$Action){& $Action;if($LASTEXITCODE -ne 0){throw 'Release verification command failed; private run output contains diagnostics.'}}
 try {
     Write-Output "Candidate $id input SHA-256: $($candidate.inputHash)"
-    foreach($guard in @('test-first-draft-guards.ps1','test-first-draft-terminal-guards.ps1','test-first-draft-manager-guards.ps1','test-first-draft-release-guards.ps1')){& (Join-Path $PSScriptRoot $guard)}
+    foreach($guard in @('test-first-draft-guards.ps1','test-first-draft-terminal-guards.ps1','test-first-draft-manager-guards.ps1','test-first-draft-release-guards.ps1','test-first-draft-uat-guards.ps1')){& (Join-Path $PSScriptRoot $guard)}
     $checks.guards=$true
     $env:NEXACONNECT_ENVIRONMENT='Testing';$env:NEXACONNECT_POS_DPAPI_ACCEPTANCE='1'
     foreach($suite in @(@('Unit','NexaConnect.UnitTests',833),@('Architecture','NexaConnect.ArchitectureTests',6))){
