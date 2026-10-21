@@ -2,9 +2,12 @@ import { EndOfDayPanel } from "./EndOfDayPanel";
 import { SalesReportPanel } from "./SalesReportPanel";
 import { CashCloseReportPanel } from "./CashCloseReportPanel";
 import { KitchenQueuePanel } from "./KitchenQueuePanel";
-import React, { useEffect, useState } from "react";
+import { KitchenDisplay } from "./KitchenDisplay";
+import { currentSection, isKitchenEntry, signInToCustomer } from "./navigation";
+import React, { useEffect, useRef, useState } from "react";
 import { PaymentReviewPanel } from "./PaymentReviewPanel";
 import { createRoot } from "react-dom/client";
+import { flushSync } from "react-dom";
 import {
   Alert,
   Button,
@@ -63,10 +66,7 @@ type MediaAsset = { id:string; originalFileName:string; contentType:string; size
 type ActivityRecord={eventId:string;sourceService:string;actorSubjectId:string;action:string;resourceType:string;resourceId:string;outcome:string;occurredAtUtc:string;projectedAtUtc:string};
 type ActivityPage={items:ActivityRecord[];nextCursor?:string};
 const api = createApiClient({
-  onUnauthorized: () =>
-    location.assign(
-      `/bff/customer/login?returnUrl=${encodeURIComponent(location.pathname + location.hash)}`,
-    ),
+  onUnauthorized: signInToCustomer,
 });
 
 function useRequest<T>(path?: string) {
@@ -89,13 +89,21 @@ function ContextPicker({
   access,
   tenant,
   onChange,
+  onChanging,
+  onPendingChange,
+  disabled,
 }: {
   access: Access[];
   tenant?: Tenant;
   onChange: (v: Tenant) => void;
+  onChanging?: () => void;
+  onPendingChange?: (pending: boolean) => void;
+  disabled?: boolean;
 }) {
+  const [error, setError] = useState<string>();
   return (
-    <Select
+    <Space direction="vertical"><Select
+      disabled={disabled}
       className="nexa-context-picker"
       aria-label="Organization and product workspace"
       value={
@@ -110,14 +118,17 @@ function ContextPicker({
       }))}
       onChange={async (value) => {
         const [organizationId, applicationCode] = value.split("|");
-        onChange(
-          await api.request<Tenant>("/bff/customer/tenant", {
+        setError(undefined);
+        onChanging?.();
+        onPendingChange?.(true);
+        try { onChange(await api.request<Tenant>("/bff/customer/tenant", {
             method: "POST",
             body: { organizationId, applicationCode },
-          }),
-        );
+          })); }
+        catch { setError("Workspace could not be changed. Select an authorized workspace to retry."); }
+        finally { onPendingChange?.(false); }
       }}
-    />
+    />{error && <Alert type="error" message={error} />}</Space>
   );
 }
 
@@ -275,17 +286,42 @@ function App() {
   const session = useRequest<Session>("/bff/customer/me"),
     accessState = useRequest<AccessResponse>("/bff/customer/access");
   const [tenant, setTenant] = useState<Tenant>();
-  const [section, setSection] = useState<PortalSection>(() =>
-    sections.includes(location.hash.slice(1) as PortalSection)
-      ? (location.hash.slice(1) as PortalSection)
-      : "profile",
-  );
+  const [workspaceBusy, setWorkspaceBusy] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  // Remove scoped content before the anchor begins a potentially slow redirect.
+  const beginSignOut = () => flushSync(() => setSigningOut(true));
+  const tenantGeneration = useRef(0);
+  const [section, setSection] = useState<PortalSection>(currentSection);
+  const contextProps = {
+    onChange: setTenant,
+    onChanging: () => {
+      tenantGeneration.current++;
+      // Kitchen clears immediately; other workflows retain their existing
+      // state until a protected workspace selection succeeds.
+      if (section === "kitchen") setTenant(undefined);
+    },
+    onPendingChange: setWorkspaceBusy,
+    disabled: workspaceBusy,
+  };
   useEffect(() => {
+    const changed = () => setSection(currentSection());
+    window.addEventListener("hashchange", changed);
+    window.addEventListener("popstate", changed);
+    return () => {
+      window.removeEventListener("hashchange", changed);
+      window.removeEventListener("popstate", changed);
+    };
+  }, []);
+  useEffect(() => {
+    const generation = tenantGeneration.current;
+    let cancelled = false;
     api
       .request<Tenant>("/bff/customer/tenant")
-      .then(setTenant)
+      .then(value => { if (!cancelled && generation === tenantGeneration.current) setTenant(value); })
       .catch(() => undefined);
+    return () => { cancelled = true; };
   }, []);
+  if (signingOut) return <RequestState state="loading" title="Signing out of Customer Portal" />;
   if (!session.data || !accessState.data)
     return session.error || accessState.error ? (
       <RequestState state="error" title="Customer workspace unavailable" message={session.error ?? accessState.error}
@@ -323,7 +359,7 @@ function App() {
     panel = (
       <Card>
         <Typography.Title level={2}>Choose your workspace</Typography.Title>
-        <ContextPicker access={access} tenant={tenant} onChange={setTenant} />
+        <ContextPicker access={access} tenant={tenant} {...contextProps} />
       </Card>
     );
   else if (section === "profile")
@@ -380,6 +416,11 @@ function App() {
     ? <PaymentReviewPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} />
     : <Alert type="warning" message="Payment Reviews require the NexaConnect product workspace."/>;
   else panel = <FeaturePanel section={section} />;
+  if (isKitchenEntry()) return <KitchenDisplay actions={<>
+    <ContextPicker access={access} tenant={tenant} {...contextProps} />
+    <span>{session.data.username ?? session.data.subjectId}</span>
+    <Button href="/bff/customer/logout" onClick={beginSignOut}>Sign out</Button>
+  </>}>{panel}</KitchenDisplay>;
   return (
     <AuthorizationUiProvider can={() => true}>
       <PortalLayout
@@ -392,10 +433,10 @@ function App() {
             <ContextPicker
               access={access}
               tenant={tenant}
-              onChange={setTenant}
+              {...contextProps}
             />
             <span>{session.data.username ?? session.data.subjectId}</span>
-            <Button href="/bff/customer/logout">Sign out</Button>
+            <Button href="/bff/customer/logout" onClick={beginSignOut}>Sign out</Button>
           </Space>
         }
       >

@@ -7,7 +7,8 @@ This document defines planned work, not delivered product behavior. The phase-0
 completed planning assessment and deferred server/hardware prerequisites.
 [Phase 1 source implementation and verification](../Deployment/Next-Iteration-Phase-1.md)
 are recorded separately; [Phase 2 UI foundation](../Deployment/Next-Iteration-Phase-2.md)
-is implemented and verified in source. Interactive acceptance remains pending. Phases 3–9 remain planned;
+and [Phase 3 direct Kitchen entry](../Deployment/Next-Iteration-Phase-3.md)
+are implemented and verified in source. Interactive acceptance remains pending. Phases 4–9 remain planned;
 no user acceptance is asserted here.
 
 The user considers the first draft sufficient to proceed. This does not fill its
@@ -44,8 +45,9 @@ and public listing are external follow-ups, not prerequisites for the user's pri
 
 Leave unchecked until the linked phase supplies verified evidence.
 
-- [ ] R01 — Direct `/kitchen` link within the existing Customer Portal, focused navigation,
-  authorized branch/station selection, full-screen option; manager navigation retained. Phase 3.
+- [x] R01 — Direct `/kitchen` link within the existing Customer Portal, focused navigation,
+  authorized branch/station selection, full-screen option; manager navigation retained.
+  [Phase 3 source verification](../Deployment/Next-Iteration-Phase-3.md); actual device/user acceptance remains Phase 9.
 - [ ] R02 — One Windows PC, two displays: authorized staff/manager controls and a separate
   customer view following the same order and authoritative payment state. Phase 4.
 - [ ] R03 — Idle locks instead of signing out; authenticate on the staff screen to resume

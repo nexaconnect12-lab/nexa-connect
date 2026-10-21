@@ -2,8 +2,15 @@
 
 Phase 2 uses the shared responsive shell with keyboard skip navigation, compact-screen
 drawer, wrapped workspace/session controls and labeled initial request/retry states.
-Existing hash sections and protected financial workflows are preserved; a `/kitchen`
-pathname remains Phase 3. See [UI foundation verification](../../../../docs/Deployment/Next-Iteration-Phase-2.md).
+Existing hash sections and protected financial workflows are preserved.
+See [UI foundation verification](../../../../docs/Deployment/Next-Iteration-Phase-2.md).
+
+Phase 3 adds `/kitchen` and `/kitchen/` on this same origin using the existing Customer
+session/queue with focused navigation, browser fullscreen/fallback and manager return
+to `/#kitchen`. Login retains the destination; refresh resets branch/station and requires
+a fresh read. Workspace switches/sign-out unmount queue state; denied reads remove tickets.
+Manager Kitchen navigation also offers **Open Kitchen display**.
+See [deployment and verification](../../../../docs/Deployment/Next-Iteration-Phase-3.md).
 
 Cash-close branch selection uses `cash-close` operational discovery under existing `pos.cash-review.read`, independently of day-close permissions. A Store UUID remains required and every report read repeats exact-store authorization. Discovery failures block selection; branch/tenant changes clear prior report state. See [operational discovery](../../../../docs/API/Operational-Branches.md).
 
@@ -75,4 +82,4 @@ For the same-origin Phase 8 development stack, trust the ASP.NET development cer
 
 After the stack and seed data are ready, run the opt-in [joined Playwright acceptance suite](../../e2e/phase8/README.md). The suite uses environment-provided customer credentials and identifiers and tests the browser-to-provider Media lifecycle; implementing the harness does not replace the required environment-specific execution, recovery, load, TLS, CORS, credential, or operational validation.
 
-The NexaConnect workspace includes **Kitchen queue**: enter a branch UUID and optional station code, page through active tickets, and use permission-aware Start/Ready/Complete actions. The current 50-ticket page refreshes every ten seconds; manual refresh resets to page one. Actions lock during requests or stale state. Conflicts/timeouts trigger authoritative reads with no automatic mutation replay; branch/station/tenant changes clear the queue. Kitchen completion does not confirm payment. Configure BFF `Services__Kitchen`; the Phase 8 launcher does not start Kitchen. Run `npm run test:e2e:kitchen` for synthetic browser contracts. See [Kitchen behavior and release gates](../../../../docs/API/Kitchen-Queue.md).
+The NexaConnect workspace includes **Kitchen queue**: select an authorized branch and optional menu-derived station, page through active tickets, and use permission-aware Start/Ready/Complete actions. The current 50-ticket page refreshes every ten seconds; manual refresh resets to page one. Actions lock during requests or stale state. Conflicts/timeouts trigger authoritative reads with no automatic mutation replay; branch/station/tenant changes clear the queue. Kitchen completion does not confirm payment. Configure BFF `Services__Kitchen`; the Phase 8 launcher does not start Kitchen. Run `npm run test:e2e:kitchen` for synthetic browser contracts. See [Kitchen behavior and release gates](../../../../docs/API/Kitchen-Queue.md).

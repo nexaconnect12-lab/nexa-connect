@@ -1,11 +1,17 @@
 # NexaConnect Project Architecture
 
+Next-iteration Phase 3 adds `/kitchen` within the existing Customer Portal deployment/session.
+It reuses the authorized Kitchen queue with focused navigation, browser fullscreen and
+manager return. Login preserves the destination; scope/sign-out changes discard old Kitchen UI state.
+No service, store, grant or financial lifecycle changes. See
+[entry and verification](../../docs/Deployment/Next-Iteration-Phase-3.md).
+
 Next-iteration Phase 2 reuses React/Ant Design and native WPF for a consistent UI foundation.
 Shared design/layout packages provide responsive navigation, accessible request feedback
 and a presentation-only workspace frame; POS uses a reusable resource dictionary. Backend
 contracts, session authority, financial ownership and deployment topology are unchanged.
-[Verification and limits](../../docs/Deployment/Next-Iteration-Phase-2.md) keep direct Kitchen,
-customer displays/gallery and physical/user acceptance in their later phases.
+[Verification and limits](../../docs/Deployment/Next-Iteration-Phase-2.md) record Phase 2;
+customer displays/gallery and physical/user acceptance remain later phases.
 
 Next-iteration Phase 1 adds a WPF lock overlay and identity-bound resume. The POS resolves
 the operator through configured Keycloak UserInfo after code exchange/refresh, retains its

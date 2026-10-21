@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Card, Form, Space, Tag, Typography } from "antd";
 import {OperationalBranchPicker} from "./OperationalBranchPicker";
 import { ApiError, createApiClient, type RequestOptions } from "@nexaconnect/api-client";
+import { isKitchenEntry, signInToCustomer } from "./navigation";
 
 type Ticket = { ticketId:string; orderId:string; status:string; concurrencyVersion:number; queuedAtUtc:string;
   lines:Array<{productId:string; name:string; quantity:number; preparationStation:string}> };
 type Page = { items:Ticket[]; nextCursor?:string; canTransition:boolean };
-const api = createApiClient({onUnauthorized:()=>location.assign("/bff/customer/login")});
+const api = createApiClient({onUnauthorized:signInToCustomer});
 const base = "/bff/customer/kitchen";
 const next:Record<string,{label:string;status:string}> = {
   Queued:{label:"Start",status:"InProgress"}, InProgress:{label:"Ready",status:"Ready"}, Ready:{label:"Complete",status:"Completed"},
@@ -62,8 +63,12 @@ export function KitchenQueuePanel() {
   };
   const load = async (after?:string) => {
     const signal=begin();if(!signal)return;
-    try {await fetchPage(signal,after);}
-    catch {if(!signal.aborted){setStale(true);setNotice("Queue unavailable. Actions are locked until a successful refresh. Check your connection and branch access.");}}
+    try {await fetchPage(signal,after);if(!signal.aborted)setNotice(undefined);}
+    catch(error) {if(!signal.aborted){
+      setStale(true);
+      if(error instanceof ApiError && (error.status===401 || error.status===403)) {setPage(undefined);setUpdated(undefined);}
+      setNotice("Queue unavailable. Actions are locked until a successful refresh. Check your connection and branch access.");
+    }}
     finally {finish(signal);}
   };
   // Refresh the current page only; mutations are always explicit and never replayed.
@@ -92,8 +97,11 @@ export function KitchenQueuePanel() {
       const authoritative=await request<Ticket>(`${path}/${ticket.ticketId}`,signal);
       message+=` Current ticket status: ${authoritative.status}.`;
       await fetchPage(signal);
-    } catch {
-      if(!signal.aborted)setStale(true);
+    } catch(error) {
+      if(!signal.aborted){
+        setStale(true);
+        if(error instanceof ApiError && (error.status===401 || error.status===403)) {setPage(undefined);setUpdated(undefined);}
+      }
       message+=" Refresh failed. Reload the queue before continuing.";
     } finally {if(!signal.aborted)setNotice(message);finish(signal);}
   };
@@ -101,6 +109,7 @@ export function KitchenQueuePanel() {
 
   return <Space direction="vertical" size="middle" style={{width:"100%"}}>
     <Typography.Title level={2}>Kitchen queue</Typography.Title>
+    {!isKitchenEntry() && <Button href="/kitchen">Open Kitchen display</Button>}
     <Alert type="info" message="Preparation can begin before payment settles. Kitchen completion does not confirm payment. A payment failure can cancel unfinished tickets; completed preparation needs operator investigation."/>
     <Form layout="inline" onFinish={()=>void load()}>
       <Form.Item label="Branch"><OperationalBranchPicker capability="kitchen" label="Kitchen branch" value={branch} disabled={busy} onChange={value=>{clear();setStation("");setStations(undefined);setBranch(value);}}/></Form.Item>

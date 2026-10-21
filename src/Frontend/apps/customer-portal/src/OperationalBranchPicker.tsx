@@ -1,9 +1,10 @@
 import {useEffect,useState} from "react";
 import {Alert,Space} from "antd";
 import {createApiClient} from "@nexaconnect/api-client";
+import {signInToCustomer} from "./navigation";
 
 type Branch={branchId:string;name:string;code:string;timeZone:string;currency:string};
-const api=createApiClient({onUnauthorized:()=>location.assign("/bff/customer/login")});
+const api=createApiClient({onUnauthorized:signInToCustomer});
 export function OperationalBranchPicker({capability,value,onChange,disabled=false,label="Branch"}:{
  capability:string;value:string;onChange:(value:string)=>void;disabled?:boolean;label?:string}){
  const [branches,setBranches]=useState<Branch[]>();const [error,setError]=useState(false);

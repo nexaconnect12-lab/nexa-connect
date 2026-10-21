@@ -1,5 +1,11 @@
 # NexaConnect Customer BFF
 
+Phase 3's `/kitchen` and `/kitchen/` are Customer SPA paths served by the existing static
+fallback after publishing the frontend into `wwwroot`. No new BFF handler or permission is
+added. The SPA login callback preserves its local destination; API access still requires the
+Customer session and live resource authorization. Proxies must preserve the direct path and
+existing BFF/OIDC paths. See [entry and verification](../../../docs/Deployment/Next-Iteration-Phase-3.md).
+
 GET /bff/customer/operational-branches forwards the protected live tenant selection and customer token to Restaurant capability-filtered discovery with existing correlation propagation and safe downstream-failure logs. It adds no financial authority. See [contract](../../../docs/API/Operational-Branches.md).
 
 The cash-close report requests `capability=cash-close`, mapped by Restaurant to existing `pos.cash-review.read`; day-close access is independent. Store UUID remains required, and Reporting/POS repeat exact-store authorization. The BFF uses the existing discovery adapter, correlation validation and sanitized failure events.

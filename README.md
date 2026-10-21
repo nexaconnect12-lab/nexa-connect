@@ -1,5 +1,11 @@
 # NexaConnect
 
+Next-iteration Phase 3 adds a focused `/kitchen` entry on the Customer Portal origin,
+with authorized branch/station selection, browser fullscreen and manager return.
+It reuses the existing queue, session and version-fenced commands.
+[Usage and verification](docs/Deployment/Next-Iteration-Phase-3.md) distinguish source
+checks from deployment and later device/user acceptance.
+
 Next-iteration Phase 2 adds a shared responsive portal shell and reusable native POS styles,
 with clearer loading/error feedback, keyboard navigation and readable transaction context.
 [UI foundation verification](docs/Deployment/Next-Iteration-Phase-2.md) records synthetic

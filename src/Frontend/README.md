@@ -1,5 +1,9 @@
 # NexaConnect frontend foundations
 
+Phase 3 adds a focused `/kitchen` entry within the Customer Portal, reusing its existing
+session, queue and scoped commands. It includes fullscreen/fallback, manager return and
+safe scope/sign-out clearing. See [usage and verification](../../docs/Deployment/Next-Iteration-Phase-3.md).
+
 Next-iteration Phase 2 adds a branded responsive shell, mobile navigation, keyboard skip
 link, wrapped session/workspace controls and shared request feedback. Both portal session
 boundaries and financial controls remain unchanged. See [design-system](packages/design-system/README.md),
