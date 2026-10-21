@@ -6,7 +6,8 @@ This document defines planned work, not delivered product behavior. The phase-0
 [baseline and execution assessment](Next-Iteration-Phase-0-Baseline.md) records the
 completed planning assessment and deferred server/hardware prerequisites.
 [Phase 1 source implementation and verification](../Deployment/Next-Iteration-Phase-1.md)
-are recorded separately; interactive acceptance remains pending. Phases 2–9 remain planned;
+are recorded separately; [Phase 2 UI foundation](../Deployment/Next-Iteration-Phase-2.md)
+is implemented and verified in source. Interactive acceptance remains pending. Phases 3–9 remain planned;
 no user acceptance is asserted here.
 
 The user considers the first draft sufficient to proceed. This does not fill its

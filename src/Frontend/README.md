@@ -1,5 +1,12 @@
 # NexaConnect frontend foundations
 
+Next-iteration Phase 2 adds a branded responsive shell, mobile navigation, keyboard skip
+link, wrapped session/workspace controls and shared request feedback. Both portal session
+boundaries and financial controls remain unchanged. See [design-system](packages/design-system/README.md),
+[layout](packages/layout/README.md) and [verification](../../docs/Deployment/Next-Iteration-Phase-2.md).
+`npm run test:e2e:ui-foundation` runs ten synthetic Chromium cases against both actual UIs
+and writes fixture-only screenshots; it does not establish real OIDC or device acceptance.
+
 The cash-close browser fixture now distinguishes a 30-second child-process timeout from allowlisted fixture stage/type/SQLSTATE failures. Arbitrary child stdout/stderr and exception messages remain suppressed. The release gate runs diagnostic/redaction guard tests; retries and required scenario counts are unchanged. See [acceptance guide](../../docs/Deployment/Cash-Close-Portal-Acceptance.md).
 
 Cash-close reports use `cash-close` operational discovery under existing `pos.cash-review.read`; day-close permission is independent. Store UUID remains required and Reporting/POS repeat exact-store authorization. See [contract](../../docs/API/Operational-Branches.md).

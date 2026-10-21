@@ -1,5 +1,10 @@
 # NexaConnect Customer Portal
 
+Phase 2 uses the shared responsive shell with keyboard skip navigation, compact-screen
+drawer, wrapped workspace/session controls and labeled initial request/retry states.
+Existing hash sections and protected financial workflows are preserved; a `/kitchen`
+pathname remains Phase 3. See [UI foundation verification](../../../../docs/Deployment/Next-Iteration-Phase-2.md).
+
 Cash-close branch selection uses `cash-close` operational discovery under existing `pos.cash-review.read`, independently of day-close permissions. A Store UUID remains required and every report read repeats exact-store authorization. Discovery failures block selection; branch/tenant changes clear prior report state. See [operational discovery](../../../../docs/API/Operational-Branches.md).
 
 The End-of-day settlement panel adds **Download settlement CSV** for the current validated branch/business-date filters (up to 31 dates). It requests a fresh BFF comparison, buffers at most 4 MiB, downloads a scoped filename and discards stale output on filter/branch/tenant changes or failed access. No financial result enters browser storage. Import money/identity/date columns as text, sum settlement rows only and do not add corrections already included in variance. Verify TypeScript, `settlementExport.test.ts`, `settlementReporting.test.ts` and `npm run test:e2e:settlement-reporting`. See [contract](../../../../docs/API/Settlement-Export.md) and [rollout](../../../../docs/Deployment/Settlement-Reporting.md#settlement-csv-export).

@@ -1,5 +1,11 @@
 # NexaConnect POS
 
+Phase 2 extracts reusable native styles to `Presentation/PosTheme.xaml`, aligns touch/focus
+and tab presentation, wraps terminal/session context and bounds the scrolling status area.
+The local cart sum is labeled Cart estimate; authoritative pricing and payment/recovery
+behavior are unchanged. See [UI foundation renders and verification limits](../../../docs/Deployment/Next-Iteration-Phase-2.md).
+The first-draft installer remains unchanged; physical/user acceptance is still pending.
+
 Next-iteration Phase 1 adds a dedicated idle-lock overlay and original-cashier authenticated
 resume. Provider UserInfo establishes the subject/authority retained in the DPAPI lock
 marker; wrong-user resume is rejected and startup requires authentication. Lock retains

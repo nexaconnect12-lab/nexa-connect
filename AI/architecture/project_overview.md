@@ -1,5 +1,12 @@
 # NexaConnect Project Architecture
 
+Next-iteration Phase 2 reuses React/Ant Design and native WPF for a consistent UI foundation.
+Shared design/layout packages provide responsive navigation, accessible request feedback
+and a presentation-only workspace frame; POS uses a reusable resource dictionary. Backend
+contracts, session authority, financial ownership and deployment topology are unchanged.
+[Verification and limits](../../docs/Deployment/Next-Iteration-Phase-2.md) keep direct Kitchen,
+customer displays/gallery and physical/user acceptance in their later phases.
+
 Next-iteration Phase 1 adds a WPF lock overlay and identity-bound resume. The POS resolves
 the operator through configured Keycloak UserInfo after code exchange/refresh, retains its
 subject/authority in the DPAPI lock marker and requires the original operator to resume.

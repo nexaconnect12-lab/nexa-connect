@@ -1,5 +1,10 @@
 # NexaConnect
 
+Next-iteration Phase 2 adds a shared responsive portal shell and reusable native POS styles,
+with clearer loading/error feedback, keyboard navigation and readable transaction context.
+[UI foundation verification](docs/Deployment/Next-Iteration-Phase-2.md) records synthetic
+browser/render checks separately from the later consolidated user test.
+
 Next-iteration Phase 1 implements Windows POS idle lock with original-cashier authenticated
 resume and safe active-use renewal. [Verification and upgrade constraints](docs/Deployment/Next-Iteration-Phase-1.md)
 distinguish tested source from the retained first-draft installer and pending user acceptance.

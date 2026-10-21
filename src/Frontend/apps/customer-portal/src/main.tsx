@@ -25,7 +25,7 @@ import {
 } from "antd";
 import { createApiClient } from "@nexaconnect/api-client";
 import { AuthorizationUiProvider } from "@nexaconnect/authorization-ui";
-import { NexaDesignProvider } from "@nexaconnect/design-system";
+import { NexaDesignProvider, RequestState } from "@nexaconnect/design-system";
 import { ErrorBoundary, normalizeError } from "@nexaconnect/error-handling";
 import { PortalLayout } from "@nexaconnect/layout";
 import {
@@ -96,7 +96,8 @@ function ContextPicker({
 }) {
   return (
     <Select
-      style={{ minWidth: 300 }}
+      className="nexa-context-picker"
+      aria-label="Organization and product workspace"
       value={
         tenant
           ? `${tenant.organizationId}|${tenant.applicationCode}`
@@ -105,7 +106,7 @@ function ContextPicker({
       placeholder="Select organization and product"
       options={access.map((x) => ({
         value: `${x.organizationId}|${x.applicationCode}`,
-        label: `${x.organizationName} Â· ${x.applicationCode}`,
+        label: `${x.organizationName} \u00b7 ${x.applicationCode}`,
       }))}
       onChange={async (value) => {
         const [organizationId, applicationCode] = value.split("|");
@@ -258,9 +259,8 @@ function FeaturePanel({
   return (
     <>
       <Typography.Title level={2}>{section}</Typography.Title>
-      {state.error && <Alert type="warning" message={state.error} />}{" "}
-      {!state.data ? (
-        <Spin />
+      {state.error ? <RequestState state="error" message={state.error} onRetry={state.reload} /> : !state.data ? (
+        <RequestState state="loading" title="Loading workspace view" />
       ) : (
         <Card>
           <Alert type="info" message={state.data.message} />
@@ -288,9 +288,10 @@ function App() {
   }, []);
   if (!session.data || !accessState.data)
     return session.error || accessState.error ? (
-      <Alert type="error" message={session.error ?? accessState.error} />
+      <RequestState state="error" title="Customer workspace unavailable" message={session.error ?? accessState.error}
+        onRetry={() => { session.reload(); accessState.reload(); }} />
     ) : (
-      <Spin fullscreen />
+      <RequestState state="loading" title="Opening Customer Portal" />
     );
   const access = accessState.data.organizations,
     current = selectedAccess(access, tenant);
@@ -383,10 +384,11 @@ function App() {
     <AuthorizationUiProvider can={() => true}>
       <PortalLayout
         title="Customer Portal"
+        description="Manage your restaurant workspace, daily operations and financial evidence."
         items={nav}
         selectedKey={section}
         headerActions={
-          <Space>
+          <Space wrap>
             <ContextPicker
               access={access}
               tenant={tenant}

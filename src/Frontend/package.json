@@ -30,6 +30,7 @@
     "test:e2e:financial-completeness": "playwright test --config playwright.financial-completeness.config.mjs",
     "test:e2e:cash-close": "playwright test --config playwright.cash-close.config.mjs",
     "test:e2e:kitchen": "playwright test --config playwright.kitchen.config.mjs",
+    "test:e2e:ui-foundation": "playwright test --config playwright.ui-foundation.config.mjs",
     "test:e2e:phase8": "playwright test --config playwright.phase8.config.mjs",
     "test:e2e:payment-review": "playwright test --config playwright.payment-review.config.mjs",
     "test:e2e:payment-review:live": "playwright test --config playwright.payment-review-live.config.mjs",

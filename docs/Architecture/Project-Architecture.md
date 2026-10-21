@@ -1,5 +1,13 @@
 # NexaConnect Project Architecture
 
+Phase 2 of the next iteration adds presentation primitives within the existing clients:
+React shared design/layout packages implement a responsive portal shell, request states and
+workspace frame; the native WPF client imports reusable styles from `Presentation/PosTheme.xaml`.
+Product Owner and Customer BFF/session/capability boundaries and all service-owned financial
+workflows remain unchanged. No route, schema, permission or server topology changes. See
+[UI foundation scope and verification](../Deployment/Next-Iteration-Phase-2.md); focused
+Kitchen entry, dual displays and gallery behavior remain later phases.
+
 Next-iteration Phase 1 introduces a dedicated WPF lock surface and original-operator
 authenticated resume. The public POS client uses configured Keycloak UserInfo after token
 exchange/refresh to establish the subject/authority persisted with its DPAPI credential-free
