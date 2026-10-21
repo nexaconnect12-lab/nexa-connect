@@ -7,4 +7,6 @@ public sealed record PosTokenSet(
     string TokenType,
     DateTimeOffset? SessionStartedAtUtc = null,
     DateTimeOffset? SessionExpiresAtUtc = null,
-    DateTimeOffset? LockedAtUtc = null);
+    DateTimeOffset? LockedAtUtc = null,
+    string? Subject = null,
+    string? Authority = null);

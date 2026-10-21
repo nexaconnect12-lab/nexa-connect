@@ -4,6 +4,9 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Net.Http.Headers;
+using Microsoft.Extensions.Logging;
+using NexaConnect.Observability;
 
 namespace NexaConnect.POS;
 
@@ -19,26 +22,33 @@ public sealed class PosAuthentication : IDisposable
     private PkceRequest? _pkce;
     private int _callbackConsumed;
     private bool _requiresInteractiveSignIn;
+    private readonly Action<string> _launchBrowser;
+    private readonly ILoggerFactory _loggerFactory = NexaConnectObservabilityExtensions.CreateClientLoggerFactory("nexaconnect-pos-client");
+    private Func<bool> _hasRetainedWork = () => false;
 
     public PosAuthentication(PosClientConfiguration configuration)
-        : this(configuration, new HttpClientHandler(), new WindowsTokenStore())
+        : this(configuration, new HttpClientHandler { AllowAutoRedirect = false }, new WindowsTokenStore())
     {
     }
 
     internal PosAuthentication(PosClientConfiguration configuration, HttpMessageHandler handler,
-        IPosTokenStore tokenStore)
+        IPosTokenStore tokenStore, Action<string>? launchBrowser = null)
     {
         _configuration = configuration;
-        _httpClient = new HttpClient(handler);
+        configuration.ValidateCheckout();
+        _httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20), MaxResponseContentBufferSize = 1024 * 1024 };
         _tokenStore = tokenStore;
+        _launchBrowser = launchBrowser ?? (uri =>
+        {
+            if (Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true, Verb = "open" }) is null)
+                throw new InvalidOperationException("Windows could not open secure sign-in.");
+        });
         CurrentToken = _tokenStore.Load();
         if (CurrentToken?.LockedAtUtc is not null)
         {
             _requiresInteractiveSignIn = true;
         }
-        else if (CurrentToken is not null &&
-                 (CurrentToken.SessionStartedAtUtc is null || CurrentToken.SessionExpiresAtUtc is null ||
-                  PosSessionPolicy.IsAbsoluteExpired(CurrentToken, DateTimeOffset.UtcNow)))
+        else if (CurrentToken is not null)
         {
             RequireInteractiveSignIn();
         }
@@ -48,17 +58,27 @@ public sealed class PosAuthentication : IDisposable
 
     public PosTokenSet? CurrentToken { get; private set; }
     public bool RequiresInteractiveSignIn => _requiresInteractiveSignIn;
+    public bool HasVerifiedOperator => HasOperator(CurrentToken);
+
+    // The UI supplies only whether retained work exists; authentication never mutates it.
+    public void SetRetainedWorkGuard(Func<bool> hasRetainedWork) =>
+        _hasRetainedWork = hasRetainedWork ?? throw new ArgumentNullException(nameof(hasRetainedWork));
+
+    private bool HasOperator(PosTokenSet? token) => !string.IsNullOrWhiteSpace(token?.Subject)
+        && string.Equals(token.Authority, _configuration.Authority.TrimEnd('/'), StringComparison.Ordinal);
 
     public void SignOut()
     {
         lock (_sync)
         {
+            if (_hasRetainedWork())
+                throw new PosSessionResumeException("Resolve retained work before signing out. Lock the screen to pause instead.");
             _pending?.TrySetCanceled();
             _pending = null;
             _pkce = null;
             _callbackConsumed = 0;
-            CurrentToken = null;
             _tokenStore.Delete();
+            CurrentToken = null;
             _requiresInteractiveSignIn = false;
         }
         StatusChanged?.Invoke(this, "Signed out. Stored credentials were cleared.");
@@ -70,12 +90,17 @@ public sealed class PosAuthentication : IDisposable
         TaskCompletionSource<PosTokenSet> completion = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
         PkceRequest pkce = Pkce.Create();
+        PosTokenSet? expectedOperator;
         lock (_sync)
         {
             if (_pending is not null)
             {
                 throw new InvalidOperationException("A POS sign-in is already in progress.");
             }
+
+            expectedOperator = CurrentToken;
+            if (_hasRetainedWork() && !HasOperator(expectedOperator))
+                throw new PosSessionResumeException("Retained work has no verified cashier binding. Preserve recovery and request original-cashier reconciliation before upgrading or resuming.");
 
             _pkce = pkce;
             _pending = completion;
@@ -84,17 +109,8 @@ public sealed class PosAuthentication : IDisposable
 
         try
         {
-            string authorizeUri = BuildAuthorizeUri(pkce, forceReauthentication);
-            ProcessStartInfo browser = new()
-            {
-                FileName = authorizeUri,
-                UseShellExecute = true,
-                Verb = "open"
-            };
-            if (Process.Start(browser) is null)
-            {
-                throw new InvalidOperationException("Windows could not open the Keycloak sign-in browser.");
-            }
+            string authorizeUri = BuildAuthorizeUri(pkce, forceReauthentication || _requiresInteractiveSignIn);
+            _launchBrowser(authorizeUri);
             StatusChanged?.Invoke(this, "Complete sign-in in your browser…");
             using (cancellationToken.Register(() =>
             {
@@ -151,7 +167,7 @@ public sealed class PosAuthentication : IDisposable
 
             if (values.TryGetValue("error", out string? error))
             {
-                throw new OperationCanceledException($"Identity provider returned {error}.");
+                throw new OperationCanceledException("Secure sign-in was not completed.");
             }
 
             if (Interlocked.Exchange(ref _callbackConsumed, 1) != 0)
@@ -169,6 +185,13 @@ public sealed class PosAuthentication : IDisposable
             {
                 // Do not install credentials from a cancelled or superseded attempt.
                 if (!ReferenceEquals(_pending, completion) || completion.Task.IsCompleted) return;
+                if (HasOperator(CurrentToken) && !SameOperator(CurrentToken!, token))
+                {
+                    SafeEvent("resume-identity-denied", null);
+                    throw new PosSessionResumeException("Resume requires the original cashier. The workspace remains locked and saved work is unchanged.");
+                }
+                if (_hasRetainedWork() && !HasOperator(CurrentToken))
+                    throw new PosSessionResumeException("Retained work has no verified cashier binding. Preserve recovery and request reconciliation.");
                 _tokenStore.Save(token);
                 CurrentToken = token;
                 _requiresInteractiveSignIn = false;
@@ -184,6 +207,7 @@ public sealed class PosAuthentication : IDisposable
 
     public async Task<PosTokenSet> RefreshAsync(CancellationToken cancellationToken = default)
     {
+        using var correlationScope = CorrelationContext.Push(IdentityCorrelation());
         await _refreshGate.WaitAsync(cancellationToken);
         try
         {
@@ -207,21 +231,34 @@ public sealed class PosAuthentication : IDisposable
                 ["client_id"] = _configuration.ClientId,
                 ["refresh_token"] = current.RefreshToken
             });
-            using HttpResponseMessage response = await _httpClient.PostAsync(endpoint, content, cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = content };
+            using HttpResponseMessage response = await SendIdentityAsync(request, "refresh", cancellationToken);
             if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Unauthorized)
             {
-                RequireInteractiveSignIn();
-                throw new PosReauthenticationRequiredException();
+                lock (_sync)
+                {
+                    if (!ReferenceEquals(CurrentToken, current))
+                        return CurrentToken ?? throw new PosReauthenticationRequiredException();
+                    RequireInteractiveSignIn();
+                    throw new PosReauthenticationRequiredException();
+                }
             }
             response.EnsureSuccessStatusCode();
             using JsonDocument document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken)
                 ?? throw new InvalidDataException("The token refresh response was empty.");
             PosTokenSet refreshed = ReadToken(document.RootElement, current.RefreshToken,
                 current.SessionStartedAtUtc!.Value, current.SessionExpiresAtUtc!.Value);
+            refreshed = await BindOperatorAsync(refreshed, cancellationToken);
             lock (_sync)
             {
                 if (!ReferenceEquals(CurrentToken, current))
                     return CurrentToken ?? throw new PosReauthenticationRequiredException();
+                if (!SameOperator(current, refreshed))
+                {
+                    RequireInteractiveSignIn();
+                    SafeEvent("refresh-identity-denied", null);
+                    throw new PosReauthenticationRequiredException();
+                }
                 _tokenStore.Save(refreshed);
                 CurrentToken = refreshed;
                 _requiresInteractiveSignIn = false;
@@ -239,10 +276,10 @@ public sealed class PosAuthentication : IDisposable
         lock (_sync)
         {
             var marker = new PosTokenSet(string.Empty, null, DateTimeOffset.MinValue, "Bearer",
-                null, null, DateTimeOffset.UtcNow);
-            _tokenStore.Save(marker);
+                null, null, DateTimeOffset.UtcNow, CurrentToken?.Subject, CurrentToken?.Authority);
             CurrentToken = marker;
             _requiresInteractiveSignIn = true;
+            _tokenStore.Save(marker);
         }
     }
 
@@ -267,6 +304,7 @@ public sealed class PosAuthentication : IDisposable
 
     private async Task<PosTokenSet> RedeemCodeAsync(string code, string verifier)
     {
+        using var correlationScope = CorrelationContext.Push(IdentityCorrelation());
         string endpoint = _configuration.Authority.TrimEnd('/') + "/protocol/openid-connect/token";
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -276,14 +314,66 @@ public sealed class PosAuthentication : IDisposable
             ["redirect_uri"] = _configuration.RedirectUri,
             ["code_verifier"] = verifier
         });
-        using HttpResponseMessage response = await _httpClient.PostAsync(endpoint, content);
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = content };
+        using HttpResponseMessage response = await SendIdentityAsync(request, "sign-in", CancellationToken.None);
         response.EnsureSuccessStatusCode();
         using JsonDocument document = await response.Content.ReadFromJsonAsync<JsonDocument>()
             ?? throw new InvalidDataException("The token response was empty.");
         JsonElement root = document.RootElement;
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        return ReadToken(root, null, now, now.AddHours(_configuration.SessionAbsoluteTimeoutHours));
+        return await BindOperatorAsync(ReadToken(root, null, now, now.AddHours(_configuration.SessionAbsoluteTimeoutHours)), CancellationToken.None);
     }
+
+    private static bool SameOperator(PosTokenSet first, PosTokenSet second) =>
+        !string.IsNullOrWhiteSpace(first.Subject) && first.Subject == second.Subject && first.Authority == second.Authority;
+
+    private async Task<PosTokenSet> BindOperatorAsync(PosTokenSet token, CancellationToken cancellationToken)
+    {
+        // Resolve identity from the configured provider over the authenticated UserInfo endpoint;
+        // never trust a locally decoded, unvalidated JWT claim for an unlock decision.
+        using var request = new HttpRequestMessage(HttpMethod.Get,
+            _configuration.Authority.TrimEnd('/') + "/protocol/openid-connect/userinfo");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.AccessToken);
+        using var response = await SendIdentityAsync(request, "operator-identity", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken)
+            ?? throw new InvalidDataException("The identity response was empty.");
+        if (!document.RootElement.TryGetProperty("sub", out var value) || value.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(value.GetString()) || value.GetString()!.Length > 256
+            || value.GetString()!.Any(char.IsControl))
+            throw new InvalidDataException("The identity response did not establish a cashier.");
+        return token with { Subject = value.GetString(), Authority = _configuration.Authority.TrimEnd('/') };
+    }
+
+    private async Task<HttpResponseMessage> SendIdentityAsync(HttpRequestMessage request, string operation,
+        CancellationToken cancellationToken)
+    {
+        string correlation = IdentityCorrelation();
+        request.Headers.Add("X-Correlation-ID", correlation);
+        try
+        {
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode) SafeEvent(operation, (int)response.StatusCode, correlation);
+            return response;
+        }
+        catch (Exception error) when (error is HttpRequestException or OperationCanceledException)
+        {
+            SafeEvent(operation, null, correlation);
+            throw;
+        }
+    }
+
+    private static string IdentityCorrelation()
+    {
+        string? value = CorrelationContext.Current;
+        return value is { Length: > 0 and <= 128 }
+            && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or ':' or '-')
+            ? value : Guid.NewGuid().ToString("N");
+    }
+
+    private void SafeEvent(string category, int? status, string? correlation = null) =>
+        _loggerFactory.CreateLogger("NexaConnect.POS.Session").LogWarning(
+            "POS session boundary {Category} {StatusCode} {CorrelationId}", category, status, correlation ?? IdentityCorrelation());
 
     private static PosTokenSet ReadToken(JsonElement root, string? fallbackRefreshToken,
         DateTimeOffset sessionStartedAtUtc, DateTimeOffset sessionExpiresAtUtc)
@@ -320,8 +410,11 @@ public sealed class PosAuthentication : IDisposable
     {
         _refreshGate.Dispose();
         _httpClient.Dispose();
+        _loggerFactory.Dispose();
     }
 }
+
+public sealed class PosSessionResumeException(string message) : Exception(message);
 
 public sealed class PosReauthenticationRequiredException : Exception
 {

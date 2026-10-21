@@ -1,5 +1,13 @@
 # NexaConnect POS
 
+Next-iteration Phase 1 adds a dedicated idle-lock overlay and original-cashier authenticated
+resume. Provider UserInfo establishes the subject/authority retained in the DPAPI lock
+marker; wrong-user resume is rejected and startup requires authentication. Lock retains
+shift/drawer/checkout recovery without signing out operational work. Legacy retained work
+without an owner binding requires reconciliation before adoption. See [behavior, upgrade
+constraints and verification](../../../docs/Deployment/Next-Iteration-Phase-1.md) and
+[ADR-038](../../../docs/Architecture/Decisions/ADR-038-pos-authenticated-resume.md).
+
 Draft packaging now compares typed source identity before/after publication, including a clean checkout's false dirty flag. A failed read-only install preflight leaves activation blocked and preserves recovery; publishing a package does not establish installation or device acceptance. See [Slice 8 evidence](../../../docs/Architecture/Evidence/First-Draft-Slice-8.md).
 
 For final solo testing, use the [Slice 7 acceptance and handover guide](../../../docs/Deployment/First-Draft-UAT.md). New terminal manifests record `sourceInputHash`; packaging rejects source-input or HEAD changes during publication. UAT binds the verified package to an unchanged source candidate and local release receipt. Actual installation, active-release selection, recovery, callback and saved-PDF results remain explicit operator checks.

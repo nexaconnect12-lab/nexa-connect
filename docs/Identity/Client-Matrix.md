@@ -1,5 +1,12 @@
 # Keycloak Client Matrix
 
+Windows POS Phase 1 resolves its operator through the configured authority's authenticated
+UserInfo endpoint after PKCE redemption/refresh, retaining only subject/authority alongside
+existing protected session metadata. Locked resume forces `prompt=login` and rejects a
+different operator. The public `nexaconnect-pos` client, `openid` scope and callback are
+unchanged; no secret, grant or mapper is added. See [ADR-038](../Architecture/Decisions/ADR-038-pos-authenticated-resume.md)
+and [upgrade/verification prerequisites](../Deployment/Next-Iteration-Phase-1.md).
+
 The cash-close portal acceptance launcher assigns its generated OIDC users the existing coarse `customer-user` realm entry role. Scoped cash-review assignments remain authoritative; operational `cash-close` discovery requires `pos.cash-review.read`, not day-close permission. No new realm role, client, mapper or product grant is introduced.
 
 Slice 6 changes no identity clients, roles, mappers or permissions. The [local restore drill](../Deployment/First-Draft-Release.md) backs up the quiesced generated Keycloak database with roles and checks original-archive DDL restoration and separately compares data/sequence dumps and owner/permission statements; same-account DPAPI credentials and BFF key-ring copies are checked separately. Login against a restored Keycloak graph is not verified; fresh PKCE after original-stack resumption remains an independent check.

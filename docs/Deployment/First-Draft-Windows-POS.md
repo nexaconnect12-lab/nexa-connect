@@ -1,5 +1,11 @@
 # Windows first-draft terminal (slice 4)
 
+Next-iteration source includes [Phase 1 authenticated idle resume](Next-Iteration-Phase-1.md).
+The original first-draft package is unchanged. New builds require provider UserInfo and
+retain the original operator in a lock marker; legacy retained work without that binding
+must be reconciled with the compatible original installation before adoption. Existing
+configuration/database install preflight does not certify operator binding or actual UI use.
+
 Slice 8 corrects clean-checkout packaging: empty `git status` output is represented by the shared candidate's Boolean dirty flag rather than a nullable string's length. Before/after revision, executable hash and dirty state must agree. The terminal guards exercise a real disposable clean/changed Git checkout; local sandbox restrictions may require running that fixture with normal Git filesystem access. See [current preparation evidence](../Architecture/Evidence/First-Draft-Slice-8.md).
 
 For final testing use the [Slice 7 acceptance and handover](First-Draft-UAT.md). New package manifests include `sourceInputHash`; packaging rejects executable input or HEAD changes during publish. Older packages retain the existing install checks, but cannot bind to a new UAT record without that hash. The record does not replace actual installation, recovery, session or saved-PDF verification below.

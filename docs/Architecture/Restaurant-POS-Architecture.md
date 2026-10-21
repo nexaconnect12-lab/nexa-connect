@@ -1,5 +1,11 @@
 # NexaConnect Restaurant POS Architecture
 
+The next-iteration POS lock retains operational recovery and binds authenticated resume
+to the provider-verified original operator. It hides the operational surface while idle
+without closing a shift/drawer or creating payment commands; services retain live financial
+authority. [ADR-038](Decisions/ADR-038-pos-authenticated-resume.md) describes the client-only
+identity binding and legacy constraints; dual displays/gallery remain planned.
+
 Cash-close branch discovery evaluates existing `pos.cash-review.read` via `cash-close` capability, while Reporting/POS repeat exact-store authorization. This separates cash-review readers from day-close authority without changing cash state, financial permissions or service ownership. See [operational discovery](../API/Operational-Branches.md).
 
 The [Slice 6 local release gate](../Deployment/First-Draft-Release.md) checks recovery without changing restaurant-domain ownership or financial history. It quiesces a disposable graph, checks original-archive DDL restoration plus separate data/sequence and owner/permission comparisons in network-isolated owning service and Keycloak database clones, and verifies same-account configuration copies before resuming the original graph. This does not restore broker/Redis storage, start a cloned application graph or copy protected Windows POS recovery. Real next-day and interactive Windows/PDF acceptance remain separate.

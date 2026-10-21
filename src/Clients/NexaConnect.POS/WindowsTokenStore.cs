@@ -12,11 +12,12 @@ internal interface IPosTokenStore
 
 internal sealed class WindowsTokenStore : IPosTokenStore
 {
-    private readonly string _path = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "NexaConnect",
-        "POS",
-        "tokens.bin");
+    private readonly string _path;
+
+    public WindowsTokenStore() : this(null) { }
+
+    internal WindowsTokenStore(string? storageDirectory) => _path = Path.Combine(storageDirectory ?? Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NexaConnect", "POS"), "tokens.bin");
 
     public PosTokenSet? Load()
     {
@@ -29,12 +30,13 @@ internal sealed class WindowsTokenStore : IPosTokenStore
 
             byte[] protectedBytes = File.ReadAllBytes(_path);
             byte[] plaintext = WindowsDataProtection.Unprotect(protectedBytes);
-            return JsonSerializer.Deserialize<PosTokenSet>(plaintext);
+            return JsonSerializer.Deserialize<PosTokenSet>(plaintext)
+                ?? throw new InvalidDataException("Protected POS session metadata is empty.");
         }
-        catch (Exception) when (File.Exists(_path))
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException
+            or System.Security.Cryptography.CryptographicException or JsonException)
         {
-            Delete();
-            return null;
+            throw new InvalidDataException("Protected POS session metadata cannot be read. Preserve it and reconcile with the original cashier.", error);
         }
     }
 
@@ -42,7 +44,16 @@ internal sealed class WindowsTokenStore : IPosTokenStore
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         byte[] plaintext = JsonSerializer.SerializeToUtf8Bytes(token);
-        File.WriteAllBytes(_path, WindowsDataProtection.Protect(plaintext));
+        string temporary = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllBytes(temporary, WindowsDataProtection.Protect(plaintext));
+            File.Move(temporary, _path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
     }
 
     public void Delete()

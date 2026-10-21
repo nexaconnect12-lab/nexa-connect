@@ -51,6 +51,7 @@ public partial class MainWindow : Window
         Interval = TimeSpan.FromSeconds(1)
     };
     private CancellationTokenSource? signInCancellation;
+    private readonly CancellationTokenSource windowCancellation = new();
 
     public MainWindow(
         PosAuthentication authentication,
@@ -87,6 +88,7 @@ public partial class MainWindow : Window
         pendingCheckout = _localStore.LoadPendingCheckout();
         pendingCheckout?.Validate(configuration);
         pendingCashReviewAttempt = _localStore.LoadPendingCashReview(configuration);
+        _authentication.SetRetainedWorkGuard(HasRetainedWork);
         ConfigureTenderControls();
         LocalPendingSettlementState? savedSettlement = _localStore.LoadPendingSettlement();
         if (savedSettlement is not null && pendingCheckout is not null && savedSettlement.OrderId != pendingCheckout.OrderId)
@@ -125,6 +127,11 @@ public partial class MainWindow : Window
         UpdateCartTotal();
         if (pendingOrder is not null) PaymentTab.IsSelected = true;
         else if (pendingCashReviewAttempt is not null) CashReviewTab.IsSelected = true;
+        if (HasRetainedWork() && !_authentication.HasVerifiedOperator)
+        {
+            reauthenticationRequired = true;
+            sessionLockMessage = "Retained work has no verified cashier binding. Preserve recovery and request original-cashier reconciliation before resuming.";
+        }
         UpdateOperationalState();
     }
 
@@ -142,6 +149,8 @@ public partial class MainWindow : Window
         SetBusy("Opening secure sign-in…");
         SignInButton.Content = "Cancel sign-in";
         SignInButton.IsEnabled = true;
+        ResumeButton.Content = "Cancel authentication";
+        ResumeButton.IsEnabled = true;
         try
         {
             StatusText.Text = "Opening secure sign-in…";
@@ -150,21 +159,22 @@ public partial class MainWindow : Window
             sessionLockMessage = null;
             lastOperatorActivityUtc = DateTimeOffset.UtcNow;
             nextTokenRefreshAttemptUtc = DateTimeOffset.MinValue;
-            StatusText.Text = "Signed in. POS session is ready.";
+            StatusText.Text = "Authenticated. Original workspace is ready.";
         }
         catch (OperationCanceledException)
         {
-            StatusText.Text = "Sign-in cancelled or timed out. Click Sign in to try again.";
+            StatusText.Text = "Authentication cancelled or timed out. Saved work is unchanged; try again.";
         }
         catch (Exception exception)
         {
-            StatusText.Text = exception is HttpRequestException
-                ? "Sign-in failed: Keycloak is unreachable. Check that http://localhost:8080 is running."
-                : $"Sign-in failed: {exception.Message}";
+            StatusText.Text = exception is PosSessionResumeException
+                ? exception.Message
+                : "Authentication failed. Check identity connectivity and try again. Saved work is unchanged.";
         }
         finally
         {
             signInCancellation = null;
+            if (reauthenticationRequired) sessionLockMessage = StatusText.Text;
             UpdateOperationalState();
         }
     }
@@ -1244,8 +1254,7 @@ public partial class MainWindow : Window
     private void SignOut_Click(object sender, RoutedEventArgs e)
     {
         CardTokenBox.Clear();
-        if (_activeShift is not null || cashSessionId is not null || pendingOrder is not null ||
-            pendingCheckout is not null || pendingCashReviewAttempt is not null || pendingRefund is not null)
+        if (HasRetainedWork())
         {
             StatusText.Text = pendingCashReviewAttempt is not null
                 ? "Verify the pending cash-review decision before signing out."
@@ -1288,6 +1297,8 @@ public partial class MainWindow : Window
     private void SetBusy(string message)
     {
         busy = true;
+        ResumeButton.IsEnabled = false;
+        LockedSignOutButton.IsEnabled = false;
         WorkspaceTabs.IsEnabled = false;
         SignOutButton.IsEnabled = false;
         StatusText.Text = message;
@@ -1307,7 +1318,7 @@ public partial class MainWindow : Window
     private void UpdateOperationalState()
     {
         busy = false;
-        WorkspaceTabs.IsEnabled = true;
+        WorkspaceTabs.IsEnabled = !reauthenticationRequired;
         bool signedIn = IsSignedIn();
         LoadReceiptButton.IsEnabled = signedIn;
         PrintReceiptButton.IsEnabled = signedIn && displayedReceiptOrderId is not null;
@@ -1390,7 +1401,8 @@ public partial class MainWindow : Window
             : $"last attempt {lastAttempt.Value.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
         OutboxStatusText.Text = $"Offline queue: {operations.Count - rejected} pending, {rejected} rejected · {lastAttemptText}";
         OutboxOperationList.ItemsSource = operations;
-        SessionText.Text = signedIn ? (hasActiveShift ? "Signed in · Shift open" : "Signed in · Open a shift") : "Signed out";
+        SessionText.Text = reauthenticationRequired ? "Locked · Authenticate to resume"
+            : signedIn ? (hasActiveShift ? "Signed in · Shift open" : "Signed in · Open a shift") : "Signed out";
         ActiveShiftText.Text = hasActiveShift
             ? $"Shift {_activeShift!.ShiftNumber} · Cash session {(cashSessionId is null ? "closed" : "open")}"
             : "No active shift on this terminal.";
@@ -1404,13 +1416,29 @@ public partial class MainWindow : Window
         CloseShiftButton.ToolTip = guidance;
         if (reauthenticationRequired && sessionLockMessage is not null)
             StatusText.Text = sessionLockMessage;
+        RenderSessionLock();
+    }
+
+    private bool HasRetainedWork() => _activeShift is not null || cashSessionId is not null
+        || pendingOrder is not null || pendingCheckout is not null || pendingCashReviewAttempt is not null
+        || pendingRefund is not null || cart.Count > 0 || outbox.Load().Count > 0;
+
+    private void RenderSessionLock()
+    {
+        OperationalSurface.Visibility = reauthenticationRequired ? Visibility.Hidden : Visibility.Visible;
+        OperationalSurface.IsEnabled = !reauthenticationRequired;
+        SessionLockOverlay.Visibility = reauthenticationRequired ? Visibility.Visible : Visibility.Collapsed;
+        LockStatusText.Text = sessionLockMessage ?? "Authenticate to resume the retained workspace.";
+        ResumeButton.Content = signInCancellation is null ? "Resume / Authenticate" : "Cancel authentication";
+        ResumeButton.IsEnabled = !busy || signInCancellation is not null;
+        LockedSignOutButton.IsEnabled = !busy && !HasRetainedWork();
     }
 
     private bool IsSignedIn()
     {
         PosTokenSet? token = _authentication.CurrentToken;
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        return !reauthenticationRequired && token is not null && token.ExpiresAtUtc > now &&
+        return !reauthenticationRequired && _authentication.HasVerifiedOperator && token is not null && token.ExpiresAtUtc > now &&
             !PosSessionPolicy.IsAbsoluteExpired(token, now) &&
             !PosSessionPolicy.IsIdleExpired(lastOperatorActivityUtc, now,
                 TimeSpan.FromMinutes(_configuration.SessionIdleTimeoutMinutes));
@@ -1419,7 +1447,7 @@ public partial class MainWindow : Window
     private async void SessionTimer_Tick(object? sender, EventArgs e)
     {
         PosTokenSet? token = _authentication.CurrentToken;
-        if (busy || reauthenticationRequired || token is null)
+        if (reauthenticationRequired || token is null)
         {
             return;
         }
@@ -1427,22 +1455,19 @@ public partial class MainWindow : Window
         DateTimeOffset now = DateTimeOffset.UtcNow;
         if (PosSessionPolicy.IsAbsoluteExpired(token, now))
         {
-            _authentication.RequireInteractiveSignIn();
             LockSession("The maximum POS session time was reached. Sign in again; saved operational and review recovery has been retained.");
             return;
         }
         if (PosSessionPolicy.IsIdleExpired(lastOperatorActivityUtc, now,
             TimeSpan.FromMinutes(_configuration.SessionIdleTimeoutMinutes)))
         {
-            _authentication.RequireInteractiveSignIn();
-            LockSession("POS locked after inactivity. Sign in again; saved operational and review recovery has been retained.");
+            LockSession("Paused after inactivity. Authenticate to resume your original workspace.");
             return;
         }
         bool shouldRefresh = PosSessionPolicy.ShouldRefresh(token, now,
             TimeSpan.FromSeconds(_configuration.TokenRefreshLeadSeconds));
         if (token.ExpiresAtUtc <= now && !shouldRefresh)
         {
-            _authentication.RequireInteractiveSignIn();
             LockSession("Your access token expired and cannot be renewed. Sign in again; saved operational and review recovery has been retained.");
             return;
         }
@@ -1454,26 +1479,27 @@ public partial class MainWindow : Window
         tokenRefreshInFlight = true;
         try
         {
-            await _authentication.RefreshAsync();
+            await _authentication.RefreshAsync(windowCancellation.Token);
             nextTokenRefreshAttemptUtc = DateTimeOffset.MinValue;
             if (!busy) UpdateOperationalState();
         }
         catch (PosReauthenticationRequiredException)
         {
+            if (!ReferenceEquals(_authentication.CurrentToken, token) && !_authentication.RequiresInteractiveSignIn) return;
             LockSession("Your identity session ended. Sign in again; saved operational and review recovery has been retained.");
         }
-        catch (HttpRequestException)
+        catch (Exception error) when (error is HttpRequestException or OperationCanceledException)
         {
+            if (windowCancellation.IsCancellationRequested) return;
+            if (!ReferenceEquals(_authentication.CurrentToken, token) && !_authentication.RequiresInteractiveSignIn) return;
             nextTokenRefreshAttemptUtc = DateTimeOffset.UtcNow.AddSeconds(15);
             if (token.ExpiresAtUtc <= DateTimeOffset.UtcNow)
                 LockSession("The access token expired while identity was unavailable. Sign in again when connectivity returns; saved operational state is retained.");
         }
-        catch (OperationCanceledException)
-        {
-            // Window shutdown can cancel an in-flight refresh.
-        }
         catch (Exception)
         {
+            if (windowCancellation.IsCancellationRequested) return;
+            if (!ReferenceEquals(_authentication.CurrentToken, token) && !_authentication.RequiresInteractiveSignIn) return;
             LockSession("The POS could not securely renew this session. Sign in again; saved operational and review recovery has been retained.");
         }
         finally
@@ -1484,6 +1510,15 @@ public partial class MainWindow : Window
 
     private void LockSession(string message)
     {
+        // Hide and disable immediately, even while an already-started command is completing.
+        // That command retains its original recovery identity and is never replayed by locking.
+        reauthenticationRequired = true;
+        try { _authentication.RequireInteractiveSignIn(); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException
+            or System.Security.Cryptography.CryptographicException)
+        {
+            message = "Workspace locked. Secure session persistence failed; preserve recovery and contact support.";
+        }
         ClearReceiptView();
         CardTokenBox.Clear();
         cardTokenRequired = false;
@@ -1491,6 +1526,7 @@ public partial class MainWindow : Window
         sessionLockMessage = message;
         if (!busy) UpdateOperationalState();
         StatusText.Text = message;
+        RenderSessionLock();
     }
 
     private bool RecordOperatorActivity()
@@ -1501,8 +1537,7 @@ public partial class MainWindow : Window
             PosSessionPolicy.IsIdleExpired(lastOperatorActivityUtc, now,
                 TimeSpan.FromMinutes(_configuration.SessionIdleTimeoutMinutes)))
         {
-            _authentication.RequireInteractiveSignIn();
-            LockSession("POS locked after inactivity. Sign in again; saved operational and review recovery has been retained.");
+            LockSession("Paused after inactivity. Authenticate to resume your original workspace.");
             return false;
         }
         lastOperatorActivityUtc = now;
@@ -1580,6 +1615,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        windowCancellation.Cancel();
         signInCancellation?.Cancel();
         sessionTimer.Stop();
         sessionTimer.Tick -= SessionTimer_Tick;

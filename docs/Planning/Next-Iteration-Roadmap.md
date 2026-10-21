@@ -4,8 +4,10 @@ Prepared 21 October 2026 from the first-draft feedback and recorded agreements i
 [the November plan](November-2026-First-Draft.md#next-iteration-roadmap).
 This document defines planned work, not delivered product behavior. The phase-0
 [baseline and execution assessment](Next-Iteration-Phase-0-Baseline.md) records the
-completed planning assessment and deferred server/hardware prerequisites. Phases 1–9
-remain pending; no user acceptance is asserted here.
+completed planning assessment and deferred server/hardware prerequisites.
+[Phase 1 source implementation and verification](../Deployment/Next-Iteration-Phase-1.md)
+are recorded separately; interactive acceptance remains pending. Phases 2–9 remain planned;
+no user acceptance is asserted here.
 
 The user considers the first draft sufficient to proceed. This does not fill its
 pending detailed UAT results. Preserve the original candidate, records and deferred

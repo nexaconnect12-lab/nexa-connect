@@ -47,12 +47,12 @@ public partial class App : Application
             Shutdown();
             return;
         }
-        _authentication = new PosAuthentication(configuration);
-        _ = ListenForCallbacksAsync(_authentication, CancellationToken.None);
-
         MainWindow window;
         try
         {
+            // Check retained scope read-only before creating or replacing session metadata.
+            LocalPosDatabase.ValidateExistingScope(configuration);
+            _authentication = new PosAuthentication(configuration);
             var scope = LocalPosScope.From(configuration);
             window = new MainWindow(
                 _authentication,
@@ -79,6 +79,7 @@ public partial class App : Application
             Shutdown(); return;
         }
         MainWindow = window;
+        _ = ListenForCallbacksAsync(_authentication, CancellationToken.None);
         window.Show();
         if (e.Args.Length > 0)
         {

@@ -324,14 +324,14 @@ This is a roadmap requirement, not current dual-display support. Scheduling and 
 Recorded on 21 October 2026 following the deferred cashier-session timeout observation.
 
 - Idle timeout locks the POS workspace with a screensaver-style lock screen; it does not sign out the cashier, close the shift/drawer or discard work.
-- Require authentication before resuming protected controls. Mouse movement, a keypress or dismissing the screensaver alone must not unlock the workspace. The authentication mechanism remains to be designed; no new PIN or shared unlock credential is approved by this requirement.
+- Require authentication before resuming protected controls. Mouse movement, a keypress or dismissing the screensaver alone must not unlock the workspace. Phase 1 uses fresh Keycloak browser authentication bound to the original operator; no new PIN or shared unlock credential is introduced.
 - Resume the original cashier's authorized context, shift, drawer, order and pending operation identities. A different user must not inherit the original cashier's work or authority through unlock.
 - Preserve recovery across lock and restart; pending or uncertain checkout must be reconciled through its original operation without collecting again.
 - Hide sensitive content while locked, including transaction details on the planned customer-facing display. Recheck session validity and authorization before protected actions resume; explicit sign-out, revocation and absolute session expiry remain separate from idle locking.
 - The current draft already documents an idle lock with fresh authentication. Review the reported behavior against this requirement before deciding what code needs to change; this entry does not certify successful resume or imply the timeout defect has been reproduced.
 - Acceptance: idle triggers lock without logout, authenticated resume restores retained work, failed/cancelled authentication leaves controls locked, active use follows the intended renewal policy, and lock/restart/resume creates no duplicate shift or financial effects.
 
-Linked observation: `cashier-session`, evidence `7127393b0c64422c92060481e421f0f1` in the private UAT notes. Investigation, authentication UX design and verification remain pending.
+Linked observation: `cashier-session`, evidence `7127393b0c64422c92060481e421f0f1` in the private UAT notes. [Phase 1 source verification](../Deployment/Next-Iteration-Phase-1.md) records the implemented lock/resume behavior and automated checks. The historical timeout's root cause remains unconfirmed; actual Windows/Keycloak acceptance remains pending.
 
 ### Media-gallery screensavers for both POS displays — agreed requirement
 

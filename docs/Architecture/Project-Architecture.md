@@ -1,5 +1,14 @@
 # NexaConnect Project Architecture
 
+Next-iteration Phase 1 introduces a dedicated WPF lock surface and original-operator
+authenticated resume. The public POS client uses configured Keycloak UserInfo after token
+exchange/refresh to establish the subject/authority persisted with its DPAPI credential-free
+lock marker. Startup requires authentication; wrong-user resume and unbound legacy retained
+work are denied. SQLite recovery and owning-service financial/authorization boundaries
+remain unchanged. Identity calls propagate validated correlation and bounded structured
+events through `nexaconnect-pos-client`. See [ADR-038](Decisions/ADR-038-pos-authenticated-resume.md)
+and [verification/upgrade guide](../Deployment/Next-Iteration-Phase-1.md).
+
 Slice 8 retains the existing local test topology and persistence ownership. Terminal packaging compares typed before/after source identities, including clean/dirty state; local acceptance fixtures classify failures without forwarding child output or secrets. The release gate includes their diagnostic/redaction guards. [Execution evidence](Evidence/First-Draft-Slice-8.md) distinguishes original PR merge-check CI from subsequent corrections, retained environment/package preparation and pending operator acceptance. No new HTTP adapter, service dependency, role or schema is introduced.
 
 Slice 7 [UAT records](../Deployment/First-Draft-UAT.md) live in owner-restricted generated `.runstate/first-draft-uat` sessions. Local tooling binds an unchanged candidate, retained draft and verified terminal package/release receipt; manifests add the source input hash. Records distinguish operator attestations from measured release evidence, retain blockers/retests and always leave acceptance to the user. No new HTTP adapter, service dependency, domain model, persistence owner, permission or schema is introduced. Runtime/device readiness remains independently observed.

@@ -64,7 +64,8 @@
       <Setter Property="Margin" Value="0,0,0,16" />
     </Style>
   </Window.Resources>
-  <Grid Margin="24">
+  <Grid>
+  <Grid x:Name="OperationalSurface" Margin="24">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
@@ -416,6 +417,19 @@
       <StackPanel>
         <TextBlock x:Name="SessionGuidanceText" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,6" />
         <TextBlock x:Name="StatusText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+      </StackPanel>
+    </Border>
+  </Grid>
+    <Border x:Name="SessionLockOverlay" Visibility="Collapsed" Background="#F4F6F3" Padding="48"
+            Panel.ZIndex="100" AutomationProperties.Name="POS locked">
+      <StackPanel MaxWidth="560" VerticalAlignment="Center" HorizontalAlignment="Center">
+        <TextBlock Text="NexaConnect" FontSize="24" Foreground="#14532D" FontWeight="SemiBold" />
+        <TextBlock Text="Workspace locked" FontSize="36" FontWeight="SemiBold" Margin="0,20,0,12" />
+        <TextBlock Text="Your shift and saved work are retained. Authenticate as the original cashier to resume."
+                   FontSize="18" TextWrapping="Wrap" Margin="0,0,0,20" />
+        <TextBlock x:Name="LockStatusText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,24" />
+        <Button x:Name="ResumeButton" Content="Resume / Authenticate" Click="SignIn_Click" Style="{StaticResource Primary}" />
+        <Button x:Name="LockedSignOutButton" Content="Sign out" Click="SignOut_Click" />
       </StackPanel>
     </Border>
   </Grid>
