@@ -285,6 +285,97 @@ Run final staff acceptance for the November draft in its designated test environ
 Exit: reviewable first draft by 30 November, or explicit blockers and revised dates.
 ```
 
+## Next-iteration roadmap
+
+Execution plan: [next-iteration phases, agreement checklist and copyable prompts](Next-Iteration-Roadmap.md).
+The detailed plan separates the core second-test milestone from proposed QR/kiosk
+follow-ons and the later cloud migration. Entries below retain the original agreements.
+Phase 0 is recorded in the [baseline assessment](Next-Iteration-Phase-0-Baseline.md);
+the user will confirm server specifications and consult on POS hardware before purchase.
+
+### Dedicated Kitchen display entry — planned
+
+Recorded at the user's request on 21 October 2026; implementation has not started.
+
+- Add a direct `/kitchen` route within the existing Customer Portal application and deployment, with a focused ticket queue and minimal navigation for Kitchen staff.
+- Keep Kitchen accessible from the manager's Customer Portal navigation; both entry points use the same tickets and backend workflows.
+- Preserve the existing authentication, live authorization and branch/station permission boundaries. The direct link must not bypass sign-in or grant additional access.
+- Provide authorized branch/station selection and a full-screen display option. Validate the layout and ticket controls on the chosen screen and touch device before claiming hardware support.
+- Acceptance: opening or refreshing the direct URL reaches the Kitchen view after authentication; authorized ticket transitions work through either entry point; unauthorized access remains denied; exiting full-screen restores normal navigation.
+
+This is a roadmap item, not a delivered route or a separate Kitchen website. Scheduling and implementation verification remain pending.
+
+### Windows POS with two displays — planned
+
+Recorded at the user's request on 21 October 2026; implementation has not started.
+
+- Support two displays connected to one Windows POS PC: a staff/manager-facing operational view and a separate customer-facing view, using Windows extended desktop.
+- Keep order entry and authorized operational controls on the staff display. Manager-only actions continue to require manager authorization; the display assignment grants no permissions.
+- Proposed customer content: current order items, quantities, prices, discounts/charges where applicable, total, selected tender and customer-safe payment status/change. Final content and interaction requirements remain to be agreed.
+- Derive the customer view from the same active order and authoritative quote/payment results. Never present a pending or uncertain payment as confirmed.
+- Exclude staff controls, credentials, internal diagnostics, other customers' orders and manager financial reports from the customer display. Clear transaction details appropriately on completion, cancellation, lock and sign-out.
+- Provide display selection and safe behavior on disconnect, reconnect and restart; do not move internal staff content onto the customer screen automatically.
+- Acceptance: both screens stay consistent through order edits and payment outcomes; customer content remains appropriately limited; screen loss does not duplicate or interrupt financial commands; role restrictions and recovery remain intact. Verify on the actual two-display Windows hardware.
+
+This is a roadmap requirement, not current dual-display support. Scheduling and implementation verification remain pending.
+
+### Cashier idle screen lock and authenticated resume — agreed requirement
+
+Recorded on 21 October 2026 following the deferred cashier-session timeout observation.
+
+- Idle timeout locks the POS workspace with a screensaver-style lock screen; it does not sign out the cashier, close the shift/drawer or discard work.
+- Require authentication before resuming protected controls. Mouse movement, a keypress or dismissing the screensaver alone must not unlock the workspace. The authentication mechanism remains to be designed; no new PIN or shared unlock credential is approved by this requirement.
+- Resume the original cashier's authorized context, shift, drawer, order and pending operation identities. A different user must not inherit the original cashier's work or authority through unlock.
+- Preserve recovery across lock and restart; pending or uncertain checkout must be reconciled through its original operation without collecting again.
+- Hide sensitive content while locked, including transaction details on the planned customer-facing display. Recheck session validity and authorization before protected actions resume; explicit sign-out, revocation and absolute session expiry remain separate from idle locking.
+- The current draft already documents an idle lock with fresh authentication. Review the reported behavior against this requirement before deciding what code needs to change; this entry does not certify successful resume or imply the timeout defect has been reproduced.
+- Acceptance: idle triggers lock without logout, authenticated resume restores retained work, failed/cancelled authentication leaves controls locked, active use follows the intended renewal policy, and lock/restart/resume creates no duplicate shift or financial effects.
+
+Linked observation: `cashier-session`, evidence `7127393b0c64422c92060481e421f0f1` in the private UAT notes. Investigation, authentication UX design and verification remain pending.
+
+### Media-gallery screensavers for both POS displays — agreed requirement
+
+Agreed and recorded on 21 October 2026; implementation has not started. Extends the two-display POS and authenticated idle-lock roadmap items above.
+
+- Use a predefined gallery of approved product/menu images for a screensaver slideshow. Authorized staff select the images and their display order through the gallery configuration.
+- Customer display: show approved product/menu images, with optional product names and promotional text. Hide order and payment details while locked; provide no authentication controls on this display.
+- Staff/manager display: show gallery images with a visible Resume / Authenticate control. Authentication takes place only on the staff display.
+- Both displays follow one POS lock state while presenting different content. Touching either slideshow or dismissing its visuals must not unlock protected controls; successful authentication restores the appropriate operational and customer views without losing retained work.
+- Cache approved images locally for network interruptions. If no usable approved images are available, show a neutral branded fallback; media loading failures must not prevent locking or authenticated resume.
+- Respect the existing Media ownership, organization scope and access rules when selecting, retrieving and caching gallery assets. Detailed cache refresh/removal behavior remains to be designed.
+- Acceptance: configured images appear in the selected order on the intended displays; customer content exposes no internal controls or transaction details while locked; slideshow interaction cannot bypass authentication; cached images work during a network interruption; missing/unusable media falls back safely; resume preserves the original shift, drawer and pending operation identities.
+
+Scheduling, gallery configuration UX, implementation and verification remain pending. This entry records the agreed behavior and does not claim delivered screensaver or offline checkout support.
+
+### Microsoft Store distribution for Windows POS — planned evaluation
+
+Recorded at the user's request on 21 October 2026; packaging and publication have not started.
+
+- Evaluate MSIX packaging for the existing WPF POS, including Store-hosted distribution, signing and managed updates. Compare against a signed EXE/MSI submission with separately hosted installer binaries before selecting the distribution approach.
+- The current ZIP/PowerShell draft package is not a Store-ready submission. Define clean-PC runtime dependency handling, terminal onboarding and environment configuration without distributing backend secrets or another terminal's protected recovery.
+- Verify packaged browser authentication callbacks, per-user storage/protection and compatibility with existing recovery. Installation, restart and update must preserve original shift, drawer, checkout and pending operation identities; assess upgrade/migration and uninstall data behavior explicitly.
+- Design update timing and recovery for active cashier work, interrupted installation and schema compatibility. Do not assume Store-managed updates alone establish operational safety.
+- Prepare the publisher account, listing/privacy materials and certification evidence. Account creation, external submission and publication remain separate future actions; this roadmap entry does not authorize or perform them.
+- Cost baseline checked on 21 October 2026: Microsoft's new onboarding flow offers free Individual and Company registration; MSIX Store distribution includes Microsoft hosting/signing. Recheck current eligibility, fees and policies before execution. EXE/MSI hosting/signing and application backend operations can incur separate costs.
+- Acceptance: clean-PC install/sign-in/onboarding, restart and supported upgrades pass; protected recovery and pending financial work survive without duplicate effects; package configuration contains no secrets; distribution decision, operating costs and certification requirements are documented. Public availability requires successful Store certification and an explicit release decision.
+
+References: [developer account onboarding](https://learn.microsoft.com/en-us/windows/apps/publish/partner-center/open-a-developer-account), [MSIX package requirements](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/app-package-requirements), and [EXE/MSI package requirements](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msi/app-package-requirements).
+
+Scheduling, packaging decision, implementation and verification remain pending. Store distribution covers the Windows client; it does not host the NexaConnect backend.
+
+### Hosting progression: existing dedicated server, then cloud — agreed direction
+
+Agreed on 21 October 2026. Use the user's existing dedicated server and static IP for the initial hosted environment. Move to cloud after the product has a professional UI and its services satisfy agreed operational readiness criteria. No deployment or migration has been performed by this roadmap entry.
+
+- First assess server OS, capacity, storage, network reliability and existing workloads. Define the hosted pilot's supported scope and recovery expectations before admitting users.
+- Deploy Product Owner and Customer portals with separate HTTPS origins and appropriate identity configuration. Use a reverse proxy; keep service infrastructure private and restrict administrative access. Replace local Development-only settings with reviewed deployment configuration before external exposure.
+- Establish off-server backups, restore verification, monitoring, patching and controlled releases on the dedicated server. Preserve bounded-context database ownership, tenant isolation and POS recovery throughout.
+- Keep deployment configuration portable through externalized endpoints/secrets and reproducible artifacts. Do not embed the dedicated server's public IP into client binaries or make the local first-draft fixture the deployed production configuration.
+- Before cloud migration, agree measurable UI and service readiness criteria, including authorization, financial correctness, recovery, performance and operational verification. Professional UI completion alone does not establish service readiness.
+- Plan and test cloud sizing/costs, data and identity migration, DNS/authentication callback changes, POS connectivity, cutover/reconciliation and failure recovery. Maintain immutable financial history and protected terminal state; do not assume DPAPI recovery is portable.
+
+Server assessment, deployment implementation, readiness criteria and cloud provider selection remain pending. Cloud migration is a later milestone; no hosting purchase or external publication is authorized by this planning record.
+
 ## Completion criteria and documentation handoff
 
 The draft is ready for acceptance when a fresh environment can reproduce the selected release, one real Windows terminal and browser Kitchen complete the supported workflows, manager evidence survives restarts and contention, unauthorized roles cannot mutate it, and the defined recovery tests produce no duplicate financial/inventory effects. All release-blocking failures must be resolved or explicitly prevent acceptance.
