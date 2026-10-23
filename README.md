@@ -1,5 +1,10 @@
 # NexaConnect
 
+Phase 8 adds integrated source/joined verification and one source/configuration/artifact
+binding for hosting and installer freeze. [The release guide](docs/Deployment/Next-Iteration-Phase-8.md)
+keeps unsigned/stale artifacts, missing target evidence and unverified clean CI blocked;
+it never substitutes local tests for a hosted release or the user's second acceptance test.
+
 Phase 7 adds a private per-user Windows EXE installer with self-contained runtime,
 public hosted-profile onboarding and read-only recovery checks. [The packaging guide](docs/Deployment/Next-Iteration-Phase-7.md)
 records compatibility, signing and actual install/device acceptance gates. No Store
@@ -83,7 +88,7 @@ The [retained day-cutoff evidence foundation](docs/API/Day-Close-Cutoffs.md) was
 
 The [joined cashier-to-day-close gate](docs/Deployment/Cashier-Day-Close-Acceptance.md) implements real cashier PKCE, authorized shift/cash/checkout/manual-settlement/receipt/review commands, actual Order→POS/Reporting publication and Customer Portal preparation with manager contention and POS restart. Its reference-only fixture seeds no financial transitions. An acceptance-only host injects historical command time into actual Order/POS applications; production uses the system clock with no configurable clock switch. Inventory workload tokens now explicitly emit the existing required API audience for Restaurant scope reads; persisted realms need a reviewed mapper update. Five browser scenarios, six Authorization persistence cases and verified cleanup are required; execution evidence remains separate from production settlement/cutoff certification.
 
-Frontend dependency hardening pins Vitest 4.1.11 and SourceMap.js 1.2.2, removes Tinypool, and requires Node 22.12+ (22.x) or 24+. CI separately audits production and full dependency trees, rejecting moderate-or-higher findings; the frontend compatibility job checks Node 22 and 24. See [runtime, audit and verification policy](docs/Deployment/Frontend-Dependency-Hardening.md).
+Frontend dependency hardening pins Vitest 4.1.12, Vite 7.3.7 and SourceMap.js 1.2.2, removes Tinypool, and requires Node 22.12+ (22.x) or 24+. CI separately audits production and full dependency trees, rejecting moderate-or-higher findings; the frontend compatibility job checks Node 22 and 24. See [runtime, audit and verification policy](docs/Deployment/Frontend-Dependency-Hardening.md).
 
 The [joined day-close preparation gate](docs/Deployment/Day-Close-Portal-Acceptance.md) is implemented with eleven real-OIDC browser scenarios, two managers, POS restart/resume/replacement, late evidence, outages and live permission/membership revocation. It uses actual BFF/POS/Reporting/source APIs and synthetic owning-repository fixtures. Local Windows acceptance passed all eleven browser and six Authorization persistence cases without skips/retries, with verified cleanup on 2026-10-06. Remote CI and production settlement acceptance remain separate.
 

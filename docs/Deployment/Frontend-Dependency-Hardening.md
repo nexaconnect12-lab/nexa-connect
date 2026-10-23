@@ -2,7 +2,7 @@
 
 The shared frontend workspace requires Node 22.12+ on the 22.x line or Node 24+ (`^22.12.0 || >=24.0.0`). Node 20 is no longer supported by the workspace policy. Use Node 22 or 24 for verification; other versions accepted by the range are not covered by the CI matrix. This is a build/test runtime requirement, including BFF publish operations that build the portals; it does not change the browser session or service contracts.
 
-Vitest is pinned to 4.1.11, SourceMap.js resolves to 1.2.2, and the affected Tinypool dependency is removed. Vite remains pinned to 7.3.6 and runtime application dependencies are unchanged. The existing jsdom/include/plugin test configuration remains compatible and requires no migration edit.
+Vitest is pinned to 4.1.12, Vite to 7.3.7, SourceMap.js resolves to 1.2.2, and the affected Tinypool dependency is removed. Phase 8 updates the former 4.1.11/7.3.6 pins after the full audit rejected new build/test-tool advisories; runtime application dependencies are unchanged. The existing jsdom/include/plugin test configuration remains compatible and requires no migration edit. See [Phase 8 evidence](Next-Iteration-Phase-8.md).
 
 From `src/Frontend`, run:
 

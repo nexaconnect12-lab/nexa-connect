@@ -68,3 +68,11 @@ Service telemetry retains existing shared JSON/OTLP identities (`nexaconnect-<se
 including `nexaconnect-platform-directory`, `nexaconnect-customer-bff`, and
 `nexaconnect-platform-admin-bff`). No new HTTP application/adapter is introduced here.
 Do not send raw logs, manifests of private configuration, tokens or backup contents to CI.
+## Phase 8 release binding
+
+New builds add the shared `releaseSource` identity used by the
+[freeze tool](../../scripts/release/README.md). It includes Git-normalized nonignored
+non-Markdown inputs, including root settings, packaging and workflow files. Both producer
+identities are checked before/after publication. Old manifests remain readable (inventory
+order is immaterial; exact files/hashes are still required), but old builds without the
+shared field cannot satisfy the new release freeze. Rebuild for a replacement candidate.

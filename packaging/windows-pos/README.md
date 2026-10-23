@@ -58,3 +58,10 @@ dotnet test tests/Unit/NexaConnect.UnitTests/NexaConnect.UnitTests.csproj --no-r
 
 Real installer execution, cancellation/power loss, restart, callback activation from a
 browser and clean-device runtime checks remain distinct VM/device acceptance gates.
+## Phase 8 release binding
+
+New installer receipts add the shared `releaseSource` field and check it before/after
+packaging. Use the [integration/freeze tool](../../scripts/release/README.md) for a fresh
+candidate: it rechecks actual setup/payload bytes and trusted signatures instead of using
+an old Phase 7 receipt or local Boolean. Private unsigned output remains reviewable and
+cannot be frozen as a signed release. No installed profile or protected state is changed.

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { source, sameSource } from '../../scripts/release/source.mjs';
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const names = ['PlatformDirectory', 'Authorization', 'Restaurant', 'Catalog', 'Inventory', 'Order', 'Kitchen', 'Customer', 'Payment', 'POS', 'Media', 'Reporting', 'Notification'];
@@ -166,7 +167,7 @@ export function initialize(dir) {
 }
 
 export function files(dir, prefix = '') {
-  return fs.readdirSync(dir, { withFileTypes: true }).sort((a,b) => a.name.localeCompare(b.name)).flatMap(e => {
+  return fs.readdirSync(dir, { withFileTypes: true }).sort((a,b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0).flatMap(e => {
     check(!e.isSymbolicLink(), 'Symlinks are not allowed in deployment input.'); const rel = prefix + e.name;
     return e.isDirectory() ? files(path.join(dir, e.name), rel + '/') : [{ path: rel, sha256: hash(fs.readFileSync(path.join(dir, e.name))) }];
   });
@@ -174,7 +175,9 @@ export function files(dir, prefix = '') {
 export function verifyBundle(dir) {
   const m = read(path.join(dir, 'manifest.json'));
   check(m.version === 1 && m.runtime && m.files && m.schemas && /^[0-9a-f]{40}$/.test(m.sourceRevision), 'Invalid bundle manifest.');
-  check(JSON.stringify(files(dir).filter(f => f.path !== 'manifest.json')) === JSON.stringify(m.files), 'Bundle file set or checksum changed.');
+  const expected = [...m.files].sort((a,b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  const actual = files(dir).filter(f => f.path !== 'manifest.json').sort((a,b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  check(JSON.stringify(actual) === JSON.stringify(expected), 'Bundle file set or checksum changed.');
   for (const s of inventory) check(fs.existsSync(path.join(dir, s.id, s.assembly + '.dll')) && (!s.spa || fs.existsSync(path.join(dir, s.id, 'wwwroot/index.html'))), `Incomplete bundle: ${s.id}`);
   return m;
 }
@@ -188,6 +191,7 @@ export function build(dir, runtime = 'linux-x64') {
   check(['linux-x64', 'linux-arm64'].includes(runtime), 'Invalid runtime.');
   for (const d of ['src/Frontend', 'src/Frontend/apps/customer-portal', 'src/Frontend/apps/product-owner-portal']) check(!fs.readdirSync(path.join(root, d)).some(f => /^\.env(?:\.|$)/.test(f)), 'Remove frontend .env inputs before building a portable bundle.');
   fresh(dir);
+  const releaseSource = source();
   const sourceInput = () => {
     const r = spawnSync('git', ['ls-files', '-co', '--exclude-standard', '-z'], { cwd: root, encoding: 'utf8' });
     check(r.status === 0, 'Cannot inventory source inputs.');
@@ -214,8 +218,8 @@ export function build(dir, runtime = 'linux-x64') {
   const revision = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
   check(revision.status === 0, 'Cannot bind source revision.');
   const status = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' });
-  check(status.status === 0 && sourceInput() === sourceInputSha256, 'Source changed during build; use a new bundle directory.');
-  write(path.join(dir, 'manifest.json'), { version: 1, createdAtUtc: new Date().toISOString(), sourceRevision: revision.stdout.trim(), sourceInputSha256, sourceDirty: status.stdout.length > 0, runtime, schemas, files: files(dir) });
+  check(status.status === 0 && sourceInput() === sourceInputSha256 && sameSource(releaseSource, source()), 'Source changed during build; use a new bundle directory.');
+  write(path.join(dir, 'manifest.json'), { version: 1, createdAtUtc: new Date().toISOString(), sourceRevision: revision.stdout.trim(), sourceInputSha256, sourceDirty: status.stdout.length > 0, releaseSource, runtime, schemas, files: files(dir) });
   return verifyBundle(dir);
 }
 

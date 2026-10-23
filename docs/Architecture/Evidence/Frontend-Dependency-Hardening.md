@@ -23,3 +23,7 @@ Updated documentation comprises root README, frontend workspace README, both por
 The documentation-maintainer audit closed with no unresolved drift after checking manifest/lock/CI policy, both saved browser/Authorization/cleanup records, provenance and documentation links. Final manifest/lock consistency and `git diff --check` passed. Restaurant/POS architecture and ADR-021 were reviewed and remain unchanged because the financial and service boundaries are unaffected.
 
 No financial/state-transition, tenant authorization, API, schema, or service ownership changes occur. Existing joined regression cases protect those boundaries. The runtime archive used for compatibility checks stays in an ignored run-owned directory and does not replace the installed Node runtime. No deployment, remote CI run or branch-protection configuration is claimed. Existing Vite large-chunk warnings remain a performance follow-up; registry findings must continue to be monitored through CI.
+
+Later Phase 8 updates the pins to Vitest 4.1.12 and Vite 7.3.7 after fresh advisories;
+the results above remain historical evidence of this earlier slice. See
+[current integration hardening](../../Deployment/Next-Iteration-Phase-8.md).

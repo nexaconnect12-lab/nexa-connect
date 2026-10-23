@@ -25,6 +25,9 @@ if(-not $PrivateUnsigned){
     if($timestamp.Scheme -ne 'https' -or $TimestampUrl -cnotmatch '^https://[a-zA-Z0-9.-]+(:[0-9]+)?(/[a-zA-Z0-9/_.-]*)?$'){throw 'Use a trusted HTTPS timestamp URL without shell syntax or extra parameters.'}
 }
 $before=Get-DraftCandidate $repoRoot
+$releaseSourceJson=& node (Join-Path $PSScriptRoot 'release/source.mjs')
+if($LASTEXITCODE -ne 0){throw 'Release source inventory failed.'}
+$releaseSource=$releaseSourceJson|ConvertFrom-Json
 $template=Join-Path $repoRoot 'packaging/windows-pos/NexaConnect.POS.iss'
 $templateHash=(Get-FileHash -LiteralPath $template -Algorithm SHA256).Hash
 New-Item -ItemType Directory -Path $output | Out-Null
@@ -61,9 +64,11 @@ if($LASTEXITCODE -ne 0){throw 'Installer compilation failed.'}
 $setup=Join-Path $installerOutput "NexaConnect-POS-$PackageVersion-win-x64-setup.exe"
 if(-not $PrivateUnsigned -and (Get-AuthenticodeSignature -LiteralPath $setup).Status -ne 'Valid'){throw 'Installer signature validation failed.'}
 Assert-TerminalCandidateUnchanged $before (Get-DraftCandidate $repoRoot)
+$afterSource=& node (Join-Path $PSScriptRoot 'release/source.mjs')
+if($LASTEXITCODE -ne 0 -or ($afterSource -join "`n") -cne ($releaseSourceJson -join "`n")){throw 'Release source identity changed during packaging.'}
 if((Get-FileHash -LiteralPath $template -Algorithm SHA256).Hash -cne $templateHash){throw 'Installer template changed during packaging.'}
 $hashes=[ordered]@{}
 foreach($file in Get-ChildItem -LiteralPath $payload -File -Recurse | Sort-Object FullName){$hashes[[IO.Path]::GetRelativePath($payload,$file.FullName).Replace('\','/')]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash}
-@{format=1;packageVersion=$PackageVersion;sourceRevision=$before.revision;sourceDirty=$before.dirty;sourceInputHash=$before.inputHash;installerTemplateHash=$templateHash;runtime='win-x64 self-contained .NET 10 Windows Desktop';privateUnsigned=[bool]$PrivateUnsigned;unsignedPayloadPeCount=$unsigned;setupSha256=(Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash;compilerSha256=(Get-FileHash -LiteralPath $compiler -Algorithm SHA256).Hash;payloadFiles=$hashes;installed=$false;storeSubmitted=$false}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $output 'installer-candidate.json')
+@{format=1;packageVersion=$PackageVersion;sourceRevision=$before.revision;sourceDirty=$before.dirty;sourceInputHash=$before.inputHash;releaseSource=$releaseSource;installerTemplateHash=$templateHash;runtime='win-x64 self-contained .NET 10 Windows Desktop';privateUnsigned=[bool]$PrivateUnsigned;unsignedPayloadPeCount=$unsigned;setupSha256=(Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash;compilerSha256=(Get-FileHash -LiteralPath $compiler -Algorithm SHA256).Hash;payloadFiles=$hashes;installed=$false;storeSubmitted=$false}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $output 'installer-candidate.json')
 Write-Output "Private installer candidate: $setup"
 Write-Output 'No installation, account registration, publication or recovery migration was performed.'

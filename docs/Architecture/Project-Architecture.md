@@ -1,5 +1,17 @@
 # NexaConnect Project Architecture
 
+Phase 8 aligns hosting and installer artifacts with a shared additive `releaseSource`
+identity over Git-clean source/packaging/configuration/workflow inputs. Integrated tests
+retain source and joined financial/recovery scopes separately. Release readiness binds
+actual artifact/schema/configuration/certificate/evidence hashes, trusted Windows signatures,
+exact-source successful dispatched CI and labeled operator target observations. Freeze
+and second-test generation are write-once and revalidate those bindings; acceptance stays
+pending. No service, API, business permission, schema or financial state transition changes.
+Local SQL restoration and historical fixture clocks remain distinct from hosted full-graph
+restore and actual Singapore next-day user observations. See
+[ADR-043](Decisions/ADR-043-next-iteration-release-evidence.md) and
+[Phase 8](../Deployment/Next-Iteration-Phase-8.md).
+
 Phase 7 prepares a conventional per-user EXE deployment for the existing unpackaged POS.
 The self-contained win-x64 payload carries no terminal configuration/credentials. Setup
 stages a public hosted profile, invokes actual read-only local schema/scope/DPAPI/cashier
@@ -110,7 +122,7 @@ The [retained day-cutoff evidence foundation](../API/Day-Close-Cutoffs.md) was i
 
 The [joined cashier-to-day-close gate](../Deployment/Cashier-Day-Close-Acceptance.md) implements real cashier PKCE, authorized shift/cash/checkout/manual-settlement/receipt/review commands, actual Order→POS/Reporting publication and Customer Portal preparation with manager contention and POS restart. Its reference-only fixture seeds no financial transitions. An acceptance-only host injects historical command time into actual Order/POS applications; production uses the system clock with no configurable clock switch. Inventory workload tokens now explicitly emit the existing required API audience for Restaurant scope reads; persisted realms need a reviewed mapper update. Five browser scenarios, six Authorization persistence cases and verified cleanup are required; execution evidence remains separate from production settlement/cutoff certification.
 
-Frontend dependency hardening pins Vitest 4.1.11 and SourceMap.js 1.2.2, removes Tinypool, and requires Node 22.12+ (22.x) or 24+. CI separately audits production and full dependency trees, rejecting moderate-or-higher findings; the frontend compatibility job checks Node 22 and 24. See [runtime, audit and verification policy](../Deployment/Frontend-Dependency-Hardening.md).
+Frontend dependency hardening pins Vitest 4.1.12, Vite 7.3.7 and SourceMap.js 1.2.2, removes Tinypool, and requires Node 22.12+ (22.x) or 24+. CI separately audits production and full dependency trees, rejecting moderate-or-higher findings; the frontend compatibility job checks Node 22 and 24. See [runtime, audit and verification policy](../Deployment/Frontend-Dependency-Hardening.md).
 
 The [joined day-close preparation gate](../Deployment/Day-Close-Portal-Acceptance.md) reuses the disposable end-of-day topology with POS 8 / Authorization 10, a third OIDC subject and runner-owned POS interruption/restart. Eleven browser scenarios traverse actual BFF→POS→Reporting→owning-source HTTP; held TCP transport verifies persisted Preparing before interruption. Synthetic cash closure/review and recipient late-cash projection fixtures do not certify source command/event production. Run-scoped file control accepts only stop/start for retained POS handles, while bounded evidence and exact cleanup gate acceptance. The gate and CI workflow are implemented. Local Windows acceptance passed eleven browser and six Authorization persistence cases without skips/retries, with verified cleanup on 2026-10-06; remote CI remains unexecuted.
 

@@ -1,5 +1,10 @@
 # Deployment Guide
 
+For the dedicated-server next iteration, use the [Phase 6 hosting procedures](Next-Iteration-Phase-6.md),
+[Phase 7 installer procedures](Next-Iteration-Phase-7.md) and [Phase 8 release gates](Next-Iteration-Phase-8.md).
+Phase 8 binds the exact source, artifacts, configuration and evidence; it does not deploy
+the server or replace the outstanding signing, restore and actual-device acceptance checks.
+
 New manual settlements require matching Order/POS binaries and a reachable HTTPS Order
 `Services__POS` address. POS accepts only the existing exact Order workload identity; retain
 API-audience issuance and Order's `Authentication__TokenEndpoint`, `Authentication__ClientId`
@@ -26,7 +31,7 @@ For [retained day-cutoff evidence](Day-Close-Cutoffs.md), deploy the current cat
 
 The [joined cashier-to-day-close gate](Cashier-Day-Close-Acceptance.md) implements real cashier PKCE, authorized shift/cash/checkout/manual-settlement/receipt/review commands, actual Order→POS/Reporting publication and Customer Portal preparation with manager contention and POS restart. Its reference-only fixture seeds no financial transitions. An acceptance-only host injects historical command time into actual Order/POS applications; production uses the system clock with no configurable clock switch. Five browser scenarios, six Authorization persistence cases and verified cleanup are required; execution evidence remains separate from production settlement/cutoff certification.
 
-Frontend dependency hardening pins Vitest 4.1.11 and SourceMap.js 1.2.2, removes Tinypool, and requires Node 22.12+ (22.x) or 24+. CI separately audits production and full dependency trees, rejecting moderate-or-higher findings; the frontend compatibility job checks Node 22 and 24. See [runtime, audit and verification policy](Frontend-Dependency-Hardening.md).
+Frontend dependency hardening pins Vitest 4.1.12, Vite 7.3.7 and SourceMap.js 1.2.2, removes Tinypool, and requires Node 22.12+ (22.x) or 24+. CI separately audits production and full dependency trees, rejecting moderate-or-higher findings; the frontend compatibility job checks Node 22 and 24. See [runtime, audit and verification policy](Frontend-Dependency-Hardening.md).
 
 The [joined day-close preparation gate](Day-Close-Portal-Acceptance.md) now provides a guarded disposable validation path for actual OIDC/BFF/POS/Reporting/source HTTP and POS restart/resume/replacement. Its fixture source transitions remain synthetic; require eleven browser cases, six Authorization persistence cases and verified cleanup before recording a pass. The CI workflow uploads only bounded summaries; a local pass does not certify the production target.
 

@@ -2,8 +2,13 @@
   "name": "@nexaconnect/frontend",
   "private": true,
   "version": "0.1.0",
-  "engines": { "node": "^22.12.0 || >=24.0.0" },
-  "workspaces": ["packages/*", "apps/*"],
+  "engines": {
+    "node": "^22.12.0 || >=24.0.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "build": "tsc -b && npm run build --workspace @nexaconnect/product-owner-portal && npm run build --workspace @nexaconnect/customer-portal",
     "build:customer-portal": "tsc -b apps/customer-portal && npm run build --workspace @nexaconnect/customer-portal",
@@ -46,8 +51,8 @@
     "@vitejs/plugin-react": "5.0.2",
     "jsdom": "24.0.0",
     "typescript": "5.4.5",
-    "vite": "7.3.6",
-    "vitest": "4.1.11"
+    "vite": "7.3.7",
+    "vitest": "4.1.12"
   },
   "dependencies": {
     "antd": "5.16.5",

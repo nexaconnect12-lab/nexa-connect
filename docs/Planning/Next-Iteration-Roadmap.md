@@ -14,7 +14,9 @@ are implemented and verified in source. Interactive acceptance remains pending.
 [Phase 6 hosting artifacts and guards](../Deployment/Next-Iteration-Phase-6.md) are implemented;
 actual deployment/readiness remains gated by E01–E04.
 [Phase 7 private EXE packaging](../Deployment/Next-Iteration-Phase-7.md) is implemented;
-signed distribution and actual install/device acceptance remain pending. Phases 8–9 remain planned;
+signed distribution and actual install/device acceptance remain pending.
+[Phase 8 integration/freeze tooling](../Deployment/Next-Iteration-Phase-8.md) is implemented;
+actual freeze remains conditional on its measured gates. Phase 9 remains pending;
 no user acceptance is asserted here.
 
 The user considers the first draft sufficient to proceed. This does not fill its
