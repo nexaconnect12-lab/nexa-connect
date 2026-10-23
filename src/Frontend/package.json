@@ -29,6 +29,7 @@
     "test:financial-completeness:guards": "node --test e2e/financial-completeness-live/settings.test.mjs",
     "test:e2e:financial-completeness": "playwright test --config playwright.financial-completeness.config.mjs",
     "test:e2e:cash-close": "playwright test --config playwright.cash-close.config.mjs",
+    "test:e2e:gallery": "playwright test --config playwright.gallery.config.mjs",
     "test:e2e:kitchen": "playwright test --config playwright.kitchen.config.mjs",
     "test:e2e:ui-foundation": "playwright test --config playwright.ui-foundation.config.mjs",
     "test:e2e:phase8": "playwright test --config playwright.phase8.config.mjs",

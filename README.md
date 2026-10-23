@@ -1,5 +1,15 @@
 # NexaConnect
 
+Phase 5 adds branch-approved staff/customer image playlists through Media management and
+separate POS lock-screen slideshows. Short-lived validated caches preserve neutral fallback
+and original-cashier authentication. [Usage, deployment and verification](docs/Deployment/Next-Iteration-Phase-5.md)
+describe the new service settings and pending provider/device acceptance.
+
+Next-iteration Phase 4 adds a read-only customer window driven by the existing Windows POS
+transaction, explicit staff/customer monitor roles and a neutral safety view after display
+changes. [Setup and verification](docs/Deployment/Next-Iteration-Phase-4.md) record source tests
+and off-screen layouts separately from pending physical-device acceptance and installation.
+
 Next-iteration Phase 3 adds a focused `/kitchen` entry on the Customer Portal origin,
 with authorized branch/station selection, browser fullscreen and manager return.
 It reuses the existing queue, session and version-fenced commands.

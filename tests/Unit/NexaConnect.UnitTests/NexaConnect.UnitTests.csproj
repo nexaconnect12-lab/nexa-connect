@@ -61,6 +61,10 @@
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Pkce.cs" Link="POS\Pkce.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\SettlementAttempt.cs" Link="POS\SettlementAttempt.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\CashierPresentation.cs" Link="POS\CashierPresentation.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\CustomerDisplayState.cs" Link="POS\CustomerDisplayState.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\DisplayTopology.cs" Link="POS\DisplayTopology.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosGalleryPolicy.cs" Link="POS\PosGalleryPolicy.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosGalleryCache.cs" Link="POS\PosGalleryCache.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalPosStore.cs" Link="POS\LocalPosStore.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalPosDatabase.cs" Link="POS\LocalPosDatabase.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalOutboxStore.cs" Link="POS\LocalOutboxStore.cs" />

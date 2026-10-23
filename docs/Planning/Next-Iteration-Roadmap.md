@@ -7,8 +7,10 @@ This document defines planned work, not delivered product behavior. The phase-0
 completed planning assessment and deferred server/hardware prerequisites.
 [Phase 1 source implementation and verification](../Deployment/Next-Iteration-Phase-1.md)
 are recorded separately; [Phase 2 UI foundation](../Deployment/Next-Iteration-Phase-2.md)
-and [Phase 3 direct Kitchen entry](../Deployment/Next-Iteration-Phase-3.md)
-are implemented and verified in source. Interactive acceptance remains pending. Phases 4–9 remain planned;
+and [Phase 3 direct Kitchen entry](../Deployment/Next-Iteration-Phase-3.md), plus
+[Phase 4 staff/customer displays](../Deployment/Next-Iteration-Phase-4.md) and
+[Phase 5 approved gallery/screensavers](../Deployment/Next-Iteration-Phase-5.md)
+are implemented and verified in source. Interactive acceptance remains pending. Phases 6–9 remain planned;
 no user acceptance is asserted here.
 
 The user considers the first draft sufficient to proceed. This does not fill its
@@ -48,15 +50,17 @@ Leave unchecked until the linked phase supplies verified evidence.
 - [x] R01 — Direct `/kitchen` link within the existing Customer Portal, focused navigation,
   authorized branch/station selection, full-screen option; manager navigation retained.
   [Phase 3 source verification](../Deployment/Next-Iteration-Phase-3.md); actual device/user acceptance remains Phase 9.
-- [ ] R02 — One Windows PC, two displays: authorized staff/manager controls and a separate
-  customer view following the same order and authoritative payment state. Phase 4.
+- [x] R02 — One Windows PC, two displays: authorized staff/manager controls and a separate
+  customer view following the same order and authoritative payment state.
+  [Phase 4 source verification](../Deployment/Next-Iteration-Phase-4.md); physical two-monitor/hot-plug acceptance remains Phase 9.
 - [ ] R03 — Idle locks instead of signing out; authenticate on the staff screen to resume
   the original cashier's shift, drawer and pending work. Explicit sign-out, revocation
   and absolute session expiry remain distinct. Phase 1, integrated in phases 4–5.
-- [ ] R04 — Both screens follow one lock state but show different content. No customer
-  unlock controls or locked transaction details. Phases 4–5.
-- [ ] R05 — Predefined approved product/menu gallery, staff-managed image order, optional
-  product/promotional text, local image cache and neutral branded fallback. Phase 5.
+- [x] R04 — Both screens follow one lock state but show different content. No customer
+  unlock controls or locked transaction details. [Phases 4–5 source verification](../Deployment/Next-Iteration-Phase-5.md); physical acceptance remains Phase 9.
+- [x] R05 — Predefined approved product/menu gallery, staff-managed image order, optional
+  product/promotional text, local image cache and neutral branded fallback.
+  [Phase 5 source verification](../Deployment/Next-Iteration-Phase-5.md); real provider/device acceptance remains pending.
 - [ ] R06 — Professional, consistent Product Owner, Customer Portal and Windows POS UI,
   including focused Kitchen and customer display; usability/accessibility checks. Phases 2–5, 9.
 - [ ] R07 — Use the existing dedicated server/static IP first, with separate HTTPS portal

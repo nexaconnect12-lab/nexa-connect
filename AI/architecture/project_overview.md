@@ -1,5 +1,19 @@
 # NexaConnect Project Architecture
 
+Phase 5 adds branch-owned approved screensaver selection in Restaurant configuration and
+Media-owned bounded PNG delivery from ready product variants. POS uses one protected leased
+cache and separate staff/customer playlists under the existing lock; media cannot authenticate
+or mutate business work. No schema/grant changes; see
+[ADR-040](../../docs/Architecture/Decisions/ADR-040-branch-approved-screensaver-gallery.md)
+and [verification/configuration](../../docs/Deployment/Next-Iteration-Phase-5.md).
+
+Next-iteration Phase 4 adds a second WPF customer window using an allow-listed current-
+transaction projection, with explicit extended-desktop roles and fail-closed topology/DPI
+handling. Lock masks customer details; terminal outcomes clear them. Existing financial
+ownership/recovery remains; manual settlement responses must match the original Paid attempt
+before client recovery clears. [ADR-039](../../docs/Architecture/Decisions/ADR-039-pos-staff-customer-displays.md)
+and [verification](../../docs/Deployment/Next-Iteration-Phase-4.md) describe limits and pending device acceptance.
+
 Next-iteration Phase 3 adds `/kitchen` within the existing Customer Portal deployment/session.
 It reuses the authorized Kitchen queue with focused navigation, browser fullscreen and
 manager return. Login preserves the destination; scope/sign-out changes discard old Kitchen UI state.
@@ -11,7 +25,7 @@ Shared design/layout packages provide responsive navigation, accessible request 
 and a presentation-only workspace frame; POS uses a reusable resource dictionary. Backend
 contracts, session authority, financial ownership and deployment topology are unchanged.
 [Verification and limits](../../docs/Deployment/Next-Iteration-Phase-2.md) record Phase 2;
-customer displays/gallery and physical/user acceptance remain later phases.
+physical/user acceptance remains a later phase.
 
 Next-iteration Phase 1 adds a WPF lock overlay and identity-bound resume. The POS resolves
 the operator through configured Keycloak UserInfo after code exchange/refresh, retains its

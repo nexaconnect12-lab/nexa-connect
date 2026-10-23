@@ -1,5 +1,15 @@
 # Restaurant Service
 
+Phase 5 adds branch screensaver gallery configuration with existing branch concurrency,
+configuration-manage authority, audit and outbox. `ScreensaverGallery` is an additive JSON
+property; pricing remains untouched. Read uses live branch `catalog.menu.read`; save also
+validates selected ready Media variants with caller Media read authority. Set `Services__Media`.
+The readiness endpoint does not call back into Restaurant. Shared correlation and bounded
+Gallery configuration/asset events cover dependency/authorization boundaries. See
+[contract](../../../docs/API/Screensaver-Gallery.md),
+[persistence](../../../docs/Database/Branch-Gallery.md) and
+[deployment](../../../docs/Deployment/Next-Iteration-Phase-5.md).
+
 [Operational branch discovery](../../../docs/API/Operational-Branches.md) admits customer realm users/viewers and filters active organization branches by live exact-scope workflow permission and directory access. The admin branch-management contract is unchanged. nexaconnect-restaurant logs bounded discovery availability/empty-result events with existing correlation propagation.
 
 Cash-close discovery accepts `capability=cash-close` and evaluates existing `pos.cash-review.read` for each exact branch scope. It does not require `pos.day-close.read` or grant store access; Reporting/POS independently authorize the selected store. Existing customer entry roles, no-store/error behavior and telemetry apply; no schema or new grant is added.

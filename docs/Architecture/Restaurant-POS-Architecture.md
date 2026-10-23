@@ -1,10 +1,24 @@
 # NexaConnect Restaurant POS Architecture
 
+Phase 5 separates Restaurant-owned branch playlist approval from Media-owned validated
+asset storage. Staff/customer screensavers share the original POS lock but show separate
+public image/text lists; staff retains authentication and customer gets no unlock controls.
+Leased, bounded cache output is not offline authorization or checkout. See
+[ADR-040](Decisions/ADR-040-branch-approved-screensaver-gallery.md) and
+[operations/evidence](../Deployment/Next-Iteration-Phase-5.md).
+
+Next-iteration Phase 4 adds separate staff/customer WPF windows within one terminal process.
+An allow-listed current-order projection drives customer prices/outcomes; it carries no staff
+identity, credential or command. Explicit monitor roles and topology safety preserve the
+existing lock and financial recovery; no branch/service data ownership changes. See
+[ADR-039](Decisions/ADR-039-pos-staff-customer-displays.md) and
+[source verification/device checklist](../Deployment/Next-Iteration-Phase-4.md).
+
 The next-iteration POS lock retains operational recovery and binds authenticated resume
 to the provider-verified original operator. It hides the operational surface while idle
 without closing a shift/drawer or creating payment commands; services retain live financial
 authority. [ADR-038](Decisions/ADR-038-pos-authenticated-resume.md) describes the client-only
-identity binding and legacy constraints; dual displays/gallery remain planned.
+identity binding and legacy constraints; Phase 5 adds the approved gallery described above.
 
 Cash-close branch discovery evaluates existing `pos.cash-review.read` via `cash-close` capability, while Reporting/POS repeat exact-store authorization. This separates cash-review readers from day-close authority without changing cash state, financial permissions or service ownership. See [operational discovery](../API/Operational-Branches.md).
 

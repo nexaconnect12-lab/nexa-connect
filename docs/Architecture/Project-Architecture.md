@@ -1,5 +1,24 @@
 # NexaConnect Project Architecture
 
+Phase 5 stores the versioned approved staff/customer playlists in Restaurant-owned branch
+JSON, preserving pricing. Restaurant validates selected Media readiness; Media separately
+reads Restaurant's live branch-authorized selection and supplies only ready selected public
+product variants as bounded PNGs. POS uses a scoped current-user protected cache with a
+maximum five-minute lease and independent lock-screen rendering. No client credential, new
+business command, table, permission or offline selling capability is added. See
+[ADR-040](Decisions/ADR-040-branch-approved-screensaver-gallery.md),
+[API](../API/Screensaver-Gallery.md) and [operations/evidence](../Deployment/Next-Iteration-Phase-5.md).
+
+Phase 4 adds an allow-listed read-only customer projection/window inside the existing native
+Windows POS process. Staff retains the original authentication and financial command pipeline;
+customer output has no service client, credentials, commands or recovery store. Explicit monitor
+roles, physical-pixel placement/PerMonitorV2 and a fail-closed topology/movement guard prevent
+automatic reassignment of staff work. Lock hides customer details; terminal outcomes clear
+them. Exact matching Paid manual-settlement responses are required before local recovery can
+clear, using existing safe correlation/logging. No service API, schema or grant changes. See
+[ADR-039](Decisions/ADR-039-pos-staff-customer-displays.md) and
+[execution/device limits](../Deployment/Next-Iteration-Phase-4.md).
+
 Phase 3 adds `/kitchen` and `/kitchen/` as focused Customer SPA entries served by the existing
 Customer BFF static fallback. Protected local OIDC return destinations preserve entry across
 login. Queue/discovery/version-fenced commands retain Kitchen ownership and live authorization;
@@ -13,7 +32,7 @@ workspace frame; the native WPF client imports reusable styles from `Presentatio
 Product Owner and Customer BFF/session/capability boundaries and all service-owned financial
 workflows remain unchanged. No route, schema, permission or server topology changes. See
 [UI foundation scope and verification](../Deployment/Next-Iteration-Phase-2.md);
-dual displays and gallery behavior remain later phases.
+actual device/user acceptance remains pending.
 
 Next-iteration Phase 1 introduces a dedicated WPF lock surface and original-operator
 authenticated resume. The public POS client uses configured Keycloak UserInfo after token

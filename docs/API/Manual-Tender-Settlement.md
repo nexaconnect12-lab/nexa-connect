@@ -1,5 +1,12 @@
 # Manual tender settlement
 
+Next-iteration Phase 4 strengthens Windows client response validation: a successful body must
+have a nonempty settlement identity, the requested Order, `Status=Paid`, matching method,
+exact amount and currency before local recovery clears or the customer display confirms
+payment. A mismatch remains unconfirmed with the same pending attempt. This adds no endpoint,
+grant or settlement rule. The adapter uses validated original-Order correlation and bounded
+structured failure events. See [client behavior and diagnostics](../Deployment/Next-Iteration-Phase-4.md).
+
 New settlements now require [POS-owned terminal admission](Terminal-Admission.md) before Paid commit. Unknown/inactive terminals, wrong cashier shifts and missing cash drawers return `409 terminal_not_ready`; dependency failures return `503 terminal_admission_unavailable`. Order requires `Services:POS` and matching POS binaries. Exact committed replay remains recoverable without current POS readiness; this preflight adds no schema or distributed lock.
 
 POS retains terminal/store/branch/shift validation when projecting the settled event. Admission is a point-in-time observation, so it does not serialize later closure or revocation with Order commit. The [draft checkout runner](../Deployment/First-Draft-Checkout.md) exercises unknown-terminal and wrong-cashier rejection before a valid settlement; broader distributed fencing remains outside this contract.

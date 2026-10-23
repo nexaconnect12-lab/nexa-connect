@@ -1,5 +1,9 @@
 # NexaConnect frontend foundations
 
+Phase 5 adds the Customer Media branch gallery approval editor. Run `npm run test:e2e:gallery`
+for seven synthetic ordering/approval/removal/scope/conflict cases; these do not prove live
+identity, S3/ClamAV or physical screensaver use. See [Phase 5](../../docs/Deployment/Next-Iteration-Phase-5.md).
+
 Phase 3 adds a focused `/kitchen` entry within the Customer Portal, reusing its existing
 session, queue and scoped commands. It includes fullscreen/fallback, manager return and
 safe scope/sign-out clearing. See [usage and verification](../../docs/Deployment/Next-Iteration-Phase-3.md).

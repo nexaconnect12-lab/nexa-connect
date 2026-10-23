@@ -1,5 +1,12 @@
 # Keycloak Client Matrix
 
+Phase 5 introduces no client, token, mapper or permission grant. Gallery approval uses
+branch `restaurant.configuration.manage` plus organization Media-read authority for selected
+assets. POS delivery reuses its customer bearer and live branch `catalog.menu.read` to retrieve
+only approved public product content, without organization-wide Media listing authority.
+The existing original-operator lock/resume boundary remains. See
+[gallery authority](../API/Screensaver-Gallery.md).
+
 Windows POS Phase 1 resolves its operator through the configured authority's authenticated
 UserInfo endpoint after PKCE redemption/refresh, retaining only subject/authority alongside
 existing protected session metadata. Locked resume forces `prompt=login` and rejects a

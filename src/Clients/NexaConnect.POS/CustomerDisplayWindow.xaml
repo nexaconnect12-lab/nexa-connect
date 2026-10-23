@@ -1,0 +1,58 @@
+<Window x:Class="NexaConnect.POS.CustomerDisplayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="NexaConnect · Customer" WindowStyle="None" ResizeMode="NoResize"
+        ShowInTaskbar="False" ShowActivated="False" Focusable="False"
+        Background="#F4F6F3" Foreground="#172A22" FontFamily="Segoe UI" FontSize="20">
+  <Grid IsHitTestVisible="False" Focusable="False">
+  <Grid x:Name="TransactionView" Margin="32">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <StackPanel>
+      <TextBlock Text="NexaConnect" Foreground="#14532D" FontSize="26" FontWeight="SemiBold" />
+      <TextBlock Text="{Binding Heading}" FontSize="40" FontWeight="Bold" TextWrapping="Wrap" Margin="0,24,0,12" />
+      <TextBlock x:Name="CustomerMessage" Text="{Binding Message}" TextWrapping="Wrap" Margin="0,0,0,24" />
+    </StackPanel>
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Focusable="False">
+      <ItemsControl ItemsSource="{Binding Lines}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Padding="16" Margin="0,0,0,12" Background="White" CornerRadius="8">
+              <StackPanel>
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Margin="0,8,0,0">
+                  <Run Text="{Binding Quantity, Mode=OneWay}" /><Run Text=" × " />
+                  <Run Text="{Binding UnitPrice, Mode=OneWay, StringFormat=N2}" />
+                  <Run Text="  =  " /><Run Text="{Binding LineTotal, Mode=OneWay, StringFormat=N2}" />
+                </TextBlock>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+    <StackPanel Grid.Row="2">
+      <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
+        <DataTrigger Binding="{Binding Total}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+      </Style.Triggers></Style></StackPanel.Style>
+      <TextBlock Text="{Binding Currency}" FontWeight="SemiBold" Margin="0,16,0,8" />
+      <TextBlock Text="{Binding Subtotal, StringFormat=Subtotal: {0:N2}}" />
+      <TextBlock Text="{Binding ServiceCharge, StringFormat=Service charge: {0:N2}}" />
+      <TextBlock Text="{Binding Tax, StringFormat=Tax: {0:N2}}" />
+      <TextBlock Text="{Binding TotalLabel}" FontSize="24" Margin="0,16,0,0" />
+      <TextBlock x:Name="CustomerTotalText" Text="{Binding Total, StringFormat=N2}" FontSize="48" FontWeight="Bold" Foreground="#14532D" />
+      <TextBlock x:Name="CustomerTenderText" Text="{Binding Tender}" Margin="0,12,0,0" TextWrapping="Wrap" />
+    </StackPanel>
+  </Grid>
+  <Border x:Name="SaverView" Visibility="Collapsed" Background="#F4F6F3" Padding="32">
+    <Grid>
+      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+      <TextBlock Text="NexaConnect" FontSize="28" Foreground="#14532D" FontWeight="SemiBold" Margin="0,0,0,16"/>
+      <Image x:Name="SaverImage" Grid.Row="1" Stretch="Uniform"/>
+      <StackPanel Grid.Row="2" Margin="0,16,0,0">
+        <TextBlock x:Name="SaverTitle" FontSize="28" FontWeight="Bold" TextWrapping="Wrap"/>
+        <TextBlock x:Name="SaverCaption" FontSize="20" TextWrapping="Wrap"/>
+      </StackPanel>
+    </Grid>
+  </Border>
+  </Grid>
+</Window>

@@ -3,6 +3,7 @@ import { SalesReportPanel } from "./SalesReportPanel";
 import { CashCloseReportPanel } from "./CashCloseReportPanel";
 import { KitchenQueuePanel } from "./KitchenQueuePanel";
 import { KitchenDisplay } from "./KitchenDisplay";
+import { BranchGalleryPanel } from "./BranchGalleryPanel";
 import { currentSection, isKitchenEntry, signInToCustomer } from "./navigation";
 import React, { useEffect, useRef, useState } from "react";
 import { PaymentReviewPanel } from "./PaymentReviewPanel";
@@ -401,7 +402,7 @@ function App() {
   else if (section === "reports") panel = tenant.applicationCode === "nexa_connect"
     ? <SalesReportPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} organizationId={tenant.organizationId} />
     : <Alert type="warning" message="Sales reports require the NexaConnect workspace."/>;
-  else if (section === "media") panel = <MediaPanel />;
+  else if (section === "media") panel = <React.Fragment key={`${tenant.organizationId}|${tenant.applicationCode}`}><MediaPanel />{tenant.applicationCode==="nexa_connect"&&<BranchGalleryPanel/>}</React.Fragment>;
   else if (section === "activity") panel = <ActivityPanel />;
   else if (section === "end-of-day") panel = tenant.applicationCode === "nexa_connect"
     ? <EndOfDayPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} organizationId={tenant.organizationId} />

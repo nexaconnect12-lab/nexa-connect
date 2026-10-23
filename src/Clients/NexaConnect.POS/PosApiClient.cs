@@ -83,6 +83,7 @@ public sealed class PosApiClient : IDisposable
     private readonly HttpClient _orderHttpClient;
     private readonly HttpClient _catalogHttpClient;
     private readonly HttpClient _paymentHttpClient;
+    private readonly HttpClient _mediaHttpClient;
     private readonly ILoggerFactory loggerFactory = NexaConnectObservabilityExtensions.CreateClientLoggerFactory("nexaconnect-pos-client");
 
     public PosApiClient(PosClientConfiguration configuration, HttpMessageHandler? posHandler = null,
@@ -90,11 +91,24 @@ public sealed class PosApiClient : IDisposable
     {
         _configuration = configuration;
         configuration.ValidateCheckout();
+        _mediaHttpClient=new HttpClient(new HttpClientHandler{AllowAutoRedirect=false}){BaseAddress=new Uri(string.IsNullOrWhiteSpace(configuration.MediaApi)?configuration.OrderApi:configuration.MediaApi),Timeout=TimeSpan.FromSeconds(15)};
         _httpClient = new HttpClient(posHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.PosApi) };
         _orderHttpClient = new HttpClient(orderHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.OrderApi) };
         _catalogHttpClient = new HttpClient(catalogHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.CatalogApi) };
         _paymentHttpClient = new HttpClient(paymentHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(
             string.IsNullOrWhiteSpace(configuration.PaymentApi) ? configuration.OrderApi : configuration.PaymentApi) };
+    }
+
+    public async Task<NexaConnect.Contracts.Media.GalleryBundle> GalleryAsync(PosTokenSet token,CancellationToken ct)
+    {
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(ct);deadline.CancelAfter(TimeSpan.FromSeconds(20));ct=deadline.Token;
+        if(string.IsNullOrWhiteSpace(_configuration.MediaApi))throw new InvalidOperationException("Gallery media service not configured.");
+        using var request=CreateRequest(HttpMethod.Get,$"api/media/v1/customer/organizations/{_configuration.OrganizationId:D}/branches/{_configuration.BranchId:D}/screensaver-gallery",token);
+        AddTenantContext(request,_configuration.OrganizationId);
+        using var response=await SendCheckoutAsync(_mediaHttpClient,request,"gallery.read",Guid.NewGuid(),ct,true);
+        await EnsureSuccessAsync(response,"Gallery unavailable.");
+        await response.Content.LoadIntoBufferAsync(25_165_824,ct);
+        return await response.Content.ReadFromJsonAsync<NexaConnect.Contracts.Media.GalleryBundle>(ct)??throw new InvalidDataException();
     }
 
     public async Task<PosPaymentRefund> CreateRefundAsync(PosTokenSet token, Guid paymentIntentId, Guid operationId,
@@ -328,10 +342,18 @@ public sealed class PosApiClient : IDisposable
             bankReference,
             correlationId = orderId
         });
-        using var response = await _orderHttpClient.SendAsync(request, cancellationToken);
+        using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.manual-settlement", orderId, cancellationToken);
         await EnsureSuccessAsync(response, "Manual settlement could not be confirmed.");
-        return await response.Content.ReadFromJsonAsync<ManualTenderResult>(cancellationToken)
+        var result = await response.Content.ReadFromJsonAsync<ManualTenderResult>(cancellationToken)
             ?? throw new InvalidDataException("The Order API returned an empty settlement response.");
+        if (result.SettlementId == Guid.Empty || result.OrderId != orderId || result.Status != "Paid"
+            || result.Method != method || result.Amount != amount || result.Currency != currency)
+        {
+            loggerFactory.CreateLogger("NexaConnect.POS.Checkout").LogWarning(
+                "Checkout response rejected {Operation} {CorrelationId}", "order.manual-settlement", orderId);
+            throw new InvalidDataException("Settlement confirmation did not match the original payment. Verify the original attempt.");
+        }
+        return result;
     }
 
     public async Task<PosOrderCancellationResult> CancelOrderAsync(PosTokenSet token, Guid orderId,
@@ -632,16 +654,17 @@ public sealed class PosApiClient : IDisposable
         _catalogHttpClient.Dispose();
         _paymentHttpClient.Dispose();
         loggerFactory.Dispose();
+        _mediaHttpClient.Dispose();
     }
 
     private async Task<HttpResponseMessage> SendCheckoutAsync(HttpClient client, HttpRequestMessage request,
-        string operation, Guid correlationId, CancellationToken cancellationToken)
+        string operation, Guid correlationId, CancellationToken cancellationToken, bool headersOnly = false)
     {
         request.Headers.Add("X-Correlation-ID", correlationId.ToString("D"));
         var logger = loggerFactory.CreateLogger("NexaConnect.POS.Checkout");
         try
         {
-            var response = await client.SendAsync(request, cancellationToken);
+            var response = await client.SendAsync(request, headersOnly ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead, cancellationToken);
             if (!response.IsSuccessStatusCode)
                 logger.LogWarning("Checkout boundary rejected {Operation} {StatusCode} {CorrelationId}", operation, (int)response.StatusCode, correlationId);
             return response;

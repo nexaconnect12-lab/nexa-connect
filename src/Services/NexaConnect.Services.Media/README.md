@@ -1,5 +1,13 @@
 # Media service
 
+Phase 5 adds metadata readiness and branch-authorized gallery bundle delivery. Set
+`Services__Restaurant`; Media asks Restaurant for the caller's live menu-readable branch
+selection, then revalidates ready, non-deleted Catalog product display variants. It converts
+only those images to bounded PNGs and issues a maximum five-minute lease; no unrestricted
+Media read grant is given to cashiers. All new HTTP clients use shared correlation and safe
+structured Gallery boundary events. See [contract](../../../docs/API/Screensaver-Gallery.md)
+and [limits/configuration/verification](../../../docs/Deployment/Next-Iteration-Phase-5.md).
+
 Media owns tenant-scoped metadata and the S3-compatible object lifecycle. Apply migrations 1 through 4 and configure `ConnectionStrings__Media`, Platform Directory, Authorization, Catalog, object storage, safety, and quota settings.
 
 `POST .../uploads` validates a Catalog product, accepts JPEG/PNG/WebP up to 10 MiB, and returns a ten-minute signed PUT. Upload start serializes organization quota checks. `MediaQuota__MaximumPendingUploads` defaults to 20; `MediaQuota__MaximumStoredBytes` defaults to 1 GiB of pending/ready original bytes. Generated variants are excluded and require separate bucket-capacity monitoring. Quota exhaustion returns `409`.

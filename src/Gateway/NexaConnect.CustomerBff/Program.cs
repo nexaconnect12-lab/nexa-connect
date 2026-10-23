@@ -148,7 +148,10 @@ builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICus
 
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerCashCorrection>();
 builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerCashCorrectionPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerCashCorrectionPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Gallery.CustomerGalleryService>();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Gallery.ICustomerGalleryPort,NexaConnect.CustomerBff.Infrastructure.Gallery.HttpCustomerGalleryPort>();
 var app = builder.Build();
+// Gallery reuses named clients with shared correlation propagation and the Customer session.
 app.Use(async(context,next)=>{if(context.Request.Path.Value?.Contains("/reports/day-settlements",StringComparison.OrdinalIgnoreCase)==true)context.Response.Headers.CacheControl="no-store";await next();});
 app.UseNexaConnectRequestLogging();
 app.Use(async(context,next)=>{if(context.Request.Path.StartsWithSegments("/bff/customer/reports/cash-corrections"))context.Response.Headers.CacheControl="no-store";await next();});

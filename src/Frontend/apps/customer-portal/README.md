@@ -1,5 +1,12 @@
 # NexaConnect Customer Portal
 
+Phase 5 adds **Approved screensaver gallery** under Media management for the NexaConnect
+workspace: branch selection, separate ordered staff/customer lists, bounded public text,
+explicit approval and version/CSRF-protected saves. Only ready Media assets are offered;
+the service also requires a processed display variant. Scope changes clear the editor;
+uncertain saves require reload and are never automatically retried. See
+[usage/evidence](../../../../docs/Deployment/Next-Iteration-Phase-5.md).
+
 Phase 2 uses the shared responsive shell with keyboard skip navigation, compact-screen
 drawer, wrapped workspace/session controls and labeled initial request/retry states.
 Existing hash sections and protected financial workflows are preserved.

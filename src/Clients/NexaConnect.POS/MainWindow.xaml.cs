@@ -125,6 +125,11 @@ public partial class MainWindow : Window
             ? "Ready to sign in. Service connectivity is checked when you perform an action."
             : "A cash-review decision needs verification. Sign in and load Cash review to reconcile it.";
         UpdateCartTotal();
+        if (pendingOrder is not null)
+        {
+            customerState.Order(pendingOrder, savedSettlement?.Method ?? _configuration.PaymentMethod);
+            customerState.Unconfirmed(); // Retained recovery is not a fresh payment confirmation.
+        }
         if (pendingOrder is not null) PaymentTab.IsSelected = true;
         else if (pendingCashReviewAttempt is not null) CashReviewTab.IsSelected = true;
         if (HasRetainedWork() && !_authentication.HasVerifiedOperator)
@@ -501,7 +506,7 @@ public partial class MainWindow : Window
         { if (line.Quantity > 1) line.Quantity--; else cart.Remove(line); RefreshCart(); }
     }
 
-    private void RefreshCart() { PricingBreakdownText.Text = "Review server pricing before confirming the order."; CartList.Items.Refresh(); UpdateCartTotal(); UpdateOperationalState(); }
+    private void RefreshCart() { PricingBreakdownText.Text = "Review server pricing before confirming the order."; CartList.Items.Refresh(); UpdateCartTotal(); CustomerCartChanged(); UpdateOperationalState(); }
     private void MenuFilter_Changed(object sender, TextChangedEventArgs e) => RefreshMenuFilter();
     private void StationFilter_Changed(object sender, SelectionChangedEventArgs e) => RefreshMenuFilter();
     private void RefreshMenuFilter()
@@ -530,8 +535,9 @@ public partial class MainWindow : Window
                 var created = PendingCheckout.Create(_configuration,
                     cart.Select(line => new CheckoutLine(line.ProductId, line.Quantity)).ToArray());
                 var quote = await _api.QuoteAsync(_authentication.CurrentToken, created);
+                customerState.Quote(quote, _configuration.Currency); PublishCustomerDisplay();
                 PricingBreakdownText.Text = quote.Pricing.Summary;
-                if (!ConfirmQuote(quote)) return;
+                if (!ConfirmQuote(quote)) { CustomerCartChanged(); return; }
                 created = created with { PricingFingerprint = quote.Fingerprint };
                 _localStore.SavePendingCheckout(created); // Never send until confirmed recovery is durable.
                 pendingCheckout = created;
@@ -539,8 +545,9 @@ public partial class MainWindow : Window
             if (pendingCheckout.NeedsPricingReview)
             {
                 var quote = await _api.QuoteAsync(_authentication.CurrentToken, pendingCheckout);
+                customerState.Quote(quote, _configuration.Currency); PublishCustomerDisplay();
                 PricingBreakdownText.Text = quote.Pricing.Summary;
-                if (!ConfirmQuote(quote)) return;
+                if (!ConfirmQuote(quote)) { customerState.Unconfirmed(); PublishCustomerDisplay(); return; }
                 var confirmed = pendingCheckout with { PricingFingerprint = quote.Fingerprint, NeedsPricingReview = false };
                 _localStore.SavePendingCheckout(confirmed);
                 pendingCheckout = confirmed;
@@ -548,6 +555,7 @@ public partial class MainWindow : Window
             string? cardToken = CardTokenBox.Password.Length == 0 ? null : CardTokenBox.Password;
             CardTokenBox.Clear();
             var result = await _api.PlaceOrderAsync(_authentication.CurrentToken, pendingCheckout, cardToken);
+            CustomerOrderReceived(result);
             cardTokenRequired = result.CardTokenRequired;
             PricingBreakdownText.Text = result.Pricing?.Summary ?? "Legacy order: use its original total.";
             bool clearCart = false;
@@ -601,6 +609,7 @@ public partial class MainWindow : Window
         }
         catch (PosPricingChangedException)
         {
+            customerState.PricingChanged(); PublishCustomerDisplay();
             if (pendingCheckout is not null)
             {
                 var review = pendingCheckout with { NeedsPricingReview = true };
@@ -611,6 +620,7 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
+            if (pendingCheckout is not null) { customerState.Unconfirmed(); PublishCustomerDisplay(); }
             StatusText.Text = pendingCheckout is null
                 ? "Checkout was not sent. Check pricing availability, terminal setup and local storage."
                 : exception is PosApiException api
@@ -665,7 +675,7 @@ public partial class MainWindow : Window
                 currentOrder.Currency, currentIdempotencyKey, method,
                 method == "promptpay_manual", method == "promptpay_manual" ? bankReference : null, true, currentOrder.Pricing);
             ManualTenderResult result = await SettlementAttempt.ExecuteAsync(attempt,
-                state => { _localStore.SavePendingSettlement(state); settlementUncertain = true; },
+                state => { _localStore.SavePendingSettlement(state); settlementUncertain = true; customerState.Unconfirmed(); PublishCustomerDisplay(); },
                 () => _api.ConfirmManualSettlementAsync(
                     _authentication.CurrentToken, currentOrder.OrderId, currentIdempotencyKey, method,
                     currentOrder.TotalAmount, currentOrder.Currency, method == "promptpay_manual",
@@ -677,6 +687,7 @@ public partial class MainWindow : Window
             settlementUncertain = false;
             BankReferenceTextBox.Clear();
             ReceiptConfirmedCheckBox.IsChecked = false;
+            customerState.Complete(); PublishCustomerDisplay();
             StatusText.Text = result.Replayed
                 ? $"Order {result.OrderId:D} was already Paid; the original settlement was verified."
                 : $"Order {result.OrderId:D} is Paid.";
@@ -734,6 +745,7 @@ public partial class MainWindow : Window
             return;
         }
         cancellationStatus = "pending";
+        customerState.CancellationPending(); PublishCustomerDisplay();
         settlementInFlight = true;
         SetBusy("Cancelling unpaid order…");
         try
@@ -745,6 +757,7 @@ public partial class MainWindow : Window
                 _localStore.ClearCheckoutAndSettlement(); pendingCheckout = null; pendingOrder = null;
                 settlementIdempotencyKey = null; settlementUncertain = false; cancellationStatus = null;
                 CancellationReasonTextBox.Clear();
+                customerState.Cancelled(); PublishCustomerDisplay();
                 StatusText.Text = result.Replayed ? "The original unpaid order was already cancelled."
                     : "The unpaid order was cancelled and its inventory and Kitchen work were compensated.";
             }
@@ -782,6 +795,8 @@ public partial class MainWindow : Window
         }
 
         UpdateTenderControls();
+        customerState.Tender(_configuration.PaymentMethod == "card_omise_test" ? "card_omise_test" : SelectedTenderMethod());
+        PublishCustomerDisplay();
         UpdateOperationalState();
     }
 
@@ -1265,6 +1280,8 @@ public partial class MainWindow : Window
 
         ClearReceiptView();
         _authentication.SignOut();
+        ClearGallery();
+        customerState.Clear(); PublishCustomerDisplay();
         reauthenticationRequired = false;
         sessionLockMessage = null;
         cashSummary = null;
@@ -1320,6 +1337,8 @@ public partial class MainWindow : Window
         busy = false;
         WorkspaceTabs.IsEnabled = !reauthenticationRequired;
         bool signedIn = IsSignedIn();
+        ApplyDisplaysButton.IsEnabled = DisableCustomerDisplayButton.IsEnabled = signedIn && !displaySafetyBlocked;
+        StaffDisplayPicker.IsEnabled = CustomerDisplayPicker.IsEnabled = signedIn && !displaySafetyBlocked;
         LoadReceiptButton.IsEnabled = signedIn;
         PrintReceiptButton.IsEnabled = signedIn && displayedReceiptOrderId is not null;
         RefundButton.IsEnabled = signedIn && pendingRefund is null;
@@ -1425,9 +1444,12 @@ public partial class MainWindow : Window
 
     private void RenderSessionLock()
     {
-        OperationalSurface.Visibility = reauthenticationRequired ? Visibility.Hidden : Visibility.Visible;
+        OperationalSurface.Visibility = reauthenticationRequired || displaySafetyBlocked ? Visibility.Hidden : Visibility.Visible;
         OperationalSurface.IsEnabled = !reauthenticationRequired;
-        SessionLockOverlay.Visibility = reauthenticationRequired ? Visibility.Visible : Visibility.Collapsed;
+        SessionLockOverlay.Visibility = reauthenticationRequired && !displaySafetyBlocked ? Visibility.Visible : Visibility.Collapsed;
+        DisplaySafetyOverlay.Visibility = displaySafetyBlocked ? Visibility.Visible : Visibility.Collapsed;
+        PublishCustomerDisplay();
+        RenderGallery();
         LockStatusText.Text = sessionLockMessage ?? "Authenticate to resume the retained workspace.";
         ResumeButton.Content = signInCancellation is null ? "Resume / Authenticate" : "Cancel authentication";
         ResumeButton.IsEnabled = !busy || signInCancellation is not null;
@@ -1618,9 +1640,12 @@ public partial class MainWindow : Window
         windowCancellation.Cancel();
         signInCancellation?.Cancel();
         sessionTimer.Stop();
+        galleryTimer.Stop();
+        galleryTimer.Tick -= GalleryTick;
         sessionTimer.Tick -= SessionTimer_Tick;
         _authentication.StatusChanged -= OnStatusChanged;
         _api.Dispose();
+        displays?.Dispose();
         base.OnClosed(e);
     }
 

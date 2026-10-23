@@ -1,5 +1,24 @@
 # NexaConnect POS
 
+Phase 5 optionally uses `Services:MediaApi` for approved branch staff/customer screensavers.
+Active authenticated sessions refresh once a minute; lock displays separate role playlists
+beside staff Resume/Authenticate, with no customer authentication/transaction content.
+Validated PNGs/public text have a five-minute maximum lease in a bounded DPAPI cache; invalid,
+expired or removed content becomes neutral branding. Defaults remain disabled/neutral until
+the Media endpoint is configured. Media never renews operator activity or submits business
+commands. See [settings, cache and acceptance](../../../docs/Deployment/Next-Iteration-Phase-5.md).
+
+Phase 4 adds a read-only customer window using the same active transaction. In **Terminal & sync**
+an authenticated operator selects distinct **Staff display**/**Customer display** roles on an
+extended desktop; startup defaults to one staff screen. Display/DPI changes or unsafe movement
+close customer output and mask/lock staff content until restart on the private staff screen.
+Customer input cannot authenticate or issue commands. Lock masks details and terminal outcomes
+clear them; receipt/history/refund lookups never populate the customer window. Manual Paid
+responses must match the original order/tender/amount/currency before local recovery clears.
+See [setup, verification and device checklist](../../../docs/Deployment/Next-Iteration-Phase-4.md),
+[presentation responsibilities](Presentation/README.md) and
+[ADR-039](../../../docs/Architecture/Decisions/ADR-039-pos-staff-customer-displays.md).
+
 Phase 2 extracts reusable native styles to `Presentation/PosTheme.xaml`, aligns touch/focus
 and tab presentation, wraps terminal/session context and bounds the scrolling status area.
 The local cart sum is labeled Cart estimate; authoritative pricing and payment/recovery

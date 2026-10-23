@@ -1,5 +1,13 @@
 # NexaConnect Customer BFF
 
+Phase 5 adds `/bff/customer/screensaver-gallery/csrf` and GET/PUT
+`/bff/customer/screensaver-gallery/branches/{branch}`. Application revalidates protected
+tenant subject/current Directory product access; Restaurant repeats branch authority and
+Media readiness. PUT requires existing antiforgery proof and a displayed branch version.
+Bodies/responses cap at 16 KiB; failures suppress downstream bodies. Named clients retain
+correlation; query Gallery BFF events under `nexaconnect-customer-bff`. See
+[contract](../../../docs/API/Screensaver-Gallery.md).
+
 Phase 3's `/kitchen` and `/kitchen/` are Customer SPA paths served by the existing static
 fallback after publishing the frontend into `wwwroot`. No new BFF handler or permission is
 added. The SPA login callback preserves its local destination; API access still requires the
