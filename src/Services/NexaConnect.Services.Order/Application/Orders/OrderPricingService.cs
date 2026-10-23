@@ -26,6 +26,12 @@ public sealed class OrderPricingService(IMenuCatalogPort catalog, IBranchPricing
             throw new ArgumentException("Invalid checkout scope or lines.");
         PricingPolicy policy = await policies.GetAsync(command.OrganizationId, command.RestaurantId.Value, command.BranchId, cancellationToken);
         var items = await catalog.GetItemsAsync(command.BranchId, command.Lines.Select(l => l.ProductId).ToArray(), cancellationToken);
+        return Resolve(command, policy, items);
+    }
+
+    // Shared commercial resolution for staff checkout and scoped guest previews.
+    public static OrderQuote Resolve(PlaceOrderCommand command, PricingPolicy policy, IReadOnlyDictionary<Guid, CatalogMenuItem> items)
+    {
         var lines = command.Lines.OrderBy(l => l.ProductId).Select(l =>
         {
             if (!items.TryGetValue(l.ProductId, out var item) || !item.Available || item.Currency != command.Currency)

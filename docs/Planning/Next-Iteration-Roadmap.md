@@ -24,8 +24,9 @@ signing/device and consolidated-test work until server/device specifications are
 Keep those gates pending; do not mark the release frozen or accepted. The selected next
 development track is [table QR ordering for iOS/Android browsers](QR-Ordering-Roadmap.md),
 with anonymous guests, payment at the cashier and staff acceptance before Kitchen.
-Its scope confirmation and [QR1 entry foundation](../Deployment/QR1-Entry.md) are recorded;
-menu/cart, submission, acceptance and cashier collection remain pending.
+Its scope confirmation, [QR1 entry foundation](../Deployment/QR1-Entry.md) and
+[QR2 menu/cart previews](../Deployment/QR2-Menu.md) are recorded;
+submission, acceptance and cashier collection remain pending.
 
 The user considers the first draft sufficient to proceed. This does not fill its
 pending detailed UAT results. Preserve the original candidate, records and deferred

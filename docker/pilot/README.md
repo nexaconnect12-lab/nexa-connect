@@ -1,5 +1,11 @@
 # Dedicated-server pilot application artifacts
 
+QR2 hardens generated business-service edges to hide `/guest/` capability routes as well
+as `/internal/`; guest menu/quote access belongs to the Customer BFF origin. Portal
+forwarding remains intact. Templates/validation keep all QR flags false; hosted QR
+enablement and target ingress verification remain the later QR release gate. The isolated
+[QR2 runbook](../../docs/Deployment/QR2-Menu.md) does not claim a rendered/deployed QR pilot.
+
 `hosting.mjs` requires Node 24+ and uses only built-in modules. Build additionally requires
 the repository .NET 10 SDK/NuGet restore and installed, lockfile-matching frontend dependencies.
 It supports `linux-x64` / `linux-arm64` application outputs for a separately confirmed Linux

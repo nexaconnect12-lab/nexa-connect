@@ -38,14 +38,25 @@ public sealed class HttpQrGatewayPort(HttpClient restaurant, IHttpClientFactory 
         // Never copy staff Authorization, tenant headers, cookies or arbitrary inbound headers.
         return Send(request, ct);
     }
-    private async Task<QrGatewayReply> Send(HttpRequestMessage request, CancellationToken ct)
+    public Task<QrGatewayReply> ShoppingAsync(string operation, string session, QrCart? cart, CancellationToken ct)
+    {
+        var request = operation switch
+        {
+            "menu" => new HttpRequestMessage(HttpMethod.Get, "api/order/v1/guest/qr/menu"),
+            "quote" => new HttpRequestMessage(HttpMethod.Post, "api/order/v1/guest/qr/quote") { Content = JsonContent.Create(cart) },
+            _ => throw new ArgumentException("Invalid guest operation.")
+        };
+        request.Headers.Add("X-Nexa-Guest-Session", session);
+        return Send(request, ct, clients.CreateClient("QrGuestOrder"), 524288);
+    }
+    private async Task<QrGatewayReply> Send(HttpRequestMessage request, CancellationToken ct, HttpClient? target = null, int maximum = 65536)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct); deadline.CancelAfter(TimeSpan.FromSeconds(15));
         using (request)
-        using (var response = await restaurant.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token))
+        using (var response = await (target ?? restaurant).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token))
         {
             if (!response.IsSuccessStatusCode) return new((int)response.StatusCode, null);
-            return new((int)response.StatusCode, response.StatusCode == System.Net.HttpStatusCode.NoContent ? null : await Json(response.Content, 65536, deadline.Token));
+            return new((int)response.StatusCode, response.StatusCode == System.Net.HttpStatusCode.NoContent ? null : await Json(response.Content, maximum, deadline.Token));
         }
     }
     private static async Task<JsonElement> Json(HttpContent content, int maximum, CancellationToken ct)

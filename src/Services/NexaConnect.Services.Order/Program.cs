@@ -22,6 +22,14 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(new BoundedRequestGate(TimeProvider.System, perKey: 1000, global: 1000));
+builder.Services.AddScoped<QrMenuService>();
+builder.Services.AddScoped<IQrMenuPort, HttpQrMenuPort>();
+builder.Services.AddHttpClient("QrGuestContext", client => client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"]!))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false }).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient("QrGuestCatalog", client => client.BaseAddress = new Uri(builder.Configuration["Services:Catalog"]!))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false }).AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient("keycloak-token");
 builder.Services.AddHttpClient<OrderWorkloadTokenProvider>();
@@ -90,6 +98,7 @@ builder.Services.AddHttpClient<IManualTenderAdmission, HttpManualTenderAdmission
 builder.Services.AddSingleton<IOutboundAccessTokenProvider, KeycloakClientCredentialsTokenProvider>();
 builder.Services.AddHttpClient<IBranchPricingPort, HttpBranchPricingPort>(client =>
     client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
     .AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
 if (builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
 {

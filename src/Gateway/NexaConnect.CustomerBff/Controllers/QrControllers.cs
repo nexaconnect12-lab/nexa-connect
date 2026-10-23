@@ -14,6 +14,7 @@ namespace NexaConnect.CustomerBff.Controllers;
 public sealed class QrGuestOptions
 {
     public bool Enabled { get; set; }
+    public bool MenuEnabled { get; set; }
     public string PublicOrigin { get; set; } = "";
     public static bool ValidOrigin(string value) => value.Length <= 256 && Uri.TryCreate(value, UriKind.Absolute, out var uri)
         && uri.Scheme == "https" && uri.AbsolutePath == "/" && uri.Query == "" && uri.Fragment == "" && uri.UserInfo == "";
@@ -29,6 +30,43 @@ public sealed class QrGuestEntryController(IQrGatewayPort port, IOptions<QrGuest
     public Task<IActionResult> Start(QrEntryExchange input, CancellationToken ct) => Execute("start", input, ct);
     [HttpGet("context")] public Task<IActionResult> Context(CancellationToken ct) => Execute("context", null, ct);
     [HttpDelete("sessions")] public Task<IActionResult> End(CancellationToken ct) => Execute("end", null, ct);
+    [HttpGet("menu")] public Task<IActionResult> Menu(CancellationToken ct) => Shopping("menu", null, ct);
+    [HttpPost("quote"), RequestSizeLimit(8192)] public Task<IActionResult> Quote(QrCart cart, CancellationToken ct) => Shopping("quote", cart, ct);
+    private async Task<IActionResult> Shopping(string operation, QrCart? cart, CancellationToken ct)
+    {
+        if (!settings.Value.Enabled || !settings.Value.MenuEnabled) return NotFound();
+        string origin = settings.Value.Origin;
+        if (!Request.IsHttps || !string.Equals($"https://{Request.Host}", origin, StringComparison.OrdinalIgnoreCase)
+            || operation == "quote" && (!Request.HasJsonContentType() || !string.Equals(Request.Headers.Origin.ToString(), origin, StringComparison.OrdinalIgnoreCase)))
+        { logger.LogWarning("QR shopping origin rejected"); return StatusCode(403); }
+        if (!gate.Admit(HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"))
+        { logger.LogWarning("QR shopping rate limited"); Response.Headers.RetryAfter = "60"; return StatusCode(429); }
+        string? session = Request.Cookies[Cookie];
+        if (!ValidToken(session)) return Unauthorized();
+        try
+        {
+            var reply = await port.ShoppingAsync(operation, session!, cart, ct);
+            if (reply.Status is < 200 or >= 300)
+            {
+                logger.LogWarning("QR shopping rejected; operation {Operation}, status {Status}", operation, reply.Status);
+                if (reply.Status == 401) Response.Cookies.Delete(Cookie, CookieOptions());
+                if (reply.Status == 429) Response.Headers.RetryAfter = "60";
+                return StatusCode(SafeStatus(reply.Status), new { title = "Menu or cart unavailable. Refresh and review before continuing." });
+            }
+            // Typed allowlist prevents internal dependency fields from reaching guests.
+            if (operation == "menu")
+            {
+                var menu = reply.Body?.Deserialize<QrMenu>(JsonSerializerOptions.Web);
+                if (menu?.Items is null || menu.Items.Any(i => i is null)) throw new JsonException();
+                return Ok(menu);
+            }
+            var quote = reply.Body?.Deserialize<QrQuote>(JsonSerializerOptions.Web);
+            if (quote?.Lines is null || quote.Lines.Any(l => l is null) || quote.ExpiresAtUtc <= DateTimeOffset.UtcNow) throw new JsonException();
+            return Ok(quote);
+        }
+        catch (Exception e) when (e is HttpRequestException or JsonException || e is OperationCanceledException && !ct.IsCancellationRequested)
+        { logger.LogWarning("QR shopping dependency unavailable; operation {Operation}", operation); return StatusCode(503); }
+    }
     private async Task<IActionResult> Execute(string operation, QrEntryExchange? input, CancellationToken ct)
     {
         if (!settings.Value.Enabled) return NotFound();
@@ -67,7 +105,7 @@ public sealed class QrGuestEntryController(IQrGatewayPort port, IOptions<QrGuest
                 || context.OrganizationId == Guid.Empty || context.RestaurantId == Guid.Empty || context.BranchId == Guid.Empty
                 || context.ExpiresAtUtc <= DateTimeOffset.UtcNow || context.ExpiresAtUtc > DateTimeOffset.UtcNow.AddHours(2).AddSeconds(5)) throw new JsonException();
             if (issuedToken is not null) Response.Cookies.Append(Cookie, issuedToken, CookieOptions(context.ExpiresAtUtc));
-            return Ok(new { context.VisitorId, context.EntryId, context.RestaurantName, context.BranchName, context.TableCode, context.Currency, context.ExpiresAtUtc, orderingAvailable = false });
+            return Ok(new { context.VisitorId, context.EntryId, context.RestaurantName, context.BranchName, context.TableCode, context.Currency, context.ExpiresAtUtc, menuAvailable = settings.Value.MenuEnabled, orderingAvailable = false });
         }
         catch (Exception e) when (e is HttpRequestException or JsonException || e is OperationCanceledException && !ct.IsCancellationRequested)
         { logger.LogWarning("QR guest dependency unavailable; operation {Operation}", operation); return StatusCode(503); }

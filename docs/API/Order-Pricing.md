@@ -1,5 +1,11 @@
 # Authoritative checkout pricing
 
+QR2 [guest quotes](QR-Menu.md) reuse the same commercial resolver through a separate
+capability-scoped Application use case. Guest inputs are product/quantity only, with
+tighter 50-line/99-unit bounds and a two-minute preview expiry. Existing staff quote/place
+authorization, placement fingerprint and persistence behavior are unchanged. The internal
+Restaurant pricing adapter now bounds responses to 4 KiB/10s and rejects redirects.
+
 Direct placement additionally returns 409 preparation_requires_review when ordinary provider-failure compensation encounters completed Kitchen preparation. Inventory stays reserved and the unpaid Order requires investigation; this is not a pricing_changed response or successful cancellation. Normal manual-tender quote/placement remains unchanged.
 
 The online THB checkout now uses Restaurant-owned branch settings and an Order-owned commercial snapshot. POS previews server pricing, asks for confirmation, and saves the quote fingerprint with the original checkout identity before submission. This slice does not add discounts, modifiers, refunds, offline quoting, fiscal receipts or printer support.

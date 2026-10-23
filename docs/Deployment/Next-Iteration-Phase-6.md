@@ -1,5 +1,10 @@
 # Phase 6 — dedicated-server pilot hosting
 
+QR2 source adds guest menu/cart previews separately. Current generated business edges
+hide direct `/guest/` capability paths alongside `/internal/`; use the Customer BFF origin.
+Pilot templates/validation still require QR flags disabled, so the isolated QR2 settings
+do not constitute enabled hosted deployment. See [QR2 rollout limits](QR2-Menu.md).
+
 ## Delivery and deployment status
 
 23 October 2026: application artifact tooling, structural configuration guards, HTTPS

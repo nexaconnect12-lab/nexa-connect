@@ -7,12 +7,21 @@ An opaque table entry exchanges for an independent two-hour visitor capability. 
 rechecks owner hierarchy, entry version/active/expiry and session expiry/ended state.
 Customer BFF adds a separate host-only HttpOnly guest cookie, exact HTTPS Origin on guest
 mutations and bounded correlated Restaurant adapters, without guest Keycloak roles or staff
-token forwarding. `/order` is context-only. Table codes are staff-assigned ordering labels;
+token forwarding. QR2 adds `/order` mobile menu/cart and short-lived server quotes.
+Order validates live visitor context before/after scoped Catalog/Restaurant reads, uses a
+private exact-Order-workload menu projection and shares its existing pricing resolver.
+Public responses omit stations/stock/assets; browser quantities are transient, never prices
+or owner authority. See [ADR-045](Decisions/ADR-045-qr-menu-and-authoritative-cart.md) and
+[QR2 operations](../Deployment/QR2-Menu.md). Table codes are staff-assigned ordering labels;
 the existing floor `dining_tables`/table-account model is not mutated or implicitly joined.
-Menu/cart/request/approval/Inventory/Kitchen/payment remain QR2–QR5. Both hosts default off;
+Submission/approval/Inventory/Kitchen/payment remain QR3–QR5. All QR host flags default off;
 public hosting, real phones and release gates remain pending. See
 [ADR-044](Decisions/ADR-044-table-qr-entry-and-guest-sessions.md),
 [contract](../API/QR-Entry.md) and [operations](../Deployment/QR1-Entry.md).
+
+Generated pilot business edges deny guest capability paths as well as internal routes;
+guest browser traffic enters through the Customer BFF. Pilot validation still preserves
+disabled QR flags; enabled hosted QR rollout/ingress proof remains the later QR release gate.
 
 Phase 8 aligns hosting and installer artifacts with a shared additive `releaseSource`
 identity over Git-clean source/packaging/configuration/workflow inputs. Integrated tests

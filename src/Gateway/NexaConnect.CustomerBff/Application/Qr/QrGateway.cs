@@ -11,6 +11,7 @@ public interface IQrGatewayPort
     Task<CurrentPlatformAccessResponse?> AccessAsync(string bearer, CancellationToken ct);
     Task<QrGatewayReply> StaffAsync(TenantContext tenant, string bearer, Guid branch, QrAdminOperation operation, Guid? entry, object? body, CancellationToken ct);
     Task<QrGatewayReply> GuestAsync(string operation, string? session, QrEntryExchange? input, CancellationToken ct);
+    Task<QrGatewayReply> ShoppingAsync(string operation, string session, QrCart? cart, CancellationToken ct) => throw new NotSupportedException();
 }
 public sealed class QrGatewayService(IQrGatewayPort port)
 {

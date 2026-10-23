@@ -1,5 +1,10 @@
 # NexaConnect frontend foundations
 
+QR2 extends the separate guest `/order` view with a responsive menu, memory-only cart and
+server-quoted THB tax/service breakdown. `playwright.qr-entry.config.mjs` includes entry
+and menu/cart cases on Chromium, WebKit and desktop with mocked HTTP; no physical-phone
+acceptance is implied. See [QR2](../../docs/Deployment/QR2-Menu.md).
+
 QR1 browser checks: `npx playwright test --config playwright.qr-entry.config.mjs` runs
 context-only guest entry/refresh/end and scoped staff QR display in desktop Chromium,
 Android Chromium and iPhone WebKit emulation. Install Chromium/WebKit first. These mocks

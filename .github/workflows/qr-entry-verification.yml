@@ -22,11 +22,13 @@ jobs:
         with:
           node-version: '24'
       - run: dotnet restore NexaConnect.sln
+      - name: Verify guest routes remain behind the portal edge
+        run: node --test docker/pilot/hosting.test.mjs
       - name: Verify QR domain and HTTP boundaries
         run: |
-          dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter FullyQualifiedName~QrEntry --verbosity quiet
+          dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter 'FullyQualifiedName~QrEntry|FullyQualifiedName~QrMenu|FullyQualifiedName~OrderPricing' --verbosity quiet
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests' --verbosity quiet
+          dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests' --verbosity quiet
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify owning persistence and cleanup
         run: |

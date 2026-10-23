@@ -4,7 +4,8 @@ Recorded 23 October 2026. This is the selected next development track, following
 user's instruction to retain the remaining release work until specifications are ready.
 Scope confirmation/repository assessment is complete. [QR1 secure entry](../Deployment/QR1-Entry.md)
 now implements entry/context APIs, storage, staff QR display and the mobile landing.
-Full menu/cart/order/payment flows and actual phone acceptance remain pending.
+[QR2 menu/cart](../Deployment/QR2-Menu.md) now adds responsive menu browsing, quantities
+and authoritative THB totals. Submission/acceptance/payment and actual phone acceptance remain pending.
 
 ## Confirmed flow
 
@@ -74,14 +75,14 @@ table tabs/transfers/split bills, native apps or offline guest execution.
 
 Use the common instructions in the [next-iteration roadmap](Next-Iteration-Roadmap.md#common-instructions-for-every-implementation-prompt)
 with each prompt below. Implement and verify one coherent slice at a time. QR0 is this
-scope/repository assessment; QR1 source is implemented and QR2–QR6 remain pending. Intermediate slices must be visibly
+scope/repository assessment; QR1–QR2 source is implemented and QR3–QR6 remain pending. Intermediate slices must be visibly
 incomplete and disabled from public ordering until the dependent flow is verified.
 
 | Slice | Deliverable | Depends on | Exit evidence |
 | --- | --- | --- | --- |
 | QR0 | Confirm scope and retain prior release gates | None | This recorded agreement and repository assessment |
 | QR1 | Secure table entry and per-visitor guest sessions — implemented in source | QR0 | [Contract, verification and remaining deployment/phone gates](../Deployment/QR1-Entry.md) |
-| QR2 | Mobile menu, authoritative quote and cart | QR1 | Responsive browser UI, scoped menu, bounded quantities, stale-price/availability handling |
+| QR2 | Mobile menu, authoritative quote and cart — implemented in source | QR1 | [Scope, bounds, verification and remaining gates](../Deployment/QR2-Menu.md) |
 | QR3 | Durable guest submission and staff review | QR2 | Idempotent pending requests, private status, authorized bounded queue, rejection/expiry, no Kitchen/financial side effects before acceptance |
 | QR4 | Staff acceptance into existing Order/Inventory/Kitchen | QR3 | Stable original order identity, live permission/version/pricing checks, concurrent/retry/outage recovery, one set of downstream effects |
 | QR5 | Windows cashier retrieval and settlement | QR4 | Retrieve original accepted order, retained recovery identity, authorized single payment, original receipt and correct cash/reporting effects |

@@ -33,6 +33,16 @@ public sealed class PostgresMenuCatalog(NpgsqlDataSource dataSource) : IMenuCata
         return result;
     }
 
+    public IReadOnlyCollection<MenuItem> GetGuestMenu(Guid organizationId, Guid branchId)
+    {
+        using var command = dataSource.CreateCommand("SELECT product_id,name,unit_price,currency,preparation_station,available FROM catalog_menu_items WHERE organization_id=@organization AND branch_id=@branch ORDER BY name,product_id LIMIT 201");
+        command.Parameters.AddWithValue("organization", organizationId);
+        command.Parameters.AddWithValue("branch", branchId);
+        using var reader = command.ExecuteReader(); var result = new List<MenuItem>();
+        while (reader.Read()) result.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetDecimal(2), reader.GetString(3), reader.GetString(4), reader.GetBoolean(5)));
+        return result;
+    }
+
     public MenuItem Add(Guid branchId, CreateMenuItem command, MenuMutationContext? context = null)
         => AddForOrganizationBranch(Guid.Empty, branchId, command, context);
 

@@ -1,5 +1,11 @@
 # QR1 guest authority
 
+QR2 reuses this cookie/capability for [menu and quote reads](../API/QR-Menu.md). Exact
+Origin/JSON is additionally required on quote POST. Order validates Restaurant visitor
+context before/after dependencies, then uses its own existing exact workload for private
+Catalog/pricing reads. Neither the browser's staff session nor staff tokens participate.
+No guest staff role, permanent profile, submission/payment privilege or new identity.
+
 QR guests receive no Keycloak identity, staff role, permanent Customer profile or access
 to existing authenticated financial APIs. Restaurant is the admission owner; read the
 [v1 contract](../API/QR-Entry.md) and [ADR-044](../Architecture/Decisions/ADR-044-table-qr-entry-and-guest-sessions.md).

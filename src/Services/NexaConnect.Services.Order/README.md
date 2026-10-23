@@ -1,5 +1,16 @@
 # Order Service
 
+QR2 adds capability-only `/api/order/v1/guest/qr/menu` and `/quote`, default-off
+`QrMenu__Enabled`. Application revalidates QR1 Restaurant context before/after Catalog
+menu and Restaurant policy reads; guest scope/currency/prices are never trusted. Existing
+Order commercial resolution supplies THB tax/service totals; no order/reservation/Kitchen/
+payment writes. Private Catalog uses the existing exact Order workload; context uses a
+distinct credential-free client. Correlated adapters disable redirects, bound JSON and
+deadlines. Query `{service_name="nexaconnect-order"} |= "QR"` by validated CorrelationId;
+no capabilities, headers, cart or financial bodies are logged. Existing pricing transport
+also gains a 4 KiB/10s bound. See [contract](../../../docs/API/QR-Menu.md) and
+[configuration/tests](../../../docs/Deployment/QR2-Menu.md). No migration/grant change.
+
 New manual-tender commits require [POS terminal admission](../../../docs/API/Terminal-Admission.md) through `Services:POS` with existing Order client credentials and validated correlation propagation. POS checks active scope, cashier shift and cash drawer; Order retains settlement/receipt/audit/outbox ownership. Exact committed replay precedes admission. Matching POS binaries are required; unavailable POS fails closed before Paid. No migration; admission is an observation rather than cross-service atomic fencing. Query `Manual tender terminal admission` / `Manual settlement admission unavailable` in `nexaconnect-order` by correlation; logs exclude bodies and tender values.
 
 Provider-failure compensation is centralized in Application OrderPreparationCompensation: Kitchen cancellation must succeed before Inventory release. Placement maps completed preparation to 409 preparation_requires_review; recovery retains unpaid state with that safe category. Reconciliation and manager void review preserve their unresolved state on compensation failure. Existing nexaconnect-order JSON/correlation telemetry applies. See [joined draft checks and limitations](../../../docs/Deployment/First-Draft-Checkout.md).

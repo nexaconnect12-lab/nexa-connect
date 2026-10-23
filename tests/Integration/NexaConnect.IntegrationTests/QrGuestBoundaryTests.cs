@@ -20,6 +20,23 @@ namespace NexaConnect.IntegrationTests;
 
 public sealed class QrGuestBoundaryTests
 {
+    [Fact] public async Task Shopping_uses_only_guest_cookie_exact_origin_and_typed_public_responses()
+    {
+        await using var factory=new Factory();using var client=factory.CreateClient(Options());
+        client.DefaultRequestHeaders.Add("X-Nexa-Guest-Session",new string('H',43));
+        using(var missing=await client.GetAsync("/bff/guest/qr/menu?sessionToken=ignored"))Assert.Equal(HttpStatusCode.Unauthorized,missing.StatusCode);
+        client.DefaultRequestHeaders.Add("Origin","https://localhost");
+        using var start=await client.PostAsJsonAsync("/bff/guest/qr/sessions",new QrEntryExchange(new string('E',43)));Assert.Equal(HttpStatusCode.OK,start.StatusCode);
+        using var menu=await client.GetAsync("/bff/guest/qr/menu?branchId="+Guid.NewGuid());Assert.Equal(HttpStatusCode.OK,menu.StatusCode);Assert.True(menu.Headers.CacheControl?.NoStore);
+        string json=await menu.Content.ReadAsStringAsync();Assert.DoesNotContain("internalSecret",json);Assert.DoesNotContain("preparationStation",json);
+        client.DefaultRequestHeaders.Remove("Origin");
+        using(var forbidden=await client.PostAsJsonAsync("/bff/guest/qr/quote",new QrCart([new(Guid.NewGuid(),1)])))Assert.Equal(HttpStatusCode.Forbidden,forbidden.StatusCode);
+        client.DefaultRequestHeaders.Add("Origin","https://localhost");
+        using var tampered=await client.PostAsync("/bff/guest/qr/quote",new StringContent("{\"lines\":[],\"organizationId\":\"foreign\",\"total\":0.01}",System.Text.Encoding.UTF8,"application/json"));Assert.Equal(HttpStatusCode.BadRequest,tampered.StatusCode);
+        using(var quote=await client.PostAsJsonAsync("/bff/guest/qr/quote",new QrCart([new(Guid.NewGuid(),1)])))Assert.Equal(HttpStatusCode.Conflict,quote.StatusCode);
+        factory.Port.Status=401;using(var revoked=await client.GetAsync("/bff/guest/qr/menu"))Assert.Equal(HttpStatusCode.Unauthorized,revoked.StatusCode);
+        Assert.Equal(0,factory.Port.StaffSends);
+    }
     [Fact] public async Task Staff_administration_requires_csrf_protected_tenant_and_live_membership()
     {
         await using var factory = new Factory(); using var client = factory.CreateClient(Options()); string root = "/bff/customer/qr-entries/branches/" + Guid.NewGuid();
@@ -36,6 +53,8 @@ public sealed class QrGuestBoundaryTests
     [Fact] public async Task Visitors_use_independent_secure_cookies_and_only_public_context()
     {
         await using var factory = new Factory(); using var a = factory.CreateClient(Options()); using var b = factory.CreateClient(Options());
+        using var landing = await a.GetAsync("/order"); Assert.NotEqual(HttpStatusCode.Unauthorized, landing.StatusCode); Assert.True(landing.Headers.CacheControl?.NoStore);
+        Assert.Contains("base-uri 'none'",landing.Headers.GetValues("Content-Security-Policy").Single());
         using var missing = await a.GetAsync("/bff/guest/qr/context"); Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
         foreach (var client in new[] { a, b }) client.DefaultRequestHeaders.Add("Origin", "https://localhost");
         using var first = await a.PostAsJsonAsync("/bff/guest/qr/sessions", new QrEntryExchange(new string('E', 43)));
@@ -74,6 +93,9 @@ public sealed class QrGuestBoundaryTests
         await using var enabled = new Factory(); using var browser = enabled.CreateClient(Options()); browser.DefaultRequestHeaders.Add("Origin", "https://localhost");
         enabled.Port.Status = 500; using var failed = await browser.PostAsJsonAsync("/bff/guest/qr/sessions", new QrEntryExchange(new string('E', 43)));
         Assert.Equal(HttpStatusCode.ServiceUnavailable, failed.StatusCode); Assert.False(failed.Headers.Contains("Set-Cookie")); Assert.DoesNotContain("downstream-secret", await failed.Content.ReadAsStringAsync());
+        enabled.Port.Status = 200; enabled.Port.ExpiredContext = true;
+        using var expired = await browser.PostAsJsonAsync("/bff/guest/qr/sessions", new QrEntryExchange(new string('E', 43)));
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, expired.StatusCode); Assert.False(expired.Headers.Contains("Set-Cookie"));
     }
     private static WebApplicationFactoryClientOptions Options() => new() { AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost") };
     private static async Task SignIn(Factory factory, HttpClient client, string subject = "operator", string product = "nexa_connect")
@@ -99,14 +121,20 @@ public sealed class QrGuestBoundaryTests
                 ["Services:Restaurant"]="https://restaurant.test/",["Services:Reporting"]="https://reporting.test/",
                 ["Services:Media"]="https://media.test/",["Services:Notification"]="https://notification.test/",
                 ["Services:Catalog"]="https://catalog.test/",["Services:Inventory"]="https://inventory.test/",
-                ["QrGuest:Enabled"]=enabled.ToString(),["QrGuest:PublicOrigin"]="https://localhost"
+                ["QrGuest:Enabled"]=enabled.ToString(),["QrGuest:MenuEnabled"]="true",["QrGuest:PublicOrigin"]="https://localhost"
             }));
             builder.ConfigureTestServices(services => { services.RemoveAll<IQrGatewayPort>(); services.AddSingleton<IQrGatewayPort>(Port); });
         }
     }
     private sealed class Port : IQrGatewayPort
     {
-        private readonly Dictionary<string, QrGuestContext> sessions = []; public int Starts; public int Status = 200;
+        public Task<QrGatewayReply> ShoppingAsync(string operation,string session,QrCart? cart,CancellationToken ct)
+        {
+            Assert.NotEqual(new string('H',43),session);
+            if(Status!=200||!sessions.ContainsKey(session))return Task.FromResult(new QrGatewayReply(401,null));
+            return Task.FromResult(operation=="menu"?new QrGatewayReply(200,JsonSerializer.SerializeToElement(new{items=new[]{new{productId=Guid.NewGuid(),name="Soup",unitPrice=107,currency="THB",available=true,preparationStation="secret",internalSecret="secret"}},internalSecret="secret"},JsonSerializerOptions.Web)):new QrGatewayReply(409,null));
+        }
+        private readonly Dictionary<string, QrGuestContext> sessions = []; public int Starts; public int Status = 200; public bool ExpiredContext;
         public Guid Organization = Guid.NewGuid(); public bool Membership = true; public int StaffSends; public TenantContext? LastTenant;
         public Task<CurrentPlatformAccessResponse?> AccessAsync(string bearer, CancellationToken ct) => Task.FromResult<CurrentPlatformAccessResponse?>(new("operator", Membership ? [new(Organization,"org","Organization","nexa_connect")] : []));
         public Task<QrGatewayReply> StaffAsync(TenantContext tenant, string bearer, Guid branch, QrAdminOperation operation, Guid? entry, object? body, CancellationToken ct)
@@ -117,7 +145,7 @@ public sealed class QrGuestBoundaryTests
             if (operation == "start")
             {
                 Assert.Null(session); Starts++; string token = "v" + Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N")[..10];
-                var context = new QrGuestContext(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Restaurant", "Branch", "A1", "THB", DateTimeOffset.UtcNow.AddHours(2)); sessions.Add(token, context);
+                var context = new QrGuestContext(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Restaurant", "Branch", "A1", "THB", ExpiredContext ? DateTimeOffset.UtcNow.AddMinutes(-1) : DateTimeOffset.UtcNow.AddHours(2)); sessions.Add(token, context);
                 return Task.FromResult(new QrGatewayReply(200, JsonSerializer.SerializeToElement(new QrSessionIssue(token, context), JsonSerializerOptions.Web)));
             }
             if (session is null || !sessions.TryGetValue(session, out var value)) return Task.FromResult(new QrGatewayReply(401, null));

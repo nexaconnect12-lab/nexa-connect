@@ -18,6 +18,9 @@ builder.Services.AddOptions<NexaConnect.CustomerBff.Controllers.QrGuestOptions>(
     .Validate(o => !o.Enabled || NexaConnect.CustomerBff.Controllers.QrGuestOptions.ValidOrigin(o.PublicOrigin), "QrGuest:PublicOrigin must be an exact HTTPS origin.").ValidateOnStart();
 builder.Services.AddSingleton(new NexaConnect.Infrastructure.Http.BoundedRequestGate(TimeProvider.System));
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Qr.QrGatewayService>();
+builder.Services.AddHttpClient("QrGuestOrder", client =>
+{ client.BaseAddress = new Uri(builder.Configuration["Services:Order"] ?? throw new InvalidOperationException("Services:Order is required.")); client.Timeout = TimeSpan.FromSeconds(15); })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false }).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Qr.IQrGatewayPort, NexaConnect.CustomerBff.Infrastructure.Qr.HttpQrGatewayPort>(client =>
 { client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")); client.Timeout = TimeSpan.FromSeconds(15); })
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false }).AddNexaConnectCorrelationPropagation();

@@ -21,6 +21,8 @@ public sealed class QrGatewayTransportTests
         handler.Body = "{}"; await port.GuestAsync("context",new string('S',43),null,default);
         Assert.Null(handler.Authorization); Assert.False(handler.Cookie); Assert.False(handler.Tenant); Assert.Equal(new string('S',43),handler.Session);
         await port.GuestAsync("start",null,new(new string('E',43)),default); Assert.Null(handler.Authorization); Assert.Null(handler.Session);
+        await port.ShoppingAsync("menu",new string('S',43),null,default);Assert.Null(handler.Authorization);Assert.False(handler.Cookie);Assert.False(handler.Tenant);Assert.Equal(new string('S',43),handler.Session);
+        await port.ShoppingAsync("quote",new string('S',43),new([new(Guid.NewGuid(),2)]),default);Assert.Null(handler.Authorization);Assert.False(handler.Cookie);Assert.False(handler.Tenant);
         handler.Body = new string('X',65537); await Assert.ThrowsAsync<HttpRequestException>(() => port.GuestAsync("context",new string('S',43),null,default));
     }
     private sealed class Clients(HttpClient client) : IHttpClientFactory { public HttpClient CreateClient(string name) => client; }

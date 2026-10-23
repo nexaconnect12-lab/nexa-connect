@@ -89,6 +89,18 @@ test('compose isolates services, limits resources and gives only the edge a publ
 test('TLS proxy verifies backend identity, suppresses URL logs and hides internal/management paths', () => {
   const text = proxyConfig(goodPlan()); assert.match(text, /proxy_ssl_verify on/); assert.match(text, /proxy_ssl_server_name on/); assert.match(text, /ssl_reject_handshake on/); assert.match(text, /access_log off/); assert.match(text, /X-Forwarded-Proto ""/); assert.match(text, /internal/); assert(!text.includes('authorization.nexa.test')); assert(!text.includes('identity.nexa.test'));
 });
+
+test('guest capability service routes are hidden on business edges and BFF guest routes remain reachable', () => {
+  const text = proxyConfig(goodPlan());
+  for (const id of ['pos', 'order', 'catalog', 'payment', 'media']) {
+    const server = text.split(`server_name ${id}.nexa.test;`)[1].split('server {')[0];
+    assert(server.includes('location ~* /(?:internal|guest)(?:/|$) { return 404; }'));
+    assert(new RegExp('/(?:internal|guest)(?:/|$)', 'i').test('/api/order/v1/guest/qr/menu'));
+    assert(server.indexOf('(?:internal|guest)') < server.indexOf(`location /api/${id}/`));
+  }
+  const customer = text.split('server_name customer-portal.nexa.test;')[1].split('server {')[0];
+  assert(customer.includes('location / { proxy_pass')); assert(!customer.includes('(?:internal|guest)'));
+});
 test('initialization refuses overwrite and leaves all actual server gates open', t => {
   const d = path.join(temp(t), 'config'); initialize(d); assert.throws(() => initialize(d), /already exists/);
   const p = JSON.parse(fs.readFileSync(path.join(d, 'plan.json'))); assert.equal(p.server.confirmed, false); assert(!p.acceptance.identityReady);

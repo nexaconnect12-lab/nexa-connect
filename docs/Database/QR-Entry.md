@@ -1,5 +1,12 @@
 # Restaurant QR1 persistence
 
+QR2 adds no tables/migrations: the cart/quotes are transient and use existing Catalog
+organization/branch menu reads and Restaurant pricing policy. Catalog's guest projection
+adds a parameterized organization+branch query with LIMIT 201 to detect its 200-item cap;
+see [QR2](../Deployment/QR2-Menu.md). The shared disposable persistence launcher now requires
+both QR1 admission and QR2 Catalog isolation/bounds cases; prior QR1 receipts retain their
+historical one-case meaning. No Order/Inventory/Kitchen/payment state is written.
+
 Apply Restaurant migration 4 (`0004_qr_entry`) with the migration owner's credentials
 before enabling QR entry. Minimum migration application version stays 0.38.0; this is
 an additive Restaurant capability, with no coordinated financial schema/version change.

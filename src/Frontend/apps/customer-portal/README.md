@@ -1,10 +1,13 @@
 # NexaConnect Customer Portal
 
 QR1 adds Configuration → Table QR entry for scoped QR issue/rotation/revocation and a
-public `/order` context-only mobile landing. The landing removes the entry fragment before
+public `/order` mobile landing. The landing removes the entry fragment before
 exchange, never boots staff requests, and uses a separate HttpOnly BFF visit cookie;
 it stores no guest capability in browser storage. QR display/links are one-time staff
-output, cleared on branch/workspace changes. Menu/order/payment remain later slices.
+output, cleared on branch/workspace changes. QR2 optionally adds menu browsing, up to 50
+cart lines/99 units, server tax/service totals and changed-price/availability/error feedback.
+Cart state is page memory only; reload/end/expiry clears it and edits invalidate totals.
+No guest submit/payment controls; those remain later slices. See [QR2 verification](../../../../docs/Deployment/QR2-Menu.md).
 See [configuration/security/verification](../../../../docs/Deployment/QR1-Entry.md).
 
 Phase 5 adds **Approved screensaver gallery** under Media management for the NexaConnect

@@ -65,7 +65,7 @@ shared frontend dependencies. With restored .NET/npm dependencies and local test
 
 ```powershell
 dotnet test tests/Unit/NexaConnect.UnitTests --filter 'FullyQualifiedName~QrEntry'
-dotnet test tests/Integration/NexaConnect.IntegrationTests --filter 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests'
+dotnet test tests/Integration/NexaConnect.IntegrationTests --filter 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests'
 ./scripts/test-qr-entry-persistence.ps1 -ConfirmDisposableInfrastructure
 cd src/Frontend
 npm run check
@@ -82,4 +82,35 @@ owner-restricted `.runstate/qr-entry/<run-id>`. It requires locally cached
 Browser fixtures cover desktop and Android Chromium/iPhone WebKit emulation, not physical
 iOS Safari/Android Chrome or public TLS certification. Record measured results below.
 
-Implementation verification: pending final execution/audit record.
+23 October 2026 local implementation verification:
+
+- Both Restaurant and Customer BFF compiled without warnings/errors.
+- Full unit suite: 957 passed, none skipped, including actual current-user Windows DPAPI
+  and QR Domain/application/transport/migration-catalog checks. Architecture suite: 6 passed.
+- Final selected HTTP regression: 20 passed, none skipped: 11 QR owning-service/BFF/
+  adapter checks and 9 existing gallery/Kitchen staff-boundary checks. Coverage includes
+  anonymous/staff separation, live membership/tenant/CSRF, capability-header isolation,
+  disabled routes, exact origin, safe errors, secure cookies, expiry, full bounded lists,
+  credential-free guest forwarding and the anonymous landing CSP.
+- Owning PostgreSQL gate: 1 comprehensive passed case with verified generated-container
+  cleanup, receipt `.runstate/qr-entry/a3d0b194791c49169804d9a19d948553/verification.json`.
+  It covers concurrent admission/writes, tenant/visitor isolation, restart reads, expired/
+  suspended/revoked access, logout/start abuse-budget retention, audit/outbox rollback and
+  destructive empty downgrade/re-upgrade. Failed earlier fixture setup was corrected and
+  is not counted as passed evidence.
+- Frontend TypeScript, all 76 unit tests and both portal production builds passed.
+  Production and full dependency audits each reported zero vulnerabilities at execution.
+- QR browser matrix: all 12 cases passed without retries/skips in Android-style Chromium,
+  iPhone-style WebKit and desktop Chromium. Browser HTTP responses are explicit fixtures;
+  owning HTTP/PostgreSQL checks are separate. No physical camera/phone pass is inferred.
+- `.github/workflows/qr-entry-verification.yml` defines repeatable CI for QR Domain,
+  HTTP, owning persistence and the browser/build/audit matrix. A remote CI execution was
+  not performed as part of these local checks.
+
+The QR documentation audit reviewed the implementation, addressed admission-limit/
+response-bound/disabled-route drift and checked all affected summaries and links.
+Both canonical architectures and the project overview were updated; ADR-005 remains
+applicable unchanged. Root/component READMEs, QR API/identity/database/deployment docs,
+environment example, operational-branch contract, database inventory and roadmaps agree.
+Final `git diff --check` passed. This is local source verification, not a clean release
+freeze, hosted deployment, actual phone acceptance or the user's consolidated second test.

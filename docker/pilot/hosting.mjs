@@ -242,7 +242,7 @@ export function proxyConfig(p) {
     const h = p.services[id].host;
     const locations = id.endsWith('portal')
       ? 'location / { proxy_pass https://backend; }'
-      : `location ~* /internal(?:/|$) { return 404; }\n    location /api/${id}/ { proxy_pass https://backend; }\n    location / { return 404; }`;
+      : `location ~* /(?:internal|guest)(?:/|$) { return 404; }\n    location /api/${id}/ { proxy_pass https://backend; }\n    location / { return 404; }`;
     return `server {\n    listen 8443 ssl; server_name ${h};\n    ssl_certificate /run/private/proxy.crt; ssl_certificate_key /run/private/proxy.key;\n    ssl_protocols TLSv1.2 TLSv1.3;\n    proxy_ssl_verify on; proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;\n    proxy_ssl_server_name on; proxy_ssl_name ${h};\n    proxy_set_header Host ${h}${p.httpsPort === 443 ? '' : ':' + p.httpsPort}; proxy_set_header X-Forwarded-For ""; proxy_set_header X-Forwarded-Host ""; proxy_set_header X-Forwarded-Proto "";\n    proxy_set_header Forwarded ""; proxy_set_header Connection ""; proxy_http_version 1.1;\n    proxy_connect_timeout 5s; proxy_read_timeout 60s; proxy_send_timeout 60s;\n    location ~ ^/(health|metrics|openapi|swagger)(/|$) { return 404; }\n    ${locations.replaceAll('https://backend', `https://${h}:8443`)}\n  }`;
   });
   return `pid /tmp/nginx.pid;\nevents { worker_connections 1024; }\nhttp {\n  access_log off; error_log /dev/stderr crit;\n  client_max_body_size 24m; client_body_temp_path /tmp/client; proxy_temp_path /tmp/proxy;\n  server { listen 8443 ssl default_server; ssl_reject_handshake on; }\n  ${servers.join('\n  ')}\n}\n`;

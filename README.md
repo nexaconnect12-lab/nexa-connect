@@ -4,7 +4,8 @@ The next selected development track is [table QR ordering for iOS/Android browse
 guest ordering, staff acceptance before Kitchen, and payment at the cashier. Scope is
 confirmed. [QR1 secure entry](docs/Deployment/QR1-Entry.md) implements scoped table QR
 issuance/rotation/revocation and independent visitor sessions, with a context-only mobile
-landing. Menu/cart, submissions, staff acceptance and cashier handoff remain QR2–QR5.
+landing. [QR2](docs/Deployment/QR2-Menu.md) adds a mobile menu, memory-only cart and
+authoritative THB tax/service totals. Submission, staff acceptance and cashier handoff remain QR3–QR5.
 Remaining hosted-release and physical
 acceptance work is recorded as pending specifications; existing release gates still apply.
 

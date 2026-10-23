@@ -330,10 +330,16 @@ QR1's [entry foundation](../Deployment/QR1-Entry.md) implements Restaurant-owned
 branch-scoped logical table labels and per-visitor admission, with versioned QR rotation/
 revocation, absolute expiry, hashes, audited configuration authority and bounded admission.
 The same-origin Customer BFF keeps a distinct guest cookie; `/order` returns public table
-context only. Existing floor/table-account records are not edited by logical QR labels;
+context plus QR2 mobile menu/cart and authoritative quote previews. Existing floor/table-account records are not edited by logical QR labels;
 future acceptance must explicitly translate any physical table model. QR1 adds no guest
 order/payment authority, stock reservation or Kitchen work. The complete flow below is
-still the target for QR2–QR5. See [ADR-044](Decisions/ADR-044-table-qr-entry-and-guest-sessions.md).
+still the target for QR3–QR5. QR2 revalidates visitor scope and uses Catalog menu prices
+and Restaurant policy through the shared Order resolver; no stock/payment/Kitchen write.
+See [ADR-044](Decisions/ADR-044-table-qr-entry-and-guest-sessions.md),
+[ADR-045](Decisions/ADR-045-qr-menu-and-authoritative-cart.md) and [QR2](../Deployment/QR2-Menu.md).
+The confirmed first rollout uses anonymous iOS/Android browser guests, staff acceptance
+before Kitchen, and payment at the cashier. Online payment/table accounts below remain
+future policy options, not selected behavior for this rollout.
 
 The QR token identifies a restaurant branch and normally a table or ordering context. It must be opaque, revocable, and protected against guessing or cross-branch use.
 

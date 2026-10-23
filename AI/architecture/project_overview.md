@@ -6,10 +6,15 @@ staff acceptance before Kitchen dispatch. [QR1](../../docs/Deployment/QR1-Entry.
 Restaurant-owned logical table entry/visitor admission (migration 4), scoped configuration
 authority, hash-only random capabilities, absolute expiry/version revocation, bounded
 admission and audit/outbox. Customer BFF provides a separate HttpOnly guest cookie and
-exact-origin mutation boundary; `/order` shows context only. No guest staff/order/payment
-authority is granted. QR2–QR6 remain pending. Hosted release/signing/device/Phase 9 work is
+exact-origin mutation boundary. [QR2](../../docs/Deployment/QR2-Menu.md) adds a mobile menu,
+memory-only cart and authoritative quote through capability-scoped Order reads, exact Order
+workload Catalog projection and existing Restaurant pricing. Public totals reuse Order
+commercial rules; no guest staff/order/payment authority is granted. QR3–QR6 remain pending. Hosted release/signing/device/Phase 9 work is
 deferred pending specifications, with existing readiness gates preserved. This selection
 preserves the existing readiness gates; no QR deployment/phone acceptance is claimed.
+
+Generated pilot business edges hide direct guest capability routes; browser traffic uses
+Customer BFF. Hosting templates retain disabled QR flags pending the hosted QR release gate.
 
 Phase 8 adds shared Git-clean source identity across hosting/installer producers, complete
 source/joined verification and a write-once freeze gate for exact artifacts, configuration,

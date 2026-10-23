@@ -1,5 +1,14 @@
 # Catalog Service
 
+QR2 adds private `/api/catalog/v1/internal/organizations/{organization}/branches/{branch}/guest-menu`
+for exact `nexaconnect-order-service` workload only. Application projects the owning menu,
+bounded to 200 items, 200 characters/name and 64 characters/station; Infrastructure uses organization+branch parameters
+and LIMIT 201 as an overflow sentinel. No guest browser or other workload access; no schema
+change. Stations remain private to Order's fingerprint; public Order/BFF responses remove
+them. No stock quantities or media assets. Query existing `nexaconnect-catalog` logs for
+`QR` and validated CorrelationId; denial/bounds events omit tokens, bodies and prices.
+See [contract](../../../docs/API/QR-Menu.md) and [tests/operations](../../../docs/Deployment/QR2-Menu.md).
+
 [Draft provisioning](../../../docs/Deployment/First-Draft-Provisioning.md) uses the owning menu repository with synthetic actor/correlation for three reference menu items. Initial resume preserves existing products; completed reruns do not overwrite edited prices. Existing audit/outbox behavior applies. The portal station picker derives station codes from the live authorized menu.
 
 Owns branch menu items and price/preparation snapshots. The current API exposes `GET` and `POST /api/catalog/v1/branches/{branchId}/menu-items` through Application-owned `IMenuCatalog` and an Infrastructure adapter. Catalog uses the in-memory adapter by default; set `Persistence:Provider=PostgreSQL` and `ConnectionStrings:Catalog` to use the durable menu-item repository.

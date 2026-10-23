@@ -1,5 +1,10 @@
 # QR1 table entry contract
 
+QR2 extends the same visitor with [menu/cart previews](QR-Menu.md), separately disabled
+by default. Context now also supplies `menuAvailable` from BFF configuration;
+`orderingAvailable` remains false. The QR1 admission capability and staff boundaries below
+are unchanged; QR1 alone still exposes context only.
+
 QR1 admits individual visitors to a Restaurant-owned table context. It grants no staff,
 menu/order, Inventory, Kitchen, payment or other guest-order access. All routes are opt-in
 and no-store. See [ADR-044](../Architecture/Decisions/ADR-044-table-qr-entry-and-guest-sessions.md)
@@ -54,7 +59,7 @@ Restaurant prefix `/api/restaurant/v1/guest/qr`; BFF prefix `/bff/guest/qr`:
 
 Restaurant context binds `visitorId, entryId, organizationId, restaurantId, branchId,
 restaurantName, branchName, tableCode, currency, expiresAtUtc`. BFF returns only visitor/
-entry IDs, names, code, currency, expiry and `orderingAvailable:false`; it never sends
+entry IDs, names, code, currency, expiry, `menuAvailable` and `orderingAvailable:false`; it never sends
 session secrets or internal owner IDs to browser JavaScript. Input IDs/query parameters
 cannot override scope. Browser-supplied Authorization or guest-capability headers are not
 forwarded by the guest adapter. No guest list/search/staff operation exists.

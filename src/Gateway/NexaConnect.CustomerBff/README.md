@@ -1,6 +1,6 @@
 # NexaConnect Customer BFF
 
-QR1 adds a context-only anonymous `/order` browser entry and distinct `/bff/guest/qr`
+QR1 adds an anonymous `/order` browser entry and distinct `/bff/guest/qr`
 cookie boundary, plus scoped `/bff/customer/qr-entries` administration. Guest calls never
 forward staff bearer/session/tenant headers; staff mutations retain CustomerSession,
 protected tenant/live Directory checks and CSRF. Enable `QrGuest__Enabled` with an exact
@@ -10,7 +10,11 @@ See [QR contract](../../../docs/API/QR-Entry.md), [identity](../../../docs/Ident
 and [operations/verification](../../../docs/Deployment/QR1-Entry.md). Service telemetry:
 `{service_name="nexaconnect-customer-bff"} |= "QR"`, then validated `CorrelationId`.
 Bodies/headers/cookies/capabilities/labels/IPs are never logged; only bounded operation/status.
-This adds no guest menu/order/payment authority or Kitchen execution.
+QR2 adds guest menu/quote forwarding to private `Services__Order`, gated separately by
+`QrGuest__MenuEnabled=false`. Cookie/HTTPS/Origin/admission remain shared; typed allowlists,
+512 KiB bounds and 15s body deadline apply. No staff headers or retries are forwarded.
+See [QR2 contract](../../../docs/API/QR-Menu.md) and [operations](../../../docs/Deployment/QR2-Menu.md).
+No guest submission/payment authority or Kitchen execution.
 
 Phase 5 adds `/bff/customer/screensaver-gallery/csrf` and GET/PUT
 `/bff/customer/screensaver-gallery/branches/{branch}`. Application revalidates protected

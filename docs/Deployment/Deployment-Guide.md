@@ -1,5 +1,10 @@
 # Deployment Guide
 
+QR2 [menu/cart previews](QR2-Menu.md) additionally require current Order/Catalog binaries,
+Order `QrMenu__Enabled` and BFF `QrGuest__MenuEnabled`. Both default false; QR1 remains
+independently usable. Existing owning schemas/workload credentials apply; no QR2 migration
+or financial grant. Submission and public/device acceptance remain pending.
+
 QR1 is separately opt-in: apply Restaurant migration 4 and use the [QR entry runbook](QR1-Entry.md)
 with [per-component flags/origin example](qr-entry.env.example). Both hosts default off;
 existing financial versions/permissions remain unchanged. QR1 serves table context only,

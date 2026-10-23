@@ -27,9 +27,9 @@ public sealed class QrEntryController(QrEntryService service, IConfiguration con
         if (!configuration.GetValue<bool>("QrEntry:Enabled")) return NotFound();
         try { return Ok(await action()); }
         catch (UnauthorizedAccessException) { logger.LogWarning("QR administration authorization denied"); return Forbid(); }
-        catch (ArgumentException) { return BadRequest(new { code = "invalid_qr_input" }); }
-        catch (QrConflictException) { return Conflict(new { code = "qr_changed", title = "Reload the table QR list before changing it." }); }
-        catch (QrLimitException) { return StatusCode(429); }
+        catch (ArgumentException) { logger.LogWarning("QR administration input rejected"); return BadRequest(new { code = "invalid_qr_input" }); }
+        catch (QrConflictException) { logger.LogInformation("QR administration entry changed or unavailable"); return Conflict(new { code = "qr_changed", title = "Reload the table QR list before changing it." }); }
+        catch (QrLimitException) { logger.LogWarning("QR administration entry capacity reached"); return StatusCode(429); }
         catch (Exception e) when (e is HttpRequestException or Npgsql.NpgsqlException || e is OperationCanceledException && !HttpContext.RequestAborted.IsCancellationRequested)
         { logger.LogWarning("QR administration dependency unavailable"); return StatusCode(503); }
     }
