@@ -16,4 +16,4 @@ public sealed record QrQuoteLine(Guid ProductId, string Name, decimal UnitPrice,
 public sealed record QrQuote(string Fingerprint, string Currency, DateTimeOffset ExpiresAtUtc,
     IReadOnlyList<QrQuoteLine> Lines, decimal MenuAmount, decimal SubtotalAmount,
     decimal ServiceChargeAmount, decimal TaxAmount, decimal TotalAmount,
-    decimal TaxPercent, bool TaxInclusive, decimal ServiceChargePercent);
+    decimal TaxPercent, bool TaxInclusive, decimal ServiceChargePercent, Guid? QuoteId = null);

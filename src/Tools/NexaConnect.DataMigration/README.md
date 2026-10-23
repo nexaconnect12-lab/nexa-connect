@@ -1,5 +1,12 @@
 # NexaConnect Data Migration
 
+Order migration20 adds order_qr_quotes, order_qr_requests and immutable request audit,
+an optional default-off QR3 capability at migration compatibility0.38.0. Apply owning
+runtime grants before enablement. Downgrade refuses request/audit history; empty downgrade
+removes QR objects only. Existing financial versions/permissions stay unchanged. Full
+catalog now207 tables. See [QR3 schema](../../../docs/Database/QR-Requests.md).
+
+
 Restaurant migration 4 adds three QR entry/session/immutable-audit tables. It is additive
 with minimum application version 0.38.0 and does not change financial schema compatibility.
 Enable QR only after migration and least-privilege grants. Down removes QR admission

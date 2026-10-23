@@ -1,8 +1,9 @@
 import {useEffect,useState} from "react";
 import {Alert,Button,Card,Space,Typography} from "antd";
 import {QrMenuCart} from "./QrMenuCart";
+import {QrGuestRequests} from "./QrGuestRequests";
 
-export type QrVisit={visitorId:string;entryId:string;restaurantName:string;branchName:string;tableCode:string;currency:string;expiresAtUtc:string;menuAvailable?:boolean;orderingAvailable:false};
+export type QrVisit={visitorId:string;entryId:string;restaurantName:string;branchName:string;tableCode:string;currency:string;expiresAtUtc:string;menuAvailable?:boolean;requestsAvailable?:boolean;orderingAvailable:false};
 export const isQrGuestEntry=()=>window.location.pathname==="/order"||window.location.pathname==="/order/";
 // Entry capabilities never reach query strings, persistent JS storage or staff navigation.
 let entryToken=isQrGuestEntry()?window.location.hash.slice(1):"";
@@ -32,7 +33,7 @@ export function QrGuestEntry(){
         {notice&&<Alert role="status" message={notice}/>}
         {visit&&<><Typography.Title level={2}>{visit.restaurantName}</Typography.Title><Typography.Text>{visit.branchName}</Typography.Text>
           <Typography.Title level={3}>Table {visit.tableCode}</Typography.Title>
-          {visit.menuAvailable?<QrMenuCart key={visit.visitorId} currency={visit.currency} onExpired={()=>{setVisit(undefined);setNotice("Your visit has expired or been revoked. Scan the current table QR again.");}}/>:
+          {visit.menuAvailable?(visit.requestsAvailable?<QrGuestRequests key={visit.visitorId} currency={visit.currency} onExpired={()=>{setVisit(undefined);setNotice("Your visit has expired or been revoked. Ask staff about any submitted request before rescanning.");}}/>:<QrMenuCart key={visit.visitorId} currency={visit.currency} onExpired={()=>{setVisit(undefined);setNotice("Your visit has expired or been revoked. Scan the current table QR again.");}}/>):
             <Alert type="info" message="Menu ordering is not available yet. Please ask staff to order and pay at the cashier."/>}
           <Button block style={{minHeight:44}} disabled={busy} onClick={()=>void end()}>End this visit</Button></>}
         {!visit&&!busy&&<Button block style={{minHeight:44}} onClick={()=>void restore()}>Restore this visit</Button>}

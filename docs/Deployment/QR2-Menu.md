@@ -1,7 +1,12 @@
 # QR2 mobile menu and cart
 
-QR2 source implements online menu/cart previews after QR1 admission. Submission, staff
-acceptance, Kitchen and cashier collection remain QR3–QR5. Physical phones/public hosting,
+QR3 now optionally retains reviewed quotes and adds pending submissions/private status
+and staff rejection. The QR2 results below remain historical. Current QR persistence
+launcher requires three cases, including owning Order request persistence. See [QR3](QR3-Requests.md).
+
+
+QR2 source implements online menu/cart previews after QR1 admission. Separately enabled
+QR3 now adds submission; staff acceptance/Kitchen and cashier collection remain QR4–QR5. Physical phones/public hosting,
 server/device specifications, signing and exact release freeze remain pending. No service
 was deployed and no printed QR/physical-phone acceptance is claimed by local tests.
 
@@ -11,7 +16,8 @@ was deployed and no printed QR/physical-phone acceptance is claimed by local tes
    trusted HTTPS Customer origin and private downstream services. Keep Restaurant off
    the public edge. Preserve the existing dedicated-server and release prerequisites.
 2. Use current Catalog and Order binaries with owning database configuration. Catalog
-   requires its existing migration 4; Order its current migration 19. QR2 adds no migration,
+   requires its existing migration 4; QR2 alone requires Order migration 19. QR3 requires
+   Order migration 20. QR2 adds no migration,
    schema/version change, seed, permission or guest identity. Catalog menu rows must have
    the owning organization/branch; legacy empty-owner rows are not guest-visible.
 3. Configure direct HTTPS `Services__Restaurant`, `Services__Catalog` at Order and
@@ -24,7 +30,7 @@ was deployed and no printed QR/physical-phone acceptance is claimed by local tes
    host settings; see [example](qr-entry.env.example). QR1 can run with MenuEnabled=false.
 5. Staff creates/reissues an authorized table QR. Scan/open its trusted `/order#…` link.
    Check branch/table/THB, available/unavailable menu flags, quantities and Review totals.
-   The page explicitly states no submission yet and payment at cashier. Do not send real
+   With RequestsEnabled=false, the page states no submission yet and payment at cashier. Do not send real
    entry links to external QR tools, support logs or analytics.
 
 These steps describe isolated service configuration. The Phase 6 template/validator
@@ -42,9 +48,10 @@ remove unavailable products, but clears totals. Connection failure retains the c
 shows retry feedback. Returning to the visible page clears totals and requires review again.
 A failed/expired visit removes the whole cart. No offline execution.
 
-No new tables, persistent guest cart, order, reservation, Kitchen ticket, payment, audit
-or outbox message is created. QR3 must retain reviewed quotes and original submission
-identity before any request can be recovered after refresh/rescan. QR4 must revalidate
+With QR3 disabled, no new tables, persistent guest cart, order, reservation, Kitchen ticket,
+payment, audit or outbox message is created. QR3 retains reviewed quotes and original
+submission identity; the original visitor cookie recovers requests after refresh. A rescan
+creates a new visitor and cannot recover the previous request. QR4 must revalidate
 the current price/availability and obtain review of changes before authorized acceptance.
 
 ## Verification
@@ -58,9 +65,9 @@ dotnet test tests/Integration/NexaConnect.IntegrationTests --filter 'FullyQualif
 node --test docker/pilot/hosting.test.mjs
 ```
 
-The persistence launcher creates only a uniquely named local PostgreSQL fixture, runs
-QR1 Restaurant admission and QR2 Catalog owner/branch/bound tests, requires two non-skipped
-cases and exact cleanup, then writes a protected `.runstate/qr-entry/<id>/verification.json`.
+The current persistence launcher creates only a uniquely named local PostgreSQL fixture,
+runs QR1 Restaurant admission, QR2 Catalog owner/branch/bound and QR3 Order request tests,
+requires three non-skipped cases and exact cleanup, then writes a protected `.runstate/qr-entry/<id>/verification.json`.
 It never targets retained/live databases. Narrow production grants remain a deployment
 gate; the generated fixture applies owning migrations with its disposable administrator.
 

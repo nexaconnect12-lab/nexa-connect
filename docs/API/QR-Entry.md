@@ -1,5 +1,10 @@
 # QR1 table entry contract
 
+QR3 context adds requestsAvailable (BFF feature discovery only); orderingAvailable remains
+false until acceptance integration. Existing cookie/admission rules also protect the
+[request/status boundary](QR-Requests.md); rescan/end never cancels durable proposals.
+
+
 QR2 extends the same visitor with [menu/cart previews](QR-Menu.md), separately disabled
 by default. Context now also supplies `menuAvailable` from BFF configuration;
 `orderingAvailable` remains false. The QR1 admission capability and staff boundaries below
@@ -59,15 +64,16 @@ Restaurant prefix `/api/restaurant/v1/guest/qr`; BFF prefix `/bff/guest/qr`:
 
 Restaurant context binds `visitorId, entryId, organizationId, restaurantId, branchId,
 restaurantName, branchName, tableCode, currency, expiresAtUtc`. BFF returns only visitor/
-entry IDs, names, code, currency, expiry, `menuAvailable` and `orderingAvailable:false`; it never sends
+entry IDs, names, code, currency, expiry, `menuAvailable`, `requestsAvailable` and `orderingAvailable:false`; it never sends
 session secrets or internal owner IDs to browser JavaScript. Input IDs/query parameters
 cannot override scope. Browser-supplied Authorization or guest-capability headers are not
-forwarded by the guest adapter. No guest list/search/staff operation exists.
+forwarded by the guest adapter. No guest entry list/search/staff operation exists;
+QR3 privately lists only the current visitor's requests.
 
 Each successful exchange creates a separate visitor, including a repeated scan in the
 same browser; the newest cookie replaces that browser's entry context. QR1 holds no guest
-orders. QR3 must define recovery/retention of submitted work before relying on rescan as
-an order recovery mechanism. Refresh without a new scan reads the current cookie.
+orders. [QR3 recovery](QR-Requests.md) uses the original visitor cookie; a rescan cannot
+recover or cancel earlier requests. Refresh without a new scan reads the current cookie.
 
 The BFF cookie is `__Host-nexa-qr-guest`, Secure, HttpOnly, SameSite=Strict, Path=/, no
 Domain, absolute expiry at most two hours/entry expiry. It is separate from staff cookies

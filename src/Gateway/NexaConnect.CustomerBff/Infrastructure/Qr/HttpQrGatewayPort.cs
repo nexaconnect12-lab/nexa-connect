@@ -49,6 +49,25 @@ public sealed class HttpQrGatewayPort(HttpClient restaurant, IHttpClientFactory 
         request.Headers.Add("X-Nexa-Guest-Session", session);
         return Send(request, ct, clients.CreateClient("QrGuestOrder"), 524288);
     }
+    public Task<QrGatewayReply> RequestsAsync(string session,QrSubmission? input,CancellationToken ct)
+    {
+        var request=new HttpRequestMessage(input is null?HttpMethod.Get:HttpMethod.Post,"api/order/v1/guest/qr/requests");
+        if(input is not null)request.Content=JsonContent.Create(input);
+        request.Headers.Add("X-Nexa-Guest-Session",session);
+        return Send(request,ct,clients.CreateClient("QrGuestOrder"),2097152);
+    }
+    public Task<QrGatewayReply> ReviewAsync(TenantContext tenant,string bearer,Guid branch,string state,Guid? id,QrRejection? input,CancellationToken ct)
+    {
+        if(state is not ("pending" or "rejected" or "expired"))throw new ArgumentException("Invalid review state.");
+        string path=$"api/order/v1/customer/organizations/{tenant.OrganizationId:D}/branches/{branch:D}/qr-requests";
+        path+=input is null?$"?state={state}":$"/{id:D}/reject";
+        var request=new HttpRequestMessage(input is null?HttpMethod.Get:HttpMethod.Post,path);
+        request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",bearer);
+        request.Headers.Add(TenantContextHeaders.OrganizationId,tenant.OrganizationId.ToString("D"));
+        request.Headers.Add(TenantContextHeaders.ApplicationCode,tenant.ApplicationCode);
+        if(input is not null)request.Content=JsonContent.Create(input);
+        return Send(request,ct,clients.CreateClient("QrGuestOrder"),2097152);
+    }
     private async Task<QrGatewayReply> Send(HttpRequestMessage request, CancellationToken ct, HttpClient? target = null, int maximum = 65536)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct); deadline.CancelAfter(TimeSpan.FromSeconds(15));

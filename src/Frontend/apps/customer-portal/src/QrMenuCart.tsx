@@ -3,7 +3,7 @@ import {Alert,Button,Typography} from "antd";
 
 type Item={productId:string;name:string;unitPrice:number;currency:string;available:boolean};
 type Line={productId:string;quantity:number};
-type Quote={fingerprint:string;currency:string;expiresAtUtc:string;lines:(Line&{name:string;unitPrice:number;lineTotal:number})[];
+export type Quote={quoteId?:string;fingerprint:string;currency:string;expiresAtUtc:string;lines:(Line&{name:string;unitPrice:number;lineTotal:number})[];
   menuAmount:number;subtotalAmount:number;serviceChargeAmount:number;taxAmount:number;totalAmount:number;
   taxPercent:number;taxInclusive:boolean;serviceChargePercent:number};
 async function read<T>(path:string,body?:unknown):Promise<T>{
@@ -11,7 +11,7 @@ async function read<T>(path:string,body?:unknown):Promise<T>{
     ...(body?{headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{})});
   if(!response.ok)throw new Error(String(response.status));return response.json() as Promise<T>;
 }
-export function QrMenuCart({currency,onExpired}:{currency:string;onExpired:()=>void}){
+export function QrMenuCart({currency,onExpired,submit}:{currency:string;onExpired:()=>void;submit?:(quote:Quote)=>void}){
   const [items,setItems]=useState<Item[]>([]),[cart,setCart]=useState<Line[]>([]),[quote,setQuote]=useState<Quote>(),
     [busy,setBusy]=useState(false),[loaded,setLoaded]=useState(false),[notice,setNotice]=useState<string>(),[changed,setChanged]=useState(false);
   const revision=useRef(0),previous=useRef<string>(),alive=useRef(true),callback=useRef(onExpired);callback.current=onExpired;
@@ -84,7 +84,8 @@ export function QrMenuCart({currency,onExpired}:{currency:string;onExpired:()=>v
         <dt>Tax ({quote.taxPercent}%)</dt><dd>{money(quote.taxAmount)}</dd>
         <dt><strong>Total ({quote.currency})</strong></dt><dd><strong>{money(quote.totalAmount)}</strong></dd></dl>
       <p>Live price preview, valid for at most two minutes. No items are reserved.</p>
+      {submit&&quote.quoteId&&<Button block style={{minHeight:44}} type="primary" disabled={busy} onClick={()=>submit(quote)}>Submit for staff review</Button>}
     </section>}
-    <p role="note">Order submission is not available yet. Please ask staff to place your order.</p>
+    <p role="note">{submit?"Submitting requests staff review only. Staff acceptance and cashier payment are still required.":"Order submission is not available yet. Please ask staff to place your order."}</p>
   </section>;
 }

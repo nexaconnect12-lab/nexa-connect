@@ -1,5 +1,16 @@
 # NexaConnect Project Architecture
 
+QR3 extends this boundary with Order-owned durable quote/request aggregates (migration20).
+Retained reviewed quote IDs are also submission identities; matching retries return the
+original request without repeating effects. Domain pending/rejected/expired transitions
+and admission budgets are coordinated by scoped transaction advisory locks. Access-driven
+expiry/retention and immutable audit/outbox commit atomically. Staff queue/rejection use
+live order.read/order.place decisions without guest/workload bypass. No executable Order,
+stock/Kitchen/payment action; QR4 must revalidate price and acceptance authority. See
+[ADR-046](Decisions/ADR-046-durable-qr-guest-requests.md), [contract](../API/QR-Requests.md)
+and [rollout](../Deployment/QR3-Requests.md).
+
+
 QR1 implements Restaurant-owned table-entry and visitor admission (Restaurant migration 4),
 with Domain version/budget rules and Infrastructure hash-only persistence. Existing live
 configuration-manage authority controls QR administration; mutations audit/outbox atomically.
@@ -14,7 +25,7 @@ Public responses omit stations/stock/assets; browser quantities are transient, n
 or owner authority. See [ADR-045](Decisions/ADR-045-qr-menu-and-authoritative-cart.md) and
 [QR2 operations](../Deployment/QR2-Menu.md). Table codes are staff-assigned ordering labels;
 the existing floor `dining_tables`/table-account model is not mutated or implicitly joined.
-Submission/approval/Inventory/Kitchen/payment remain QR3–QR5. All QR host flags default off;
+Approval/Inventory/Kitchen/payment remain QR4–QR5. All QR host flags default off;
 public hosting, real phones and release gates remain pending. See
 [ADR-044](Decisions/ADR-044-table-qr-entry-and-guest-sessions.md),
 [contract](../API/QR-Entry.md) and [operations](../Deployment/QR1-Entry.md).

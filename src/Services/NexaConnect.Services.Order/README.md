@@ -1,5 +1,15 @@
 # Order Service
 
+QR3 adds retained guest quote/submission/status and customer queue/rejection routes.
+Apply Order migration20 before enabling QrRequests__Enabled; PostgreSQL and QrMenu are
+mandatory. Requests are separate pending proposals, with quote UUID idempotency, Domain
+quotas/version/deadline rules, owner/branch transaction serialization and atomic immutable
+audit/order.audit.v1 outbox. No executable Order or Inventory/Kitchen/payment command.
+Existing order.read/order.place permissions apply. Correlation-safe QR failure/denial
+logs remain under nexaconnect-order. See [API](../../../docs/API/QR-Requests.md),
+[storage/grants](../../../docs/Database/QR-Requests.md) and [operations/tests](../../../docs/Deployment/QR3-Requests.md).
+
+
 QR2 adds capability-only `/api/order/v1/guest/qr/menu` and `/quote`, default-off
 `QrMenu__Enabled`. Application revalidates QR1 Restaurant context before/after Catalog
 menu and Restaurant policy reads; guest scope/currency/prices are never trusted. Existing
@@ -9,7 +19,8 @@ distinct credential-free client. Correlated adapters disable redirects, bound JS
 deadlines. Query `{service_name="nexaconnect-order"} |= "QR"` by validated CorrelationId;
 no capabilities, headers, cart or financial bodies are logged. Existing pricing transport
 also gains a 4 KiB/10s bound. See [contract](../../../docs/API/QR-Menu.md) and
-[configuration/tests](../../../docs/Deployment/QR2-Menu.md). No migration/grant change.
+[configuration/tests](../../../docs/Deployment/QR2-Menu.md). QR2 alone adds no migration/grant
+change; QR3 requires the migration and grants described above.
 
 New manual-tender commits require [POS terminal admission](../../../docs/API/Terminal-Admission.md) through `Services:POS` with existing Order client credentials and validated correlation propagation. POS checks active scope, cashier shift and cash drawer; Order retains settlement/receipt/audit/outbox ownership. Exact committed replay precedes admission. Matching POS binaries are required; unavailable POS fails closed before Paid. No migration; admission is an observation rather than cross-service atomic fencing. Query `Manual tender terminal admission` / `Manual settlement admission unavailable` in `nexaconnect-order` by correlation; logs exclude bodies and tender values.
 

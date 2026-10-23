@@ -1,5 +1,9 @@
 # Operational branch discovery
 
+QR3 adds capability `qr-requests` mapped to existing `order.read`. It discovers only live
+authorized branches for the pending guest-request queue; rejection separately requires
+`order.place`. See [QR request contract](QR-Requests.md).
+
 `GET /api/restaurant/v1/customer/organizations/{organizationId}/operational-branches?capability=...`
 returns active `BranchSummary` rows that pass live Platform Directory access and an exact
 organization/restaurant/branch Authorization decision. Customer realm roles

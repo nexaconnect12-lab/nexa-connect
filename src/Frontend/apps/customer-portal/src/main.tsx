@@ -5,6 +5,7 @@ import { KitchenQueuePanel } from "./KitchenQueuePanel";
 import { KitchenDisplay } from "./KitchenDisplay";
 import { BranchGalleryPanel } from "./BranchGalleryPanel";
 import { QrEntryPanel } from "./QrEntryPanel";
+import { QrReviewPanel } from "./QrReviewPanel";
 import { QrGuestEntry, isQrGuestEntry } from "./QrGuestEntry";
 import { currentSection, isKitchenEntry, signInToCustomer } from "./navigation";
 import React, { useEffect, useRef, useState } from "react";
@@ -335,6 +336,7 @@ function App() {
   const access = accessState.data.organizations,
     current = selectedAccess(access, tenant);
   const labels: Record<PortalSection, string> = {
+    "qr-requests": "QR requests",
     profile: "Organization profile",
     products: "Enabled products",
     users: "Customer users & memberships",
@@ -349,7 +351,7 @@ function App() {
     "cash-close-reports": "Cash-close report",
     "end-of-day": "End-of-day draft",
   };
-  const nav = sections.filter(key=>(key!=="payment-reviews"&&key!=="kitchen"&&key!=="cash-close-reports"&&key!=="end-of-day")||tenant?.applicationCode==="nexa_connect").map((key) => ({
+  const nav = sections.filter(key=>(key!=="qr-requests"&&key!=="payment-reviews"&&key!=="kitchen"&&key!=="cash-close-reports"&&key!=="end-of-day")||tenant?.applicationCode==="nexa_connect").map((key) => ({
     key,
     label: labels[key],
     onSelect: () => {
@@ -399,6 +401,7 @@ function App() {
     );
   else if (section === "users") panel = <MembershipsPanel />;
   else if (section === "configuration") panel = <React.Fragment key={`${tenant.organizationId}|${tenant.applicationCode}`}><ConfigurationPanel/>{tenant.applicationCode==="nexa_connect"&&<QrEntryPanel/>}</React.Fragment>;
+  else if (section === "qr-requests") panel = tenant.applicationCode==="nexa_connect"?<QrReviewPanel key={`${tenant.organizationId}|${tenant.applicationCode}`}/>:<Alert message="QR requests require the NexaConnect workspace."/>;
   else if (section === "branches") panel = <BranchesPanel />;
   else if (section === "dashboards") panel = <DashboardPanel />;
   else if (section === "reports") panel = tenant.applicationCode === "nexa_connect"

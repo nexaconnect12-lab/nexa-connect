@@ -1,5 +1,11 @@
 # Restaurant Service
 
+QR3 adds operational discovery capability qr-requests using existing order.read; no
+Restaurant schema/admission change. Order revalidates the current visitor on guest
+submission/status, while staff operations require live branch decisions independently.
+See [QR3](../../../docs/Deployment/QR3-Requests.md).
+
+
 QR2 reuses the existing QR1 context and exact Order-workload branch pricing reads, without
 new Restaurant routes/schema/grants. Order validates visitor context before and after
 scoped menu/quote dependencies; see [QR2](../../../docs/Deployment/QR2-Menu.md).

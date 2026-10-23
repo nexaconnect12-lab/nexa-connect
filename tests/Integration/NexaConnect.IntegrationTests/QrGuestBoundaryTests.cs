@@ -20,6 +20,25 @@ namespace NexaConnect.IntegrationTests;
 
 public sealed class QrGuestBoundaryTests
 {
+    [Fact]public async Task Request_bff_cookie_origin_privacy_staff_csrf_and_live_membership_are_independent()
+    {
+        await using var factory=new Factory(true,true);using var guest=factory.CreateClient(Options());
+        guest.DefaultRequestHeaders.Add("Origin","https://localhost");await guest.PostAsJsonAsync("/bff/guest/qr/sessions",new QrEntryExchange(new string('E',43)));
+        var input=new QrSubmission(Guid.NewGuid(),new string('A',64));
+        guest.DefaultRequestHeaders.Remove("Origin");using(var forbidden=await guest.PostAsJsonAsync("/bff/guest/qr/requests",input))Assert.Equal(HttpStatusCode.Forbidden,forbidden.StatusCode);
+        guest.DefaultRequestHeaders.Add("Origin","https://localhost");using var submitted=await guest.PostAsJsonAsync("/bff/guest/qr/requests",input);Assert.Equal(HttpStatusCode.OK,submitted.StatusCode);Assert.True(submitted.Headers.CacheControl?.NoStore);
+        Assert.DoesNotContain("visitorId",await submitted.Content.ReadAsStringAsync());
+        using var other=factory.CreateClient(Options());other.DefaultRequestHeaders.Add("Origin","https://localhost");await other.PostAsJsonAsync("/bff/guest/qr/sessions",new QrEntryExchange(new string('E',43)));
+        Assert.Empty((await other.GetFromJsonAsync<QrRequestList>("/bff/guest/qr/requests?visitorId=ignored"))!.Items);
+        using(var noStaff=await guest.GetAsync("/bff/customer/qr-requests/branches/"+Guid.NewGuid()))Assert.Equal(HttpStatusCode.Unauthorized,noStaff.StatusCode);
+        using var staff=factory.CreateClient(Options());await SignIn(factory,staff);string root="/bff/customer/qr-requests/branches/"+Guid.NewGuid();
+        using(var missingCsrf=await staff.PostAsJsonAsync(root+$"/{input.QuoteId}/reject",new QrRejection(1,"closing")))Assert.Equal(HttpStatusCode.BadRequest,missingCsrf.StatusCode);
+        var csrf=await staff.GetFromJsonAsync<JsonElement>("/bff/customer/qr-requests/csrf");staff.DefaultRequestHeaders.Add("X-Nexa-CSRF",csrf.GetProperty("requestToken").GetString());
+        using(var accepted=await staff.PostAsJsonAsync(root+$"/{input.QuoteId}/reject",new QrRejection(1,"closing")))Assert.Equal(HttpStatusCode.OK,accepted.StatusCode);
+        Assert.Equal(factory.Port.Organization,factory.Port.LastTenant!.OrganizationId);
+        factory.Port.Membership=false;using var revoked=await staff.GetAsync(root);Assert.Equal(HttpStatusCode.Forbidden,revoked.StatusCode);
+        await using var disabled=new Factory();using var absent=disabled.CreateClient(Options());using var response=await absent.GetAsync("/bff/guest/qr/requests");Assert.Equal(HttpStatusCode.NotFound,response.StatusCode);
+    }
     [Fact] public async Task Shopping_uses_only_guest_cookie_exact_origin_and_typed_public_responses()
     {
         await using var factory=new Factory();using var client=factory.CreateClient(Options());
@@ -109,7 +128,7 @@ public sealed class QrGuestBoundaryTests
         string tenant = factory.Services.GetRequiredService<CUSTOMERBFF::NexaConnect.CustomerBff.TenantSelectionCookie>().Protect(new(subject,factory.Port.Organization,product));
         client.DefaultRequestHeaders.Remove("Cookie"); client.DefaultRequestHeaders.Add("Cookie",$"{options.Cookie.Name}={session}; __Host-nexa-customer-tenant={tenant}");
     }
-    private sealed class Factory(bool enabled = true) : WebApplicationFactory<CUSTOMERBFF::Program>
+    private sealed class Factory(bool enabled = true,bool requests=false) : WebApplicationFactory<CUSTOMERBFF::Program>
     {
         public Port Port { get; } = new();
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -121,13 +140,23 @@ public sealed class QrGuestBoundaryTests
                 ["Services:Restaurant"]="https://restaurant.test/",["Services:Reporting"]="https://reporting.test/",
                 ["Services:Media"]="https://media.test/",["Services:Notification"]="https://notification.test/",
                 ["Services:Catalog"]="https://catalog.test/",["Services:Inventory"]="https://inventory.test/",
-                ["QrGuest:Enabled"]=enabled.ToString(),["QrGuest:MenuEnabled"]="true",["QrGuest:PublicOrigin"]="https://localhost"
+                ["QrGuest:Enabled"]=enabled.ToString(),["QrGuest:MenuEnabled"]="true",["QrGuest:RequestsEnabled"]=requests.ToString(),["QrGuest:PublicOrigin"]="https://localhost"
             }));
             builder.ConfigureTestServices(services => { services.RemoveAll<IQrGatewayPort>(); services.AddSingleton<IQrGatewayPort>(Port); });
         }
     }
     private sealed class Port : IQrGatewayPort
     {
+        private readonly Dictionary<string,QrRequestView> submitted=[];
+        public Task<QrGatewayReply> RequestsAsync(string session,QrSubmission? input,CancellationToken ct)
+        {
+            if(!sessions.ContainsKey(session))return Task.FromResult(new QrGatewayReply(401,null));
+            if(input is not null&&!submitted.ContainsKey(session))submitted.Add(session,View(input.QuoteId));
+            return Task.FromResult(new QrGatewayReply(200,input is null?JsonSerializer.SerializeToElement(new QrRequestList(submitted.TryGetValue(session,out var r)?[r]:[],false),JsonSerializerOptions.Web):JsonSerializer.SerializeToElement(submitted[session],JsonSerializerOptions.Web)));
+        }
+        public Task<QrGatewayReply> ReviewAsync(TenantContext tenant,string bearer,Guid branch,string state,Guid? id,QrRejection? input,CancellationToken ct)
+        {Assert.Equal("server-held-test-token",bearer);LastTenant=tenant;return Task.FromResult(new QrGatewayReply(200,input is null?JsonSerializer.SerializeToElement(new QrRequestList([],false),JsonSerializerOptions.Web):JsonSerializer.SerializeToElement(View(id!.Value),JsonSerializerOptions.Web)));}
+        private static QrRequestView View(Guid id)=>new(id,"A1","pending",1,DateTimeOffset.UtcNow,DateTimeOffset.UtcNow.AddMinutes(15),null,new(new string('A',64),"THB",DateTimeOffset.UtcNow.AddMinutes(2),[],107,100,10,7.7m,117.7m,7,true,10,id));
         public Task<QrGatewayReply> ShoppingAsync(string operation,string session,QrCart? cart,CancellationToken ct)
         {
             Assert.NotEqual(new string('H',43),session);

@@ -1,0 +1,1 @@
+{"version":20,"name":"qr_guest_requests","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.38.0"}

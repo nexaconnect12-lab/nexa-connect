@@ -1,5 +1,10 @@
 # Deployment Guide
 
+QR3 [durable request preparation](QR3-Requests.md) requires Order migration20/PostgreSQL
+and explicit Order QrRequests__Enabled plus BFF QrGuest__RequestsEnabled. Both default
+false; existing entry/menu flags remain required. No acceptance or hosted rollout implied.
+
+
 QR2 [menu/cart previews](QR2-Menu.md) additionally require current Order/Catalog binaries,
 Order `QrMenu__Enabled` and BFF `QrGuest__MenuEnabled`. Both default false; QR1 remains
 independently usable. Existing owning schemas/workload credentials apply; no QR2 migration

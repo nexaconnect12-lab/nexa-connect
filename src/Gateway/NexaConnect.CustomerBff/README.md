@@ -1,5 +1,13 @@
 # NexaConnect Customer BFF
 
+QR3 adds cookie-only guest requests and protected-tenant staff review forwarding.
+QrGuest__RequestsEnabled defaults false and is additional to entry/menu flags. Guest POST
+requires exact HTTPS Origin/JSON; staff rejection uses CustomerSession, live Directory and
+X-Nexa-CSRF. Typed public views omit actor/visitor/internal owner IDs. Request/review JSON
+responses are bounded to2 MiB/15s; no staff credential travels on guest calls. Shared QR
+correlation and safe denial/dependency logs remain. See [QR3](../../../docs/Deployment/QR3-Requests.md).
+
+
 QR1 adds an anonymous `/order` browser entry and distinct `/bff/guest/qr`
 cookie boundary, plus scoped `/bff/customer/qr-entries` administration. Guest calls never
 forward staff bearer/session/tenant headers; staff mutations retain CustomerSession,

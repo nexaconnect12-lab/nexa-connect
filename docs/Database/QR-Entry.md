@@ -1,18 +1,25 @@
 # Restaurant QR1 persistence
 
-QR2 adds no tables/migrations: the cart/quotes are transient and use existing Catalog
+QR3 separately adds Order-owned quote/request storage; Restaurant admission remains
+unchanged. The disposable launcher now requires three cases; earlier QR1/QR2 receipts
+retain their historical counts. See [Order storage](QR-Requests.md).
+
+
+QR2 alone adds no tables/migrations: its cart/quotes are transient and use existing Catalog
 organization/branch menu reads and Restaurant pricing policy. Catalog's guest projection
 adds a parameterized organization+branch query with LIMIT 201 to detect its 200-item cap;
 see [QR2](../Deployment/QR2-Menu.md). The shared disposable persistence launcher now requires
-both QR1 admission and QR2 Catalog isolation/bounds cases; prior QR1 receipts retain their
-historical one-case meaning. No Order/Inventory/Kitchen/payment state is written.
+QR1 admission, QR2 Catalog isolation/bounds and QR3 Order request cases; prior QR1 receipts
+retain their historical one-case meaning. QR3 adds pending Order request storage; no
+executable Order/Inventory/Kitchen/payment state is written.
 
 Apply Restaurant migration 4 (`0004_qr_entry`) with the migration owner's credentials
 before enabling QR entry. Minimum migration application version stays 0.38.0; this is
 an additive Restaurant capability, with no coordinated financial schema/version change.
 Existing branch configuration, floor records, Order/POS/Payment and settlement history
 remain untouched. Restaurant now has eleven catalog tables (seven initial, branch audit,
-three QR tables); full catalog adds three tables to the prior 201 = 204.
+three QR tables); at QR1 introduction the full catalog added three tables to the prior
+201 = 204. The current QR3 catalog has 207 tables.
 
 - `restaurant_qr_entries`: organization/restaurant/branch, staff table code, SHA-256 entry
   hash, version, active state, absolute expiry. Unique branch/code and hash, branch/restaurant

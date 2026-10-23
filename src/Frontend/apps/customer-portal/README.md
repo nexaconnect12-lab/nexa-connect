@@ -1,5 +1,12 @@
 # NexaConnect Customer Portal
 
+QR3 optionally adds Submit for staff review, private status recovery/polling and original
+quote-identity retry after response loss. Pending/uncertain submissions freeze new cart
+submission. /#qr-requests is the staff branch/state queue with versioned CSRF rejection;
+there is no acceptance control yet. End/rescan does not cancel requests or recover another
+visitor. See [setup, constraints and browser evidence](../../../../docs/Deployment/QR3-Requests.md).
+
+
 QR1 adds Configuration → Table QR entry for scoped QR issue/rotation/revocation and a
 public `/order` mobile landing. The landing removes the entry fragment before
 exchange, never boots staff requests, and uses a separate HttpOnly BFF visit cookie;
@@ -7,7 +14,7 @@ it stores no guest capability in browser storage. QR display/links are one-time 
 output, cleared on branch/workspace changes. QR2 optionally adds menu browsing, up to 50
 cart lines/99 units, server tax/service totals and changed-price/availability/error feedback.
 Cart state is page memory only; reload/end/expiry clears it and edits invalidate totals.
-No guest submit/payment controls; those remain later slices. See [QR2 verification](../../../../docs/Deployment/QR2-Menu.md).
+With QR3 disabled, no guest submit control is shown. Payment remains QR5. See [QR2 verification](../../../../docs/Deployment/QR2-Menu.md).
 See [configuration/security/verification](../../../../docs/Deployment/QR1-Entry.md).
 
 Phase 5 adds **Approved screensaver gallery** under Media management for the NexaConnect

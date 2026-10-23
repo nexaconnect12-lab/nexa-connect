@@ -1,5 +1,11 @@
 # NexaConnect frontend foundations
 
+QR3 extends the QR browser matrix with durable-request contract mocks: refresh/status
+recovery, committed response loss, original identity retry and CSRF/versioned staff
+rejection. Guest capabilities remain HttpOnly and are not stored in JavaScript.
+See [QR3 source checks versus pending phones](../../docs/Deployment/QR3-Requests.md).
+
+
 QR2 extends the separate guest `/order` view with a responsive menu, memory-only cart and
 server-quoted THB tax/service breakdown. `playwright.qr-entry.config.mjs` includes entry
 and menu/cart cases on Chromium, WebKit and desktop with mocked HTTP; no physical-phone

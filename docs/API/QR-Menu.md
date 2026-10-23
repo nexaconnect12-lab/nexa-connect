@@ -1,5 +1,10 @@
 # QR2 menu and cart quote
 
+With QR3 enabled, successful quotes are retained and additionally include quoteId. That
+UUID identifies the exact visitor-bound reviewed snapshot and becomes the submission
+identity. With QR3 disabled, QR2 retains its transient behavior. See [QR requests](QR-Requests.md).
+
+
 See [ADR-045](../Architecture/Decisions/ADR-045-qr-menu-and-authoritative-cart.md) and
 [enablement/verification](../Deployment/QR2-Menu.md). Contracts use
 `NexaConnect.Contracts.RestaurantQr`. Existing staff endpoints and QR1 remain unchanged.
@@ -40,7 +45,8 @@ reservation or acceptance credential. Expiry is min(now + 2 minutes, visitor exp
 Each quote freshly reads Catalog/Restaurant. Changed price/policy returns a new quote;
 the browser warns and displays the new authoritative breakdown for review. Missing or
 unavailable products return 409 `cart_unavailable` at Order. Browser requests must review
-again after edits/expiry/offline. BFF sanitizes downstream errors. No submission endpoint.
+again after edits/expiry/offline. BFF sanitizes downstream errors. QR2 alone has no submission
+endpoint; the separately enabled [QR3 boundary](QR-Requests.md) adds submission/status.
 
 Private Catalog `GET /api/catalog/v1/internal/organizations/{organization}/branches/{branch}/guest-menu`
 requires the service-workload policy and exact `azp=nexaconnect-order-service`. It returns
@@ -60,7 +66,8 @@ Restaurant's existing shared1,000/global/minute also counts both context reads. 
 per-process safeguards, not multi-instance abuse certification. Response bounds: 512 KiB
 for Catalog/Order menu and quote adapters, 4 KiB context/pricing; Order deadline 12s,
 individual Order dependencies 10s, BFF 15s including streamed body reads. Redirects are
-disabled. No automatic financial retry, state write, stock/Kitchen/payment side effect.
+disabled. QR2 alone has no automatic financial retry or state write. Enabling QR3 retains
+quotes; neither mode has stock/Kitchen/payment side effects.
 
 Shared service names: `nexaconnect-customer-bff`, `nexaconnect-order`,
 `nexaconnect-catalog`, `nexaconnect-restaurant`. Query the service's JSON/OTLP logs with

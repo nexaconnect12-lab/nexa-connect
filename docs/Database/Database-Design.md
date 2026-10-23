@@ -1,6 +1,12 @@
 # NexaConnect Database Design
 
-QR1 adds Restaurant migration 4 and three admission tables, bringing the current catalog to 204 tables (Restaurant 11, POS 52, Reporting 19). It stores hashed table-entry and individual visitor capabilities with append-only administration audit; all financial schemas remain unchanged. Runtime remains opt-in and context-only. See [QR persistence](QR-Entry.md) and [rollout](../Deployment/QR1-Entry.md).
+QR3 adds Order migration20 and three quote/request/audit tables: current catalog207.
+Pending proposals remain separate from executable financial Orders; ownership, retained
+quote identity, quotas, expiry and atomic audit/outbox are documented in [QR3 storage](QR-Requests.md).
+QR1 introduced204 tables; its admission schema is unchanged.
+
+
+QR1 adds Restaurant migration 4 and three admission tables, bringing the catalog at that introduction to 204 tables (Restaurant 11, POS 52, Reporting 19). It stores hashed table-entry and individual visitor capabilities with append-only administration audit; all financial schemas remain unchanged. Runtime remains opt-in and context-only. See [QR persistence](QR-Entry.md) and [rollout](../Deployment/QR1-Entry.md).
 
 Settlement original-event replay is now provided by [ADR-035](../Architecture/Decisions/ADR-035-audited-settlement-replay.md) and [the administrative runbook](../Deployment/Settlement-Replay.md). POS 23 adds two immutable audit tables; Reporting stays 22 and compatibility is 0.38.0 (201-table pre-QR1 baseline, POS 52 / Reporting 19). Customer routes/permissions remain read-only; unknown original publication fields fail closed.
 
@@ -10,7 +16,7 @@ POS 22 adds source_day_cutoffs.correction_revision_epoch as a generated nullable
 
 Reporting 21 owns cash_correction_facts and cash_correction_event_receipts, uniquely fencing event and organization/correction/work/tender/Order. Atomic receipt/fact/checkpoint commits and immutable triggers protect redelivery. POS 21 owns cash_correction_replay_runs/attempts, with operator UUID, database session_user and append-only started/confirmed outcomes. No cross-owner SQL is introduced. See [contract](../API/Cash-Correction-Reporting.md) and [operations](../Deployment/Cash-Correction-Reporting.md).
 
-POS 20 owns late_cash_corrections and late_cash_correction_audit (193 total catalog tables at introduction; the current catalog has 204). Scoped uniqueness covers operations/work/original event/tender/Order; local custody/review/drawer FKs preserve provenance. Ledger/receipt/audit/revision/outbox share one owning transaction. Posting-time journal selection preserves historical snapshots; source day hashes include correction identity/amount. No cross-database FK or transaction is introduced. See [correction contract](../API/Late-Cash-Corrections.md) and [operations](../Deployment/Late-Cash-Corrections.md).
+POS 20 owns late_cash_corrections and late_cash_correction_audit (193 total catalog tables at introduction; the current catalog has 207). Scoped uniqueness covers operations/work/original event/tender/Order; local custody/review/drawer FKs preserve provenance. Ledger/receipt/audit/revision/outbox share one owning transaction. Posting-time journal selection preserves historical snapshots; source day hashes include correction identity/amount. No cross-database FK or transaction is introduced. See [correction contract](../API/Late-Cash-Corrections.md) and [operations](../Deployment/Late-Cash-Corrections.md).
 
 Late-work review adds one independently owned source_late_work_reviews table to each of Order 19, Payment 18 and POS 19. Existing custody receives stable work UUIDs and organization/received/work indexes; no foreign database access or shared Domain entities are introduced. Review PK is organization/barrier/work/version, with organization/operation uniqueness, owning FKs, append guards and immutable history. Actor, authorization UUID and fingerprint remain private. Financial journals, custody disposition and settlement receipts do not change. See [DDL, transactions, grants and rollback](../Deployment/Late-Work-Reviews.md).
 

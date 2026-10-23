@@ -13,7 +13,7 @@ public sealed class QrMenuService(IQrMenuPort port, IBranchPricingPort policies,
 {
     public async Task<QrMenu> MenuAsync(string capability, CancellationToken ct)
     {
-        var context = await Context(capability, ct);
+        var context = await ContextAsync(capability, ct);
         var items = await Items(context, ct);
         await Revalidate(capability, context, ct);
         return new(items.Select(i => new QrMenuItem(i.ProductId, i.Name, i.UnitPrice, i.Currency, i.Available)).ToArray());
@@ -21,7 +21,7 @@ public sealed class QrMenuService(IQrMenuPort port, IBranchPricingPort policies,
 
     public async Task<QrQuote> QuoteAsync(string capability, QrCart cart, CancellationToken ct)
     {
-        var context = await Context(capability, ct);
+        var context = await ContextAsync(capability, ct);
         if (cart?.Lines is null || cart.Lines.Count is < 1 or > 50
             || cart.Lines.Any(l => l is null || l.ProductId == Guid.Empty || l.Quantity is < 1 or > 99)
             || cart.Lines.Select(l => l.ProductId).Distinct().Count() != cart.Lines.Count)
@@ -41,7 +41,7 @@ public sealed class QrMenuService(IQrMenuPort port, IBranchPricingPort policies,
             pricing.TaxPercent, pricing.TaxInclusive, pricing.ServiceChargePercent);
     }
 
-    private async Task<QrGuestContext> Context(string capability, CancellationToken ct)
+    public async Task<QrGuestContext> ContextAsync(string capability, CancellationToken ct)
     {
         if (capability?.Length != 43 || !capability.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
             throw new UnauthorizedAccessException();
@@ -53,7 +53,7 @@ public sealed class QrMenuService(IQrMenuPort port, IBranchPricingPort policies,
     }
     private async Task Revalidate(string capability, QrGuestContext original, CancellationToken ct)
     {
-        var current = await Context(capability, ct);
+        var current = await ContextAsync(capability, ct);
         if (current != original) throw new UnauthorizedAccessException();
     }
     private async Task<IReadOnlyList<CatalogMenuItem>> Items(QrGuestContext context, CancellationToken ct)

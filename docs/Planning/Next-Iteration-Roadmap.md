@@ -26,7 +26,8 @@ development track is [table QR ordering for iOS/Android browsers](QR-Ordering-Ro
 with anonymous guests, payment at the cashier and staff acceptance before Kitchen.
 Its scope confirmation, [QR1 entry foundation](../Deployment/QR1-Entry.md) and
 [QR2 menu/cart previews](../Deployment/QR2-Menu.md) are recorded;
-submission, acceptance and cashier collection remain pending.
+[QR3 submissions/private status/staff rejection](../Deployment/QR3-Requests.md) are implemented;
+acceptance and cashier collection remain pending.
 
 The user considers the first draft sufficient to proceed. This does not fill its
 pending detailed UAT results. Preserve the original candidate, records and deferred

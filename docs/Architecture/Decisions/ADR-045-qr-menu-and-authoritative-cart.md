@@ -2,6 +2,10 @@
 
 Status: accepted for QR2, 23 October 2026.
 
+[ADR-046](ADR-046-durable-qr-guest-requests.md) subsequently adds separately enabled QR3
+quote retention and pending submissions. The transient/no-write decision below continues
+to describe QR2 alone when QR3 is disabled; its original rationale is preserved.
+
 QR2 extends QR1 visitor admission with an online menu and transient cart. Restaurant
 continues to own admission, table labels and branch pricing policy; Catalog owns menu
 price/availability; Order owns commercial resolution. Customer BFF adapts the guest cookie

@@ -17,10 +17,10 @@ try{
     for($i=0;$i -lt 60;$i++){& docker exec $container pg_isready -U postgres -d $database 2>$null|Out-Null;if($LASTEXITCODE -eq 0){$ready=$true;break};Start-Sleep -Milliseconds 500}
     if(-not $ready){throw 'QR fixture was not ready.'}
     $env:NEXACONNECT_QR_INTEGRATION_DB="Host=127.0.0.1;Port=$port;Database=$database;Username=postgres;Password=$password"
-    & dotnet test (Join-Path $repoRoot 'tests/Integration/NexaConnect.IntegrationTests') --no-restore --filter 'FullyQualifiedName~QrEntryPersistenceTests|FullyQualifiedName~QrMenuPersistenceTests' --verbosity quiet --logger 'trx;LogFileName=qr.trx' --results-directory $run *> (Join-Path $run 'persistence.private.log')
+    & dotnet test (Join-Path $repoRoot 'tests/Integration/NexaConnect.IntegrationTests') --no-restore --filter 'FullyQualifiedName~QrEntryPersistenceTests|FullyQualifiedName~QrMenuPersistenceTests|FullyQualifiedName~QrRequestPersistenceTests' --verbosity quiet --logger 'trx;LogFileName=qr.trx' --results-directory $run *> (Join-Path $run 'persistence.private.log')
     if($LASTEXITCODE -ne 0){throw 'QR persistence test failed; private diagnostics retained.'}
     . (Join-Path $PSScriptRoot 'first-draft-release-helpers.ps1')
-    [void](Read-DraftTestCounts (Join-Path $run 'qr.trx') 2);$passed=$true
+    [void](Read-DraftTestCounts (Join-Path $run 'qr.trx') 3);$passed=$true
 }finally{
     $env:NEXACONNECT_QR_INTEGRATION_DB=$prior
     if($created){
@@ -29,6 +29,6 @@ try{
         if($LASTEXITCODE -ne 0){throw 'QR fixture cleanup failed.'}
     }
     $cleanup=$true
-    @{runId=$id;passed=($passed -and $cleanup);cleanupVerified=$cleanup;caseCount=2;productionVerified=$false}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $run 'verification.json')
+    @{runId=$id;passed=($passed -and $cleanup);cleanupVerified=$cleanup;caseCount=3;productionVerified=$false}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $run 'verification.json')
 }
 Write-Output "QR persistence gate passed with cleanup: $run/verification.json"

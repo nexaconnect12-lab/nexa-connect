@@ -1,6 +1,12 @@
 # Database Guidelines
 
-QR1 uses Restaurant-owned parameterized Infrastructure persistence, branch-row serialized admission/version transitions, hashed capabilities and same-transaction immutable administration audit/outbox. Restaurant migration 4 brings the current catalog to 204 tables (Restaurant 11); no financial migration changes. Runtime roles need only the documented owning privileges; restored entry hashes require session cleanup and rotation before reopening guest traffic. See [QR persistence and rollback](QR-Entry.md).
+QR3 uses Order-owned parameterized quote/request persistence and branch transaction
+advisory locking. Domain state/version/quota decisions run inside the owning transaction;
+audit/outbox commits atomically. Order migration20 adds three tables (current catalog207),
+without changing financial state or another database. See [grants/retention](QR-Requests.md).
+
+
+QR1 uses Restaurant-owned parameterized Infrastructure persistence, branch-row serialized admission/version transitions, hashed capabilities and same-transaction immutable administration audit/outbox. Restaurant migration 4 brought the catalog at its introduction to 204 tables (Restaurant 11); no financial migration changes. Runtime roles need only the documented owning privileges; restored entry hashes require session cleanup and rotation before reopening guest traffic. See [QR persistence and rollback](QR-Entry.md).
 
 Slice 6 adds no schema or migration. Its [administrative local restore drill](../Deployment/First-Draft-Release.md) stops all owned writers, restores ten service databases and Keycloak into isolated clones, and checks successful original-archive DDL restoration and separately compares exact data/sequence dumps and owner/permission statements without bypassing financial history guards in original stores. Role backups and configuration copies are private; service ownership is unchanged. Broker/Redis and restored-graph recovery remain separate.
 

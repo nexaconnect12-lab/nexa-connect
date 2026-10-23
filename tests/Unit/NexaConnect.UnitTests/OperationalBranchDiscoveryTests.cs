@@ -9,6 +9,7 @@ public sealed class OperationalBranchDiscoveryTests
     [InlineData("kitchen","kitchen.ticket.read")]
     [InlineData("cash-close","pos.cash-review.read")]
     [InlineData("qr-entry","restaurant.configuration.manage")]
+    [InlineData("qr-requests","order.read")]
     public async Task DiscoveryChecksExactLiveBranchScopeAndHidesDeniedOrInactiveBranches(string capability,string expectedPermission)
     {
         Guid org=Guid.NewGuid(),restaurant=Guid.NewGuid(),allowed=Guid.NewGuid(),denied=Guid.NewGuid();

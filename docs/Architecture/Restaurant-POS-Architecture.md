@@ -1,5 +1,12 @@
 # NexaConnect Restaurant POS Architecture
 
+QR3 now implements [durable pending proposals](../Deployment/QR3-Requests.md) separately
+from executable Orders. Exact retained quote identities, private per-visitor recovery and
+live branch-authorized queue/rejection precede acceptance. Ending/rescanning never cancels
+a submitted request or grants access to another visitor. Pending work expires on scoped
+access; no stock/Kitchen/payment side effects. Acceptance remains QR4 and collection QR5.
+
+
 Phase 7 prepares a per-user, unpackaged Windows EXE installer with a self-contained
 runtime. Its hosted profile and read-only recovery checks preserve exact terminal,
 realm and tender custody; setup cannot migrate incompatible recovery or issue financial
@@ -333,7 +340,7 @@ The same-origin Customer BFF keeps a distinct guest cookie; `/order` returns pub
 context plus QR2 mobile menu/cart and authoritative quote previews. Existing floor/table-account records are not edited by logical QR labels;
 future acceptance must explicitly translate any physical table model. QR1 adds no guest
 order/payment authority, stock reservation or Kitchen work. The complete flow below is
-still the target for QR3–QR5. QR2 revalidates visitor scope and uses Catalog menu prices
+still the target for QR4–QR5. QR2 revalidates visitor scope and uses Catalog menu prices
 and Restaurant policy through the shared Order resolver; no stock/payment/Kitchen write.
 See [ADR-044](Decisions/ADR-044-table-qr-entry-and-guest-sessions.md),
 [ADR-045](Decisions/ADR-045-qr-menu-and-authoritative-cart.md) and [QR2](../Deployment/QR2-Menu.md).

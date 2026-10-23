@@ -1,5 +1,13 @@
 # NexaConnect Project Architecture
 
+[QR3](../../docs/Deployment/QR3-Requests.md) now retains exact visitor/table-bound quotes
+and pending requests in Order migration20. Quote UUIDs are submission identities; replay
+returns the original request. Domain state/version/quota rules run under owning branch
+transaction locks; request/audit/generic audit outbox commit together. Private visitor
+status and customer-authorized branch queue/rejection have no executable Order, Inventory,
+Kitchen or payment effect. QR3 requires PostgreSQL and separate default-off flags.
+
+
 On 23 October 2026 the user selected [table QR ordering](../../docs/Planning/QR-Ordering-Roadmap.md)
 as the next development track: iOS/Android browser guests, payment at the cashier, and
 staff acceptance before Kitchen dispatch. [QR1](../../docs/Deployment/QR1-Entry.md) adds
@@ -9,7 +17,7 @@ admission and audit/outbox. Customer BFF provides a separate HttpOnly guest cook
 exact-origin mutation boundary. [QR2](../../docs/Deployment/QR2-Menu.md) adds a mobile menu,
 memory-only cart and authoritative quote through capability-scoped Order reads, exact Order
 workload Catalog projection and existing Restaurant pricing. Public totals reuse Order
-commercial rules; no guest staff/order/payment authority is granted. QR3–QR6 remain pending. Hosted release/signing/device/Phase 9 work is
+commercial rules; no guest staff/order/payment authority is granted. QR4–QR6 remain pending. Hosted release/signing/device/Phase 9 work is
 deferred pending specifications, with existing readiness gates preserved. This selection
 preserves the existing readiness gates; no QR deployment/phone acceptance is claimed.
 
