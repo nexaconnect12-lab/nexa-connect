@@ -33,6 +33,21 @@ public sealed record LocalPosScope(Guid OrganizationId, Guid BranchId, Guid Stor
 internal sealed class LocalPosDatabase
 {
     internal const int CurrentSchemaVersion = 2;
+    internal static bool HasRetainedWorkForInstallation(string storageDirectory)
+    {
+        string path = Path.Combine(storageDirectory, "pos-state.db");
+        if (!File.Exists(path)) return false;
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        { DataSource = path, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
+        connection.Open();
+        using var query = connection.CreateCommand();
+        query.CommandText = """
+            SELECT EXISTS(SELECT 1 FROM local_state
+                WHERE state_key IN ('active-shift','cash-session','pending-settlement','pending-checkout','pending-refund','pending-cash-review'))
+                OR EXISTS(SELECT 1 FROM outbox_operations WHERE state <> 'completed');
+            """;
+        return Convert.ToInt32(query.ExecuteScalar(), CultureInfo.InvariantCulture) != 0;
+    }
     internal static void ValidateExistingScope(PosClientConfiguration configuration, string? storageDirectory = null)
     {
         string path = Path.Combine(storageDirectory ?? Path.Combine(

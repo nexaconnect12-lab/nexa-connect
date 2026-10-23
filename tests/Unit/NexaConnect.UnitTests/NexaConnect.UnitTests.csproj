@@ -54,6 +54,7 @@
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PendingCheckout.cs" Link="POS\PendingCheckout.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosApiClient.cs" Link="POS\PosApiClient.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosClientConfiguration.cs" Link="POS\PosClientConfiguration.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosInstallationPolicy.cs" Link="POS\PosInstallationPolicy.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosTokenSet.cs" Link="POS\PosTokenSet.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosSessionPolicy.cs" Link="POS\PosSessionPolicy.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosAuthentication.cs" Link="POS\PosAuthentication.cs" />

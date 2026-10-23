@@ -1,5 +1,14 @@
 # NexaConnect Restaurant POS Architecture
 
+Phase 7 prepares a per-user, unpackaged Windows EXE installer with a self-contained
+runtime. Its hosted profile and read-only recovery checks preserve exact terminal,
+realm and tender custody; setup cannot migrate incompatible recovery or issue financial
+commands. Program files remain separate from protected POS/display/gallery data, which
+uninstall retains. Same-session maintenance coordination requires POS to be closed by
+the operator. Actual install/update/interruption and device checks remain acceptance
+gates; see [ADR-042](Decisions/ADR-042-pos-private-exe-installer.md) and the
+[Phase 7 guide](../Deployment/Next-Iteration-Phase-7.md).
+
 Phase 5 separates Restaurant-owned branch playlist approval from Media-owned validated
 asset storage. Staff/customer screensavers share the original POS lock but show separate
 public image/text lists; staff retains authentication and customer gets no unlock controls.

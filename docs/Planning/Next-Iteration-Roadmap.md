@@ -12,7 +12,9 @@ and [Phase 3 direct Kitchen entry](../Deployment/Next-Iteration-Phase-3.md), plu
 [Phase 5 approved gallery/screensavers](../Deployment/Next-Iteration-Phase-5.md)
 are implemented and verified in source. Interactive acceptance remains pending.
 [Phase 6 hosting artifacts and guards](../Deployment/Next-Iteration-Phase-6.md) are implemented;
-actual deployment/readiness remains gated by E01–E04. Phases 7–9 remain planned;
+actual deployment/readiness remains gated by E01–E04.
+[Phase 7 private EXE packaging](../Deployment/Next-Iteration-Phase-7.md) is implemented;
+signed distribution and actual install/device acceptance remain pending. Phases 8–9 remain planned;
 no user acceptance is asserted here.
 
 The user considers the first draft sufficient to proceed. This does not fill its
@@ -71,6 +73,8 @@ Leave unchecked until the linked phase supplies verified evidence.
   hosted operation/reboot, off-server backup and restored-application proof remain pending.
 - [ ] R08 — Evaluate Microsoft Store/MSIX versus signed EXE/MSI; verify installation,
   callbacks, dependencies and recovery-preserving updates. Phase 7.
+  [Private EXE candidate and source verification](../Deployment/Next-Iteration-Phase-7.md)
+  are prepared; actual VM/device and trusted-signing evidence remain open.
 - [ ] R09 — Keep configuration/artifacts portable; define readiness and migration gates
   before later cloud migration. Phases 0, 6, 8; actual migration is follow-on C.
 - [ ] R10 — Run a second consolidated user test after the next candidate is complete.

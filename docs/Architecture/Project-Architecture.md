@@ -1,5 +1,20 @@
 # NexaConnect Project Architecture
 
+Phase 7 prepares a conventional per-user EXE deployment for the existing unpackaged POS.
+The self-contained win-x64 payload carries no terminal configuration/credentials. Setup
+stages a public hosted profile, invokes actual read-only local schema/scope/DPAPI/cashier
+binding checks and coordinates same-logon-session startup through a maintenance mutex.
+The original single-instance/current-user callback pipe and owning financial commands
+stay unchanged. Exact retained realm/terminal/tender custody is required; unsupported
+draft-to-hosted realm or account transfers block, rather than resetting protected data.
+Uninstall retains external recovery/display/gallery state and public reinstall config;
+callback removal is conditional on exact ownership. Signed production output and explicit
+private-unsigned test output are distinct. No MSIX package identity, data migration, new
+role/service/API or automatic financial rollback is introduced. Real setup/reboot/upgrade,
+device acceptance and Store submission remain gates. See
+[ADR-042](Decisions/ADR-042-pos-private-exe-installer.md) and
+[operations](../Deployment/Next-Iteration-Phase-7.md).
+
 Phase 5 stores the versioned approved staff/customer playlists in Restaurant-owned branch
 JSON, preserving pricing. Restaurant validates selected Media readiness; Media separately
 reads Restaurant's live branch-authorized selection and supplies only ready selected public

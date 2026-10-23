@@ -1,5 +1,10 @@
 # NexaConnect
 
+Phase 7 adds a private per-user Windows EXE installer with self-contained runtime,
+public hosted-profile onboarding and read-only recovery checks. [The packaging guide](docs/Deployment/Next-Iteration-Phase-7.md)
+records compatibility, signing and actual install/device acceptance gates. No Store
+account, publication or retained-draft upgrade was performed.
+
 Phase 6 adds a portable dedicated-server application bundle, per-service production
 configuration guards and HTTPS hosting artifacts. [The operating guide](docs/Deployment/Next-Iteration-Phase-6.md)
 covers migration ordering, private infrastructure, backups, restoration and cutover.

@@ -16,6 +16,18 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (e.Args.Length > 0 && e.Args[0] == "--validate-package")
+        {
+            try
+            {
+                if (e.Args is not [_, _, _, _]) throw new InvalidDataException("Invalid preflight arguments.");
+                PosInstallationPolicy.AssertManagedDirectory(e.Args[3]);
+                PosInstallationPolicy.Preflight(e.Args[1], e.Args[2] == "-" ? null : e.Args[2]);
+                Shutdown(0);
+            }
+            catch (Exception) { Shutdown(2); }
+            return;
+        }
         // Installer preflight is read-only and never registers callbacks, opens the
         // workspace, starts authentication or migrates/deletes recovery state.
         if (e.Args is ["--validate-install"])
@@ -38,6 +50,18 @@ public partial class App : Application
         }
 
         base.OnStartup(e);
+        // Setup holds maintenance before checking the POS mutex. Creating our POS mutex
+        // first closes the startup/update race; existing-instance callbacks still forward.
+        try
+        {
+            if (Mutex.TryOpenExisting(PosInstallationPolicy.MaintenanceMutex, out var maintenance))
+            {
+                maintenance.Dispose();
+                MessageBox.Show("Terminal maintenance is in progress. Finish or cancel setup before opening POS.", "POS maintenance");
+                Shutdown(); return;
+            }
+        }
+        catch (UnauthorizedAccessException) { Shutdown(2); return; }
         PosClientConfiguration configuration;
         try { configuration = PosClientConfiguration.Load(); }
         catch (Exception exception) when (exception is IOException or System.Text.Json.JsonException or InvalidOperationException)

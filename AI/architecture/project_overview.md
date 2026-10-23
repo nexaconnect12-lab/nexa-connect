@@ -1,5 +1,14 @@
 # NexaConnect Project Architecture
 
+Phase 7 adds a conventional per-user EXE installer before MSIX: self-contained win-x64
+POS, operator-supplied public hosted profile, staged read-only scope/schema/DPAPI checks
+and same-session maintenance/startup coordination. Unpacked identity and existing data
+paths remain; uninstall preserves recovery and public reinstall configuration. Signing
+is required by default with an explicit private-unsigned candidate path. Actual install,
+interruption, device and Store acceptance remain pending. See
+[ADR-042](../../docs/Architecture/Decisions/ADR-042-pos-private-exe-installer.md) and
+[Phase 7](../../docs/Deployment/Next-Iteration-Phase-7.md).
+
 Phase 5 adds branch-owned approved screensaver selection in Restaurant configuration and
 Media-owned bounded PNG delivery from ready product variants. POS uses one protected leased
 cache and separate staff/customer playlists under the existing lock; media cannot authenticate

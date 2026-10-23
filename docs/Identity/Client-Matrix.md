@@ -91,3 +91,12 @@ Payment's confidential workload client now explicitly emits the nexaconnect-api 
 The cashier-to-day-close launcher confines its public POS callback adjustment to the generated disposable realm: that client uses one exact loopback callback for real S256 PKCE sign-in, with password grants still disabled. Cashier/manager subjects remain separate, tokens stay in test-process memory and manager portal commands use BFF cookies/CSRF. Default role grants are unchanged; the shared Inventory audience-mapper prerequisite below also applies to persisted production realms. See [acceptance identity boundaries](../Deployment/Cashier-Day-Close-Acceptance.md).
 
 Inventory's existing confidential workload client must explicitly emit the nexaconnect-api audience when reading Restaurant branch scope. The realm template and validation guard now enforce that mapper; JWT validation, client identity, secret and role grants are unchanged. Persisted realms require an explicit reviewed mapper update, followed by a new token (restart Inventory or let its cached token expire); Keycloak restart does not re-import existing realms. The [joined cashier acceptance](../Deployment/Cashier-Day-Close-Acceptance.md) exposed this prerequisite through actual Inventory-to-Restaurant HTTP; production rollout remains separate.
+## Phase 7 Windows installer
+
+The [private EXE installer](../Deployment/Next-Iteration-Phase-7.md) retains the public
+`nexaconnect-pos` client, exact `nexaconnect-pos://oauth/callback`, PKCE, existing scopes
+and current-user callback pipe. It embeds no secret and grants no role/permission.
+Callback takeover from another install path requires explicit operator approval; uninstall
+removes only its own exact command. Hosted profile and retained protected cashier/realm
+bindings must agree; unsupported realm/account transfers require original-installation
+reconciliation. No MSIX package identity or identity-provider migration is applied here.

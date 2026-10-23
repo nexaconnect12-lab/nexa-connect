@@ -155,3 +155,15 @@ terminal identifiers and manual THB tender mode. No confidential/workload creden
 belongs here. Verify remote login, lock/resume, checkout, Kitchen and PDF printing on
 the intended Windows account/device. Preserve its DPAPI recovery; never copy it to the
 server or another Windows account. Target hosting and remote-device acceptance remain pending.
+## Phase 7 hosted installer preparation
+
+The [per-user EXE guide](../../../docs/Deployment/Next-Iteration-Phase-7.md) adds public
+profile onboarding and `--validate-package <profile> <previous-or-dash> <managed-directory>`.
+That mode validates without opening UI, authenticating, replaying commands or migrating
+SQLite. Compatible existing schema/scope and saved cashier authority are required; the
+hosted profile cannot silently replace the original HTTP draft realm or terminal custody.
+The new maintenance mutex masks normal startup while setup runs in the same logon session;
+existing primary-instance callbacks still use the original current-user pipe/state checks.
+Use the actual Windows account, never elevate or transplant DPAPI state. Uninstall retains
+recovery/display/gallery state and public config. The old loopback draft installer remains
+unchanged. Trusted signing, VM interruption and real device/browser checks remain pending.
