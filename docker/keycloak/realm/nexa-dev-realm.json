@@ -527,6 +527,7 @@
       "fullScopeAllowed": false,
       "redirectUris": ["${PLATFORM_ADMIN_BFF_REDIRECT_URI}"],
       "webOrigins": ["${PLATFORM_ADMIN_BFF_ORIGIN}"],
+      "attributes": { "post.logout.redirect.uris": "${PLATFORM_ADMIN_BFF_ORIGIN}/signout-callback-oidc" },
       "defaultClientScopes": ["profile", "email", "nexaconnect-api"]
     },
     {

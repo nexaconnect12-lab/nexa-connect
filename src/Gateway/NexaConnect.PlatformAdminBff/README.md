@@ -31,3 +31,14 @@ The OIDC client requests the `nexaconnect-api` scope. Its realm-role mapper must
 Operational telemetry uses the shared observability foundation. JSON console output is always available; set `Observability__OtlpEnabled=true` and `Observability__OtlpEndpoint=http://localhost:4317` for the local collector. Correlation logging intentionally excludes bodies, query strings, authorization headers, cookies, and tokens.
 
 `dotnet publish` builds the Product Owner Portal workspace and includes its output under the BFF's `wwwroot`. Set `SkipProductOwnerPortalBuild=true` only when a trusted release pipeline has already supplied equivalent assets. The BFF serves `index.html` without caching, fingerprints assets with immutable caching, and applies CSP, frame, referrer, and MIME-sniffing response protections.
+## Dedicated-server pilot preparation
+
+The [pilot artifact tool](../../../docker/pilot/README.md) bundles this BFF with the
+built Product Owner Portal and exposes its separate HTTPS origin through the application
+edge. Its client remains `platform-admin-bff`; configure that client's independent secret
+and exact public redirect/origin through the separate production Keycloak bootstrap.
+Retain a distinct TLS Redis namespace and certificate-encrypted durable Data Protection
+keys. Customer Portal sessions never supply platform authority. Anonymous probes check
+the shell and `/bff/platform-admin/me` denial only. Real platform login, refresh/logout,
+customer/platform denial and restored sessions remain target gates in the
+[Phase 6 guide](../../../docs/Deployment/Next-Iteration-Phase-6.md).

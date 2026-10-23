@@ -1,5 +1,10 @@
 # NexaConnect
 
+Phase 6 adds a portable dedicated-server application bundle, per-service production
+configuration guards and HTTPS hosting artifacts. [The operating guide](docs/Deployment/Next-Iteration-Phase-6.md)
+covers migration ordering, private infrastructure, backups, restoration and cutover.
+Server facts remain unconfirmed; this prepares deployment and does not claim a running pilot.
+
 Phase 5 adds branch-approved staff/customer image playlists through Media management and
 separate POS lock-screen slideshows. Short-lived validated caches preserve neutral fallback
 and original-cashier authentication. [Usage, deployment and verification](docs/Deployment/Next-Iteration-Phase-5.md)

@@ -112,3 +112,14 @@ Kitchen queue routes use `/bff/customer/kitchen`: GET `csrf`, `branches/{branchI
 The [joined cash-close portal suite](../../../docs/Deployment/Cash-Close-Portal-Acceptance.md) exercises real OIDC sessions, tenant switching and this BFF against Reporting/POS authorization, including existing-session revocation and unavailable dependencies. It publishes this BFF with the portal assets and uses generated loopback redirects; no new production route is introduced.
 
 The [joined end-of-day gate](../../../docs/Deployment/End-Of-Day-Portal-Acceptance.md) exercises actual OIDC sessions, protected tenant selection, current membership revalidation, read-only Reporting forwarding and real transport failure through this published BFF/portal. Eight distinct browser passes and verified disposable cleanup are required.
+## Dedicated-server pilot preparation
+
+The [pilot artifact tool](../../../docker/pilot/README.md) bundles this BFF with the
+built Customer Portal and exposes its dedicated HTTPS origin through the application
+edge. It pins private HTTPS dependencies, `nexaconnect-web-bff`, a distinct TLS Redis
+namespace and certificate-encrypted durable Data Protection keys. Match Keycloak
+redirect/logout origins to the external hostname/port; retain `/kitchen` on this origin.
+Production client secrets stay server-side and independent from PlatformAdmin BFF.
+Anonymous probes check shell entry and `/bff/customer/me` denial only. Real login,
+refresh/logout, protected tenant selection and restored sessions remain target gates in
+the [Phase 6 guide](../../../docs/Deployment/Next-Iteration-Phase-6.md).

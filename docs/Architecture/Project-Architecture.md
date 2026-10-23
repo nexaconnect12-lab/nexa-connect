@@ -790,3 +790,24 @@ Pre-payment cancellation is an Order-owned saga with no distributed transaction.
 Post-capture provider refunds are Payment-owned aggregates. Payment 9 locks the captured intent while reserving partial totals, stores a live manager authorization decision bounded by an eligible amount/currency approval limit, and treats completed, uncertain, and review-required amounts as unavailable for another refund. Provider I/O remains outside transactions; response ambiguity is reconciled only by status lookup under a fenced, bounded lease. Definitive completion atomically records a versioned integration event, append-only audit action, and immutable receipt snapshot. The Paid Order is not rewritten. Customer responses omit internal actor, decision, provider, lease, attempt, and concurrency evidence. The POS protects operation identity before sending. Authorization 9 and Reporting 17 deploy with Payment 9. Reporting 18 adds a separate opt-in refund financial projector; receipt-backed sale/payment consumers and scoped replay/reconciliation are implemented in Reporting 19; global completeness remains planned. See [ADR-016](Decisions/ADR-016-durable-provider-refunds.md) and the [HTTP contract](../API/Payment-Refunds.md).
 
 Local Windows cashier-to-day-close acceptance passed all five real-command browser scenarios and six Authorization persistence cases without skips/retries, with verified cleanup on 2026-10-06. See [exact working-tree execution evidence](Evidence/Cashier-Day-Close-Acceptance.md). Remote CI and production acceptance remain separate.
+## Dedicated-server pilot deployment preparation (Phase 6)
+
+The portable application artifact graph includes all thirteen owning services and the
+Customer/PlatformAdmin BFFs, each with its built SPA, plus a separately invoked migration
+runner/catalog. Independently operated infrastructure remains private. The generated
+Linux-container graph uses nonroot identities, resource limits, immutable roots, protected
+per-service configuration, persistent certificate-encrypted key rings and existing TLS
+Redis ticket stores. Only the application edge publishes HTTPS: separate portal and
+cashier API hostnames, verified TLS/SNI to Kestrel, exact Host and suppressed forwarded
+headers, hidden management/internal routes and no URL access logs. Keycloak/admin routing
+remains its separate production topology; no new identity or business authority is granted.
+
+Plan validation requires confirmed target/operational prerequisites, correct owning
+database roles, trusted-endpoint configuration, independent credentials and enabled
+recovery/consumers. Structural validation and anonymous HTTPS probes do not certify live
+grants, queue readiness, financial behavior, backups or restored applications. The user's
+server OS/capacity/DNS/recovery facts remain pending; artifacts target a confirmed Linux
+container capability without assuming that OS. Hosted operation, reboot, remote devices,
+off-server backup and isolated restored-graph proof remain explicit gates. See
+[ADR-041](Decisions/ADR-041-dedicated-server-pilot-artifacts.md) and
+[Phase 6 operating guide](../Deployment/Next-Iteration-Phase-6.md).

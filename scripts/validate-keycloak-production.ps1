@@ -52,6 +52,12 @@ $required = @(
     'NEXACONNECT_POS_REDIRECT_URI'
 )
 
+# Keep the production validator aligned with every confidential client in the shared
+# realm, including workload, Media and the distinct Product Owner control plane.
+$realmTemplate = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../docker/keycloak/realm/nexa-dev-realm.json') -Raw
+$realmSecretKeys = @([regex]::Matches($realmTemplate, '\$\{([A-Z0-9_]+CLIENT_SECRET)\}') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+$required = @($required + $realmSecretKeys + @('PLATFORM_ADMIN_BFF_REDIRECT_URI', 'PLATFORM_ADMIN_BFF_ORIGIN') | Sort-Object -Unique)
+
 $missing = @($required | Where-Object {
     -not $values.ContainsKey($_) -or [string]::IsNullOrWhiteSpace($values[$_])
 })
@@ -73,10 +79,15 @@ $secretKeys = @(
     'NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET',
     'NEXACONNECT_ADMIN_BFF_CLIENT_SECRET'
 )
+$secretKeys = @($secretKeys + $realmSecretKeys | Sort-Object -Unique)
 foreach ($key in $secretKeys) {
     if ($values[$key].Length -lt 32) {
         throw "$key must contain at least 32 characters."
     }
+}
+
+if (@($realmSecretKeys | ForEach-Object { $values[$_] } | Sort-Object -Unique).Count -ne $realmSecretKeys.Count) {
+    throw 'Every confidential client must use a distinct secret.'
 }
 
 if (@($values.GetEnumerator() | Where-Object { $_.Key -ne 'NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET' -and $_.Key -like '*CLIENT_SECRET' -and $_.Value -eq $values.NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET }).Count -gt 0) { throw 'Reporting must use a distinct confidential client secret.' }
@@ -94,10 +105,29 @@ $httpsKeys = @(
     'NEXACONNECT_ADMIN_BFF_POST_LOGOUT_REDIRECT_URI',
     'NEXACONNECT_ADMIN_ORIGIN'
 )
+$httpsKeys += @('PLATFORM_ADMIN_BFF_REDIRECT_URI', 'PLATFORM_ADMIN_BFF_ORIGIN')
 foreach ($key in $httpsKeys) {
     $uri = $null
     if (-not [Uri]::TryCreate($values[$key], [UriKind]::Absolute, [ref] $uri) -or $uri.Scheme -ne 'https') {
         throw "$key must be an absolute HTTPS URI."
+    }
+}
+
+$interactiveOrigins = @('NEXACONNECT_WEB_ORIGIN', 'NEXACONNECT_ADMIN_ORIGIN', 'PLATFORM_ADMIN_BFF_ORIGIN')
+if (@($interactiveOrigins | ForEach-Object { $values[$_] } | Sort-Object -Unique).Count -ne $interactiveOrigins.Count) {
+    throw 'Interactive browser clients require distinct origins.'
+}
+foreach ($prefix in @('NEXACONNECT_WEB', 'NEXACONNECT_ADMIN', 'PLATFORM_ADMIN')) {
+    $originKey = if ($prefix -eq 'PLATFORM_ADMIN') { 'PLATFORM_ADMIN_BFF_ORIGIN' } else { "${prefix}_ORIGIN" }
+    $origin = [Uri]$values[$originKey]
+    if ($origin.AbsolutePath -ne '/' -or $origin.Query -or $origin.Fragment -or $origin.UserInfo -or $values[$originKey].EndsWith('/')) {
+        throw 'Browser origins must be exact HTTPS origins without a trailing slash, credentials, query or path.'
+    }
+    if ($values["${prefix}_BFF_REDIRECT_URI"] -ne "$($values[$originKey])/signin-oidc") {
+        throw 'Browser redirect URI must match its exact origin and signin-oidc callback.'
+    }
+    if ($prefix -ne 'PLATFORM_ADMIN' -and $values["${prefix}_BFF_POST_LOGOUT_REDIRECT_URI"] -ne "$($values[$originKey])/signout-callback-oidc") {
+        throw 'Browser logout URI must match its exact origin and signout-callback-oidc callback.'
     }
 }
 

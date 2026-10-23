@@ -29,3 +29,14 @@ Verification:
 - Start the disposable Phase 8 stack and run `npm run test:e2e:phase8` from `src/Frontend` with the settings in [the joined browser acceptance guide](../../Frontend/e2e/phase8/README.md). This joins the configured Media service to the authenticated portal, BFF, storage, scanner, database, and worker; provider/configuration claims depend on the launched environment and the run does not replace recovery, load, TLS, CORS, credential, or operational validation.
 
 Deletion and processing jobs back off exponentially for ten attempts. Monitor `media_object_deletions` and `media_processing_jobs` ordered by `next_attempt_at_utc`; terminal rows require operator review. Drain both tables and stop Media before downgrading migration 4 or 3.
+## Dedicated-server pilot preparation
+
+The [Phase 6 pilot](../../../docs/Deployment/Next-Iteration-Phase-6.md) bundles Media
+and enables scanning, persistent PostgreSQL, workload authentication and outbox delivery.
+Provision private S3-compatible storage with independent least-privileged keys,
+ClamAV with current definitions and the existing `nexaconnect-media-service` client.
+Keep Catalog/Restaurant/Authorization/Platform Directory dependencies on verified private
+HTTPS; only authorized `/api/media/` routes pass the public application edge.
+Back up object versions together with Media metadata/jobs, configuration and key rings.
+The portable Linux build does not prove native image processing, storage/scanner access,
+authenticated gallery delivery or recovery; run those target checks before exposure.

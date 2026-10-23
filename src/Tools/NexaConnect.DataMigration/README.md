@@ -227,3 +227,16 @@ The initial version-1 downgrades are classified as `destructive` because returni
 
 POS migration `0007_cash_close_replay_audit` requires application `0.16.0`, adds the outbox replay-scope index and immutable run/attempt tables, and refuses `7→6` after any replay run. It records the selection limit, manifest and database `session_user` alongside asserted operator identity. The current disposable recovery test applies SQL catalogs directly; the earlier POS-5 full migration-runner evidence does not certify this migration. See [runbook](../../../docs/Deployment/Cash-Close-Recovery.md).
 Order migration 0009_paid_order_receipts requires application 0.18.0. It adds an immutable receipt snapshot bound to the paid Order's ownership, currency and total. Existing Paid rows remain without receipts; downgrade refuses after any receipt exists. The pricing runner now verifies receipt concurrency, rollback and migration guards. See [receipt contract](../../../docs/API/Paid-Order-Receipts.md).
+## Dedicated-server pilot preparation
+
+The [pilot builder](../../../docker/pilot/README.md) includes the framework-dependent
+migration executable and exact `Scripts` catalog beside the application bundle. It
+records each owner's target in `manifest.json` and supplies no runtime migration service
+or credentials. From the bundled `migrations` directory, run reviewed per-owner `--plan`
+commands with `--scripts-root Scripts` and application compatibility `0.38.0`, then use
+`--confirm` only for authorized execution under separately injected migration credentials.
+Use that owner's manifest target, not one shared schema version. Applications retain
+least-privilege runtime identities. Quiescence, verified prechange backup, coordinated
+consumer startup and failure recovery follow the
+[Phase 6 guide](../../../docs/Deployment/Next-Iteration-Phase-6.md); preparing or rendering
+artifacts never runs a migration.

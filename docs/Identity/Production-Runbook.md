@@ -125,3 +125,22 @@ Payment's confidential workload client now explicitly emits the nexaconnect-api 
 The [joined end-of-day gate](../Deployment/End-Of-Day-Portal-Acceptance.md) uses a fresh run-specific realm and two customer-viewer identities with branch accountant/restaurant manager product grants. Actual customer tokens cross Reporting and owning Order/Payment/POS read boundaries; workload identities fetch only owning hierarchy/calendar metadata. Revoked source payment.refund.read and suspended membership must reject existing sessions. No new realm template, production grant or permission migration is introduced.
 
 Inventory's existing confidential workload client must explicitly emit the nexaconnect-api audience when reading Restaurant branch scope. The realm template and validation guard now enforce that mapper; JWT validation, client identity, secret and role grants are unchanged. Persisted realms require an explicit reviewed mapper update, followed by a new token (restart Inventory or let its cached token expire); Keycloak restart does not re-import existing realms. The [joined cashier acceptance](../Deployment/Cashier-Day-Close-Acceptance.md) exposed this prerequisite through actual Inventory-to-Restaurant HTTP; production rollout remains separate.
+
+## Dedicated-server pilot preparation
+
+The [Phase 6 guide](../Deployment/Next-Iteration-Phase-6.md) keeps identity/admin routing
+separate from the application edge. Production bootstrap now supplies the existing
+Media and Platform Directory admin secrets; `.env.production.example` lists every
+confidential-client secret and the separate Product Owner redirect/origin settings.
+The validator derives required secrets from the checked-in realm, requires independent
+32+ character values and checks exact distinct HTTPS browser origins and callbacks.
+The Product Owner client is `platform-admin-bff` (`PLATFORM_ADMIN_BFF_*`), distinct from
+the legacy `nexaconnect-admin-bff` (`NEXACONNECT_ADMIN_*`); configure both while the shared
+realm contains both. Match each application's configured secret to its own client.
+
+For `platform-admin-bff`, the realm template permits post-logout return only to
+`${PLATFORM_ADMIN_BFF_ORIGIN}/signout-callback-oidc`. Existing realms need an explicit
+reviewed update of `post.logout.redirect.uris`; restart/bootstrap does not update them.
+No client, role, grant or token audience is added. Validate fresh deployment configuration
+and actual login/refresh/logout at each external origin before exposure; template checks
+and anonymous discovery probes are not live identity or restored-session acceptance.

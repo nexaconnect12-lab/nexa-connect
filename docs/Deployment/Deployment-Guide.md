@@ -303,3 +303,12 @@ The [hosted refund acceptance gate](Hosted-Refund-Acceptance.md) uses generated 
 Before deploying the corrected Payment readiness boundary to an already-current database, apply only the reviewed SELECT(version) grant; a no-step migration does not reconcile privileges. Existing realms also need the Payment workload API audience mapper and a fresh token or cached-token expiry. Coordinate these corrections with Payment startup and authenticated Order/Restaurant ownership checks; see the [exact rollout steps](Hosted-Refund-Acceptance.md#existing-payment-deployment-correction).
 
 Inventory's existing confidential workload client must explicitly emit the nexaconnect-api audience when reading Restaurant branch scope. The realm template and validation guard now enforce that mapper; JWT validation, client identity, secret and role grants are unchanged. Persisted realms require an explicit reviewed mapper update, followed by a new token (restart Inventory or let its cached token expire); Keycloak restart does not re-import existing realms. The [joined cashier acceptance](Cashier-Day-Close-Acceptance.md) exposed this prerequisite through actual Inventory-to-Restaurant HTTP; production rollout remains separate.
+
+## Dedicated-server pilot preparation
+
+The [Phase 6 operating guide](Next-Iteration-Phase-6.md) describes portable application artifacts,
+separate HTTPS portal/API hosts, private infrastructure, per-service configuration/key
+rings and staged migration/backup/restoration gates. These artifacts do not deploy the
+server or certify readiness. Target server facts, real login/remote-device checks,
+off-server backups and a restored application graph remain required. Preserve existing
+financial history and current-user Windows terminal recovery.

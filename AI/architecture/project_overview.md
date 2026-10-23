@@ -806,3 +806,14 @@ Pre-payment operator cancellation is implemented through an Order-owned durable 
 Provider-captured refunds are implemented as a separate Payment aggregate through Payment 9. A live `payment.refund.create` decision is retained and must include an eligible amount/currency approval limit; the intent row serializes completed and reserved partial totals, stable operation replay prevents duplicate commands, and provider ambiguity uses bounded status-only recovery. Completion creates immutable receipt/audit/outbox evidence. Authorization 9 and Reporting 17 supply role and activity vocabulary; the POS persists the operation before network I/O and recovers it by operation identity. Order remains Paid and does not own provider refund state. Manual tenders, item-return/restock policy, tax credit notes, production Omise acceptance, and global financial completeness/settlement reconciliation remain open. Reporting 18 implements the refund financial projection; Reporting 19 supplies receipt-backed sale/payment consumers, while Payment 10 / Reporting 20 add original refund retention, attributed replay and combined scoped observations. See the [contract](../../docs/API/Payment-Refunds.md) and [ADR-016](../../docs/Architecture/Decisions/ADR-016-durable-provider-refunds.md).
 
 Local Windows cashier-to-day-close acceptance passed all five real-command browser scenarios and six Authorization persistence cases without skips/retries, with verified cleanup on 2026-10-06. See [exact working-tree execution evidence](../../docs/Architecture/Evidence/Cashier-Day-Close-Acceptance.md). Remote CI and production acceptance remain separate.
+# Phase 6 hosting preparation
+
+Dedicated-server artifacts now cover thirteen owning services, Customer/PlatformAdmin
+BFFs with built portal assets, and the migration runner. A guarded Node tool produces
+runtime/file/schema-bound bundles and a resource-limited nonroot Linux-container graph
+with verified HTTPS edge-to-Kestrel routing, independent service secrets/key rings and
+private independently operated infrastructure. Linux container support and server facts
+are prerequisites, not assumed server specifications. No deployment, full-graph restore
+or hosting acceptance has run; R07 stays open. See
+[Phase 6](../../docs/Deployment/Next-Iteration-Phase-6.md) and
+[ADR-041](../../docs/Architecture/Decisions/ADR-041-dedicated-server-pilot-artifacts.md).

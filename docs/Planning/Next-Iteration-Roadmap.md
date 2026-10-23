@@ -10,7 +10,9 @@ are recorded separately; [Phase 2 UI foundation](../Deployment/Next-Iteration-Ph
 and [Phase 3 direct Kitchen entry](../Deployment/Next-Iteration-Phase-3.md), plus
 [Phase 4 staff/customer displays](../Deployment/Next-Iteration-Phase-4.md) and
 [Phase 5 approved gallery/screensavers](../Deployment/Next-Iteration-Phase-5.md)
-are implemented and verified in source. Interactive acceptance remains pending. Phases 6–9 remain planned;
+are implemented and verified in source. Interactive acceptance remains pending.
+[Phase 6 hosting artifacts and guards](../Deployment/Next-Iteration-Phase-6.md) are implemented;
+actual deployment/readiness remains gated by E01–E04. Phases 7–9 remain planned;
 no user acceptance is asserted here.
 
 The user considers the first draft sufficient to proceed. This does not fill its
@@ -65,6 +67,8 @@ Leave unchecked until the linked phase supplies verified evidence.
   including focused Kitchen and customer display; usability/accessibility checks. Phases 2–5, 9.
 - [ ] R07 — Use the existing dedicated server/static IP first, with separate HTTPS portal
   origins, private infrastructure, off-server backups and operational supervision. Phase 6.
+  [Artifacts and runbook](../Deployment/Next-Iteration-Phase-6.md) are available; measured
+  hosted operation/reboot, off-server backup and restored-application proof remain pending.
 - [ ] R08 — Evaluate Microsoft Store/MSIX versus signed EXE/MSI; verify installation,
   callbacks, dependencies and recovery-preserving updates. Phase 7.
 - [ ] R09 — Keep configuration/artifacts portable; define readiness and migration gates

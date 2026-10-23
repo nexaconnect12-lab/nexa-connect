@@ -103,3 +103,12 @@ Kitchen queue browser contracts run with `npm run test:e2e:kitchen`; see [fixtur
 For the separate five-case real-OIDC/service/broker suite, use the [joined cash-close portal launcher](../../docs/Deployment/Cash-Close-Portal-Acceptance.md). It provisions disposable infrastructure and requires all scenarios and cleanup; the synthetic browser command above does not run it.
 
 Local Windows cashier-to-day-close acceptance passed all five real-command browser scenarios and six Authorization persistence cases without skips/retries, with verified cleanup on 2026-10-06. See [exact working-tree execution evidence](../../docs/Architecture/Evidence/Cashier-Day-Close-Acceptance.md). Remote CI and production acceptance remain separate.
+## Dedicated-server pilot preparation
+
+The [pilot builder](../../docker/pilot/README.md) builds both production workspaces and
+includes each `dist` in its owning BFF's `wwwroot`. Install dependencies with `npm ci`
+first; frontend `.env*` inputs are rejected and `VITE_*` process variables are excluded
+from child builds. Keep secrets in server-side BFF configuration. The edge uses separate
+HTTPS Customer and Product Owner origins; `/kitchen` shares the Customer origin/session.
+Rendered artifacts and anonymous shell probes do not establish loaded JavaScript, real
+login or user acceptance; see the [Phase 6 target gates](../../docs/Deployment/Next-Iteration-Phase-6.md).

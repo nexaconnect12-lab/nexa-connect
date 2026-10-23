@@ -62,6 +62,18 @@ Do not commit users, passwords, client secrets, signing keys, sessions, or expor
 
 See the [production runbook](../../docs/Identity/Production-Runbook.md) and `docker-compose.production.yml` for the supported deployment contract and preflight checks.
 
+Phase 6 production bootstrap supplies every existing confidential client, including
+`NEXACONNECT_MEDIA_SERVICE_CLIENT_SECRET` and `PLATFORM_DIRECTORY_ADMIN_CLIENT_SECRET`.
+The production environment template now lists those and all other workload secrets;
+validation derives the required secret set from the realm and requires distinct values.
+The Product Owner client `platform-admin-bff` uses `PLATFORM_ADMIN_BFF_*`, independently
+of the legacy `nexaconnect-admin-bff` settings. Browser origins must be distinct exact
+HTTPS origins and callbacks must match their origins. The Product Owner post-logout
+allow-list is `${PLATFORM_ADMIN_BFF_ORIGIN}/signout-callback-oidc`; apply that attribute
+explicitly to persisted realms and test logout. No existing realm is re-imported and
+no client, role or authority is added by this correction. Application-edge artifacts
+do not route or deploy Keycloak; see the [Phase 6 guide](../../docs/Deployment/Next-Iteration-Phase-6.md).
+
 The dedicated confidential `nexaconnect-reporting-service` client uses `NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET` and emits the `nexaconnect-api` audience for Restaurant authorization-scope lookup. It is accepted only by the endpoint-specific `BranchScopeReader` policy, not generic workload APIs. Configure Reporting's `Services__Restaurant`, `WorkloadIdentity__Authority`, `WorkloadIdentity__ClientId=nexaconnect-reporting-service` and secret-managed `WorkloadIdentity__ClientSecret`. Existing persisted realms require explicit reviewed client/audience provisioning; restarting Keycloak does not re-import this addition. Never grant a browser client these workload credentials.
 
 Payment's confidential workload client now explicitly emits the nexaconnect-api audience for Order/Restaurant ownership lookup during refunds. Existing persisted realms require a reviewed audience-mapper update; restarting Keycloak does not re-import this change. The client remains credentials-only, with its existing distinct secret and unchanged endpoint authorization policies.

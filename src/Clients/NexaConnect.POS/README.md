@@ -144,3 +144,14 @@ Checkout transport events use the shared observability foundation with service n
 Run `scripts/test-pos-cashier-sale.ps1 -ConfirmDisposableInfrastructure -ConfirmDestructiveRollback` for the repeatable backend gate. It composes 20 protected recovery/projection cases, three receipt/authorization/migration cases, and 15 verifier fixtures/guards in isolated PostgreSQL/RabbitMQ infrastructure and verifies cleanup. Its 38 checks passed locally on 2026-09-29.
 
 After a live cash checkout, exercise receipt preview, failure isolation, and Print / reprint; copy the Paid Order ID, close cash, close the shift, and sign out. Run `scripts/verify-pos-cashier-live-acceptance.ps1` with that Order ID and all six explicit confirmation switches described in the [cashier acceptance guide](../../../docs/Deployment/POS-Cashier-Acceptance.md). The verifier pins this repository's Compose stack and permits only local Docker Desktop Windows named pipes. It requires one exact-total THB cash settlement, a matching immutable receipt, an equal POS cash projection and cash movement linked through one closed cash session and shift, and cleared local operational and credential state before writing sanitized evidence under `.runstate/pos-cashier-live/`.
+## Dedicated-server pilot preparation
+
+The [Phase 6 guide](../../../docs/Deployment/Next-Iteration-Phase-6.md) prepares hosted
+APIs; it does not package, install or reconfigure this Windows client. For a dedicated
+staging profile, set `Identity:Authority` to the exact public realm and `Services:PosApi`,
+`OrderApi`, `CatalogApi`, optional `PaymentApi` and `MediaApi` to trusted HTTPS edge origins.
+Retain the public `nexaconnect-pos` client/callback, provisioned organization/branch/store/
+terminal identifiers and manual THB tender mode. No confidential/workload credential
+belongs here. Verify remote login, lock/resume, checkout, Kitchen and PDF printing on
+the intended Windows account/device. Preserve its DPAPI recovery; never copy it to the
+server or another Windows account. Target hosting and remote-device acceptance remain pending.
