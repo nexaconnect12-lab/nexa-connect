@@ -1,5 +1,16 @@
 # Restaurant Service
 
+QR1 adds scoped table-entry creation/rotation/revocation and independent visitor admission
+under Restaurant migration 4. Set `QrEntry__Enabled=true` deliberately after migration/grants;
+the default is disabled. Logical ordering labels do not mutate floor/table-account records.
+Staff requires live exact-branch `restaurant.configuration.manage`; guest capabilities
+grant context only. Domain versions/budgets and transactional hashed persistence/audit/outbox
+preserve ownership and revocation. See [contract](../../../docs/API/QR-Entry.md),
+[persistence](../../../docs/Database/QR-Entry.md), [identity](../../../docs/Identity/QR-Guest-Entry.md)
+and [operations/verification](../../../docs/Deployment/QR1-Entry.md). Query
+`{service_name="nexaconnect-restaurant"} |= "QR"` by validated `CorrelationId`; secrets,
+cookies, bodies, table labels and addresses are omitted. No guest Order/Payment authority.
+
 Phase 5 adds branch screensaver gallery configuration with existing branch concurrency,
 configuration-manage authority, audit and outbox. `ScreensaverGallery` is an additive JSON
 property; pricing remains untouched. Read uses live branch `catalog.menu.read`; save also

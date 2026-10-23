@@ -12,6 +12,7 @@ public sealed class OperationalBranchDiscovery(IBranchManagementRepository repos
         "reports" => "reporting.dashboard.read",
         "payment-review" => "order.payment-review.read",
         "catalog" => ProductPermissions.CatalogMenuRead,
+        "qr-entry" => ProductPermissions.RestaurantConfigurationManage,
         _ => throw new ArgumentException("Unsupported operational capability.")
     };
 

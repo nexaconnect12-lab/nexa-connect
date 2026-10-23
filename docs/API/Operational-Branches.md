@@ -14,6 +14,7 @@ realm roles alone grant no product access. Suspended, closed and denied branches
 | `reports` | `reporting.dashboard.read` |
 | `payment-review` | `order.payment-review.read` |
 | `catalog` | `catalog.menu.read` |
+| `qr-entry` | `restaurant.configuration.manage` |
 
 Unknown capabilities or invalid organization IDs return 400. No authorized active
 branches returns 200 with an empty array. Authentication/realm denial is 401/403;
@@ -34,7 +35,10 @@ logs for `Operational branch discovery` / `Operational discovery downstream fail
 and `CorrelationId`; no tokens, cookies, bodies, arbitrary headers or financial values
 are logged. Discovery has no cached permission snapshot; reload after access changes.
 
-Kitchen, Payment Review, end-of-day, sales and cash-close reports use selectors.
+Kitchen, Payment Review, end-of-day, sales, cash-close reports and QR administration use selectors.
+QR entry discovers only branches with existing configuration-manage authority; it adds
+no new grant and needs no unrelated branch-management permission. The selected QR
+administration API independently rechecks current ownership and that permission.
 Cash-close uses its own `cash-close` capability so cash-review readers need no unrelated
 day-close permission. The report still independently checks exact POS store access.
 Changing branch clears prior workflow state; tenant changes remount operational

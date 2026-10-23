@@ -1,5 +1,11 @@
 # NexaConnect Data Migration
 
+Restaurant migration 4 adds three QR entry/session/immutable-audit tables. It is additive
+with minimum application version 0.38.0 and does not change financial schema compatibility.
+Enable QR only after migration and least-privilege grants. Down removes QR admission
+history with explicit destructive/backup confirmations. See
+[QR persistence](../../../docs/Database/QR-Entry.md) and [operations](../../../docs/Deployment/QR1-Entry.md).
+
 Audited settlement replay is implemented in POS 23 / Reporting 22 at compatibility 0.38.0. Administrative --settlements preview pins original V1/V2 payloads; execute records intent in the same source snapshot, append-only attempts and actual database-login attribution before/after broker calls. Original receipts, source revisions and dispatcher flags stay unchanged. No customer replay endpoint or grant is added. See [ADR-035](../../../docs/Architecture/Decisions/ADR-035-audited-settlement-replay.md), [command](../../../docs/API/Settlement-Replay.md) and [operations](../../../docs/Deployment/Settlement-Replay.md).
 
 Settlement reporting now uses Reporting 22 / POS 23 with matching binaries at compatibility 0.38.0. New commits atomically publish V2 proof; the opt-in consumer accepts original V1/V2, stores immutable facts/hash receipts and exposes a live authorized business-date ledger with separate corrections and delivery gaps. V1 proof remains unavailable rather than enriched. No new financial authority is added. See [ADR-034](../../../docs/Architecture/Decisions/ADR-034-settlement-reporting.md), [API](../../../docs/API/Settlement-Reporting.md) and [rollout](../../../docs/Deployment/Settlement-Reporting.md).

@@ -4,6 +4,8 @@ import { CashCloseReportPanel } from "./CashCloseReportPanel";
 import { KitchenQueuePanel } from "./KitchenQueuePanel";
 import { KitchenDisplay } from "./KitchenDisplay";
 import { BranchGalleryPanel } from "./BranchGalleryPanel";
+import { QrEntryPanel } from "./QrEntryPanel";
+import { QrGuestEntry, isQrGuestEntry } from "./QrGuestEntry";
 import { currentSection, isKitchenEntry, signInToCustomer } from "./navigation";
 import React, { useEffect, useRef, useState } from "react";
 import { PaymentReviewPanel } from "./PaymentReviewPanel";
@@ -396,7 +398,7 @@ function App() {
       </>
     );
   else if (section === "users") panel = <MembershipsPanel />;
-  else if (section === "configuration") panel = <ConfigurationPanel />;
+  else if (section === "configuration") panel = <React.Fragment key={`${tenant.organizationId}|${tenant.applicationCode}`}><ConfigurationPanel/>{tenant.applicationCode==="nexa_connect"&&<QrEntryPanel/>}</React.Fragment>;
   else if (section === "branches") panel = <BranchesPanel />;
   else if (section === "dashboards") panel = <DashboardPanel />;
   else if (section === "reports") panel = tenant.applicationCode === "nexa_connect"
@@ -454,7 +456,7 @@ createRoot(document.getElementById("root")!).render(
           <Alert type="error" message="The portal could not render safely." />
         )}
       >
-        <App />
+        {isQrGuestEntry() ? <QrGuestEntry/> : <App />}
       </ErrorBoundary>
     </NexaDesignProvider>
   </React.StrictMode>,

@@ -326,6 +326,15 @@ The Catalog/Menu → Order → Inventory → Kitchen → Payment portion is impl
 
 ## 10. QR ordering
 
+QR1's [entry foundation](../Deployment/QR1-Entry.md) implements Restaurant-owned,
+branch-scoped logical table labels and per-visitor admission, with versioned QR rotation/
+revocation, absolute expiry, hashes, audited configuration authority and bounded admission.
+The same-origin Customer BFF keeps a distinct guest cookie; `/order` returns public table
+context only. Existing floor/table-account records are not edited by logical QR labels;
+future acceptance must explicitly translate any physical table model. QR1 adds no guest
+order/payment authority, stock reservation or Kitchen work. The complete flow below is
+still the target for QR2–QR5. See [ADR-044](Decisions/ADR-044-table-qr-entry-and-guest-sessions.md).
+
 The QR token identifies a restaurant branch and normally a table or ordering context. It must be opaque, revocable, and protected against guessing or cross-branch use.
 
 A customer QR flow normally includes:

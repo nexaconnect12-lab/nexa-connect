@@ -1,5 +1,11 @@
 # NexaConnect frontend foundations
 
+QR1 browser checks: `npx playwright test --config playwright.qr-entry.config.mjs` runs
+context-only guest entry/refresh/end and scoped staff QR display in desktop Chromium,
+Android Chromium and iPhone WebKit emulation. Install Chromium/WebKit first. These mocks
+verify browser behavior; actual guest API/owning PostgreSQL tests and real phones are
+separate. See [QR1 evidence and limits](../../docs/Deployment/QR1-Entry.md).
+
 Phase 5 adds the Customer Media branch gallery approval editor. Run `npm run test:e2e:gallery`
 for seven synthetic ordering/approval/removal/scope/conflict cases; these do not prove live
 identity, S3/ClamAV or physical screensaver use. See [Phase 5](../../docs/Deployment/Next-Iteration-Phase-5.md).

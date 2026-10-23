@@ -10,7 +10,7 @@ public sealed class MigrationRunnerTests
         {
             ["PlatformDirectory"] = 3,
             ["Authorization"] = 15,
-            ["Restaurant"] = 3,
+            ["Restaurant"] = 4,
             ["Catalog"] = 4,
             ["Inventory"] = 5,
             ["Order"] = 19,

@@ -1,5 +1,12 @@
 # NexaConnect Customer Portal
 
+QR1 adds Configuration → Table QR entry for scoped QR issue/rotation/revocation and a
+public `/order` context-only mobile landing. The landing removes the entry fragment before
+exchange, never boots staff requests, and uses a separate HttpOnly BFF visit cookie;
+it stores no guest capability in browser storage. QR display/links are one-time staff
+output, cleared on branch/workspace changes. Menu/order/payment remain later slices.
+See [configuration/security/verification](../../../../docs/Deployment/QR1-Entry.md).
+
 Phase 5 adds **Approved screensaver gallery** under Media management for the NexaConnect
 workspace: branch selection, separate ordered staff/customer lists, bounded public text,
 explicit approval and version/CSRF-protected saves. Only ready Media assets are offered;

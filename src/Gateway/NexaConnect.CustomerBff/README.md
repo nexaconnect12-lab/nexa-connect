@@ -1,5 +1,17 @@
 # NexaConnect Customer BFF
 
+QR1 adds a context-only anonymous `/order` browser entry and distinct `/bff/guest/qr`
+cookie boundary, plus scoped `/bff/customer/qr-entries` administration. Guest calls never
+forward staff bearer/session/tenant headers; staff mutations retain CustomerSession,
+protected tenant/live Directory checks and CSRF. Enable `QrGuest__Enabled` with an exact
+HTTPS `QrGuest__PublicOrigin` only after Restaurant migration 4/QR enablement and ingress
+verification. Default off. Direct HTTPS Restaurant and shared correlation remain required.
+See [QR contract](../../../docs/API/QR-Entry.md), [identity](../../../docs/Identity/QR-Guest-Entry.md)
+and [operations/verification](../../../docs/Deployment/QR1-Entry.md). Service telemetry:
+`{service_name="nexaconnect-customer-bff"} |= "QR"`, then validated `CorrelationId`.
+Bodies/headers/cookies/capabilities/labels/IPs are never logged; only bounded operation/status.
+This adds no guest menu/order/payment authority or Kitchen execution.
+
 Phase 5 adds `/bff/customer/screensaver-gallery/csrf` and GET/PUT
 `/bff/customer/screensaver-gallery/branches/{branch}`. Application revalidates protected
 tenant subject/current Directory product access; Restaurant repeats branch authority and

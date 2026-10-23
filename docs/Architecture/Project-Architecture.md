@@ -1,5 +1,19 @@
 # NexaConnect Project Architecture
 
+QR1 implements Restaurant-owned table-entry and visitor admission (Restaurant migration 4),
+with Domain version/budget rules and Infrastructure hash-only persistence. Existing live
+configuration-manage authority controls QR administration; mutations audit/outbox atomically.
+An opaque table entry exchanges for an independent two-hour visitor capability. Every read
+rechecks owner hierarchy, entry version/active/expiry and session expiry/ended state.
+Customer BFF adds a separate host-only HttpOnly guest cookie, exact HTTPS Origin on guest
+mutations and bounded correlated Restaurant adapters, without guest Keycloak roles or staff
+token forwarding. `/order` is context-only. Table codes are staff-assigned ordering labels;
+the existing floor `dining_tables`/table-account model is not mutated or implicitly joined.
+Menu/cart/request/approval/Inventory/Kitchen/payment remain QR2–QR5. Both hosts default off;
+public hosting, real phones and release gates remain pending. See
+[ADR-044](Decisions/ADR-044-table-qr-entry-and-guest-sessions.md),
+[contract](../API/QR-Entry.md) and [operations](../Deployment/QR1-Entry.md).
+
 Phase 8 aligns hosting and installer artifacts with a shared additive `releaseSource`
 identity over Git-clean source/packaging/configuration/workflow inputs. Integrated tests
 retain source and joined financial/recovery scopes separately. Release readiness binds

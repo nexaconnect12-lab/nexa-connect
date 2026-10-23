@@ -19,6 +19,14 @@ signed distribution and actual install/device acceptance remain pending.
 actual freeze remains conditional on its measured gates. Phase 9 remains pending;
 no user acceptance is asserted here.
 
+23 October 2026 priority update: the user deferred the remaining hosted release,
+signing/device and consolidated-test work until server/device specifications are ready.
+Keep those gates pending; do not mark the release frozen or accepted. The selected next
+development track is [table QR ordering for iOS/Android browsers](QR-Ordering-Roadmap.md),
+with anonymous guests, payment at the cashier and staff acceptance before Kitchen.
+Its scope confirmation and [QR1 entry foundation](../Deployment/QR1-Entry.md) are recorded;
+menu/cart, submission, acceptance and cashier collection remain pending.
+
 The user considers the first draft sufficient to proceed. This does not fill its
 pending detailed UAT results. Preserve the original candidate, records and deferred
 cashier-session observation; create new release/UAT identities for changed inputs.
@@ -82,9 +90,10 @@ Leave unchecked until the linked phase supplies verified evidence.
 - [ ] R10 — Run a second consolidated user test after the next candidate is complete.
   Preserve unexecuted results as pending; fix and retest blockers. Phases 8–9.
 
-QR ordering and kiosk ordering were discussed as future capabilities, not agreed
-implementation scope for this release. Follow-ons A–B below provide bounded prompts
-if selected. Likewise menu-management expansion, onboarding UI, table transfers/split
+QR ordering was selected on 23 October as the next separate development track; use
+[the QR roadmap](QR-Ordering-Roadmap.md) and its confirmed guest/payment/approval rules.
+It does not become part of the previously bound Phase 8 review candidate. Kiosk ordering
+remains an unselected follow-on. Likewise menu-management expansion, onboarding UI, table transfers/split
 bills, manual refunds, new providers, fiscal localization, physical peripherals and full
 offline synchronization are proposed backlog, not silently included in this release.
 If selected, give each its own contracts, invariants and acceptance plan; do not disguise
@@ -309,7 +318,11 @@ Exit: documented second-test outcome and user decision, or explicit blockers and
 
 ## Follow-on prompts outside the core second-test scope
 
-### A — QR ordering, if selected
+### A — QR ordering, selected 23 October 2026
+
+The [QR ordering roadmap](QR-Ordering-Roadmap.md) specializes this original follow-on
+prompt with the user's confirmed rules and implementation slices. It records outstanding
+Phase 6–9 readiness separately; selecting QR does not waive those release gates.
 
 ```text
 Scope QR ordering as a separate follow-on under the common instructions.

@@ -1,5 +1,13 @@
 # NexaConnect
 
+The next selected development track is [table QR ordering for iOS/Android browsers](docs/Planning/QR-Ordering-Roadmap.md):
+guest ordering, staff acceptance before Kitchen, and payment at the cashier. Scope is
+confirmed. [QR1 secure entry](docs/Deployment/QR1-Entry.md) implements scoped table QR
+issuance/rotation/revocation and independent visitor sessions, with a context-only mobile
+landing. Menu/cart, submissions, staff acceptance and cashier handoff remain QR2–QR5.
+Remaining hosted-release and physical
+acceptance work is recorded as pending specifications; existing release gates still apply.
+
 Phase 8 adds integrated source/joined verification and one source/configuration/artifact
 binding for hosting and installer freeze. [The release guide](docs/Deployment/Next-Iteration-Phase-8.md)
 keeps unsigned/stale artifacts, missing target evidence and unverified clean CI blocked;

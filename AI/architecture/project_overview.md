@@ -1,5 +1,16 @@
 # NexaConnect Project Architecture
 
+On 23 October 2026 the user selected [table QR ordering](../../docs/Planning/QR-Ordering-Roadmap.md)
+as the next development track: iOS/Android browser guests, payment at the cashier, and
+staff acceptance before Kitchen dispatch. [QR1](../../docs/Deployment/QR1-Entry.md) adds
+Restaurant-owned logical table entry/visitor admission (migration 4), scoped configuration
+authority, hash-only random capabilities, absolute expiry/version revocation, bounded
+admission and audit/outbox. Customer BFF provides a separate HttpOnly guest cookie and
+exact-origin mutation boundary; `/order` shows context only. No guest staff/order/payment
+authority is granted. QR2–QR6 remain pending. Hosted release/signing/device/Phase 9 work is
+deferred pending specifications, with existing readiness gates preserved. This selection
+preserves the existing readiness gates; no QR deployment/phone acceptance is claimed.
+
 Phase 8 adds shared Git-clean source identity across hosting/installer producers, complete
 source/joined verification and a write-once freeze gate for exact artifacts, configuration,
 schema, remote CI, signatures and separately labeled operator evidence. A new fifteen-case

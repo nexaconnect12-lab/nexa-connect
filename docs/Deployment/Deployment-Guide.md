@@ -1,5 +1,10 @@
 # Deployment Guide
 
+QR1 is separately opt-in: apply Restaurant migration 4 and use the [QR entry runbook](QR1-Entry.md)
+with [per-component flags/origin example](qr-entry.env.example). Both hosts default off;
+existing financial versions/permissions remain unchanged. QR1 serves table context only,
+with no guest ordering/payment or public deployment acceptance implied.
+
 For the dedicated-server next iteration, use the [Phase 6 hosting procedures](Next-Iteration-Phase-6.md),
 [Phase 7 installer procedures](Next-Iteration-Phase-7.md) and [Phase 8 release gates](Next-Iteration-Phase-8.md).
 Phase 8 binds the exact source, artifacts, configuration and evidence; it does not deploy

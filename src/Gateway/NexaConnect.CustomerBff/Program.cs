@@ -14,6 +14,13 @@ using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddOptions<NexaConnect.CustomerBff.Controllers.QrGuestOptions>().Bind(builder.Configuration.GetSection("QrGuest"))
+    .Validate(o => !o.Enabled || NexaConnect.CustomerBff.Controllers.QrGuestOptions.ValidOrigin(o.PublicOrigin), "QrGuest:PublicOrigin must be an exact HTTPS origin.").ValidateOnStart();
+builder.Services.AddSingleton(new NexaConnect.Infrastructure.Http.BoundedRequestGate(TimeProvider.System));
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Qr.QrGatewayService>();
+builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.Qr.IQrGatewayPort, NexaConnect.CustomerBff.Infrastructure.Qr.HttpQrGatewayPort>(client =>
+{ client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")); client.Timeout = TimeSpan.FromSeconds(15); })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false }).AddNexaConnectCorrelationPropagation();
 builder.AddNexaConnectObservability("nexaconnect-customer-bff");
 NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensions.EnsureProductionHttps(builder.Configuration, builder.Environment);
 // MVC view services register the built-in anti-forgery authorization filter used by the JSON controller.
@@ -154,6 +161,16 @@ var app = builder.Build();
 // Gallery reuses named clients with shared correlation propagation and the Customer session.
 app.Use(async(context,next)=>{if(context.Request.Path.Value?.Contains("/reports/day-settlements",StringComparison.OrdinalIgnoreCase)==true)context.Response.Headers.CacheControl="no-store";await next();});
 app.UseNexaConnectRequestLogging();
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/bff/guest/qr") || context.Request.Path.StartsWithSegments("/bff/customer/qr-entries") || context.Request.Path is { Value: "/order" or "/order/" })
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        context.Response.Headers["Referrer-Policy"] = "no-referrer";
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    }
+    await next();
+});
 app.Use(async(context,next)=>{if(context.Request.Path.StartsWithSegments("/bff/customer/reports/cash-corrections"))context.Response.Headers.CacheControl="no-store";await next();});
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
@@ -161,7 +178,9 @@ app.Use(async (context, next) =>
 {
     if ((context.Request.Path.StartsWithSegments("/bff/customer/late-cash-corrections", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-late-work", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-settlements", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-finalization-preparations", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-approvals", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-seals", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-cutoffs", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-preparations", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/reports/financial-completeness", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/reports/end-of-day", StringComparison.OrdinalIgnoreCase)))
         context.Response.Headers.CacheControl = "no-store";
-    context.Response.Headers.ContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+    context.Response.Headers.ContentSecurityPolicy = context.Request.Path.Value is "/order" or "/order/"
+        ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'"
+        : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
     context.Response.Headers.XContentTypeOptions = "nosniff";
     context.Response.Headers["Referrer-Policy"] = "no-referrer";
     await next();
