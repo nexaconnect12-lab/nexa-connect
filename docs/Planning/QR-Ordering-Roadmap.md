@@ -6,7 +6,8 @@ Scope confirmation/repository assessment is complete. [QR1 secure entry](../Depl
 now implements entry/context APIs, storage, staff QR display and the mobile landing.
 [QR2 menu/cart](../Deployment/QR2-Menu.md) now adds responsive menu browsing, quantities
 and authoritative THB totals. [QR3 requests](../Deployment/QR3-Requests.md) now adds retained quote submissions, private
-status recovery and staff rejection. Acceptance/payment and actual phone acceptance remain pending.
+status recovery and staff rejection. [QR4 acceptance](../Deployment/QR4-Acceptance.md) now implements exact guest price review
+and atomic original Order handoff to Inventory/Kitchen recovery. Cashier payment and actual phone acceptance remain pending.
 
 ## Confirmed flow
 
@@ -76,7 +77,7 @@ table tabs/transfers/split bills, native apps or offline guest execution.
 
 Use the common instructions in the [next-iteration roadmap](Next-Iteration-Roadmap.md#common-instructions-for-every-implementation-prompt)
 with each prompt below. Implement and verify one coherent slice at a time. QR0 is this
-scope/repository assessment; QR1–QR3 source is implemented and QR4–QR6 remain pending. Intermediate slices must be visibly
+scope/repository assessment; QR1–QR4 source is implemented and QR5–QR6 remain pending. Intermediate slices must be visibly
 incomplete and disabled from public ordering until the dependent flow is verified.
 
 | Slice | Deliverable | Depends on | Exit evidence |
@@ -85,7 +86,7 @@ incomplete and disabled from public ordering until the dependent flow is verifie
 | QR1 | Secure table entry and per-visitor guest sessions — implemented in source | QR0 | [Contract, verification and remaining deployment/phone gates](../Deployment/QR1-Entry.md) |
 | QR2 | Mobile menu, authoritative quote and cart — implemented in source | QR1 | [Scope, bounds, verification and remaining gates](../Deployment/QR2-Menu.md) |
 | QR3 | Durable guest submission and staff review — implemented in source | QR2 | [Idempotency, isolation, expiry, quotas and verification](../Deployment/QR3-Requests.md) |
-| QR4 | Staff acceptance into existing Order/Inventory/Kitchen | QR3 | Stable original order identity, live permission/version/pricing checks, concurrent/retry/outage recovery, one set of downstream effects |
+| QR4 | Staff acceptance into existing Order/Inventory/Kitchen — implemented in source | QR3 | [Atomic identity, consent, recovery and verification](../Deployment/QR4-Acceptance.md) |
 | QR5 | Windows cashier retrieval and settlement | QR4 | Retrieve original accepted order, retained recovery identity, authorized single payment, original receipt and correct cash/reporting effects |
 | QR6 | Joined hardening and phone-test candidate | QR1–QR5 | Security/financial regression, fresh candidate, deployment guidance and separately pending physical iOS/Android acceptance |
 

@@ -1,5 +1,12 @@
 # NexaConnect Customer BFF
 
+QR4 adds protected-tenant/version/CSRF staff acceptance and cookie/exact-Origin guest
+price confirmation, default-off QrGuest__AcceptanceEnabled. Current membership and owning
+order.place remain mandatory; guest calls never forward staff identity. Typed request
+views add original Order ID/status and review quote; no arbitrary Order/payment lookup.
+Existing2MiB/15s bounds and QR correlation/safe logs apply. See [QR4](../../../docs/Deployment/QR4-Acceptance.md).
+
+
 QR3 adds cookie-only guest requests and protected-tenant staff review forwarding.
 QrGuest__RequestsEnabled defaults false and is additional to entry/menu flags. Guest POST
 requires exact HTTPS Origin/JSON; staff rejection uses CustomerSession, live Directory and

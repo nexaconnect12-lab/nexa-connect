@@ -1,5 +1,12 @@
 # Restaurant Service
 
+QR4 adds exact-Order-workload-only internal QR visitor/entry context read, including
+current dine-in policy. Owning parameterized lookup checks organization/branch/visitor/
+entry, active hierarchy/version, session ended/expiry; no secret recovery or public
+visitor-ID authority. No Restaurant migration. Correlated Order workload calls and safe
+QR denial/unavailable events use nexaconnect-restaurant. See [QR4](../../../docs/Deployment/QR4-Acceptance.md).
+
+
 QR3 adds operational discovery capability qr-requests using existing order.read; no
 Restaurant schema/admission change. Order revalidates the current visitor on guest
 submission/status, while staff operations require live branch decisions independently.

@@ -16,6 +16,7 @@ public sealed class QrGuestOptions
     public bool Enabled { get; set; }
     public bool MenuEnabled { get; set; }
     public bool RequestsEnabled { get; set; }
+    public bool AcceptanceEnabled { get; set; }
     public string PublicOrigin { get; set; } = "";
     public static bool ValidOrigin(string value) => value.Length <= 256 && Uri.TryCreate(value, UriKind.Absolute, out var uri)
         && uri.Scheme == "https" && uri.AbsolutePath == "/" && uri.Query == "" && uri.Fragment == "" && uri.UserInfo == "";
@@ -35,13 +36,14 @@ public sealed class QrGuestEntryController(IQrGatewayPort port, IOptions<QrGuest
     [HttpPost("quote"), RequestSizeLimit(8192)] public Task<IActionResult> Quote(QrCart cart, CancellationToken ct) => Shopping("quote", cart, ct);
     [HttpGet("requests")] public Task<IActionResult> Mine(CancellationToken ct) => Shopping("mine",null,ct);
     [HttpPost("requests"),RequestSizeLimit(1024)] public Task<IActionResult> Submit(QrSubmission input,CancellationToken ct) => Shopping("submit",input,ct);
-    private async Task<IActionResult> Shopping(string operation, object? cart, CancellationToken ct)
+    [HttpPost("requests/{id:guid}/confirm-price"),RequestSizeLimit(1024)]public Task<IActionResult> Confirm(Guid id,QrPriceConfirmation input,CancellationToken ct)=>!settings.Value.AcceptanceEnabled?Task.FromResult<IActionResult>(NotFound()):Shopping("confirm",input,ct,id);
+    private async Task<IActionResult> Shopping(string operation, object? cart, CancellationToken ct,Guid? id=null)
     {
         if (!settings.Value.Enabled || !settings.Value.MenuEnabled) return NotFound();
-        if(operation is "mine" or "submit" && !settings.Value.RequestsEnabled)return NotFound();
+        if(operation is "mine" or "submit" or "confirm" && !settings.Value.RequestsEnabled)return NotFound();
         string origin = settings.Value.Origin;
         if (!Request.IsHttps || !string.Equals($"https://{Request.Host}", origin, StringComparison.OrdinalIgnoreCase)
-            || operation is "quote" or "submit" && (!Request.HasJsonContentType() || !string.Equals(Request.Headers.Origin.ToString(), origin, StringComparison.OrdinalIgnoreCase)))
+            || operation is "quote" or "submit" or "confirm" && (!Request.HasJsonContentType() || !string.Equals(Request.Headers.Origin.ToString(), origin, StringComparison.OrdinalIgnoreCase)))
         { logger.LogWarning("QR shopping origin rejected"); return StatusCode(403); }
         if (!gate.Admit(HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"))
         { logger.LogWarning("QR shopping rate limited"); Response.Headers.RetryAfter = "60"; return StatusCode(429); }
@@ -49,7 +51,7 @@ public sealed class QrGuestEntryController(IQrGatewayPort port, IOptions<QrGuest
         if (!ValidToken(session)) return Unauthorized();
         try
         {
-            var reply = operation is "mine" or "submit"?await port.RequestsAsync(session!,cart as QrSubmission,ct):await port.ShoppingAsync(operation, session!, cart as QrCart, ct);
+            var reply = operation=="confirm"?await port.ConfirmAsync(session!,id!.Value,(QrPriceConfirmation)cart!,ct):operation is "mine" or "submit"?await port.RequestsAsync(session!,cart as QrSubmission,ct):await port.ShoppingAsync(operation, session!, cart as QrCart, ct);
             if (reply.Status is < 200 or >= 300)
             {
                 logger.LogWarning("QR shopping rejected; operation {Operation}, status {Status}", operation, reply.Status);
@@ -59,7 +61,7 @@ public sealed class QrGuestEntryController(IQrGatewayPort port, IOptions<QrGuest
             }
             // Typed allowlist prevents internal dependency fields from reaching guests.
             if(operation=="mine")return Ok(reply.Body?.Deserialize<QrRequestList>(JsonSerializerOptions.Web)??throw new JsonException());
-            if(operation=="submit")return Ok(reply.Body?.Deserialize<QrRequestView>(JsonSerializerOptions.Web)??throw new JsonException());
+            if(operation is "submit" or "confirm")return Ok(reply.Body?.Deserialize<QrRequestView>(JsonSerializerOptions.Web)??throw new JsonException());
             if (operation == "menu")
             {
                 var menu = reply.Body?.Deserialize<QrMenu>(JsonSerializerOptions.Web);

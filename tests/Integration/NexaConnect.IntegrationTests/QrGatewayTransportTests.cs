@@ -25,6 +25,8 @@ public sealed class QrGatewayTransportTests
         await port.ShoppingAsync("quote",new string('S',43),new([new(Guid.NewGuid(),2)]),default);Assert.Null(handler.Authorization);Assert.False(handler.Cookie);Assert.False(handler.Tenant);
         handler.Body="{}";await port.ReviewAsync(new("operator",Guid.NewGuid(),"nexa_connect"),"staff-token",Guid.NewGuid(),"pending",null,null,default);Assert.Equal("Bearer staff-token",handler.Authorization);Assert.True(handler.Tenant);Assert.Null(handler.Session);
         await port.RequestsAsync(new string('S',43),new(Guid.NewGuid(),new string('A',64)),default);Assert.Null(handler.Authorization);Assert.False(handler.Cookie);Assert.False(handler.Tenant);Assert.Equal(new string('S',43),handler.Session);
+        await port.AcceptAsync(new("operator",Guid.NewGuid(),"nexa_connect"),"staff-token",Guid.NewGuid(),Guid.NewGuid(),new(1),default);Assert.Equal("Bearer staff-token",handler.Authorization);Assert.True(handler.Tenant);Assert.Null(handler.Session);
+        await port.ConfirmAsync(new string('S',43),Guid.NewGuid(),new(2,new string('A',64)),default);Assert.Null(handler.Authorization);Assert.False(handler.Tenant);Assert.Equal(new string('S',43),handler.Session);
         handler.Body = new string('X',65537); await Assert.ThrowsAsync<HttpRequestException>(() => port.GuestAsync("context",new string('S',43),null,default));
     }
     private sealed class Clients(HttpClient client) : IHttpClientFactory { public HttpClient CreateClient(string name) => client; }

@@ -1,5 +1,11 @@
 # NexaConnect frontend foundations
 
+QR4 browser contracts cover staff acceptance/version/CSRF and original-guest changed-price
+review across the existing QR Chromium/WebKit/desktop matrix. Mocked browser HTTP remains
+separate from owning PostgreSQL recovery and actual hosted/phone acceptance.
+See [QR4](../../docs/Deployment/QR4-Acceptance.md).
+
+
 QR3 extends the QR browser matrix with durable-request contract mocks: refresh/status
 recovery, committed response loss, original identity retry and CSRF/versioned staff
 rejection. Guest capabilities remain HttpOnly and are not stored in JavaScript.

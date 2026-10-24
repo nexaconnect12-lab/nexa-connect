@@ -91,6 +91,12 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource, TimePro
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SaveWithEventInTransactionAsync(connection, transaction, order, integrationEvent, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    internal async Task SaveWithEventInTransactionAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, OrderAggregate order, IIntegrationEvent integrationEvent, CancellationToken cancellationToken)
+    {
         await SaveOrderAsync(connection, transaction, order, cancellationToken);
         var payload = JsonSerializer.SerializeToDocument(integrationEvent, integrationEvent.GetType()).RootElement;
         await using var command = new NpgsqlCommand("""
@@ -119,7 +125,6 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource, TimePro
             reviewCommand.Parameters.AddWithValue(review.Reason);reviewCommand.Parameters.AddWithValue(review.OccurredAtUtc);
             await reviewCommand.ExecuteNonQueryAsync(cancellationToken);
         }
-        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<PaymentReviewCase>> ListOpenAsync(Guid organizationId,Guid branchId,int limit,CancellationToken cancellationToken)

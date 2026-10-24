@@ -1,7 +1,8 @@
 # Restaurant QR1 persistence
 
 QR3 separately adds Order-owned quote/request storage; Restaurant admission remains
-unchanged. The disposable launcher now requires three cases; earlier QR1/QR2 receipts
+unchanged. QR4 adds Order acceptance storage and a scoped Restaurant admission read; no
+Restaurant migration. The disposable launcher requires four cases; earlier QR1/QR2 receipts
 retain their historical counts. See [Order storage](QR-Requests.md).
 
 
@@ -9,9 +10,11 @@ QR2 alone adds no tables/migrations: its cart/quotes are transient and use exist
 organization/branch menu reads and Restaurant pricing policy. Catalog's guest projection
 adds a parameterized organization+branch query with LIMIT 201 to detect its 200-item cap;
 see [QR2](../Deployment/QR2-Menu.md). The shared disposable persistence launcher now requires
-QR1 admission, QR2 Catalog isolation/bounds and QR3 Order request cases; prior QR1 receipts
+QR1 admission, QR2 Catalog isolation/bounds, QR3 Order request and QR4 Inventory/Kitchen
+recovery cases; prior QR1 receipts
 retain their historical one-case meaning. QR3 adds pending Order request storage; no
-executable Order/Inventory/Kitchen/payment state is written.
+executable Order/Inventory/Kitchen/payment state is written by QR3 submission alone.
+See [QR4 storage](QR-Acceptance.md) for the separate accepted handoff.
 
 Apply Restaurant migration 4 (`0004_qr_entry`) with the migration owner's credentials
 before enabling QR entry. Minimum migration application version stays 0.38.0; this is
@@ -19,7 +22,7 @@ an additive Restaurant capability, with no coordinated financial schema/version 
 Existing branch configuration, floor records, Order/POS/Payment and settlement history
 remain untouched. Restaurant now has eleven catalog tables (seven initial, branch audit,
 three QR tables); at QR1 introduction the full catalog added three tables to the prior
-201 = 204. The current QR3 catalog has 207 tables.
+201 = 204. QR3 increased the catalog to207; current QR4 catalog has208 tables.
 
 - `restaurant_qr_entries`: organization/restaurant/branch, staff table code, SHA-256 entry
   hash, version, active state, absolute expiry. Unique branch/code and hash, branch/restaurant

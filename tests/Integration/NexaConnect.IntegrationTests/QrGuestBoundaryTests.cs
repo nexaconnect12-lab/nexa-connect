@@ -20,6 +20,18 @@ namespace NexaConnect.IntegrationTests;
 
 public sealed class QrGuestBoundaryTests
 {
+    [Fact]public async Task Acceptance_and_price_confirmation_keep_staff_csrf_and_guest_origin_authority_separate()
+    {
+        await using var factory=new Factory(true,true,true);using var guest=factory.CreateClient(Options());Guid id=Guid.NewGuid();string confirm=$"/bff/guest/qr/requests/{id}/confirm-price";
+        guest.DefaultRequestHeaders.Add("Origin","https://localhost");using(var missing=await guest.PostAsJsonAsync(confirm,new QrPriceConfirmation(2,new string('A',64))))Assert.Equal(HttpStatusCode.Unauthorized,missing.StatusCode);
+        await guest.PostAsJsonAsync("/bff/guest/qr/sessions",new QrEntryExchange(new string('E',43)));guest.DefaultRequestHeaders.Remove("Origin");using(var cross=await guest.PostAsJsonAsync(confirm,new QrPriceConfirmation(2,new string('A',64))))Assert.Equal(HttpStatusCode.Forbidden,cross.StatusCode);
+        guest.DefaultRequestHeaders.Add("Origin","https://localhost");using(var own=await guest.PostAsJsonAsync(confirm,new QrPriceConfirmation(2,new string('A',64))))Assert.Equal(HttpStatusCode.OK,own.StatusCode);
+        using var staff=factory.CreateClient(Options());await SignIn(factory,staff);string root=$"/bff/customer/qr-requests/branches/{Guid.NewGuid()}/{id}/accept";
+        using(var noCsrf=await staff.PostAsJsonAsync(root,new QrAcceptance(1)))Assert.Equal(HttpStatusCode.BadRequest,noCsrf.StatusCode);
+        var csrf=await staff.GetFromJsonAsync<JsonElement>("/bff/customer/qr-requests/csrf");staff.DefaultRequestHeaders.Add("X-Nexa-CSRF",csrf.GetProperty("requestToken").GetString());
+        using(var accepted=await staff.PostAsJsonAsync(root,new QrAcceptance(1)))Assert.Equal(HttpStatusCode.OK,accepted.StatusCode);
+        factory.Port.Membership=false;using var denied=await staff.PostAsJsonAsync(root,new QrAcceptance(1));Assert.Equal(HttpStatusCode.Forbidden,denied.StatusCode);
+    }
     [Fact]public async Task Request_bff_cookie_origin_privacy_staff_csrf_and_live_membership_are_independent()
     {
         await using var factory=new Factory(true,true);using var guest=factory.CreateClient(Options());
@@ -128,7 +140,7 @@ public sealed class QrGuestBoundaryTests
         string tenant = factory.Services.GetRequiredService<CUSTOMERBFF::NexaConnect.CustomerBff.TenantSelectionCookie>().Protect(new(subject,factory.Port.Organization,product));
         client.DefaultRequestHeaders.Remove("Cookie"); client.DefaultRequestHeaders.Add("Cookie",$"{options.Cookie.Name}={session}; __Host-nexa-customer-tenant={tenant}");
     }
-    private sealed class Factory(bool enabled = true,bool requests=false) : WebApplicationFactory<CUSTOMERBFF::Program>
+    private sealed class Factory(bool enabled = true,bool requests=false,bool acceptance=false) : WebApplicationFactory<CUSTOMERBFF::Program>
     {
         public Port Port { get; } = new();
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -140,13 +152,15 @@ public sealed class QrGuestBoundaryTests
                 ["Services:Restaurant"]="https://restaurant.test/",["Services:Reporting"]="https://reporting.test/",
                 ["Services:Media"]="https://media.test/",["Services:Notification"]="https://notification.test/",
                 ["Services:Catalog"]="https://catalog.test/",["Services:Inventory"]="https://inventory.test/",
-                ["QrGuest:Enabled"]=enabled.ToString(),["QrGuest:MenuEnabled"]="true",["QrGuest:RequestsEnabled"]=requests.ToString(),["QrGuest:PublicOrigin"]="https://localhost"
+                ["QrGuest:Enabled"]=enabled.ToString(),["QrGuest:MenuEnabled"]="true",["QrGuest:RequestsEnabled"]=requests.ToString(),["QrGuest:AcceptanceEnabled"]=acceptance.ToString(),["QrGuest:PublicOrigin"]="https://localhost"
             }));
             builder.ConfigureTestServices(services => { services.RemoveAll<IQrGatewayPort>(); services.AddSingleton<IQrGatewayPort>(Port); });
         }
     }
     private sealed class Port : IQrGatewayPort
     {
+        public Task<QrGatewayReply> AcceptAsync(TenantContext tenant,string bearer,Guid branch,Guid id,QrAcceptance input,CancellationToken ct){Assert.Equal("server-held-test-token",bearer);return Task.FromResult(new QrGatewayReply(200,JsonSerializer.SerializeToElement(View(id) with{Status="accepted",OrderId=id,OrderStatus="submitted"},JsonSerializerOptions.Web)));}
+        public Task<QrGatewayReply> ConfirmAsync(string session,Guid id,QrPriceConfirmation input,CancellationToken ct)=>Task.FromResult(sessions.ContainsKey(session)?new QrGatewayReply(200,JsonSerializer.SerializeToElement(View(id),JsonSerializerOptions.Web)):new QrGatewayReply(401,null));
         private readonly Dictionary<string,QrRequestView> submitted=[];
         public Task<QrGatewayReply> RequestsAsync(string session,QrSubmission? input,CancellationToken ct)
         {

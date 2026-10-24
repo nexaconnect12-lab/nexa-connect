@@ -1,5 +1,11 @@
 # QR1 guest authority
 
+QR4 staff acceptance uses live branch order.place/Directory and CSRF, not guest authority.
+Only the original visitor can confirm a price-review snapshot via its existing cookie
+and exact Origin. Private Restaurant context admits only exact Order workload, returns
+no secret and performs no guest-ID capability recovery. See [QR4](../API/QR-Acceptance.md).
+
+
 QR3 reuses the visitor capability for private submissions/status, with live Restaurant
 validation even on replay. New scans never inherit previous visitor requests; end/rescan
 does not cancel pending proposals. Staff queue/rejection use customer identity plus live

@@ -1,14 +1,20 @@
 # QR3 durable submissions and staff review
 
-QR3 source implements pending proposals only. Staff acceptance/Inventory/Kitchen integration
-is QR4; cashier collection/payment is QR5. Public hosted rollout, clean-source CI, actual
+QR4 now implements staff acceptance/price review and one original unpaid Order handoff.
+Current binaries require Order21; the shared persistence launcher now requires four
+cases. QR3 evidence below is historical and QR3-alone behavior is distinguished from
+enabled QR4. See [current QR4 guide](QR4-Acceptance.md).
+
+
+QR3 submission implements pending proposals. QR4 implements staff acceptance/Inventory/
+Kitchen integration; cashier collection/payment is QR5. Public hosted rollout, clean-source CI, actual
 iOS/Android camera scans and retained Phase6–9 gates remain pending. No server was deployed.
 
 ## Isolated setup and usage
 
 1. Follow [QR1](QR1-Entry.md) and [QR2](QR2-Menu.md) trusted HTTPS/private service setup.
    Configure actual owning Catalog/Restaurant menu/pricing and current Order workload.
-2. Apply Order migration20 under the migration identity, compatibility0.38.0, then verify
+2. Apply Order migrations20–21 under the migration identity, compatibility0.38.0, then verify
    [runtime grants](../Database/QR-Requests.md). This optional capability adds three tables;
    existing financial versions/permissions are unchanged. Use PostgreSQL; no in-memory
    durability fallback. Order refuses startup if QR3 enabled without PostgreSQL/QR menu.
@@ -27,13 +33,15 @@ iOS/Android camera scans and retained Phase6–9 gates remain pending. No server
 6. Staff enters Customer Portal **QR requests**, selects an authorized branch, and reviews
    pending/rejected/expired requests. `order.read` discovers/reads; `order.place` rejects.
    Rejections use fixed categories and expected version/CSRF. Queue shows10 oldest pending
-   proposals and explicit more indicator. Resolve/reload to see more. No acceptance button.
+   proposals and explicit more indicator. Resolve/reload to see more. With QR4 acceptance
+   disabled, no acceptance button is offered; enabled QR4 adds price_review/accepted tabs
+   and versioned acceptance.
 
 Pending requests expire after15minutes or visitor expiry. Server database time applies
 expiry on scoped access. Revocation/expiry denies guest submission/replay/status; it does
 not silently cancel requests. Ending/rescanning creates no cancellation and a new scan
 cannot recover the previous visitor's work. The page warns to consult staff. Reviewed
-prices are stored exactly, but QR4 must revalidate and obtain consent for changes before
+prices are stored exactly; QR4 revalidates and obtains consent for changes before
 acceptance. No price, stock, payment or Kitchen execution is promised by a pending request.
 
 Caps/retention and errors are specified in [API](../API/QR-Requests.md) and
@@ -81,9 +89,9 @@ dotnet test tests/Integration/NexaConnect.IntegrationTests --filter 'FullyQualif
 ```
 
 The launcher creates uniquely named loopback PostgreSQL infrastructure, applies owning
-Restaurant/Catalog/Order scripts to generated schemas, requires three non-skipped cases
+Restaurant/Catalog/Order/Inventory/Kitchen scripts to generated schemas, requires four non-skipped cases
 and exact cleanup, then retains private logs/TRX and `.runstate/qr-entry/<id>/verification.json`.
-No retained/live database is reset. The owning Order test exercises concurrent retries,
+No retained/live database is reset. The QR3-only owning Order case exercises concurrent retries,
 fresh repository reads, guessed visitor/owner denial, pending limits, expired quote replay,
 expiry, rejection/version checks, immutable audit, outbox rollback, quota contention and
 no executable Orders or non-audit integration events.
@@ -97,7 +105,8 @@ not real phones, actual public TLS or the joined QR4/QR5 financial workflow.
 Shared JSON/OTLP and validated correlation remain on owning services/BFF. Query QR denial/
 dependency events by service and CorrelationId; never expose quotes, visitor capabilities,
 cookies, actors or financial bodies in diagnostics. Outbox consumers must preserve generic
-audit separation; no financial event is produced. New candidate/artifact/schema bindings
+audit separation; QR3 proposal transitions produce no sale/workflow event. QR4 acceptance
+additionally commits the original OrderSubmittedV1 event. New candidate/artifact/schema bindings
 are required before release; prior Phase8/QR2 receipts are historical, not QR3 acceptance.
 
 Disable BFF RequestsEnabled and Order QrRequests to stop QR3 while retaining QR1/QR2.

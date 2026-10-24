@@ -49,3 +49,8 @@ retry correctness over parallel writes within one branch; measured capacity rema
 deployment gate. Access-driven expiry avoids a new worker but cannot promise scheduled
 cleanup of inactive branches. Later acceptance must extend this durable identity rather
 than recreate the request as independent work.
+
+QR4 extension: [ADR-047](ADR-047-atomic-qr-acceptance.md) implements that handoff
+with original-request Order identity and explicit logical-table provenance. It adds
+price_review/accepted transitions and excludes accepted requests/quotes from the
+24-hour proposal cleanup described above. The original QR3 rationale remains unchanged.

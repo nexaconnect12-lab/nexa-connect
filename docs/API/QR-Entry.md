@@ -1,7 +1,8 @@
 # QR1 table entry contract
 
 QR3 context adds requestsAvailable (BFF feature discovery only); orderingAvailable remains
-false until acceptance integration. Existing cookie/admission rules also protect the
+false; QR4 staff acceptance is separately enabled and does not grant guest Order/payment
+authority. Existing cookie/admission rules also protect the
 [request/status boundary](QR-Requests.md); rescan/end never cancels durable proposals.
 
 

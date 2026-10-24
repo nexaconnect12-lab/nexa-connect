@@ -17,6 +17,7 @@ public sealed class QrMenuController(QrMenuService service, QrRequestService req
     [HttpPost("requests"), RequestSizeLimit(1024)] public Task<IActionResult> Submit(QrSubmission input, CancellationToken ct) => Requests(async token => Ok(await requests.SubmitAsync(Capability(), input, Guid.TryParse(HttpContext.TraceIdentifier,out var id)?id:Guid.NewGuid(), token)), ct);
     private Task<IActionResult> Requests(Func<CancellationToken,Task<IActionResult>> action,CancellationToken ct)=>configuration.GetValue<bool>("QrRequests:Enabled")?Run(action,ct):Task.FromResult<IActionResult>(NotFound());
     private string Capability() => Request.Headers["X-Nexa-Guest-Session"].ToString();
+    [HttpPost("requests/{id:guid}/confirm-price"),RequestSizeLimit(1024)]public Task<IActionResult> Confirm(Guid id,QrPriceConfirmation input,[FromServices]QrAcceptanceService acceptance,CancellationToken ct)=>!configuration.GetValue<bool>("QrAcceptance:Enabled")?Task.FromResult<IActionResult>(NotFound()):Requests(async token=>Ok(await acceptance.ConfirmAsync(Capability(),id,input,Guid.TryParse(HttpContext.TraceIdentifier,out var c)?c:Guid.NewGuid(),token)),ct);
     private async Task<IActionResult> Run(Func<CancellationToken, Task<IActionResult>> action, CancellationToken ct)
     {
         if (!configuration.GetValue<bool>("QrMenu:Enabled")) return NotFound();

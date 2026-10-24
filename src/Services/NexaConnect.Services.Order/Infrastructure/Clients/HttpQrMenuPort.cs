@@ -6,8 +6,13 @@ using NexaConnect.Services.Order.Application.Workflow;
 
 namespace NexaConnect.Services.Order.Infrastructure.Clients;
 
-public sealed class HttpQrMenuPort(IHttpClientFactory clients) : IQrMenuPort
+public sealed class HttpQrMenuPort(IHttpClientFactory clients) : IQrMenuPort,IQrAcceptancePort
 {
+    public async Task<QrAcceptanceContext?> ContextAsync(Domain.Qr.GuestRequestScope scope,CancellationToken ct)
+    {
+        using var request=new HttpRequestMessage(HttpMethod.Get,$"api/restaurant/v1/internal/organizations/{scope.OrganizationId:D}/branches/{scope.BranchId:D}/qr-visitors/{scope.VisitorId:D}/entries/{scope.EntryId:D}");
+        return await Read<QrAcceptanceContext>(clients.CreateClient("QrAcceptanceContext"),request,4096,ct,true);
+    }
     public async Task<QrGuestContext?> ContextAsync(string capability, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "api/restaurant/v1/guest/qr/context");
@@ -28,7 +33,7 @@ public sealed class HttpQrMenuPort(IHttpClientFactory clients) : IQrMenuPort
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct); deadline.CancelAfter(TimeSpan.FromSeconds(10));
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);
-        if (allowUnauthorized && response.StatusCode == HttpStatusCode.Unauthorized) return default;
+        if (allowUnauthorized && response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.NotFound) return default;
         if (!response.IsSuccessStatusCode) throw new HttpRequestException("QR dependency unavailable.");
         if (response.Content.Headers.ContentLength > maximum) throw new HttpRequestException("QR dependency exceeded bounds.");
         using var stream = await response.Content.ReadAsStreamAsync(deadline.Token); using var data = new MemoryStream();

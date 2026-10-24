@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from "react";
 import {Alert,Button,Typography} from "antd";
 import {QrMenuCart,type Quote} from "./QrMenuCart";
-export type RequestView={id:string;tableCode:string;status:"pending"|"rejected"|"expired";version:number;submittedAtUtc:string;deadlineUtc:string;reason?:string;quote:Quote};
+export type RequestView={id:string;tableCode:string;status:"pending"|"price_review"|"accepted"|"rejected"|"expired";version:number;submittedAtUtc:string;deadlineUtc:string;reason?:string;quote:Quote;reviewQuote?:Quote;orderId?:string;orderStatus?:string};
 type Submission={quoteId:string;fingerprint:string};
 export function QrGuestRequests({currency,onExpired}:{currency:string;onExpired:()=>void}){
  const [requests,setRequests]=useState<RequestView[]>([]),[loaded,setLoaded]=useState(false),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false),[notice,setNotice]=useState<string>(),[cartKey,setCartKey]=useState(0);
@@ -24,10 +24,13 @@ export function QrGuestRequests({currency,onExpired}:{currency:string;onExpired:
   catch{if(alive.current)setNotice("Submission outcome is unknown. Check request status or retry the original request. Do not rescan or place it again with staff.");}
   finally{sending.current=false;if(alive.current)setBusy(false);}
  };
- const pending=requests.some(r=>r.status==="pending");
+ const confirm=async(item:RequestView)=>{if(!item.reviewQuote||sending.current)return;sending.current=true;setBusy(true);recoveryRevision.current++;
+  try{const response=await fetch(`/bff/guest/qr/requests/${item.id}/confirm-price`,{method:"POST",credentials:"same-origin",cache:"no-store",redirect:"error",headers:{"Content-Type":"application/json"},body:JSON.stringify({expectedVersion:item.version,fingerprint:item.reviewQuote.fingerprint})});if(response.status===401){callback.current();return;}if(!response.ok)throw new Error();await recover();}
+  catch{setNotice("Price confirmation changed or is unavailable. Check original request status before retrying.");}finally{sending.current=false;setBusy(false);}};
+ const pending=requests.some(r=>r.status==="pending"||r.status==="price_review");
  return <section aria-label="Your requests">
   <Typography.Title level={3}>Your requests</Typography.Title>
-  <p>Pending requests are unpaid and have not been sent to Kitchen. Acceptance is not available yet.</p>
+  <p>Pending requests are unpaid and await staff acceptance. Accepted orders still require cashier payment.</p>
   <p>Ending this visit or rescanning does not cancel a request. A new scan cannot recover this visit's requests; ask staff for help.</p>
   {notice&&<Alert role="status" type="warning" message={notice}/>}
   {uncertain&&<Alert role="status" type="warning" message="Keep this visit open while the submission outcome is checked. Retry uses the original quote identity."/>}
@@ -39,6 +42,14 @@ export function QrGuestRequests({currency,onExpired}:{currency:string;onExpired:
    <p>{new Intl.NumberFormat(undefined,{style:"currency",currency:r.quote.currency}).format(r.quote.totalAmount)} · deadline {new Date(r.deadlineUtc).toLocaleTimeString()}</p>
    {r.reason&&<p>Staff category: {r.reason.replaceAll("_"," ")}</p>}
    <ul>{r.quote.lines.map(l=><li key={l.productId}>{l.name} × {l.quantity}</li>)}</ul>
+   {r.orderId&&<p>Original Order {r.orderId} · {r.orderStatus}. Ask staff about preparation and cashier collection.</p>}
+   {r.status==="price_review"&&r.reviewQuote&&<section aria-label="Updated prices">
+    <Alert type="warning" message="Prices changed. Review the new breakdown before confirming."/>
+    <ul>{r.reviewQuote.lines.map(l=><li key={l.productId}>{l.name} × {l.quantity}: {l.lineTotal.toFixed(2)}</li>)}</ul>
+    <p>{r.reviewQuote.currency} · Subtotal {r.reviewQuote.subtotalAmount.toFixed(2)} · Service {r.reviewQuote.serviceChargeAmount.toFixed(2)} · Tax {r.reviewQuote.taxAmount.toFixed(2)} · Total {r.reviewQuote.totalAmount.toFixed(2)}</p>
+    <Button block disabled={busy||Date.parse(r.reviewQuote.expiresAtUtc)<=Date.now()} style={{minHeight:44}} onClick={()=>void confirm(r)}>Confirm updated prices for staff review</Button>
+    {Date.parse(r.reviewQuote.expiresAtUtc)<=Date.now()&&<p>Price review expired. Ask staff to refresh this original request.</p>}
+   </section>}
   </article>)}
   {loaded&&!pending&&!uncertain&&!busy&&<QrMenuCart key={cartKey} currency={currency} onExpired={onExpired} submit={quote=>{if(quote.quoteId)void send({quoteId:quote.quoteId,fingerprint:quote.fingerprint});}}/>}
   {pending&&<Alert role="status" message="A request is pending. Check its status before creating another."/>}

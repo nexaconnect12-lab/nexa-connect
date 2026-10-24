@@ -1,12 +1,24 @@
 # NexaConnect Project Architecture
 
+QR4 now extends proposals into a single atomic owning Order handoff, after live scoped
+staff authority, Restaurant admission/dine-in checks and current commercial resolution.
+Changed prices enter price_review for explicit original-guest consent and renewed staff
+acceptance. Order21 retains original UUID, accepted actor/decision/version and logical
+table provenance with Submitted Order and audit/outbox in one transaction. Existing
+Order recovery advances Inventory/Kitchen; cash_manual remains unpaid. No second worker,
+foreground side-effect coordinator, physical table account or guest payment authority.
+See [ADR047](Decisions/ADR-047-atomic-qr-acceptance.md), [API](../API/QR-Acceptance.md)
+and [rollout](../Deployment/QR4-Acceptance.md). Current QR readers require Order21.
+
+
 QR3 extends this boundary with Order-owned durable quote/request aggregates (migration20).
 Retained reviewed quote IDs are also submission identities; matching retries return the
 original request without repeating effects. Domain pending/rejected/expired transitions
 and admission budgets are coordinated by scoped transaction advisory locks. Access-driven
 expiry/retention and immutable audit/outbox commit atomically. Staff queue/rejection use
-live order.read/order.place decisions without guest/workload bypass. No executable Order,
-stock/Kitchen/payment action; QR4 must revalidate price and acceptance authority. See
+live order.read/order.place decisions without guest/workload bypass. Proposal submission
+does not execute an Order or stock/Kitchen/payment action; QR4 revalidates price and
+acceptance authority before the handoff described above. See
 [ADR-046](Decisions/ADR-046-durable-qr-guest-requests.md), [contract](../API/QR-Requests.md)
 and [rollout](../Deployment/QR3-Requests.md).
 
@@ -25,7 +37,7 @@ Public responses omit stations/stock/assets; browser quantities are transient, n
 or owner authority. See [ADR-045](Decisions/ADR-045-qr-menu-and-authoritative-cart.md) and
 [QR2 operations](../Deployment/QR2-Menu.md). Table codes are staff-assigned ordering labels;
 the existing floor `dining_tables`/table-account model is not mutated or implicitly joined.
-Approval/Inventory/Kitchen/payment remain QR4–QR5. All QR host flags default off;
+Cashier retrieval/payment remains QR5. All QR host flags default off;
 public hosting, real phones and release gates remain pending. See
 [ADR-044](Decisions/ADR-044-table-qr-entry-and-guest-sessions.md),
 [contract](../API/QR-Entry.md) and [operations](../Deployment/QR1-Entry.md).

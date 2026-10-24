@@ -26,6 +26,10 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(new BoundedRequestGate(TimeProvider.System, perKey: 1000, global: 1000));
 builder.Services.AddScoped<QrMenuService>();
 builder.Services.AddScoped<QrRequestService>();
+builder.Services.AddScoped<QrAcceptanceService>();
+builder.Services.AddScoped<IQrAcceptancePort,HttpQrMenuPort>();
+builder.Services.AddHttpClient("QrAcceptanceContext",client=>client.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]!))
+    .ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
 builder.Services.AddScoped<IQrMenuPort, HttpQrMenuPort>();
 builder.Services.AddHttpClient("QrGuestContext", client => client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"]!))
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false }).AddNexaConnectCorrelationPropagation();
@@ -46,6 +50,8 @@ builder.Services.AddOptions<CardCheckoutOptions>().Bind(builder.Configuration.Ge
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "order");
 var usePostgres = builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true;
+if(builder.Configuration.GetValue<bool>("QrAcceptance:Enabled")&&(!usePostgres||!builder.Configuration.GetValue<bool>("QrRequests:Enabled")||!builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters")||!builder.Configuration.GetValue<bool>("WorkflowRecovery:Enabled")))
+    throw new InvalidOperationException("QR acceptance requires durable QR requests, HTTP adapters and enabled Order workflow recovery.");
 if (builder.Configuration.GetValue<bool>("QrRequests:Enabled") && (!usePostgres || !builder.Configuration.GetValue<bool>("QrMenu:Enabled")))
     throw new InvalidOperationException("QR requests require PostgreSQL and QR menu enablement.");
 if (usePostgres) builder.Services.AddScoped<IQrRequestRepository, PostgresQrRequestRepository>();

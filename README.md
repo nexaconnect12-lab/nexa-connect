@@ -1,8 +1,14 @@
 # NexaConnect
 
+[QR4](docs/Deployment/QR4-Acceptance.md) adds authorized staff acceptance, exact guest
+review of changed prices and atomic handoff of one original unpaid Order to existing
+Inventory/Kitchen recovery. Order migration21 is required; flags default off. Cashier
+retrieval/settlement remains QR5 and real-device/hosted acceptance QR6.
+
+
 [QR3](docs/Deployment/QR3-Requests.md) adds retained reviewed quotes, idempotent pending
 guest requests, private refresh recovery and an authorized staff rejection queue.
-Acceptance/Kitchen remains QR4 and cashier collection QR5. Features default off.
+Cashier collection remains QR5; acceptance/Kitchen is implemented in QR4. Features default off.
 
 
 The next selected development track is [table QR ordering for iOS/Android browsers](docs/Planning/QR-Ordering-Roadmap.md):
@@ -10,7 +16,7 @@ guest ordering, staff acceptance before Kitchen, and payment at the cashier. Sco
 confirmed. [QR1 secure entry](docs/Deployment/QR1-Entry.md) implements scoped table QR
 issuance/rotation/revocation and independent visitor sessions, with a context-only mobile
 landing. [QR2](docs/Deployment/QR2-Menu.md) adds a mobile menu, memory-only cart and
-authoritative THB tax/service totals. Staff acceptance and cashier handoff remain QR4–QR5.
+authoritative THB tax/service totals. Cashier handoff remains QR5.
 Remaining hosted-release and physical
 acceptance work is recorded as pending specifications; existing release gates still apply.
 

@@ -19,9 +19,12 @@ public interface IQrEntryRepository
     Task<QrGuestContext?> AdmitAsync(string entryHash, string sessionHash, Guid visitor, DateTimeOffset now, CancellationToken ct);
     Task<QrGuestContext?> ContextAsync(string sessionHash, DateTimeOffset now, CancellationToken ct);
     Task EndAsync(string sessionHash, CancellationToken ct);
+    Task<QrGuestContext?> VisitorAsync(Guid organization,Guid branch,Guid visitor,Guid entry,DateTimeOffset now,CancellationToken ct)=>Task.FromResult<QrGuestContext?>(null);
 }
 public sealed class QrEntryService(IQrEntryRepository repository, IBranchCustomerAuthorizer authorization, IQrSecrets secrets, TimeProvider clock)
 {
+    public Task<QrGuestContext?> VisitorAsync(Guid organization,Guid branch,Guid visitor,Guid entry,CancellationToken ct)=>
+        repository.VisitorAsync(organization,branch,visitor,entry,clock.GetUtcNow(),ct);
     public static bool ValidToken(string? value) => value?.Length == 43 && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
     private async Task<QrScope> Require(Guid org, Guid branch, string bearer, CancellationToken ct)
     {

@@ -9,7 +9,46 @@ namespace NexaConnect.Services.Order.Infrastructure.Persistence;
 
 public sealed class PostgresQrRequestRepository(NpgsqlDataSource source) : IQrRequestRepository
 {
-    private const string Select = "SELECT q.id,q.organization_id,q.restaurant_id,q.branch_id,q.visitor_id,q.entry_id,q.table_code,q.fingerprint,q.snapshot,r.status,r.version,r.submitted_at_utc,r.deadline_utc,r.reason FROM order_qr_requests r JOIN order_qr_quotes q ON q.id=r.id ";
+    private const string Select = "SELECT q.id,q.organization_id,q.restaurant_id,q.branch_id,q.visitor_id,q.entry_id,q.table_code,q.fingerprint,q.snapshot,r.status,r.version,r.submitted_at_utc,r.deadline_utc,r.reason,r.review_snapshot,r.consented_snapshot,a.order_id,CASE o.status WHEN 'accepted' THEN 'kitchen_accepted' WHEN 'completed' THEN 'paid' ELSE o.status END FROM order_qr_requests r JOIN order_qr_quotes q ON q.id=r.id LEFT JOIN order_qr_acceptances a ON a.request_id=r.id LEFT JOIN orders o ON o.id=a.order_id ";
+    public async Task<RetainedGuestRequest?> GetAsync(Guid organization,Guid branch,Guid id,CancellationToken ct)
+    {
+        await using var db=await source.OpenConnectionAsync(ct);await using var tx=await db.BeginTransactionAsync(ct);
+        await Begin(db,tx,organization,branch,ct);var value=await Read(db,tx,organization,branch,id,ct);await tx.CommitAsync(ct);return value;
+    }
+    public async Task<RetainedGuestRequest> ChangeAsync(RetainedGuestRequest expected,string action,QrQuote? review,QrAcceptedOrder? handoff,string actor,Guid? decision,Guid correlation,CancellationToken ct)
+    {
+        var s=expected.Request.Scope;
+        await using var db=await source.OpenConnectionAsync(ct);await using var tx=await db.BeginTransactionAsync(ct);
+        var now=await Begin(db,tx,s.OrganizationId,s.BranchId,ct);var value=await Read(db,tx,s.OrganizationId,s.BranchId,expected.Request.Id,ct)??throw new Domain.Qr.GuestRequestConflictException();
+        if(value.Request.Status=="accepted"&&action=="accepted"){await tx.CommitAsync(ct);return value;}
+        if(value.Request.Scope!=s||value.Request.Version!=expected.Request.Version||value.Quote.Fingerprint!=expected.Quote.Fingerprint)throw new Domain.Qr.GuestRequestConflictException();
+        if(action=="price_review")
+        {
+            if(review is null||review.ExpiresAtUtc<=now||review.ExpiresAtUtc>value.Request.DeadlineUtc)throw new Domain.Qr.GuestRequestConflictException();
+            value.Request.ReviewPrice(expected.Request.Version,now);
+            await using var command=Command(db,tx,"UPDATE order_qr_requests SET review_snapshot=$1::jsonb WHERE id=$2",JsonSerializer.Serialize(review,JsonSerializerOptions.Web),value.Request.Id);await command.ExecuteNonQueryAsync(ct);
+            value=value with{ReviewQuote=review};
+        }
+        else if(action=="price_confirmed")
+        {
+            if(value.ReviewQuote is null||value.ReviewQuote.ExpiresAtUtc<=now)throw new Domain.Qr.GuestRequestConflictException();
+            value.Request.ConfirmPrice(expected.Request.Version,now);
+            await using var command=Command(db,tx,"UPDATE order_qr_requests SET consented_snapshot=review_snapshot,review_snapshot=NULL WHERE id=$1",value.Request.Id);await command.ExecuteNonQueryAsync(ct);
+            value=value with{Quote=value.ReviewQuote,ReviewQuote=null};
+        }
+        else if(action=="accepted")
+        {
+            if(handoff is null||decision is null||decision==Guid.Empty)throw new Domain.Qr.GuestRequestConflictException();
+            value.Request.Accept(expected.Request.Version,now);
+            var order=handoff.Order;
+            if(order.Id!=value.Request.Id||order.OrganizationId!=s.OrganizationId||order.RestaurantId!=s.RestaurantId||order.BranchId!=s.BranchId||order.Channel!="qr"||order.ServiceType!="dine_in"||order.WorkflowPaymentMethod!="cash_manual"||order.Status!=Domain.OrderStatus.Submitted)throw new Domain.Qr.GuestRequestConflictException();
+            await new PostgresOrderRepository(source).SaveWithEventInTransactionAsync(db,tx,order,handoff.Submitted,ct);
+            await using var insert=Command(db,tx,"INSERT INTO order_qr_acceptances(request_id,order_id,organization_id,restaurant_id,branch_id,entry_id,visitor_id,table_code,actor,decision_id,request_version,fingerprint,correlation_id,accepted_at_utc) VALUES($1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",order.Id,s.OrganizationId,s.RestaurantId,s.BranchId,s.EntryId,s.VisitorId,s.TableCode,actor,decision.Value,value.Request.Version,order.PricingFingerprint!,correlation,now);await insert.ExecuteNonQueryAsync(ct);
+            value=value with{OrderId=order.Id,OrderStatus="submitted"};
+        }
+        else throw new ArgumentException("Invalid QR transition.");
+        await SaveState(db,tx,value.Request,ct);await Audit(db,tx,value.Request,action,actor,decision,correlation,now,ct);await tx.CommitAsync(ct);return value;
+    }
     public async Task SaveQuoteAsync(RetainedGuestQuote value, CancellationToken ct)
     {
         await using var db = await source.OpenConnectionAsync(ct); await using var tx = await db.BeginTransactionAsync(ct);
@@ -39,7 +78,7 @@ public sealed class PostgresQrRequestRepository(NpgsqlDataSource source) : IQrRe
             if (!await reader.ReadAsync(ct) || reader.GetGuid(1)!=scope.RestaurantId || reader.GetGuid(2)!=scope.EntryId || reader.GetString(3)!=scope.TableCode || visitorExpiry<=now) throw new GuestRequestConflictException();
             quote = JsonSerializer.Deserialize<QrQuote>(reader.GetString(0),JsonSerializerOptions.Web)!;
         }
-        await using (var command = Command(db,tx,"SELECT count(*) FILTER(WHERE visitor_id=$3),count(*) FILTER(WHERE entry_id=$4 AND submitted_at_utc>$5),count(*) FILTER(WHERE submitted_at_utc>$5),count(*) FILTER(WHERE visitor_id=$3 AND status='pending'),count(*) FILTER(WHERE entry_id=$4 AND status='pending'),count(*) FILTER(WHERE status='pending') FROM order_qr_requests WHERE organization_id=$1 AND branch_id=$2",scope.OrganizationId,scope.BranchId,scope.VisitorId,scope.EntryId,now.AddHours(-1)))
+        await using (var command = Command(db,tx,"SELECT count(*) FILTER(WHERE visitor_id=$3),count(*) FILTER(WHERE entry_id=$4 AND submitted_at_utc>$5),count(*) FILTER(WHERE submitted_at_utc>$5),count(*) FILTER(WHERE visitor_id=$3 AND status IN('pending','price_review')),count(*) FILTER(WHERE entry_id=$4 AND status IN('pending','price_review')),count(*) FILTER(WHERE status IN('pending','price_review')) FROM order_qr_requests WHERE organization_id=$1 AND branch_id=$2",scope.OrganizationId,scope.BranchId,scope.VisitorId,scope.EntryId,now.AddHours(-1)))
         await using (var reader = await command.ExecuteReaderAsync(ct))
         { await reader.ReadAsync(ct); GuestRequest.Admit((int)reader.GetInt64(0),(int)reader.GetInt64(1),(int)reader.GetInt64(2),(int)reader.GetInt64(3),(int)reader.GetInt64(4),(int)reader.GetInt64(5)); }
         var request = new GuestRequest(input.QuoteId,scope,input.Fingerprint,now,visitorExpiry < now.AddMinutes(15)?visitorExpiry:now.AddMinutes(15));
@@ -71,13 +110,13 @@ public sealed class PostgresQrRequestRepository(NpgsqlDataSource source) : IQrRe
         await using (var command=Command(db,tx,"SELECT pg_advisory_xact_lock(hashtextextended($1,0))",$"qr-requests:{organization:D}:{branch:D}"))await command.ExecuteNonQueryAsync(ct);
         DateTimeOffset now;await using(var command=Command(db,tx,"SELECT clock_timestamp()"))now=new((DateTime)(await command.ExecuteScalarAsync(ct))!);
         var expired=new List<RetainedGuestRequest>();
-        await using(var command=Command(db,tx,Select+"WHERE r.organization_id=$1 AND r.branch_id=$2 AND r.status='pending' AND r.deadline_utc<=$3",organization,branch,now))
+        await using(var command=Command(db,tx,Select+"WHERE r.organization_id=$1 AND r.branch_id=$2 AND r.status IN('pending','price_review') AND r.deadline_utc<=$3",organization,branch,now))
         await using(var reader=await command.ExecuteReaderAsync(ct))while(await reader.ReadAsync(ct))expired.Add(Map(reader));
         foreach(var value in expired)
         {
             if(value.Request.Expire(now)){await SaveState(db,tx,value.Request,ct);await Audit(db,tx,value.Request,"expired","qr-expiry",null,Guid.NewGuid(),now,ct);}
         }
-        await using(var command=Command(db,tx,"DELETE FROM order_qr_requests WHERE organization_id=$1 AND branch_id=$2 AND status<>'pending' AND submitted_at_utc<$3",organization,branch,now.AddHours(-24)))await command.ExecuteNonQueryAsync(ct);
+        await using(var command=Command(db,tx,"DELETE FROM order_qr_requests WHERE organization_id=$1 AND branch_id=$2 AND status IN('rejected','expired') AND submitted_at_utc<$3",organization,branch,now.AddHours(-24)))await command.ExecuteNonQueryAsync(ct);
         await using(var command=Command(db,tx,"DELETE FROM order_qr_quotes q WHERE organization_id=$1 AND branch_id=$2 AND expires_at_utc<=$3 AND NOT EXISTS(SELECT 1 FROM order_qr_requests r WHERE r.id=q.id)",organization,branch,now))await command.ExecuteNonQueryAsync(ct);
         return now;
     }
@@ -91,7 +130,7 @@ public sealed class PostgresQrRequestRepository(NpgsqlDataSource source) : IQrRe
         await using var command=Command(db,tx,Select+"WHERE r.organization_id=$1 AND r.branch_id=$2 AND r.id=$3",organization,branch,id);
         await using var reader=await command.ExecuteReaderAsync(ct);return await reader.ReadAsync(ct)?Map(reader):null;
     }
-    private static RetainedGuestRequest Map(NpgsqlDataReader r)=>new(new(r.GetGuid(0),new(r.GetGuid(1),r.GetGuid(2),r.GetGuid(3),r.GetGuid(4),r.GetGuid(5),r.GetString(6)),r.GetString(7),r.GetFieldValue<DateTimeOffset>(11),r.GetFieldValue<DateTimeOffset>(12),r.GetString(9),r.GetInt64(10),r.IsDBNull(13)?null:r.GetString(13)),JsonSerializer.Deserialize<QrQuote>(r.GetString(8),JsonSerializerOptions.Web)!);
+    private static RetainedGuestRequest Map(NpgsqlDataReader r)=>new(new(r.GetGuid(0),new(r.GetGuid(1),r.GetGuid(2),r.GetGuid(3),r.GetGuid(4),r.GetGuid(5),r.GetString(6)),r.GetString(7),r.GetFieldValue<DateTimeOffset>(11),r.GetFieldValue<DateTimeOffset>(12),r.GetString(9),r.GetInt64(10),r.IsDBNull(13)?null:r.GetString(13)),JsonSerializer.Deserialize<QrQuote>(r.GetString(r.IsDBNull(15)?8:15),JsonSerializerOptions.Web)!,r.IsDBNull(14)?null:JsonSerializer.Deserialize<QrQuote>(r.GetString(14),JsonSerializerOptions.Web),r.IsDBNull(16)?null:r.GetGuid(16),r.IsDBNull(17)?null:r.GetString(17));
     private static async Task Audit(NpgsqlConnection db,NpgsqlTransaction tx,GuestRequest value,string action,string actor,Guid? decision,Guid correlation,DateTimeOffset now,CancellationToken ct)
     {
         var id=Guid.NewGuid();

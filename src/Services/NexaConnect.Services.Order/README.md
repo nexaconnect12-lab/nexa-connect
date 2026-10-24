@@ -1,10 +1,21 @@
 # Order Service
 
+QR4 requires migration21 even for current QR3 readers. QrAcceptance__Enabled defaults
+false; enable only with PostgreSQL/requests/HTTP adapters/WorkflowRecovery. Staff acceptance
+and guest price confirmation retain original version/UUID; accepted Order, logical-table
+provenance and audit/outbox commit atomically. Existing recovery handles Inventory/Kitchen
+and stops at unpaid cash_manual. Shared Order event persistence remains transaction-owned
+for existing checkout callers. No replacement Order or payment command. Query QR / Order
+workflow recovery with validated CorrelationId; see [API](../../../docs/API/QR-Acceptance.md),
+[storage](../../../docs/Database/QR-Acceptance.md), [tests/operations](../../../docs/Deployment/QR4-Acceptance.md).
+
+
 QR3 adds retained guest quote/submission/status and customer queue/rejection routes.
-Apply Order migration20 before enabling QrRequests__Enabled; PostgreSQL and QrMenu are
+Apply Order migrations20–21 before enabling QrRequests__Enabled; PostgreSQL and QrMenu are
 mandatory. Requests are separate pending proposals, with quote UUID idempotency, Domain
 quotas/version/deadline rules, owner/branch transaction serialization and atomic immutable
-audit/order.audit.v1 outbox. No executable Order or Inventory/Kitchen/payment command.
+audit/order.audit.v1 outbox. Submission alone creates no executable Order or Inventory/
+Kitchen/payment command; QR4 acceptance provides the handoff described above.
 Existing order.read/order.place permissions apply. Correlation-safe QR failure/denial
 logs remain under nexaconnect-order. See [API](../../../docs/API/QR-Requests.md),
 [storage/grants](../../../docs/Database/QR-Requests.md) and [operations/tests](../../../docs/Deployment/QR3-Requests.md).

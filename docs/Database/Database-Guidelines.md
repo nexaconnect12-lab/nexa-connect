@@ -1,8 +1,13 @@
 # Database Guidelines
 
+QR4 Order21 shares existing Order event persistence inside the request acceptance
+transaction, with scoped branch/version fencing and immutable provenance. Current
+catalog208; no cross-service SQL or transaction. See [QR4](QR-Acceptance.md).
+
+
 QR3 uses Order-owned parameterized quote/request persistence and branch transaction
 advisory locking. Domain state/version/quota decisions run inside the owning transaction;
-audit/outbox commits atomically. Order migration20 adds three tables (current catalog207),
+audit/outbox commits atomically. Order migration20 adds three tables (catalog at QR3 introduction207),
 without changing financial state or another database. See [grants/retention](QR-Requests.md).
 
 

@@ -1,5 +1,11 @@
 # Inventory Service
 
+QR4 accepted Orders reuse existing order-key reservation idempotency through Order recovery.
+Guest proposals/rejections do not call Inventory. Committed-response-loss verification
+uses the real owning repository; no Inventory schema/API/authority change.
+See [QR4 verification](../../../docs/Deployment/QR4-Acceptance.md).
+
+
 [Draft provisioning](../../../docs/Deployment/First-Draft-Provisioning.md) uses the owning stock repository for initial fictional stock, with existing audit/outbox behavior. Initial resume skips already present balances; completed reruns never replenish consumed stock. No reservation, release or sale is seeded.
 
 Order's pre-payment cancellation and provider-failure placement/recovery/reconciliation/manager void paths call the existing idempotent reservation release only after Kitchen cancellation succeeds. A Kitchen terminal conflict therefore retains Inventory for investigation. Missing reservations remain an idempotent success boundary; dependency failures leave the durable Order cancellation pending for retry. No Inventory schema or public contract changed.

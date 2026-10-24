@@ -1,5 +1,11 @@
 # NexaConnect Kitchen Service
 
+QR4 dispatch uses the original accepted Order UUID through existing recovery and ticket
+idempotency. Pending/rejected QR proposals create no ticket. Kitchen schema/contracts and
+station UI stay unchanged; logical QR label provenance remains Order-owned. See
+[QR4 verification and scope](../../../docs/Deployment/QR4-Acceptance.md).
+
+
 The Customer Portal uses [live operational branch discovery](../../../docs/API/Operational-Branches.md) and existing authorized Catalog station codes. The branch kitchen-operator role has menu read plus Kitchen read/transition only; Kitchen still reauthorizes every queue read and transition. Ticket persistence and financial meaning are unchanged.
 
 The Order pre-payment cancellation saga and provider-failure placement/recovery/reconciliation/manager void paths use the existing workload-only ticket cancellation before Inventory release. Missing/already-cancelled work is idempotent; completed preparation returns `409`, which Order records as cancellation review and does not follow with Inventory release. No Kitchen schema or event contract changed.

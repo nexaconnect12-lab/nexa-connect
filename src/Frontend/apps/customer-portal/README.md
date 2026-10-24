@@ -1,5 +1,11 @@
 # NexaConnect Customer Portal
 
+QR4 adds Accept original request (when enabled), accepted/price_review queue states,
+original Order state and exact guest updated-price confirmation. Confirmation returns
+the same request to staff review; no automatic acceptance/payment. Existing CSRF/version
+and cookie/origin boundaries remain. See [QR4](../../../../docs/Deployment/QR4-Acceptance.md).
+
+
 QR3 optionally adds Submit for staff review, private status recovery/polling and original
 quote-identity retry after response loss. Pending/uncertain submissions freeze new cart
 submission. /#qr-requests is the staff branch/state queue with versioned CSRF rejection;

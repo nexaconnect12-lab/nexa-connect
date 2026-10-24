@@ -26,7 +26,9 @@ jobs:
         run: node --test docker/pilot/hosting.test.mjs
       - name: Verify QR domain and HTTP boundaries
         run: |
-          dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter 'FullyQualifiedName~QrEntry|FullyQualifiedName~QrMenu|FullyQualifiedName~QrRequest|FullyQualifiedName~OrderPricing|FullyQualifiedName~MigrationRunnerTests|FullyQualifiedName~OperationalBranchDiscoveryTests' --verbosity quiet
+          dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter 'FullyQualifiedName~QrEntry|FullyQualifiedName~QrMenu|FullyQualifiedName~QrRequest|FullyQualifiedName~QrAcceptance|FullyQualifiedName~OrderPricing|FullyQualifiedName~MigrationRunnerTests|FullyQualifiedName~OperationalBranchDiscoveryTests' --verbosity quiet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/Architecture/NexaConnect.ArchitectureTests --no-restore --verbosity quiet
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests' --verbosity quiet
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

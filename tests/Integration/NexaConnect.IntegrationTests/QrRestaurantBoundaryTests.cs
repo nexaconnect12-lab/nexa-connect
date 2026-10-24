@@ -21,6 +21,13 @@ namespace NexaConnect.IntegrationTests;
 
 public sealed class QrRestaurantBoundaryTests
 {
+    [Fact]public async Task Acceptance_context_is_exact_order_workload_only_and_never_a_guest_lookup()
+    {
+        await using var factory=new Factory();using var client=factory.CreateClient(Options());string path=$"/api/restaurant/v1/internal/organizations/{Guid.NewGuid()}/branches/{Guid.NewGuid()}/qr-visitors/{Guid.NewGuid()}/entries/{Guid.NewGuid()}";
+        using(var guest=await client.GetAsync(path))Assert.Equal(HttpStatusCode.Unauthorized,guest.StatusCode);
+        client.DefaultRequestHeaders.Add("X-Test-Workload","nexaconnect-catalog-service");using(var wrong=await client.GetAsync(path))Assert.Equal(HttpStatusCode.Forbidden,wrong.StatusCode);
+        client.DefaultRequestHeaders.Remove("X-Test-Workload");client.DefaultRequestHeaders.Add("X-Test-Workload","nexaconnect-order-service");using var allowed=await client.GetAsync(path);Assert.Equal(HttpStatusCode.NotFound,allowed.StatusCode);Assert.True(allowed.Headers.CacheControl?.NoStore);
+    }
     [Fact] public async Task Owning_http_boundary_requires_live_staff_authority_and_never_lists_secrets()
     {
         await using var factory=new Factory();using var client=factory.CreateClient(Options());var repo=factory.Repository;
@@ -61,7 +68,7 @@ public sealed class QrRestaurantBoundaryTests
     }
     private sealed class StaffHandler(IOptionsMonitor<AuthenticationSchemeOptions> options,ILoggerFactory logger,UrlEncoder encoder):AuthenticationHandler<AuthenticationSchemeOptions>(options,logger,encoder)
     {
-        protected override Task<AuthenticateResult> HandleAuthenticateAsync()=>Task.FromResult(Request.Headers["X-Test-Staff"]=="yes"?AuthenticateResult.Success(new(new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub","operator"),new Claim(ClaimTypes.Role,"customer-admin")],Scheme.Name)),Scheme.Name)):AuthenticateResult.NoResult());
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()=>Task.FromResult(Request.Headers.TryGetValue("X-Test-Workload",out var workload)?AuthenticateResult.Success(new(new ClaimsPrincipal(new ClaimsIdentity([new Claim("azp",workload.ToString())],Scheme.Name)),Scheme.Name)):Request.Headers["X-Test-Staff"]=="yes"?AuthenticateResult.Success(new(new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub","operator"),new Claim(ClaimTypes.Role,"customer-admin")],Scheme.Name)),Scheme.Name)):AuthenticateResult.NoResult());
     }
     private sealed class Authorizer:IBranchCustomerAuthorizer {public bool Allowed;public Task<bool> IsGrantedAsync(Guid org,Guid? restaurant,Guid? branch,string permission,string bearer,CancellationToken ct)=>Task.FromResult(Allowed&&bearer=="Bearer test-staff");}
     private sealed class Repo:IQrEntryRepository

@@ -20,13 +20,15 @@ public sealed class QrMenuTransportTests
         Assert.Equal(context,await port.ContextAsync(new string('S',43),default));Assert.Null(contextHandler.Authorization);Assert.Equal(new string('S',43),contextHandler.Session);Assert.False(contextHandler.Cookie);
         var menu=await port.MenuAsync(context.OrganizationId,context.BranchId,default);Assert.Equal("Soup",Assert.Single(menu).Name);
         Assert.Contains($"organizations/{context.OrganizationId:D}/branches/{context.BranchId:D}",catalogHandler.Path);Assert.Equal("Bearer own-order-workload",catalogHandler.Authorization);Assert.Null(catalogHandler.Session);Assert.False(catalogHandler.Cookie);
+        catalogHandler.Body=JsonSerializer.Serialize(new QrAcceptanceContext(context,true),JsonSerializerOptions.Web);
+        Assert.NotNull(await port.ContextAsync(new ORDER::NexaConnect.Services.Order.Domain.Qr.GuestRequestScope(context.OrganizationId,context.RestaurantId,context.BranchId,context.VisitorId,context.EntryId,context.TableCode),default));Assert.Null(catalogHandler.Session);Assert.Equal("Bearer own-order-workload",catalogHandler.Authorization);
         contextHandler.Status=HttpStatusCode.Unauthorized;Assert.Null(await port.ContextAsync(new string('S',43),default));
         contextHandler.Status=HttpStatusCode.OK;contextHandler.Body=new string('X',4097);await Assert.ThrowsAsync<HttpRequestException>(()=>port.ContextAsync(new string('S',43),default));
         catalogHandler.Body="{\"items\":null}";await Assert.ThrowsAsync<JsonException>(()=>port.MenuAsync(context.OrganizationId,context.BranchId,default));
         catalogHandler.Body=new string('X',524289);await Assert.ThrowsAsync<HttpRequestException>(()=>port.MenuAsync(context.OrganizationId,context.BranchId,default));
         catalogHandler.Status=HttpStatusCode.InternalServerError;await Assert.ThrowsAsync<HttpRequestException>(()=>port.MenuAsync(context.OrganizationId,context.BranchId,default));
     }
-    private sealed class Clients(HttpClient context,HttpClient catalog):IHttpClientFactory{public HttpClient CreateClient(string name)=>name switch{"QrGuestContext"=>context,"QrGuestCatalog"=>catalog,_=>throw new InvalidOperationException()};}
+    private sealed class Clients(HttpClient context,HttpClient catalog):IHttpClientFactory{public HttpClient CreateClient(string name)=>name switch{"QrGuestContext"=>context,"QrGuestCatalog" or "QrAcceptanceContext"=>catalog,_=>throw new InvalidOperationException()};}
     private sealed class Handler:HttpMessageHandler
     {
         public string Body="{}",Path="";public string? Authorization,Session;public bool Cookie;public HttpStatusCode Status=HttpStatusCode.OK;

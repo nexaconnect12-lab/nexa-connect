@@ -1,6 +1,11 @@
 # Deployment Guide
 
-QR3 [durable request preparation](QR3-Requests.md) requires Order migration20/PostgreSQL
+QR4 [isolated acceptance](QR4-Acceptance.md) requires Order21/current QR readers and
+explicit Order/BFF acceptance flags plus existing HTTP workflow/recovery. All flags
+remain off in validated pilot templates; no hosted rollout is asserted.
+
+
+QR3 [durable request preparation](QR3-Requests.md) requires Order migrations20–21/PostgreSQL
 and explicit Order QrRequests__Enabled plus BFF QrGuest__RequestsEnabled. Both default
 false; existing entry/menu flags remain required. No acceptance or hosted rollout implied.
 
@@ -8,7 +13,8 @@ false; existing entry/menu flags remain required. No acceptance or hosted rollou
 QR2 [menu/cart previews](QR2-Menu.md) additionally require current Order/Catalog binaries,
 Order `QrMenu__Enabled` and BFF `QrGuest__MenuEnabled`. Both default false; QR1 remains
 independently usable. Existing owning schemas/workload credentials apply; no QR2 migration
-or financial grant. Submission and public/device acceptance remain pending.
+or financial grant. QR3 submission and QR4 staff acceptance are separately enabled;
+public/device acceptance remains pending.
 
 QR1 is separately opt-in: apply Restaurant migration 4 and use the [QR entry runbook](QR1-Entry.md)
 with [per-component flags/origin example](qr-entry.env.example). Both hosts default off;

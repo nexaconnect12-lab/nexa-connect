@@ -1,5 +1,11 @@
 # NexaConnect Data Migration
 
+Order21 adds immutable order_qr_acceptances and request review/consent columns/state
+constraints. Current QR readers require this migration; financial compatibility remains
+0.38.0 and catalog208 tables. Forward recovery after any review/acceptance history; empty
+downgrade only while disabled. See [QR4 storage](../../../docs/Database/QR-Acceptance.md).
+
+
 Order migration20 adds order_qr_quotes, order_qr_requests and immutable request audit,
 an optional default-off QR3 capability at migration compatibility0.38.0. Apply owning
 runtime grants before enablement. Downgrade refuses request/audit history; empty downgrade

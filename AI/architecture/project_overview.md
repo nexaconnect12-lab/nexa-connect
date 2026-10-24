@@ -1,5 +1,14 @@
 # NexaConnect Project Architecture
 
+[QR4](../../docs/Deployment/QR4-Acceptance.md) adds versioned staff acceptance with live
+order.place, Restaurant visitor/dine-in checks and current Catalog/Restaurant pricing.
+Changed prices require the same guest to confirm the retained review before another
+staff decision. Order21 commits Submitted Order/request/immutable provenance/audit/outbox
+atomically, then existing fenced Order recovery reserves Inventory and creates Kitchen
+work using the original UUID. Channel qr/dine_in and explicit logical table provenance
+preserve POS history; no payment command. QR5–QR6 remain pending; flags default off.
+
+
 [QR3](../../docs/Deployment/QR3-Requests.md) now retains exact visitor/table-bound quotes
 and pending requests in Order migration20. Quote UUIDs are submission identities; replay
 returns the original request. Domain state/version/quota rules run under owning branch
@@ -17,7 +26,7 @@ admission and audit/outbox. Customer BFF provides a separate HttpOnly guest cook
 exact-origin mutation boundary. [QR2](../../docs/Deployment/QR2-Menu.md) adds a mobile menu,
 memory-only cart and authoritative quote through capability-scoped Order reads, exact Order
 workload Catalog projection and existing Restaurant pricing. Public totals reuse Order
-commercial rules; no guest staff/order/payment authority is granted. QR4–QR6 remain pending. Hosted release/signing/device/Phase 9 work is
+commercial rules; no guest staff/order/payment authority is granted. QR5–QR6 remain pending. Hosted release/signing/device/Phase 9 work is
 deferred pending specifications, with existing readiness gates preserved. This selection
 preserves the existing readiness gates; no QR deployment/phone acceptance is claimed.
 

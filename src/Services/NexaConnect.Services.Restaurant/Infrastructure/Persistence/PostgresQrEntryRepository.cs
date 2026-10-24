@@ -99,6 +99,12 @@ public sealed class PostgresQrEntryRepository(NpgsqlDataSource source) : IQrEntr
     {
         await using var cmd = source.CreateCommand("UPDATE restaurant_qr_sessions SET ended=true WHERE secret_hash=$1;"); cmd.Parameters.AddWithValue(sessionHash); await cmd.ExecuteNonQueryAsync(ct);
     }
+    public async Task<QrGuestContext?> VisitorAsync(Guid organization,Guid branch,Guid visitor,Guid entry,DateTimeOffset now,CancellationToken ct)
+    {
+        await using var cmd=source.CreateCommand("SELECT r.organization_id,r.id,b.id,r.name,b.name,b.currency,e.id,e.table_code,s.visitor_id,s.expires_at_utc"+GuestJoin+"JOIN restaurant_qr_sessions s ON s.entry_id=e.id WHERE r.organization_id=$1 AND e.branch_id=$3 AND s.visitor_id=$4 AND e.id=$5 AND NOT s.ended AND s.entry_version=e.version AND s.expires_at_utc>$2 AND"+Active);
+        cmd.Parameters.AddWithValue(organization);cmd.Parameters.AddWithValue(now);cmd.Parameters.AddWithValue(branch);cmd.Parameters.AddWithValue(visitor);cmd.Parameters.AddWithValue(entry);
+        await using var r=await cmd.ExecuteReaderAsync(ct);return await r.ReadAsync(ct)?new(r.GetGuid(8),r.GetGuid(6),r.GetGuid(0),r.GetGuid(1),r.GetGuid(2),r.GetString(3),r.GetString(4),r.GetString(7),r.GetString(5),r.GetFieldValue<DateTimeOffset>(9)):null;
+    }
     private static void Owner(NpgsqlCommand cmd, QrScope s)
     { cmd.Parameters.AddWithValue(s.OrganizationId); cmd.Parameters.AddWithValue(s.RestaurantId); cmd.Parameters.AddWithValue(s.BranchId); }
     private static QrScope Scope(NpgsqlDataReader r) => new(r.GetGuid(0), r.GetGuid(1), r.GetGuid(2), r.GetString(3), r.GetString(4), r.GetString(5));

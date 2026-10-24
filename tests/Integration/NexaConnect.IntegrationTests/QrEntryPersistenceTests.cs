@@ -41,10 +41,14 @@ public sealed class QrEntryPersistenceTests
             var first = await repo.AdmitAsync(secrets.Hash(token), secrets.Hash(a), Guid.NewGuid(), now, default);
             var second = await repo.AdmitAsync(secrets.Hash(token), secrets.Hash(b), Guid.NewGuid(), now, default);
             Assert.NotEqual(first!.VisitorId, second!.VisitorId); Assert.Equal(entry.Id, first.EntryId); Assert.Equal(org, first.OrganizationId);
+            Assert.Equal(first,await repo.VisitorAsync(org,branch,first.VisitorId,entry.Id,now,default));
+            Assert.Null(await repo.VisitorAsync(Guid.NewGuid(),branch,first.VisitorId,entry.Id,now,default));
+            Assert.Null(await repo.VisitorAsync(org,branch,Guid.NewGuid(),entry.Id,now,default));
             // A fresh repository instance reads the same persisted admission after application restart.
             Assert.Equal(first, await new Repo(source).ContextAsync(secrets.Hash(a), now, default));
             Assert.Null(await repo.ContextAsync(secrets.Hash(a), now.AddHours(2), default));
             await repo.EndAsync(secrets.Hash(a), default); Assert.Null(await repo.ContextAsync(secrets.Hash(a), now, default));
+            Assert.Null(await repo.VisitorAsync(org,branch,first.VisitorId,entry.Id,now,default));
             Assert.NotNull(await repo.ContextAsync(secrets.Hash(b), now, default));
             await Sql(source, "UPDATE branches SET status='suspended';"); Assert.Null(await repo.ContextAsync(secrets.Hash(b), now, default));
             await Sql(source, "UPDATE branches SET status='active';");

@@ -2,11 +2,13 @@
 
 QR3 now optionally retains reviewed quotes and adds pending submissions/private status
 and staff rejection. The QR2 results below remain historical. Current QR persistence
-launcher requires three cases, including owning Order request persistence. See [QR3](QR3-Requests.md).
+launcher requires four cases, including owning Order requests and accepted Inventory/Kitchen
+recovery. QR4 adds staff acceptance; see [QR3](QR3-Requests.md) and [QR4](QR4-Acceptance.md).
 
 
 QR2 source implements online menu/cart previews after QR1 admission. Separately enabled
-QR3 now adds submission; staff acceptance/Kitchen and cashier collection remain QR4–QR5. Physical phones/public hosting,
+QR3 adds submission, QR4 adds staff acceptance/Kitchen, and cashier collection remains QR5.
+Physical phones/public hosting,
 server/device specifications, signing and exact release freeze remain pending. No service
 was deployed and no printed QR/physical-phone acceptance is claimed by local tests.
 
@@ -17,7 +19,7 @@ was deployed and no printed QR/physical-phone acceptance is claimed by local tes
    the public edge. Preserve the existing dedicated-server and release prerequisites.
 2. Use current Catalog and Order binaries with owning database configuration. Catalog
    requires its existing migration 4; QR2 alone requires Order migration 19. QR3 requires
-   Order migration 20. QR2 adds no migration,
+   Order migrations20–21 with current QR readers, including when acceptance is off. QR2 adds no migration,
    schema/version change, seed, permission or guest identity. Catalog menu rows must have
    the owning organization/branch; legacy empty-owner rows are not guest-visible.
 3. Configure direct HTTPS `Services__Restaurant`, `Services__Catalog` at Order and
@@ -51,8 +53,8 @@ A failed/expired visit removes the whole cart. No offline execution.
 With QR3 disabled, no new tables, persistent guest cart, order, reservation, Kitchen ticket,
 payment, audit or outbox message is created. QR3 retains reviewed quotes and original
 submission identity; the original visitor cookie recovers requests after refresh. A rescan
-creates a new visitor and cannot recover the previous request. QR4 must revalidate
-the current price/availability and obtain review of changes before authorized acceptance.
+creates a new visitor and cannot recover the previous request. QR4 revalidates
+the current price/availability and obtains review of changes before authorized acceptance.
 
 ## Verification
 
@@ -66,8 +68,8 @@ node --test docker/pilot/hosting.test.mjs
 ```
 
 The current persistence launcher creates only a uniquely named local PostgreSQL fixture,
-runs QR1 Restaurant admission, QR2 Catalog owner/branch/bound and QR3 Order request tests,
-requires three non-skipped cases and exact cleanup, then writes a protected `.runstate/qr-entry/<id>/verification.json`.
+runs QR1 Restaurant admission, QR2 Catalog owner/branch/bounds, QR3 Order requests and
+QR4 accepted Inventory/Kitchen recovery. It requires four non-skipped cases and exact cleanup, then writes a protected `.runstate/qr-entry/<id>/verification.json`.
 It never targets retained/live databases. Narrow production grants remain a deployment
 gate; the generated fixture applies owning migrations with its disposable administrator.
 

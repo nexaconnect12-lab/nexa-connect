@@ -6,13 +6,16 @@ using NexaConnect.Services.Order.Domain.Qr;
 namespace NexaConnect.Services.Order.Application.Orders;
 
 public sealed record RetainedGuestQuote(GuestRequestScope Scope, QrQuote Quote);
-public sealed record RetainedGuestRequest(GuestRequest Request, QrQuote Quote)
+public sealed record QrAcceptedOrder(Domain.OrderAggregate Order,NexaConnect.Contracts.IntegrationEvents.OrderSubmittedV1 Submitted);
+public sealed record RetainedGuestRequest(GuestRequest Request, QrQuote Quote,QrQuote? ReviewQuote=null,Guid? OrderId=null,string? OrderStatus=null)
 {
     public QrRequestView View() => new(Request.Id, Request.Scope.TableCode, Request.Status, Request.Version,
-        Request.SubmittedAtUtc, Request.DeadlineUtc, Request.Reason, Quote);
+        Request.SubmittedAtUtc, Request.DeadlineUtc, Request.Reason, Quote,OrderId,OrderStatus,ReviewQuote);
 }
 public interface IQrRequestRepository
 {
+    Task<RetainedGuestRequest?> GetAsync(Guid organization,Guid branch,Guid id,CancellationToken ct)=>throw new NotSupportedException();
+    Task<RetainedGuestRequest> ChangeAsync(RetainedGuestRequest expected,string action,QrQuote? review,QrAcceptedOrder? handoff,string actor,Guid? decision,Guid correlation,CancellationToken ct)=>throw new NotSupportedException();
     Task SaveQuoteAsync(RetainedGuestQuote quote, CancellationToken ct);
     Task<RetainedGuestRequest> SubmitAsync(GuestRequestScope scope, QrSubmission submission, DateTimeOffset visitorExpiry, Guid correlation, CancellationToken ct);
     Task<QrRequestList> ListAsync(Guid organization, Guid branch, Guid? visitor, string state, CancellationToken ct);
@@ -44,7 +47,7 @@ public sealed class QrRequestService(QrMenuService menu, IQrRequestRepository re
     public async Task<QrRequestList> QueueAsync(Guid organization, Guid branch, string state, string bearer, CancellationToken ct)
     {
         await Authorize(organization, branch, ProductPermissions.OrderRead, bearer, ct);
-        if (state is not ("pending" or "rejected" or "expired")) throw new ArgumentException("Invalid queue state.");
+        if (state is not ("pending" or "price_review" or "accepted" or "rejected" or "expired")) throw new ArgumentException("Invalid queue state.");
         return await repository.ListAsync(organization, branch, null, state, ct);
     }
     public async Task<QrRequestView?> RejectAsync(Guid organization, Guid branch, Guid id, QrRejection input, string actor, string bearer, Guid correlation, CancellationToken ct)
