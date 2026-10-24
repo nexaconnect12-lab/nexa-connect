@@ -15,7 +15,7 @@
   </ItemGroup>
   <Target Name="BuildCustomerPortal" BeforeTargets="ComputeFilesToPublish" Condition="'$(SkipCustomerPortalBuild)' != 'true'">
     <Exec WorkingDirectory="$(MSBuildProjectDirectory)\..\..\Frontend" Command="npm ci --ignore-scripts" />
-    <Exec WorkingDirectory="$(MSBuildProjectDirectory)\..\..\Frontend" Command="npm run build --workspace @nexaconnect/customer-portal" />
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)\..\..\Frontend" Command="npm run build:customer-portal" />
     <ItemGroup>
       <CustomerPortalFiles Include="$(MSBuildProjectDirectory)\..\..\Frontend\apps\customer-portal\dist\**\*" />
       <ResolvedFileToPublish Include="@(CustomerPortalFiles)">

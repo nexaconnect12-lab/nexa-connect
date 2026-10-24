@@ -1,3 +1,4 @@
+import {OperationalBranchPicker} from "./OperationalBranchPicker";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Typography } from "antd";
 import { ApiError, createApiClient } from "@nexaconnect/api-client";
@@ -76,9 +77,9 @@ export function PaymentReviewPanel() {
   };
   return <Space direction="vertical" style={{width:"100%"}} size="middle">
     <Typography.Title level={2}>Payment Reviews</Typography.Title>
-    <Alert type="info" message="Enter a branch UUID supplied by your administrator. Access is checked for that branch; organization-wide branch access is not required."/>
+    <Alert type="info" message="Select an authorized branch. Access is checked again for each operation."/>
     <Form layout="inline" onFinish={load}>
-      <Form.Item label="Branch UUID"><Input aria-label="Branch UUID" value={branch} disabled={busy} onChange={e=>{setBranch(e.target.value.trim());setRows([]);setLoaded(false);setCanResolve(false);clearDetail();setNotice(undefined);}}/></Form.Item>
+      <Form.Item label="Branch UUID"><OperationalBranchPicker capability="payment-review" label="Payment review branch" value={branch} disabled={busy} onChange={value=>{setBranch(value);setRows([]);setLoaded(false);setCanResolve(false);clearDetail();setNotice(undefined);}}/></Form.Item>
       <Button htmlType="submit" loading={busy} disabled={!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(branch)}>Load reviews</Button>
     </Form>
     {notice&&<Alert role="status" type="warning" message={notice}/>}

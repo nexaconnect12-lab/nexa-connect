@@ -1,0 +1,15 @@
+# ADR-036: Bounded settlement observation export
+
+Status: Accepted
+
+The ADR-034 ledger and ADR-035 administrative replay provide original settlement delivery evidence and scoped recovery. Accountants also need a portable record of one observed date range without gaining financial or repair authority.
+
+Reporting renders CSV from a fresh invocation of the existing authorized ledger comparison. The BFF derives organization and application from the protected session, revalidates current membership and forwards the server-held customer bearer and validated correlation. Reporting and POS independently enforce their existing read permissions. No direct source-database access, schema change, permission expansion, new totals, stored export or broker mutation is introduced. Existing POS 23 / Reporting 22 and compatibility 0.38.0 remain applicable; deploy matching Reporting/BFF/portal binaries for the new routes.
+
+Choose one rectangular CSV with typed observation, settlement, source-seal and correction rows, rather than flattening detail into repeated financial totals or embedding JSON evidence. Only settlement rows carry financial totals; corrections explain variance already present in the original receipt. Every row retains scope, observation times, manifest hash and explicit delivery/proof status. An empty selection still has an observation row. Original V1 proof remains unavailable. Gaps remain downloadable observations and never imply global completeness.
+
+Preserve existing 31-date/receipt and 62-row/2000-correction comparison bounds and add a 4 MiB output limit. Encode UTF-8 with BOM, quoted cells and CRLF; use invariant exact decimal text and neutralize spreadsheet formulas in text cells. Do not force numeric values into formulas to preserve spreadsheet display; instruct users to import them as text. Signed numeric values remain unchanged in the file. Fixed filenames come only from validated branch/date values. All outcomes are no-store and failures never produce partial CSV or upstream private diagnostics.
+
+A portal download performs a fresh comparison, with cancellation and generation checks when filters or tenant context change. Existing read retries remain observational; no persistence, lock or financial idempotency operation is needed. Source and projection transactions remain separate snapshots, with no transaction spanning HTTP or rendering. Production acceptance and remote CI remain separate gates; general exports, projection rebuild, reversals, provider/fiscal corrections and offline settlement remain follow-ups.
+
+Use existing shared JSON/OTLP service names `nexaconnect-reporting` and `nexaconnect-customer-bff`, correlated POS/Directory adapters and safe settlement failure/authorization diagnostics. Never log CSV bytes, amounts, cookies, tokens, private audit or provider data. See [contract](../../API/Settlement-Export.md), [operations](../../Deployment/Settlement-Reporting.md#settlement-csv-export) and [verification](../Evidence/Settlement-Export-Acceptance.md).

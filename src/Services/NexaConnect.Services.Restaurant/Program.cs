@@ -24,8 +24,17 @@ builder.Services.AddScoped<IAuthorizationScopeReader, PostgresAuthorizationScope
 builder.Services.AddScoped<IRestaurantProvisioning, RestaurantProvisioningService>();
 builder.Services.AddScoped<IRestaurantProvisioningRepository, PostgresRestaurantProvisioningRepository>();
 builder.Services.AddScoped<BranchManagement>();
+builder.Services.AddScoped<OperationalBranchDiscovery>();
 builder.Services.AddScoped<IBranchManagementRepository, PostgresBranchManagementRepository>();
 builder.Services.AddScoped<BranchProductConfigurationService>();
+builder.Services.AddScoped<BranchGalleryService>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<NexaConnect.Services.Restaurant.Application.Qr.IQrSecrets, QrSecrets>();
+builder.Services.AddScoped<NexaConnect.Services.Restaurant.Application.Qr.IQrEntryRepository, PostgresQrEntryRepository>();
+builder.Services.AddScoped<NexaConnect.Services.Restaurant.Application.Qr.QrEntryService>();
+builder.Services.AddSingleton(new NexaConnect.Infrastructure.Http.BoundedRequestGate(TimeProvider.System, 1000, 1000, 1));
+builder.Services.AddScoped<IBranchGalleryRepository, PostgresBranchGalleryRepository>();
+builder.Services.AddHttpClient<IGalleryAssetValidator,HttpGalleryAssetValidator>(client=>{client.BaseAddress=new Uri(builder.Configuration["Services:Media"]??"https://media.invalid/");client.Timeout=TimeSpan.FromSeconds(15);}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<IBranchProductConfigurationRepository, PostgresBranchProductConfigurationRepository>();
 if(builder.Configuration.GetValue<bool>("Outbox:Enabled"))builder.Services.AddPostgresOutbox(builder.Configuration,"Restaurant");
 builder.Services.AddHttpClient("PlatformDirectory",client=>client.BaseAddress=new Uri(builder.Configuration["Services:PlatformDirectory"]??throw new InvalidOperationException("Services:PlatformDirectory is required."))).AddNexaConnectCorrelationPropagation();
@@ -33,6 +42,13 @@ builder.Services.AddHttpClient<ProductAuthorizationClient>(client=>client.BaseAd
 builder.Services.AddScoped<IBranchCustomerAuthorizer>(provider=>new HttpBranchCustomerAuthorizer(provider.GetRequiredService<IHttpClientFactory>().CreateClient("PlatformDirectory"),provider.GetRequiredService<ProductAuthorizationClient>()));
 var app = builder.Build();
 app.UseNexaConnectRequestLogging();
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api/restaurant/v1/guest/qr") || context.Request.Path.Value?.Contains("/qr-entries", StringComparison.Ordinal) == true)
+    { context.Response.Headers.CacheControl = "no-store"; context.Response.Headers["Referrer-Policy"] = "no-referrer"; }
+    await next();
+});
+app.Use(async (context, next) => { if (context.Request.Path.Value?.EndsWith("/business-calendar", StringComparison.OrdinalIgnoreCase) == true) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
 app.UseAuthentication();

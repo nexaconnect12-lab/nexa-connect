@@ -71,6 +71,8 @@ public sealed class RestaurantWorkflowTests
             CancellationToken.None);
 
         Assert.Equal(OrderStatus.Paid, result.Status);
+        Assert.NotNull(repository.Last);
+        Assert.Equal(result.TotalAmount, repository.Last!.Receipt!.TotalAmount);
         Assert.Equal(25m, result.TotalAmount);
         Assert.Equal(["OrderSubmittedV1", "InventoryReservedV1", "KitchenTicketCreatedV1", "PaymentCompletedV1"],
             events.Events.Select(@event => @event.GetType().Name));

@@ -1,5 +1,19 @@
 # Keycloak Production Runbook
 
+Before enabling manual-tender terminal admission, apply the reviewed
+`order-service-account-username` mapper to the persisted `nexaconnect-order-service` client:
+user property `username`, claim `preferred_username`, JSON String, access token enabled,
+ID token/userinfo disabled. Preserve API audience and credentials-only flows. Obtain a fresh
+Order workload token and privately verify `azp=nexaconnect-order-service`,
+`preferred_username=service-account-nexaconnect-order-service` and audience `nexaconnect-api`.
+Restarting Keycloak does not re-import persisted realms. No client, secret or role grant
+is added. The draft terminal guard suite validates the template; target-token verification
+and rollout remain deployment-owned. See [admission](../API/Terminal-Admission.md).
+
+Before enabling durable settlement, apply the reviewed `pos-service-account-username` mapper to the existing persisted `nexaconnect-pos-service` client: user property `username`, claim `preferred_username`, JSON String, access token enabled, ID token/userinfo disabled. Preserve its `nexaconnect-api` audience and credentials-only flows. Startup import skips an existing realm, and POS does not request optional `profile` scope. Obtain a fresh workload token after the migration (restart POS or allow its cached token to expire), then privately verify the exact service-account claim and API audience. Run `scripts/test-keycloak-realm.ps1` for template validation; no token, secret or body belongs in logs/evidence. See [Keycloak lifecycle](../../docker/keycloak/README.md) and [settlement rollout](../Deployment/Day-Close-Settlements.md).
+
+Authorization 13 grants live pos.day-close.finalize to tenant-admin/store-manager defaults, without accountant/cashier grants. Finalize also requires live pos.day-close.read. Durable recovery delegates an already-authorized POS intent to its existing nexaconnect-pos-service client-credentials identity; each internal source endpoint requires authenticated exact azp plus preferred_username=service-account-nexaconnect-pos-service and the configured API audience. Customer bearer sessions cannot drive source decisions. Keep its existing secret restricted to POS; no new identity client or secret is added. Revocation prevents new customer commands while durable recovery finishes recorded intent. See [settlement security and rollout](../Deployment/Day-Close-Settlements.md).
+
 Omise test webhooks use a separate base64 HMAC credential (`OmiseWebhooks__Secret`), distinct from OIDC workload credentials and the API test secret used for signed capture context. The opt-in callback authenticates timestamped raw-body signatures rather than OIDC; it independently fetches canonical event data with Payment's test API key and validates local ownership before status recovery. One/two-signature rotation headers are supported with the current configured webhook secret; update the secret before retiring its predecessor. This is not a historical-key ring. Production enablement is rejected. Never expose callback body/signature headers in proxy/tunnel logging. See [bounds, configuration and test-account external-delivery evidence](../Deployment/Omise-Webhooks.md).
 
 The opt-in Development-only POS test-card path retains normal PKCE/tenant authorization and the exact Order workload boundary at Payment. A masked card token is transient request data, separate from OIDC credentials and the provider secret; POS clears its field on submission attempts, sign-out and session lock, and excludes it from SQLite/outbox/recovery. Permission to enter another token for an original checkout is also memory-only and cleared at attempt/session lock. After restart or sign-in, Verify original order must obtain validated `cardTokenRequired=true` before token entry; uncertain/started payment must remain in server reconciliation. Order accepts test-card checkout only in Development/Testing when `CardCheckout__EnableOmiseTestCheckout=true`. The client accepts only explicitly enabled loopback service endpoints. Operator-attested local POS verification passed on 2026-09-18; it does not independently certify UI/OIDC. Credentialed fifth-boundary acceptance passed on 2026-09-18; production browser collection remains planned; see [test-only scope](../Deployment/Omise-POS-Card-Token-Handoff.md).
@@ -103,3 +117,30 @@ Record evidence for:
 - Admin Console network restriction;
 - audit-event ingestion, alerting, and retention;
 - load, capacity, recovery-time, and recovery-point objectives.
+
+Reporting's branch read authorization requires a dedicated confidential `nexaconnect-reporting-service` client with the `nexaconnect-api` audience and independent `NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET`. Configure its `WorkloadIdentity` settings and `Services__Restaurant` as described in the [Reporting README](../../src/Services/NexaConnect.Services.Reporting/README.md). Provision the client/audience through reviewed desired-state administration for existing realms; bootstrap/import skips existing realm data. Restaurant accepts this identity only for branch scope/business-calendar lookup, while report reads retain customer authorization.
+
+Payment's confidential workload client now explicitly emits the nexaconnect-api audience for Order/Restaurant ownership lookup during refunds. Existing persisted realms require a reviewed audience-mapper update; restarting Keycloak does not re-import this change. The client remains credentials-only, with its existing distinct secret and unchanged endpoint authorization policies.
+
+The [joined end-of-day gate](../Deployment/End-Of-Day-Portal-Acceptance.md) uses a fresh run-specific realm and two customer-viewer identities with branch accountant/restaurant manager product grants. Actual customer tokens cross Reporting and owning Order/Payment/POS read boundaries; workload identities fetch only owning hierarchy/calendar metadata. Revoked source payment.refund.read and suspended membership must reject existing sessions. No new realm template, production grant or permission migration is introduced.
+
+Inventory's existing confidential workload client must explicitly emit the nexaconnect-api audience when reading Restaurant branch scope. The realm template and validation guard now enforce that mapper; JWT validation, client identity, secret and role grants are unchanged. Persisted realms require an explicit reviewed mapper update, followed by a new token (restart Inventory or let its cached token expire); Keycloak restart does not re-import existing realms. The [joined cashier acceptance](../Deployment/Cashier-Day-Close-Acceptance.md) exposed this prerequisite through actual Inventory-to-Restaurant HTTP; production rollout remains separate.
+
+## Dedicated-server pilot preparation
+
+The [Phase 6 guide](../Deployment/Next-Iteration-Phase-6.md) keeps identity/admin routing
+separate from the application edge. Production bootstrap now supplies the existing
+Media and Platform Directory admin secrets; `.env.production.example` lists every
+confidential-client secret and the separate Product Owner redirect/origin settings.
+The validator derives required secrets from the checked-in realm, requires independent
+32+ character values and checks exact distinct HTTPS browser origins and callbacks.
+The Product Owner client is `platform-admin-bff` (`PLATFORM_ADMIN_BFF_*`), distinct from
+the legacy `nexaconnect-admin-bff` (`NEXACONNECT_ADMIN_*`); configure both while the shared
+realm contains both. Match each application's configured secret to its own client.
+
+For `platform-admin-bff`, the realm template permits post-logout return only to
+`${PLATFORM_ADMIN_BFF_ORIGIN}/signout-callback-oidc`. Existing realms need an explicit
+reviewed update of `post.logout.redirect.uris`; restart/bootstrap does not update them.
+No client, role, grant or token audience is added. Validate fresh deployment configuration
+and actual login/refresh/logout at each external origin before exposure; template checks
+and anonymous discovery probes are not live identity or restored-session acceptance.

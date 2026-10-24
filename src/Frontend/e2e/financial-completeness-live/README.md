@@ -1,0 +1,9 @@
+# Joined financial completeness browser suite
+
+Run the [guarded disposable launcher](../../../../scripts/test-financial-completeness-portal.ps1) after preparing Chromium and `npm run test:financial-completeness:guards`. It provisions real OIDC identities, owning retained sources, Reporting consumers, the Customer BFF/portal and run-owned fault proxy settings. `npm run test:e2e:financial-completeness:live` requires that complete fresh launcher environment; missing settings fail rather than skip.
+
+Seven serial cases use actual BFF/Reporting/authentication traffic: recorded status progression after real delivery, branch/tenant isolation, transport outage, delayed filter/tenant reads, identical read filters/no mutation controls, sales permission denial and organization membership suspension. The fixture invokes the actual `--record` operator CLI; browser APIs never run reconciliation or repair. The explicit POST probe must return405.
+
+The settings guard validates disposable opt-in, exact loopback BFF/issuer/run realm, fixture run/scope/closed minute window, fixed fixture executable, distinct identities and distinct proxy/upstream ports. Only generated BFF and identity origins are allowed for browser traffic. TLS relaxation is local-only. Traces/screenshots/videos are off; the reporter emits bounded scenario outcomes and requires all seven distinct passes without retries/skips. CI uploads only the bounded summary, never local browser diagnostics, state or service logs.
+
+This suite establishes the joined read/delivery/record workflow, not provider payment execution, cashier UI, global financial certification or target-production acceptance. See [runbook](../../../../docs/Deployment/Financial-Completeness-Portal-Acceptance.md) and [executed evidence](../../../../docs/Architecture/Evidence/Financial-Completeness-Joined-Acceptance.md).

@@ -1,5 +1,11 @@
 # Development issue register
 
+## Reporting OpenAPI GUID schema export
+
+**Status:** Open; observed during slice 1 local joined startup on 14 October 2026.
+
+Authenticated `GET /openapi/v1.json` in Reporting throws `System.Text.Json.JsonException` while the OpenAPI schema exporter converts a value to `Guid`. The failing default/type has not been isolated. This is metadata-generation evidence, not proof that financial queries fail. The local draft uses an explicit anonymous `/health/live` and separately verifies migration/runtime grants, workload audiences and active financial consumers. Fix the exporter/contract incompatibility with a focused metadata regression before relying on this document for client generation. No customer financial validation or authorization bypass was introduced. See [draft initialization and limitations](../Deployment/First-Draft-Test-Stack.md).
+
 ## POS shift authorization persistence mismatch
 
 **Status:** Resolved in the current development build and verified on 2026-08-07.

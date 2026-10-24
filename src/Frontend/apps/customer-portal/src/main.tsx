@@ -1,8 +1,17 @@
+import { EndOfDayPanel } from "./EndOfDayPanel";
+import { SalesReportPanel } from "./SalesReportPanel";
 import { CashCloseReportPanel } from "./CashCloseReportPanel";
 import { KitchenQueuePanel } from "./KitchenQueuePanel";
-import React, { useEffect, useState } from "react";
+import { KitchenDisplay } from "./KitchenDisplay";
+import { BranchGalleryPanel } from "./BranchGalleryPanel";
+import { QrEntryPanel } from "./QrEntryPanel";
+import { QrReviewPanel } from "./QrReviewPanel";
+import { QrGuestEntry, isQrGuestEntry } from "./QrGuestEntry";
+import { currentSection, isKitchenEntry, signInToCustomer } from "./navigation";
+import React, { useEffect, useRef, useState } from "react";
 import { PaymentReviewPanel } from "./PaymentReviewPanel";
 import { createRoot } from "react-dom/client";
+import { flushSync } from "react-dom";
 import {
   Alert,
   Button,
@@ -23,7 +32,7 @@ import {
 } from "antd";
 import { createApiClient } from "@nexaconnect/api-client";
 import { AuthorizationUiProvider } from "@nexaconnect/authorization-ui";
-import { NexaDesignProvider } from "@nexaconnect/design-system";
+import { NexaDesignProvider, RequestState } from "@nexaconnect/design-system";
 import { ErrorBoundary, normalizeError } from "@nexaconnect/error-handling";
 import { PortalLayout } from "@nexaconnect/layout";
 import {
@@ -55,17 +64,13 @@ type Branch = {
   concurrencyVersion: number;
 };
 type FeatureResponse = { items?: unknown[]; message?: string };
-type Configuration = { branchId:string; dineInEnabled:boolean; takeawayEnabled:boolean; requireTableForDineIn:boolean; serviceChargePercent:number; concurrencyVersion:number };
-type Dashboard = { completedOrders:number; grossSales:number; netPaid:number; refunded:number; currency?:string; latestGlobalCheckpointUpdatedAtUtc?:string };
-type SalesReport = { items:Array<{orderId:string;branchId:string;channel:string;serviceType:string;currency:string;totalAmount:number;orderStatus:string;orderedAtUtc:string}>; totalSales:number; currency?:string; latestGlobalCheckpointUpdatedAtUtc?:string };
+type Configuration = { branchId:string; dineInEnabled:boolean; takeawayEnabled:boolean; requireTableForDineIn:boolean; serviceChargePercent:number; taxPercent:number; taxInclusive:boolean; concurrencyVersion:number };
+type Dashboard = { completedOrders:number; grossSales:number; netPaid:number; refunded:number; netSales:number; currency?:string; latestGlobalCheckpointUpdatedAtUtc?:string };
 type MediaAsset = { id:string; originalFileName:string; contentType:string; sizeBytes:number; processingStatus:string; uploadedAtUtc:string; ownerService:string; concurrencyVersion:number };
 type ActivityRecord={eventId:string;sourceService:string;actorSubjectId:string;action:string;resourceType:string;resourceId:string;outcome:string;occurredAtUtc:string;projectedAtUtc:string};
 type ActivityPage={items:ActivityRecord[];nextCursor?:string};
 const api = createApiClient({
-  onUnauthorized: () =>
-    location.assign(
-      `/bff/customer/login?returnUrl=${encodeURIComponent(location.pathname + location.hash)}`,
-    ),
+  onUnauthorized: signInToCustomer,
 });
 
 function useRequest<T>(path?: string) {
@@ -88,14 +93,23 @@ function ContextPicker({
   access,
   tenant,
   onChange,
+  onChanging,
+  onPendingChange,
+  disabled,
 }: {
   access: Access[];
   tenant?: Tenant;
   onChange: (v: Tenant) => void;
+  onChanging?: () => void;
+  onPendingChange?: (pending: boolean) => void;
+  disabled?: boolean;
 }) {
+  const [error, setError] = useState<string>();
   return (
-    <Select
-      style={{ minWidth: 300 }}
+    <Space direction="vertical"><Select
+      disabled={disabled}
+      className="nexa-context-picker"
+      aria-label="Organization and product workspace"
       value={
         tenant
           ? `${tenant.organizationId}|${tenant.applicationCode}`
@@ -104,18 +118,21 @@ function ContextPicker({
       placeholder="Select organization and product"
       options={access.map((x) => ({
         value: `${x.organizationId}|${x.applicationCode}`,
-        label: `${x.organizationName} Â· ${x.applicationCode}`,
+        label: `${x.organizationName} \u00b7 ${x.applicationCode}`,
       }))}
       onChange={async (value) => {
         const [organizationId, applicationCode] = value.split("|");
-        onChange(
-          await api.request<Tenant>("/bff/customer/tenant", {
+        setError(undefined);
+        onChanging?.();
+        onPendingChange?.(true);
+        try { onChange(await api.request<Tenant>("/bff/customer/tenant", {
             method: "POST",
             body: { organizationId, applicationCode },
-          }),
-        );
+          })); }
+        catch { setError("Workspace could not be changed. Select an authorized workspace to retry."); }
+        finally { onPendingChange?.(false); }
       }}
-    />
+    />{error && <Alert type="error" message={error} />}</Space>
   );
 }
 
@@ -240,10 +257,9 @@ function BranchesPanel() {
   };
   return <><Typography.Title level={2}>Branches & locations</Typography.Title><Card title="Create branch"><Form form={form} layout="vertical" onFinish={save}><Form.Item name="restaurantId" label="Restaurant ID" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="code" label="Code" rules={[{required:true,pattern:/^[a-z0-9][a-z0-9_-]{0,63}$/}]}><Input/></Form.Item><Form.Item name="name" label="Name" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="timeZone" label="IANA time zone" initialValue="Asia/Singapore" rules={[{required:true}]}><Input/></Form.Item><Form.Item name="currency" label="Currency" initialValue="SGD" rules={[{required:true,pattern:/^[A-Z]{3}$/}]}><Input/></Form.Item><Button type="primary" htmlType="submit">Create</Button></Form></Card>{message&&<Alert style={{marginTop:16}} message={message}/>}<Table style={{marginTop:16}} rowKey="branchId" dataSource={state.data} columns={[{title:"Code",dataIndex:"code"},{title:"Name",dataIndex:"name"},{title:"Time zone",dataIndex:"timeZone"},{title:"Currency",dataIndex:"currency"},{title:"Status",dataIndex:"status",render:value=><Tag>{value}</Tag>},{title:"Actions",render:(_,branch)=><Space><Button onClick={()=>change(branch,"active")}>Activate</Button><Button onClick={()=>change(branch,"suspended")}>Suspend</Button><Button danger onClick={()=>change(branch,"closed")}>Close</Button></Space>}]} /></>;
 }
-function BranchPicker({value,onChange}:{value?:string;onChange:(value:string)=>void}) { const branches=useRequest<Branch[]>("/bff/customer/branches"); return <Select style={{minWidth:280}} loading={!branches.data&&!branches.error} value={value} placeholder="All branches" allowClear options={branches.data?.map(branch=>({value:branch.branchId,label:`${branch.name} (${branch.code})`}))} onChange={onChange}/>; }
-function ConfigurationPanel(){const branches=useRequest<Branch[]>("/bff/customer/branches"),[branchId,setBranchId]=useState<string>(),state=useRequest<Configuration>(branchId?`/bff/customer/configuration/branches/${branchId}`:undefined),[message,setMessage]=useState<string>();useEffect(()=>{const first=branches.data?.[0];if(!branchId&&first)setBranchId(first.branchId)},[branches.data,branchId]);const save=async(values:Omit<Configuration,"branchId"|"concurrencyVersion">)=>{if(!branchId||!state.data)return;try{await api.request(`/bff/customer/configuration/branches/${branchId}`,{method:"PUT",body:{...values,expectedVersion:state.data.concurrencyVersion}});setMessage("Configuration saved.");state.reload()}catch(error){setMessage(normalizeError(error).message)}};return <><Typography.Title level={2}>Product configuration</Typography.Title><Select style={{minWidth:320,marginBottom:16}} value={branchId} options={branches.data?.map(branch=>({value:branch.branchId,label:branch.name}))} onChange={setBranchId}/>{state.error&&<Alert type="error" message={state.error}/>} {state.data&&<Card><Form key={state.data.concurrencyVersion} layout="vertical" initialValues={state.data} onFinish={save}><Form.Item name="dineInEnabled" label="Dine-in" valuePropName="checked"><Switch/></Form.Item><Form.Item name="takeawayEnabled" label="Takeaway" valuePropName="checked"><Switch/></Form.Item><Form.Item name="requireTableForDineIn" label="Require table for dine-in" valuePropName="checked"><Switch/></Form.Item><Form.Item name="serviceChargePercent" label="Service charge (%)"><InputNumber min={0} max={100} precision={2}/></Form.Item><Button type="primary" htmlType="submit">Save configuration</Button></Form></Card>}{message&&<Alert style={{marginTop:16}} message={message} type={message==="Configuration saved."?"success":"error"}/>}</>}
-function DashboardPanel(){const[branchId,setBranchId]=useState<string>(),state=useRequest<Dashboard>(branchId?`/bff/customer/dashboard?branchId=${branchId}`:undefined);return <><Typography.Title level={2}>Product dashboards</Typography.Title><BranchPicker value={branchId} onChange={value=>setBranchId(value)}/>{state.error&&<Alert type="error" message={state.error}/>} {state.data&&<><Descriptions bordered style={{marginTop:16}}><Descriptions.Item label="Completed orders">{state.data.completedOrders}</Descriptions.Item><Descriptions.Item label="Gross sales">{state.data.currency??""} {state.data.grossSales}</Descriptions.Item><Descriptions.Item label="Net paid">{state.data.currency??""} {state.data.netPaid}</Descriptions.Item><Descriptions.Item label="Refunded">{state.data.currency??""} {state.data.refunded}</Descriptions.Item></Descriptions><Alert style={{marginTop:16}} type="info" message={`Latest global projector checkpoint: ${state.data.latestGlobalCheckpointUpdatedAtUtc??"No projector checkpoint yet"}`}/></>}</>}
-function ReportsPanel(){const[branchId,setBranchId]=useState<string>(),state=useRequest<SalesReport>(branchId?`/bff/customer/reports/sales?branchId=${branchId}`:undefined);return <><Typography.Title level={2}>Sales report</Typography.Title><BranchPicker value={branchId} onChange={value=>setBranchId(value)}/>{state.data&&<><Typography.Paragraph style={{marginTop:16}}>Completed sales total: {state.data.currency??""} {state.data.totalSales}</Typography.Paragraph><Table rowKey="orderId" dataSource={state.data.items} columns={[{title:"Ordered",dataIndex:"orderedAtUtc"},{title:"Channel",dataIndex:"channel"},{title:"Service",dataIndex:"serviceType"},{title:"Status",dataIndex:"orderStatus",render:value=><Tag>{value}</Tag>},{title:"Total",render:(_,row)=>`${row.currency} ${row.totalAmount}`}]}/><Alert type="info" message={`Latest global projector checkpoint: ${state.data.latestGlobalCheckpointUpdatedAtUtc??"No projector checkpoint yet"}`}/></>}{state.error&&<Alert type="error" message={state.error}/>}</>}
+function BranchPicker({value,onChange}:{value?:string;onChange:(value:string)=>void}) { const branches=useRequest<Branch[]>("/bff/customer/operational-branches?capability=reports"); return <Select style={{minWidth:280}} loading={!branches.data&&!branches.error} value={value} placeholder="All branches" allowClear options={branches.data?.map(branch=>({value:branch.branchId,label:`${branch.name} (${branch.code})`}))} onChange={onChange}/>; }
+function ConfigurationPanel(){const branches=useRequest<Branch[]>("/bff/customer/branches"),[branchId,setBranchId]=useState<string>(),state=useRequest<Configuration>(branchId?`/bff/customer/configuration/branches/${branchId}`:undefined),[message,setMessage]=useState<string>();useEffect(()=>{const first=branches.data?.[0];if(!branchId&&first)setBranchId(first.branchId)},[branches.data,branchId]);const save=async(values:Omit<Configuration,"branchId"|"concurrencyVersion">)=>{if(!branchId||!state.data)return;try{await api.request(`/bff/customer/configuration/branches/${branchId}`,{method:"PUT",body:{...values,expectedVersion:state.data.concurrencyVersion}});setMessage("Configuration saved.");state.reload()}catch(error){setMessage(normalizeError(error).message)}};return <><Typography.Title level={2}>Product configuration</Typography.Title><Select style={{minWidth:320,marginBottom:16}} value={branchId} options={branches.data?.map(branch=>({value:branch.branchId,label:branch.name}))} onChange={setBranchId}/>{state.error&&<Alert type="error" message={state.error}/>} {state.data&&<Card><Form key={state.data.concurrencyVersion} layout="vertical" initialValues={state.data} onFinish={save}><Form.Item name="dineInEnabled" label="Dine-in" valuePropName="checked"><Switch/></Form.Item><Form.Item name="takeawayEnabled" label="Takeaway" valuePropName="checked"><Switch/></Form.Item><Form.Item name="requireTableForDineIn" label="Require table for dine-in" valuePropName="checked"><Switch/></Form.Item><Form.Item name="serviceChargePercent" label="Service charge (%)"><InputNumber min={0} max={100} precision={2}/></Form.Item><Form.Item name="taxPercent" label="Tax (%)"><InputNumber min={0} max={100} precision={2}/></Form.Item><Form.Item name="taxInclusive" label="Menu prices include tax" valuePropName="checked"><Switch/></Form.Item><Typography.Paragraph>Service charge applies to the subtotal before tax. Tax also applies to service charge. Accepted orders retain their original pricing.</Typography.Paragraph><Button type="primary" htmlType="submit">Save configuration</Button></Form></Card>}{message&&<Alert style={{marginTop:16}} message={message} type={message==="Configuration saved."?"success":"error"}/>}</>}
+function DashboardPanel(){const[branchId,setBranchId]=useState<string>(),state=useRequest<Dashboard>(branchId?`/bff/customer/dashboard?branchId=${branchId}`:undefined);return <><Typography.Title level={2}>Product dashboards</Typography.Title><BranchPicker value={branchId} onChange={value=>setBranchId(value)}/>{state.error&&<Alert type="error" message={state.error}/>} {state.data&&<><Descriptions bordered style={{marginTop:16}}><Descriptions.Item label="Completed orders">{state.data.completedOrders}</Descriptions.Item><Descriptions.Item label="Gross sales">{state.data.currency??""} {state.data.grossSales}</Descriptions.Item><Descriptions.Item label="Refunded in range">{state.data.currency??""} {state.data.refunded}</Descriptions.Item><Descriptions.Item label="Net sales">{state.data.currency??""} {state.data.netSales}</Descriptions.Item><Descriptions.Item label="Net paid">{state.data.currency??""} {state.data.netPaid}</Descriptions.Item></Descriptions><Alert style={{marginTop:16}} type="info" message={`Latest global projector checkpoint: ${state.data.latestGlobalCheckpointUpdatedAtUtc??"No projector checkpoint yet"}`}/></>}</>}
 function MediaPanel(){const state=useRequest<MediaAsset[]>("/bff/customer/media"),[file,setFile]=useState<File>(),[ownerId,setOwnerId]=useState(""),[message,setMessage]=useState<string>();const upload=async()=>{if(!file||!ownerId)return;try{const bytes=new Uint8Array(await crypto.subtle.digest("SHA-256",await file.arrayBuffer())),hash=Array.from(bytes).map(v=>v.toString(16).padStart(2,"0")).join(""),checksum=btoa(String.fromCharCode(...bytes));const session=await api.request<{asset:MediaAsset;uploadUrl:string}>("/bff/customer/media/uploads",{method:"POST",body:{ownerService:"catalog",ownerType:"product",ownerId,fileName:file.name,contentType:file.type,sizeBytes:file.size,checksumSha256:hash}});const put=await fetch(session.uploadUrl,{method:"PUT",headers:{"Content-Type":file.type,"x-amz-checksum-sha256":checksum},body:file});if(!put.ok)throw new Error("Object upload failed.");await api.request(`/bff/customer/media/${session.asset.id}/complete`,{method:"POST",body:{expectedVersion:session.asset.concurrencyVersion}});setMessage("Upload completed; thumbnail and display variants are processing.");state.reload()}catch(e){setMessage(normalizeError(e).message)}};const download=async(asset:MediaAsset,variant?:"thumbnail"|"display")=>{try{const path=variant?`/bff/customer/media/${asset.id}/variants/${variant}/download`:`/bff/customer/media/${asset.id}/download`,value=await api.request<{downloadUrl:string}>(path);location.assign(value.downloadUrl)}catch(e){setMessage(normalizeError(e).message)}};const remove=async(asset:MediaAsset)=>{await api.request(`/bff/customer/media/${asset.id}?expectedVersion=${asset.concurrencyVersion}`,{method:"DELETE"});state.reload()};return <><Typography.Title level={2}>Media management</Typography.Title><Card title="Upload product image"><Space direction="vertical"><Input placeholder="Catalog product UUID" value={ownerId} onChange={e=>setOwnerId(e.target.value)}/><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0])}/><Button type="primary" disabled={!file||!ownerId} onClick={upload}>Upload</Button></Space></Card>{message&&<Alert style={{marginTop:16}} message={message}/>}<Table style={{marginTop:16}} rowKey="id" loading={!state.data&&!state.error} dataSource={state.data} columns={[{title:"File",dataIndex:"originalFileName"},{title:"Type",dataIndex:"contentType"},{title:"Owner",dataIndex:"ownerService"},{title:"Size (bytes)",dataIndex:"sizeBytes"},{title:"Status",dataIndex:"processingStatus",render:value=><Tag>{value}</Tag>},{title:"Uploaded",dataIndex:"uploadedAtUtc"},{title:"Actions",render:(_,asset)=><Space wrap><Button disabled={asset.processingStatus!=="ready"} onClick={()=>download(asset)}>Original</Button><Button disabled={asset.processingStatus!=="ready"} onClick={()=>download(asset,"thumbnail")}>Thumbnail</Button><Button disabled={asset.processingStatus!=="ready"} onClick={()=>download(asset,"display")}>Display</Button><Button danger onClick={()=>remove(asset)}>Delete</Button></Space>}]}/>{state.error&&<Alert type="error" message={state.error}/>}</>}
 function ActivityPanel(){const[items,setItems]=useState<ActivityRecord[]>([]),[next,setNext]=useState<string>(),[submitted,setSubmitted]=useState<Record<string,string>>({}),[loading,setLoading]=useState(false),[error,setError]=useState<string>(),[form]=Form.useForm();const load=async(filters:Record<string,string>,cursor?:string,append=false)=>{setLoading(true);try{const query=new URLSearchParams(filters);if(cursor)query.set("cursor",cursor);const page=await api.request<ActivityPage>(`/bff/customer/activity?${query}`);setItems(current=>append?[...current,...page.items]:page.items);setNext(page.nextCursor);setSubmitted(filters);setError(undefined)}catch(e){setError(normalizeError(e).message)}finally{setLoading(false)}};useEffect(()=>{void load({})},[]);return <><Typography.Title level={2}>Activity projection preview</Typography.Title><Alert type="warning" message="This non-authoritative preview is empty by default until trusted service events are delivered. Do not use it as evidence that no activity occurred."/><Card style={{marginTop:16}}><Form form={form} layout="inline" onFinish={values=>load(Object.fromEntries(Object.entries(values).filter(([,v])=>v)) as Record<string,string>)}><Form.Item name="actorSubjectId" label="Actor"><Input allowClear/></Form.Item><Form.Item name="action" label="Action"><Input allowClear/></Form.Item><Button type="primary" htmlType="submit">Filter</Button></Form></Card>{error&&<Alert style={{marginTop:16}} type="error" message={error}/>}<Table style={{marginTop:16}} loading={loading} pagination={false} rowKey="eventId" dataSource={items} columns={[{title:"When",dataIndex:"occurredAtUtc"},{title:"Service",dataIndex:"sourceService"},{title:"Actor",dataIndex:"actorSubjectId"},{title:"Action",dataIndex:"action"},{title:"Resource",render:(_,item)=>`${item.resourceType}: ${item.resourceId}`},{title:"Outcome",dataIndex:"outcome",render:value=><Tag>{value}</Tag>}]} />{next&&<Button style={{marginTop:16}} loading={loading} onClick={()=>load(submitted,next,true)}>Load more</Button>}</>}
 function FeaturePanel({
@@ -251,16 +267,15 @@ function FeaturePanel({
 }: {
   section: Exclude<
     PortalSection,
-    "profile" | "products" | "users" | "configuration" | "branches" | "dashboards" | "reports" | "media" | "activity" | "payment-reviews" | "kitchen" | "cash-close-reports"
+    "profile" | "products" | "users" | "configuration" | "branches" | "dashboards" | "reports" | "media" | "activity" | "payment-reviews" | "kitchen" | "cash-close-reports" | "end-of-day"
   >;
 }) {
   const state = useRequest<FeatureResponse>(scopedFeaturePath(section));
   return (
     <>
       <Typography.Title level={2}>{section}</Typography.Title>
-      {state.error && <Alert type="warning" message={state.error} />}{" "}
-      {!state.data ? (
-        <Spin />
+      {state.error ? <RequestState state="error" message={state.error} onRetry={state.reload} /> : !state.data ? (
+        <RequestState state="loading" title="Loading workspace view" />
       ) : (
         <Card>
           <Alert type="info" message={state.data.message} />
@@ -275,26 +290,53 @@ function App() {
   const session = useRequest<Session>("/bff/customer/me"),
     accessState = useRequest<AccessResponse>("/bff/customer/access");
   const [tenant, setTenant] = useState<Tenant>();
-  const [section, setSection] = useState<PortalSection>(() =>
-    sections.includes(location.hash.slice(1) as PortalSection)
-      ? (location.hash.slice(1) as PortalSection)
-      : "profile",
-  );
+  const [workspaceBusy, setWorkspaceBusy] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  // Remove scoped content before the anchor begins a potentially slow redirect.
+  const beginSignOut = () => flushSync(() => setSigningOut(true));
+  const tenantGeneration = useRef(0);
+  const [section, setSection] = useState<PortalSection>(currentSection);
+  const contextProps = {
+    onChange: setTenant,
+    onChanging: () => {
+      tenantGeneration.current++;
+      // Kitchen clears immediately; other workflows retain their existing
+      // state until a protected workspace selection succeeds.
+      if (section === "kitchen") setTenant(undefined);
+    },
+    onPendingChange: setWorkspaceBusy,
+    disabled: workspaceBusy,
+  };
   useEffect(() => {
+    const changed = () => setSection(currentSection());
+    window.addEventListener("hashchange", changed);
+    window.addEventListener("popstate", changed);
+    return () => {
+      window.removeEventListener("hashchange", changed);
+      window.removeEventListener("popstate", changed);
+    };
+  }, []);
+  useEffect(() => {
+    const generation = tenantGeneration.current;
+    let cancelled = false;
     api
       .request<Tenant>("/bff/customer/tenant")
-      .then(setTenant)
+      .then(value => { if (!cancelled && generation === tenantGeneration.current) setTenant(value); })
       .catch(() => undefined);
+    return () => { cancelled = true; };
   }, []);
+  if (signingOut) return <RequestState state="loading" title="Signing out of Customer Portal" />;
   if (!session.data || !accessState.data)
     return session.error || accessState.error ? (
-      <Alert type="error" message={session.error ?? accessState.error} />
+      <RequestState state="error" title="Customer workspace unavailable" message={session.error ?? accessState.error}
+        onRetry={() => { session.reload(); accessState.reload(); }} />
     ) : (
-      <Spin fullscreen />
+      <RequestState state="loading" title="Opening Customer Portal" />
     );
   const access = accessState.data.organizations,
     current = selectedAccess(access, tenant);
   const labels: Record<PortalSection, string> = {
+    "qr-requests": "QR requests",
     profile: "Organization profile",
     products: "Enabled products",
     users: "Customer users & memberships",
@@ -307,8 +349,9 @@ function App() {
     "payment-reviews": "Payment Reviews",
     kitchen: "Kitchen queue",
     "cash-close-reports": "Cash-close report",
+    "end-of-day": "End-of-day draft",
   };
-  const nav = sections.filter(key=>(key!=="payment-reviews"&&key!=="kitchen"&&key!=="cash-close-reports")||tenant?.applicationCode==="nexa_connect").map((key) => ({
+  const nav = sections.filter(key=>(key!=="qr-requests"&&key!=="payment-reviews"&&key!=="kitchen"&&key!=="cash-close-reports"&&key!=="end-of-day")||tenant?.applicationCode==="nexa_connect").map((key) => ({
     key,
     label: labels[key],
     onSelect: () => {
@@ -321,7 +364,7 @@ function App() {
     panel = (
       <Card>
         <Typography.Title level={2}>Choose your workspace</Typography.Title>
-        <ContextPicker access={access} tenant={tenant} onChange={setTenant} />
+        <ContextPicker access={access} tenant={tenant} {...contextProps} />
       </Card>
     );
   else if (section === "profile")
@@ -357,12 +400,18 @@ function App() {
       </>
     );
   else if (section === "users") panel = <MembershipsPanel />;
-  else if (section === "configuration") panel = <ConfigurationPanel />;
+  else if (section === "configuration") panel = <React.Fragment key={`${tenant.organizationId}|${tenant.applicationCode}`}><ConfigurationPanel/>{tenant.applicationCode==="nexa_connect"&&<QrEntryPanel/>}</React.Fragment>;
+  else if (section === "qr-requests") panel = tenant.applicationCode==="nexa_connect"?<QrReviewPanel key={`${tenant.organizationId}|${tenant.applicationCode}`}/>:<Alert message="QR requests require the NexaConnect workspace."/>;
   else if (section === "branches") panel = <BranchesPanel />;
   else if (section === "dashboards") panel = <DashboardPanel />;
-  else if (section === "reports") panel = <ReportsPanel />;
-  else if (section === "media") panel = <MediaPanel />;
+  else if (section === "reports") panel = tenant.applicationCode === "nexa_connect"
+    ? <SalesReportPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} organizationId={tenant.organizationId} />
+    : <Alert type="warning" message="Sales reports require the NexaConnect workspace."/>;
+  else if (section === "media") panel = <React.Fragment key={`${tenant.organizationId}|${tenant.applicationCode}`}><MediaPanel />{tenant.applicationCode==="nexa_connect"&&<BranchGalleryPanel/>}</React.Fragment>;
   else if (section === "activity") panel = <ActivityPanel />;
+  else if (section === "end-of-day") panel = tenant.applicationCode === "nexa_connect"
+    ? <EndOfDayPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} organizationId={tenant.organizationId} />
+    : <Alert type="warning" message="End-of-day drafts require the NexaConnect workspace."/>;
   else if (section === "cash-close-reports") panel = tenant.applicationCode==="nexa_connect"
     ? <CashCloseReportPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} />
     : <Alert type="warning" message="Cash-close reports require the NexaConnect workspace."/>;
@@ -373,21 +422,27 @@ function App() {
     ? <PaymentReviewPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} />
     : <Alert type="warning" message="Payment Reviews require the NexaConnect product workspace."/>;
   else panel = <FeaturePanel section={section} />;
+  if (isKitchenEntry()) return <KitchenDisplay actions={<>
+    <ContextPicker access={access} tenant={tenant} {...contextProps} />
+    <span>{session.data.username ?? session.data.subjectId}</span>
+    <Button href="/bff/customer/logout" onClick={beginSignOut}>Sign out</Button>
+  </>}>{panel}</KitchenDisplay>;
   return (
     <AuthorizationUiProvider can={() => true}>
       <PortalLayout
         title="Customer Portal"
+        description="Manage your restaurant workspace, daily operations and financial evidence."
         items={nav}
         selectedKey={section}
         headerActions={
-          <Space>
+          <Space wrap>
             <ContextPicker
               access={access}
               tenant={tenant}
-              onChange={setTenant}
+              {...contextProps}
             />
             <span>{session.data.username ?? session.data.subjectId}</span>
-            <Button href="/bff/customer/logout">Sign out</Button>
+            <Button href="/bff/customer/logout" onClick={beginSignOut}>Sign out</Button>
           </Space>
         }
       >
@@ -404,7 +459,7 @@ createRoot(document.getElementById("root")!).render(
           <Alert type="error" message="The portal could not render safely." />
         )}
       >
-        <App />
+        {isQrGuestEntry() ? <QrGuestEntry/> : <App />}
       </ErrorBoundary>
     </NexaDesignProvider>
   </React.StrictMode>,

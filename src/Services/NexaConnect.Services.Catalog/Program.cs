@@ -14,6 +14,7 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddScoped<NexaConnect.Services.Catalog.Application.Menu.GuestMenuRead>();
 builder.Services.AddMemoryCache();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();

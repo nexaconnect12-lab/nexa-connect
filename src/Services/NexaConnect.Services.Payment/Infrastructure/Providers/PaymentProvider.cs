@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NexaConnect.Services.Payment.Application.Intents;
+using NexaConnect.Services.Payment.Application.Refunds;
 
 namespace NexaConnect.Services.Payment.Infrastructure.Providers;
 
@@ -30,6 +31,8 @@ public enum ProviderCaptureOutcome { Captured, Failed, Unknown }
 public sealed record ProviderCaptureResult(ProviderCaptureOutcome Outcome, string? ProviderTransactionId, string? FailureReason);
 public enum ProviderVoidOutcome { Voided, Failed, Unknown }
 public sealed record ProviderVoidResult(ProviderVoidOutcome Outcome, string? ProviderTransactionId, string? FailureReason);
+public enum ProviderRefundOutcome { Refunded, Failed, Unknown }
+public sealed record ProviderRefundResult(ProviderRefundOutcome Outcome, string? ProviderTransactionId, string? FailureReason);
 
 public interface IPaymentProvider
 {
@@ -50,6 +53,10 @@ public interface IPaymentProvider
         => Task.FromResult(new ProviderVoidResult(ProviderVoidOutcome.Unknown, null, "provider_void_unavailable"));
     Task<ProviderVoidResult> GetVoidStatusAsync(PaymentIntent intent, CancellationToken cancellationToken)
         => Task.FromResult(new ProviderVoidResult(ProviderVoidOutcome.Unknown, null, "provider_void_status_unavailable"));
+    Task<ProviderRefundResult> RefundAsync(PaymentIntent intent, PaymentRefund refund, CancellationToken cancellationToken)
+        => Task.FromResult(new ProviderRefundResult(ProviderRefundOutcome.Failed, null, "provider_refund_unavailable"));
+    Task<ProviderRefundResult> GetRefundStatusAsync(PaymentIntent intent, PaymentRefund refund, CancellationToken cancellationToken)
+        => Task.FromResult(new ProviderRefundResult(ProviderRefundOutcome.Unknown, null, "provider_refund_status_unavailable"));
 }
 
 public sealed class DisabledPaymentProvider : IPaymentProvider
@@ -71,6 +78,9 @@ public sealed class DisabledPaymentProvider : IPaymentProvider
 
     public Task<ProviderVoidResult> GetVoidStatusAsync(PaymentIntent intent, CancellationToken cancellationToken) =>
         Task.FromResult(new ProviderVoidResult(ProviderVoidOutcome.Unknown, null, "provider_not_configured"));
+
+    public Task<ProviderRefundResult> RefundAsync(PaymentIntent intent, PaymentRefund refund, CancellationToken cancellationToken) =>
+        Task.FromResult(new ProviderRefundResult(ProviderRefundOutcome.Failed, null, "provider_not_configured"));
 }
 
 public sealed class HttpPaymentProvider(
@@ -248,6 +258,51 @@ public sealed class HttpPaymentProvider(
         }
     }
 
+    public async Task<ProviderRefundResult> RefundAsync(PaymentIntent intent, PaymentRefund refund, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using HttpRequestMessage request = CreateRequest(HttpMethod.Post, options.Value.RefundPath,
+                new ProviderRefundRequest(refund.Id, intent.Id, intent.ProviderCaptureId!, refund.Amount, refund.Currency));
+            request.Headers.TryAddWithoutValidation("Idempotency-Key", $"refund:{refund.Id:D}");
+            using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode) return new(IsUncertain(response.StatusCode)
+                ? ProviderRefundOutcome.Unknown : ProviderRefundOutcome.Failed, null, $"provider_http_{(int)response.StatusCode}");
+            ProviderRefundResponse? result = await response.Content.ReadFromJsonAsync<ProviderRefundResponse>(cancellationToken);
+            return result is { Succeeded: true } && !string.IsNullOrWhiteSpace(result.ProviderTransactionId)
+                ? new(ProviderRefundOutcome.Refunded, result.ProviderTransactionId.Trim(), null)
+                : result is null ? new(ProviderRefundOutcome.Unknown, null, "provider_response_invalid")
+                : new(ProviderRefundOutcome.Failed, null, "provider_refund_failed");
+        }
+        catch (Exception exception) when (IsRecoverable(exception, cancellationToken))
+        { LogUncertain("refund", exception); return new(ProviderRefundOutcome.Unknown, null, FailureCode(exception)); }
+    }
+
+    public async Task<ProviderRefundResult> GetRefundStatusAsync(PaymentIntent intent, PaymentRefund refund, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using HttpRequestMessage request = CreateRequest(HttpMethod.Get,
+                $"{options.Value.RefundStatusPath.TrimEnd('/')}/{refund.Id:D}");
+            using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return new(ProviderRefundOutcome.Unknown, null, "provider_refund_status_missing");
+            if (!response.IsSuccessStatusCode)
+                return new(ProviderRefundOutcome.Unknown, null, $"provider_http_{(int)response.StatusCode}");
+            ProviderRefundStatusResponse? result = await response.Content.ReadFromJsonAsync<ProviderRefundStatusResponse>(cancellationToken);
+            ProviderRefundOutcome outcome = result?.Status?.Trim().ToLowerInvariant() switch
+            {
+                "refunded" or "completed" when !string.IsNullOrWhiteSpace(result.ProviderTransactionId) => ProviderRefundOutcome.Refunded,
+                "failed" => ProviderRefundOutcome.Failed,
+                _ => ProviderRefundOutcome.Unknown
+            };
+            return new(outcome, outcome == ProviderRefundOutcome.Refunded ? result!.ProviderTransactionId!.Trim() : null,
+                outcome == ProviderRefundOutcome.Unknown ? result?.FailureReason ?? "provider_refund_status_unknown" : result?.FailureReason);
+        }
+        catch (Exception exception) when (IsRecoverable(exception, cancellationToken))
+        { LogUncertain("refund_status", exception); return new(ProviderRefundOutcome.Unknown, null, FailureCode(exception)); }
+    }
+
     private HttpRequestMessage CreateRequest(HttpMethod method, string path, object? body = null)
     {
         var request = new HttpRequestMessage(method, path);
@@ -285,6 +340,9 @@ public sealed class HttpPaymentProvider(
     private sealed record ProviderVoidRequest(Guid PaymentIntentId, string ProviderAuthorizationId);
     private sealed record ProviderVoidResponse(bool Succeeded, string? ProviderTransactionId, string? FailureReason);
     private sealed record ProviderVoidStatusResponse(string? Status, string? ProviderTransactionId, string? FailureReason);
+    private sealed record ProviderRefundRequest(Guid RefundId, Guid PaymentIntentId, string ProviderCaptureId, decimal Amount, string Currency);
+    private sealed record ProviderRefundResponse(bool Succeeded, string? ProviderTransactionId, string? FailureReason);
+    private sealed record ProviderRefundStatusResponse(string? Status, string? ProviderTransactionId, string? FailureReason);
 }
 
 public sealed class PaymentProviderOptions
@@ -298,13 +356,17 @@ public sealed class PaymentProviderOptions
     public string CaptureStatusPath { get; set; } = "v1/captures";
     public string VoidPath { get; set; } = "v1/voids";
     public string VoidStatusPath { get; set; } = "v1/voids";
+    public string RefundPath { get; set; } = "v1/refunds";
+    public string RefundStatusPath { get; set; } = "v1/refunds";
     public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromMinutes(2);
     public int MaximumAuthorizationAttempts { get; set; } = 3;
     public int MaximumCaptureRecoveryAttempts { get; set; } = 3;
     public int MaximumVoidRecoveryAttempts { get; set; } = 3;
+    public int MaximumRefundRecoveryAttempts { get; set; } = 3;
     public TimeSpan RecoveryInterval { get; set; } = TimeSpan.FromSeconds(30);
     public bool CaptureRecoveryEnabled { get; set; } = true;
     public bool VoidRecoveryEnabled { get; set; } = true;
+    public bool RefundRecoveryEnabled { get; set; } = true;
     public string? ApiKey { get; set; }
     public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(15);
 }

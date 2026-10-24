@@ -20,6 +20,7 @@ public sealed class OrderPaymentCaptureReconciliationTests
 
         Assert.True(applied);
         Assert.Equal(OrderStatus.Paid, order.Status);
+        Assert.Equal(order.TotalAmount, order.Receipt!.TotalAmount);
         var completed = Assert.IsType<PaymentCompletedV1>(repository.Event);
         Assert.Equal(order.Id, completed.OrderId);
         Assert.Empty(publisher.Events);
@@ -162,10 +163,11 @@ public sealed class OrderPaymentCaptureReconciliationTests
         await Assert.ThrowsAsync<HttpRequestException>(()=>service.ApplyAsync(message,default));
         Assert.Equal(OrderStatus.PaymentPending,order.Status);
         Assert.Null(repository.Event);
+        Assert.Equal(0,inventory.ReleaseCalls);
 
         Assert.True(await service.ApplyAsync(message,default));
         Assert.Equal(OrderStatus.PaymentFailed,order.Status);
-        Assert.Equal(2,inventory.ReleaseCalls);
+        Assert.Equal(1,inventory.ReleaseCalls);
         Assert.Equal(2,kitchen.CancelCalls);
     }
 

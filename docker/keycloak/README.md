@@ -1,5 +1,21 @@
 # NexaConnect Keycloak
 
+The [Slice 6 local restore drill](../../docs/Deployment/First-Draft-Release.md) stops the generated draft's Keycloak before backing up its complete database and PostgreSQL roles. It restores the original archive in a network-isolated clone using the exact source image, checks DDL success, and separately compares data/sequence dumps and ownership/permission statements. Private backups contain identity password hashes and must remain owner-restricted. The drill resumes the original identity stack; login against a cloned identity/application graph remains unverified. It changes no realm template, client, role or mapper.
+
+Manual-tender terminal admission requires the existing confidential Order client to issue
+`azp=nexaconnect-order-service`, audience `nexaconnect-api` and
+`preferred_username=service-account-nexaconnect-order-service`. The template adds the
+access-token-only `order-service-account-username` user-property mapper (`username` →
+`preferred_username`, string claim; ID-token/userinfo emission disabled). It does not rely
+on the optional `profile` scope or add clients, secrets or role grants. Apply a reviewed
+mapper update to persisted realms and obtain a fresh Order workload token (restart Order
+or wait for cached credentials to expire) before enabling the changed checkout. Keycloak
+restart does not re-import a persisted realm. Fresh draft startup validates Order `azp`,
+service-account username and API audience without printing tokens. The terminal guard
+suite validates the mapper template. See [admission](../../docs/API/Terminal-Admission.md).
+
+Durable day settlement uses the existing confidential `nexaconnect-pos-service` client. Its access token must include `azp=nexaconnect-pos-service`, audience `nexaconnect-api` and `preferred_username=service-account-nexaconnect-pos-service`. The realm template adds the access-token-only `pos-service-account-username` user-property mapper (`username` → `preferred_username`); it does not depend on requesting the optional `profile` scope. Standard browser flow and direct access grants remain disabled; service accounts remain enabled. No new client or secret is added. Persisted realms require an explicit reviewed mapper migration and a fresh workload token (restart POS or allow the cached token to expire); restarting Keycloak does not re-import an existing realm. Run `scripts/test-keycloak-realm.ps1` to validate the template and validate a newly issued token privately before enabling finalization. See [settlement rollout](../../docs/Deployment/Day-Close-Settlements.md) and [client matrix](../../docs/Identity/Client-Matrix.md).
+
 The development realm includes a dedicated `nexaconnect-media-service` confidential workload client used for Catalog owner validation. Set `NEXACONNECT_MEDIA_SERVICE_CLIENT_SECRET` from `.env`; never reuse a browser or another service's secret.
 
 The local realm includes the confidential `platform-directory-admin` service account used by Platform Directory's Infrastructure identity adapter. Its realm-management assignments are limited to `view-users`, `manage-users`, and `view-realm`. Configure `PLATFORM_DIRECTORY_ADMIN_CLIENT_SECRET`; changing the JSON does not update an already-persisted realm, so recreate only disposable local identity state or apply an explicit reviewed realm migration.
@@ -45,3 +61,21 @@ Do not commit users, passwords, client secrets, signing keys, sessions, or expor
 `Containerfile` performs Keycloak's build step ahead of startup and enables health and metrics support. A production deployment must additionally supply TLS or trusted reverse-proxy configuration, explicit public and administrative hostnames, managed secrets, database backups, resource limits, and an availability topology appropriate to its recovery objectives.
 
 See the [production runbook](../../docs/Identity/Production-Runbook.md) and `docker-compose.production.yml` for the supported deployment contract and preflight checks.
+
+Phase 6 production bootstrap supplies every existing confidential client, including
+`NEXACONNECT_MEDIA_SERVICE_CLIENT_SECRET` and `PLATFORM_DIRECTORY_ADMIN_CLIENT_SECRET`.
+The production environment template now lists those and all other workload secrets;
+validation derives the required secret set from the realm and requires distinct values.
+The Product Owner client `platform-admin-bff` uses `PLATFORM_ADMIN_BFF_*`, independently
+of the legacy `nexaconnect-admin-bff` settings. Browser origins must be distinct exact
+HTTPS origins and callbacks must match their origins. The Product Owner post-logout
+allow-list is `${PLATFORM_ADMIN_BFF_ORIGIN}/signout-callback-oidc`; apply that attribute
+explicitly to persisted realms and test logout. No existing realm is re-imported and
+no client, role or authority is added by this correction. Application-edge artifacts
+do not route or deploy Keycloak; see the [Phase 6 guide](../../docs/Deployment/Next-Iteration-Phase-6.md).
+
+The dedicated confidential `nexaconnect-reporting-service` client uses `NEXACONNECT_REPORTING_SERVICE_CLIENT_SECRET` and emits the `nexaconnect-api` audience for Restaurant authorization-scope lookup. It is accepted only by the endpoint-specific `BranchScopeReader` policy, not generic workload APIs. Configure Reporting's `Services__Restaurant`, `WorkloadIdentity__Authority`, `WorkloadIdentity__ClientId=nexaconnect-reporting-service` and secret-managed `WorkloadIdentity__ClientSecret`. Existing persisted realms require explicit reviewed client/audience provisioning; restarting Keycloak does not re-import this addition. Never grant a browser client these workload credentials.
+
+Payment's confidential workload client now explicitly emits the nexaconnect-api audience for Order/Restaurant ownership lookup during refunds. Existing persisted realms require a reviewed audience-mapper update; restarting Keycloak does not re-import this change. The client remains credentials-only, with its existing distinct secret and unchanged endpoint authorization policies.
+
+Inventory's existing confidential workload client must explicitly emit the nexaconnect-api audience when reading Restaurant branch scope. The realm template and validation guard now enforce that mapper; JWT validation, client identity, secret and role grants are unchanged. Persisted realms require an explicit reviewed mapper update, followed by a new token (restart Inventory or let its cached token expire); Keycloak restart does not re-import existing realms. The [joined cashier acceptance](../../docs/Deployment/Cashier-Day-Close-Acceptance.md) exposed this prerequisite through actual Inventory-to-Restaurant HTTP; production rollout remains separate.

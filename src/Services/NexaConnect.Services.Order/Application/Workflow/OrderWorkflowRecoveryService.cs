@@ -96,17 +96,18 @@ public sealed class OrderWorkflowRecoveryService(
                 else if (!paid.Completed || paid.PaymentId is null)
                 {
                     // Both dependencies expose idempotent compensation endpoints. If a process dies
-                    // between them, the next fenced attempt safely repeats the release before commit.
-                    await inventory.ReleaseAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
-                    await kitchen.CancelTicketAsync(order.OrganizationId, order.Id, order.BranchId, cancellationToken);
+                    // between them, the next fenced attempt safely repeats cancellation before release and commit.
+                    await OrderPreparationCompensation.CancelAndReleaseAsync(order, inventory, kitchen, cancellationToken);
                     order.MarkPaymentFailed();
                     integrationEvent = new PaymentFailedV1(Guid.NewGuid(), correlationId, clock.GetUtcNow(), order.Id,
                         paid.Reason ?? "Payment was not completed.");
                 }
                 else
                 {
+                    DateTimeOffset paidAtUtc = clock.GetUtcNow();
                     order.MarkPaid(paid.PaymentId.Value);
-                    integrationEvent = new PaymentCompletedV1(OrderPaymentEventIdentity.Completion(order.Id, paymentMethod), correlationId, clock.GetUtcNow(),
+                    order.IssueReceipt(paidAtUtc, paymentMethod);
+                    integrationEvent = new PaymentCompletedV1(OrderPaymentEventIdentity.Completion(order.Id, paymentMethod), correlationId, paidAtUtc,
                         order.Id, paid.PaymentId.Value, order.TotalAmount, order.Currency, paymentMethod);
                 }
 
@@ -122,7 +123,9 @@ public sealed class OrderWorkflowRecoveryService(
         {
             logger?.LogWarning(exception,
                 "Order workflow recovery dependency or fencing boundary failed; the durable claim will be released when still owned.");
-            await repository.ReleaseAsync(claim, "dependency_unavailable", clock.GetUtcNow() + retryDelay,
+            string category = exception is Application.Cancellations.OrderCancellationConflictException
+                ? "preparation_requires_review" : "dependency_unavailable";
+            await repository.ReleaseAsync(claim, category, clock.GetUtcNow() + retryDelay,
                 CancellationToken.None);
             throw;
         }

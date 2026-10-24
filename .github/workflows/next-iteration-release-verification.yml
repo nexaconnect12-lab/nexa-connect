@@ -1,0 +1,125 @@
+name: Next iteration release verification
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: next-release-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    name: Windows source and POS
+    runs-on: windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: dotnet restore NexaConnect.sln
+      - working-directory: src/Frontend
+        run: |
+          npm ci --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx playwright install chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - run: ./scripts/test-next-iteration.ps1 -Profile Source
+      - name: Publish self-contained POS
+        run: dotnet publish src/Clients/NexaConnect.POS -c Release -r win-x64 --self-contained true -o .runstate/ci-pos --verbosity quiet
+      - name: Retain safe verification summary only
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: next-release-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .runstate/next-iteration-verification/*/verification.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+  linux:
+    name: Linux source and portals
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: |
+          node --test scripts/release/next-release.test.mjs docker/pilot/hosting.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/test-keycloak-production-guards.ps1
+      - working-directory: src/Frontend
+        run: |
+          npm ci --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($gate in @('check','test','build','audit:production','audit:all')) {
+            npm run $gate
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+  financial:
+    name: Joined financial recovery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: dotnet restore NexaConnect.sln
+      - working-directory: src/Frontend
+        run: |
+          npm ci --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx playwright install --with-deps chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify durable settlement and replay
+        # These owned fixtures intentionally use --pull never; preload before mutation.
+        # Image-version policy matches their existing isolated acceptance contracts.
+        run: |
+          docker pull postgres:17-alpine
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          docker pull rabbitmq:4-management
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/test-settlement-reporting.ps1 -ConfirmDisposableInfrastructure
+          ./scripts/test-settlement-replay.ps1 -ConfirmDisposableInfrastructure
+          ./scripts/test-branch-gallery-persistence.ps1 -ConfirmDisposableInfrastructure
+      - name: Verify real OIDC cashier to cutoff and CSV
+        run: ./scripts/test-financial-completeness-portal.ps1 -CashierDayCutoff -BusinessTimeZone Asia/Singapore -ConfirmDisposableInfrastructure
+      - name: Retain safe financial summaries only
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: next-release-financial-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .runstate/settlement-reporting/*/verification.json
+            .runstate/settlement-replay/*/verification.json
+            .runstate/gallery-persistence/*/verification.json
+            .runstate/cashier-day-cutoff/*/verification.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

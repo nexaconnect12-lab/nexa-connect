@@ -1,5 +1,7 @@
 # NexaConnect PostgreSQL provisioning
 
+The local [first-draft restore drill](../../docs/Deployment/First-Draft-Release.md) verifies quiesced generated service/Keycloak backups in no-network clones, including role/DDL restoration, exact data/sequence dump comparison and separate ownership/permission statement comparison. This administrative acceptance tooling does not restore a production database, certify PITR/RPO/RTO or boot a cloned application graph. Private dumps/password hashes remain owner-restricted.
+
 The official PostgreSQL image executes `init/001_create_nexaconnect_databases.sh` only when the application PostgreSQL data volume is empty.
 
 The initializer is mounted into a Linux container and must retain LF line endings. The repository `.gitattributes` enforces LF for every `*.sh` file; a `bash\r` startup error means the working copy was checked out without those attributes. Preserve any local changes, re-check out or re-normalize the script with the repository attributes in effect, and verify that it contains LF endings before restarting PostgreSQL.

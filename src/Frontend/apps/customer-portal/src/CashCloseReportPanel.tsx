@@ -1,3 +1,4 @@
+import {OperationalBranchPicker} from "./OperationalBranchPicker";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Form, Input, Space, Table, Typography } from "antd";
 import { createApiClient } from "@nexaconnect/api-client";
@@ -36,7 +37,7 @@ export function CashCloseReportPanel(){
     <Alert type="info" message="Read-only snapshots of closed cash sessions. Delivery can lag or be incomplete. Capture and projection times describe each row; they do not prove the store is fully synchronized. Use POS Cash Review for current decisions."/>
     <Form layout="vertical" onFinish={()=>void load()}>
       <Space wrap>
-        <Form.Item label="Branch UUID"><Input aria-label="Report branch UUID" disabled={busy} value={branch} onChange={e=>{clear();setBranch(e.target.value.trim());}}/></Form.Item>
+        <Form.Item label="Branch UUID"><OperationalBranchPicker capability="cash-close" label="Cash report branch" disabled={busy} value={branch} onChange={value=>{clear();setBranch(value);}}/></Form.Item>
         <Form.Item label="Store UUID"><Input aria-label="Report store UUID" disabled={busy} value={store} onChange={e=>{clear();setStore(e.target.value.trim());}}/></Form.Item>
         <Form.Item label="From (UTC, inclusive)"><Input aria-label="Report from UTC" type="datetime-local" disabled={busy} value={from} onChange={e=>{clear();setFrom(e.target.value);}}/></Form.Item>
         <Form.Item label="To (UTC, exclusive)"><Input aria-label="Report to UTC" type="datetime-local" disabled={busy} value={to} onChange={e=>{clear();setTo(e.target.value);}}/></Form.Item>

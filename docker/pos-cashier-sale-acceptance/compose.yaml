@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: ${NEXACONNECT_CASHIER_ACCEPTANCE_POSTGRES_PASSWORD:?Run the guarded cashier acceptance launcher}
+    ports: ["127.0.0.1::5432"]
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: acceptance
+      RABBITMQ_DEFAULT_PASS: ${NEXACONNECT_CASHIER_ACCEPTANCE_RABBITMQ_PASSWORD:?Run the guarded cashier acceptance launcher}
+    ports: ["127.0.0.1::5672"]
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 3s
+      timeout: 5s
+      retries: 40

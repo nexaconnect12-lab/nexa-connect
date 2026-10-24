@@ -1,3 +1,4 @@
+import {mockOperationalDiscovery} from "../operational-discovery.mjs";
 import {test,expect} from "@playwright/test";
 const branch="11111111-1111-1111-1111-111111111111",order="22222222-2222-2222-2222-222222222222";
 async function setup(page,{canRead=true,canResolve=true,conflict=false}={}){
@@ -23,7 +24,7 @@ async function setup(page,{canRead=true,canResolve=true,conflict=false}={}){
     else return route.fulfill({status:404,json:{title:"Unexpected route"}});
     return route.fulfill({json});
   });
-  await page.goto("/#payment-reviews");await page.getByLabel("Branch UUID").fill(branch);await page.getByRole("button",{name:"Load reviews"}).click();
+  await mockOperationalDiscovery(page,[branch,...(typeof other!=="undefined"?[other]:[])]);await page.goto("/#payment-reviews");await page.getByLabel("Payment review branch").selectOption(branch);await page.getByRole("button",{name:"Load reviews"}).click();
   return posts;
 }
 async function openDecision(page){
@@ -66,6 +67,6 @@ test("tenant switch clears branch, selected review and pending confirmation",asy
   const posts=await setup(page);await openDecision(page);await page.getByRole("button",{name:"Cancel",exact:true}).click();
   await expect(page.getByRole("dialog")).toBeHidden();
   await page.getByTitle("Organization One",{exact:false}).click();await page.getByTitle("Organization Two",{exact:false}).click();
-  await expect(page.getByLabel("Branch UUID")).toHaveValue("");await expect(page.getByText("Review details",{exact:true})).toHaveCount(0);
+  await expect(page.getByLabel("Payment review branch")).toHaveValue("");await expect(page.getByText("Review details",{exact:true})).toHaveCount(0);
   expect(posts).toHaveLength(0);
 });

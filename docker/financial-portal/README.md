@@ -1,0 +1,11 @@
+# Disposable financial portal infrastructure
+
+RabbitMQ health probes execute as its broker user through `gosu rabbitmq rabbitmq-diagnostics`, avoiding root-owned cookie creation during startup. See the [controlled ownership test and local draft verification](../../docs/Deployment/First-Draft-Test-Stack.md); this does not imply remote Ubuntu acceptance.
+
+Use only through the guarded `scripts/test-financial-completeness-portal.ps1 -ConfirmDisposableInfrastructure` or `scripts/test-refund-hosted.ps1 -ConfirmDisposableInfrastructure -ConfirmProcessTermination` launchers. PostgreSQL 17 owns six independent generated service databases plus a separate Keycloak database. Keycloak 26.7.0 reuses the existing joined realm template; RabbitMQ 4 carries retained sale/refund events. Ports bind only to IPv4 loopback. The launcher supplies generated secrets, realm/database run ID and BFF redirect port.
+
+Initialization separates migration ownership from per-service runtime roles and revokes public database connection/schema creation. All fixtures are synthetic; the runner destroys only its exact generated Compose project and verifies cleanup. The fixture uses generated disposable credentials. The accompanying Reporting authorization fix requires a dedicated Reporting workload client and Restaurant endpoint configuration; production prerequisites are documented in the runbook. See [runbook, evidence and limitations](../../docs/Deployment/Financial-Completeness-Portal-Acceptance.md).
+
+The financial portal launcher records a bounded RabbitMQ startup diagnostic when Compose readiness fails. It checks the generated project's container ownership before reading logs and emits only state, exit/OOM fields and an allow-listed category. Startup failure still fails the gate; raw logs and configuration are excluded. The separately implemented hosted refund launcher does not use this diagnostic helper.
+
+The [hosted refund gate](../../docs/Deployment/Hosted-Refund-Acceptance.md) reuses this exact six-database/broker/identity topology with a separate generated Compose project. It starts Order/Payment HTTP hosts and a test provider instead of the portal BFF/browser, retains actual sale/refund propagation, and verifies exact Payment process restart and cleanup. Omise execution is separately confirmed and requires ephemeral test credentials.

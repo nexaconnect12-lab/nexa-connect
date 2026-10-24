@@ -1,0 +1,96 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="Brand" Color="#14532D" />
+    <Style TargetType="Button">
+      <Setter Property="MinHeight" Value="48" />
+      <Setter Property="Padding" Value="16,8" />
+      <Setter Property="Margin" Value="0,0,8,8" />
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#D3DDD6" />
+      <Setter Property="Foreground" Value="#172A22" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Surface" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Surface" Property="BorderBrush" Value="#15803D" />
+              </Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Surface" Property="BorderBrush" Value="#0369A1" />
+                <Setter TargetName="Surface" Property="BorderThickness" Value="3" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Surface" Property="Opacity" Value="0.45" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="{StaticResource Brand}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="MinHeight" Value="44" />
+      <Setter Property="Padding" Value="10" />
+      <Setter Property="Margin" Value="0,4,0,14" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="BorderBrush" Value="#D3DDD6" />
+      <Style.Triggers>
+        <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="BorderBrush" Value="#0369A1" /><Setter Property="BorderThickness" Value="2" /></Trigger>
+        <Trigger Property="Validation.HasError" Value="True"><Setter Property="BorderBrush" Value="#B91C1C" /></Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style TargetType="ComboBox">
+      <Setter Property="MinHeight" Value="44" />
+      <Setter Property="Margin" Value="0,4,0,14" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#D3DDD6" />
+    </Style>
+    <Style TargetType="TabItem">
+      <Setter Property="Padding" Value="18,12" />
+      <Setter Property="MinHeight" Value="48" />
+      <Setter Property="Margin" Value="0,0,8,8" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#172A22" />
+      <Setter Property="Template">
+        <Setter.Value><ControlTemplate TargetType="TabItem">
+          <Border x:Name="TabSurface" Background="White" BorderBrush="#D3DDD6" BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}">
+            <ContentPresenter x:Name="TabLabel" TextElement.Foreground="#52655A" ContentSource="Header" RecognizesAccessKey="True" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsSelected" Value="True"><Setter TargetName="TabSurface" Property="Background" Value="#14532D" /><Setter TargetName="TabLabel" Property="TextElement.Foreground" Value="White" /></Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TabSurface" Property="BorderBrush" Value="#15803D" /></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TabSurface" Property="BorderBrush" Value="#0369A1" /><Setter TargetName="TabSurface" Property="BorderThickness" Value="3" /></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="Card" TargetType="Border">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="20" />
+      <Setter Property="BorderBrush" Value="#DFE6DF" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style x:Key="Heading" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="22" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,0,0,16" />
+    </Style>
+    <Style TargetType="PasswordBox"><Setter Property="MinHeight" Value="44" /><Setter Property="Padding" Value="10" /><Setter Property="VerticalContentAlignment" Value="Center" /></Style>
+    <Style TargetType="DatePicker"><Setter Property="MinHeight" Value="44" /><Setter Property="VerticalContentAlignment" Value="Center" /></Style>
+    <Style TargetType="CheckBox"><Setter Property="MinHeight" Value="44" /><Setter Property="VerticalContentAlignment" Value="Center" /></Style>
+    <Style TargetType="DataGrid">
+      <Setter Property="RowHeight" Value="44" /><Setter Property="ColumnHeaderHeight" Value="44" />
+      <Setter Property="GridLinesVisibility" Value="Horizontal" /><Setter Property="HorizontalGridLinesBrush" Value="#DFE6DF" />
+      <Setter Property="AlternatingRowBackground" Value="#F4F6F3" /><Setter Property="BorderBrush" Value="#D3DDD6" />
+    </Style>
+    <Style TargetType="TextBlock"><Setter Property="Typography.NumeralAlignment" Value="Tabular" /></Style>
+</ResourceDictionary>

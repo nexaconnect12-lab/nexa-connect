@@ -11,10 +11,11 @@ public static class BffSessionCacheExtensions
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        if (environment.IsDevelopment() || environment.IsEnvironment("Testing") || environment.IsEnvironment("Test"))
+        string? connectionString = configuration.GetConnectionString("BffSessionCache");
+        if (string.IsNullOrWhiteSpace(connectionString) &&
+            (environment.IsDevelopment() || environment.IsEnvironment("Testing") || environment.IsEnvironment("Test")))
             return services.AddDistributedMemoryCache();
 
-        string? connectionString = configuration.GetConnectionString("BffSessionCache");
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new InvalidOperationException("ConnectionStrings:BffSessionCache is required outside Development.");
         services.AddStackExchangeRedisCache(options =>

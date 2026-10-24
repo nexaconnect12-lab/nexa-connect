@@ -90,6 +90,10 @@ app.MapGet("/v1/voids/{id:guid}", (Guid id, HttpRequest request) =>
     lock (gate) return voids.ContainsKey(id)
         ? Results.Json(new { status = "voided", providerTransactionId = $"sim-void-{id:N}" }) : Results.NotFound();
 });
+NexaConnect.PaymentProviderSimulator.RefundSimulator.Map(app, Authorized, gate, command =>
+    captures.TryGetValue(command.PaymentIntentId, out var capture)
+    && command.ProviderCaptureId == $"sim-capture-{command.PaymentIntentId:N}"
+    && command.Currency == capture.Currency && command.Amount <= capture.Amount);
 app.Run();
 internal sealed record Authorization(Guid PaymentIntentId, Guid OrderId, decimal Amount, string Currency, string PaymentMethod);
 internal sealed record Capture(Guid PaymentIntentId, string ProviderAuthorizationId, decimal Amount, string Currency);

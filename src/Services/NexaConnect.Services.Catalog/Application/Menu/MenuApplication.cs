@@ -8,6 +8,7 @@ public interface IMenuCatalog
 {
     IReadOnlyCollection<MenuItem> GetForBranch(Guid branchId);
     IReadOnlyCollection<MenuItem> GetForOrganizationBranch(Guid organizationId, Guid branchId);
+    IReadOnlyCollection<MenuItem> GetGuestMenu(Guid organizationId, Guid branchId) => GetForOrganizationBranch(organizationId, branchId).Take(201).ToArray();
     MenuItem Add(Guid branchId, CreateMenuItem command, MenuMutationContext? context = null);
     MenuItem AddForOrganizationBranch(Guid organizationId, Guid branchId, CreateMenuItem command, MenuMutationContext? context = null);
     Task<bool> ProductExistsAsync(Guid organizationId, Guid productId, CancellationToken cancellationToken);

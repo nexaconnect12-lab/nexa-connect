@@ -1,0 +1,52 @@
+name: QR entry verification
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  qr-entry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: dotnet restore NexaConnect.sln
+      - name: Verify guest routes remain behind the portal edge
+        run: node --test docker/pilot/hosting.test.mjs
+      - name: Verify QR domain and HTTP boundaries
+        run: |
+          dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter 'FullyQualifiedName~QrEntry|FullyQualifiedName~QrMenu|FullyQualifiedName~QrRequest|FullyQualifiedName~QrAcceptance|FullyQualifiedName~OrderPricing|FullyQualifiedName~MigrationRunnerTests|FullyQualifiedName~OperationalBranchDiscoveryTests' --verbosity quiet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/Architecture/NexaConnect.ArchitectureTests --no-restore --verbosity quiet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests' --verbosity quiet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify owning persistence and cleanup
+        run: |
+          docker pull postgres:17-alpine
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/test-qr-entry-persistence.ps1 -ConfirmDisposableInfrastructure
+      - working-directory: src/Frontend
+        name: Verify mobile browser entry
+        run: |
+          npm ci --ignore-scripts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx playwright install --with-deps chromium webkit
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($gate in @('check','test','build','audit:production','audit:all')) {
+            npm run $gate
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          npx playwright test --config playwright.qr-entry.config.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

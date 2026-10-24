@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using NexaConnect.Services.Order.Application.Workflow;
 using NexaConnect.Services.Order.Domain;
 using NexaConnect.Contracts.Platform;
+using NexaConnect.Services.Order.Application.Cancellations;
 
 namespace NexaConnect.Services.Order.Infrastructure.Clients;
 
@@ -28,7 +29,8 @@ public sealed class HttpInventoryReservationPort(HttpClient client) : IInventory
             $"api/inventory/v1/branches/{branchId:D}/reservations/{orderId:D}/release", organizationId);
         using var response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
-            throw new InvalidOperationException($"Inventory release failed with {(int)response.StatusCode}.");
+            throw new HttpRequestException($"Inventory release failed with {(int)response.StatusCode}.", null,
+                response.StatusCode);
     }
     public async Task<InventoryReservationResult> ReserveAsync(
         Guid organizationId, Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)
@@ -68,8 +70,11 @@ public sealed class HttpKitchenPort(HttpClient client) : IKitchenPort
     public async Task CancelTicketAsync(Guid organizationId,Guid orderId, Guid branchId, CancellationToken cancellationToken)
     {
         using var request=new HttpRequestMessage(HttpMethod.Post,$"api/kitchen/v1/tickets/{orderId:D}/cancel?branchId={branchId:D}");request.Headers.TryAddWithoutValidation(TenantContextHeaders.OrganizationId,organizationId.ToString("D"));request.Headers.TryAddWithoutValidation(TenantContextHeaders.ApplicationCode,"nexa_connect");using var response = await client.SendAsync(request,cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            throw new OrderCancellationConflictException("Kitchen preparation reached a terminal state.");
         if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
-            throw new InvalidOperationException($"Kitchen cancellation failed with {(int)response.StatusCode}.");
+            throw new HttpRequestException($"Kitchen cancellation failed with {(int)response.StatusCode}.", null,
+                response.StatusCode);
     }
     public async Task<KitchenTicketResult> CreateTicketAsync(
         Guid organizationId,Guid restaurantId,Guid orderId, Guid branchId, IReadOnlyCollection<OrderLine> lines, CancellationToken cancellationToken)

@@ -1,6 +1,8 @@
 # Platform Admin BFF
 
-Separate Product Owner/Platform Admin session boundary. Control-plane mutations require `platform-owner` or `platform-admin`; support requests additionally allow `platform-support`, and elevation inspection allows `platform-auditor`. The BFF forwards the server-held access token to Platform Directory and never accesses PostgreSQL directly. Configure `Bff:ClientSecret` from a secret store. Development/Test use an in-memory ticket cache; other environments require Redis through `ConnectionStrings:BffSessionCache`, with optional key isolation through `BffSessionCache:InstanceName`.
+Publishing this BFF installs the shared frontend workspace and runs `npm run build:product-owner-portal`, which builds TypeScript project references before bundling the Product Owner Portal. It requires Node 22.12+ on 22.x or Node 24+ and works from a fresh checkout without generated package output. Run the separate production/full-tree audit commands before release; they are CI gates and are not automatically executed by the publish target. See [frontend runtime and audit policy](../../../docs/Deployment/Frontend-Dependency-Hardening.md).
+
+Separate Product Owner/Platform Admin session boundary. Control-plane mutations require `platform-owner` or `platform-admin`; support requests additionally allow `platform-support`, and elevation inspection allows `platform-auditor`. The BFF forwards the server-held access token to Platform Directory and never accesses PostgreSQL directly. Configure `Bff:ClientSecret` from a secret store. Development/Test use memory without `ConnectionStrings:BffSessionCache`; an explicit connection selects Redis in every environment. Other environments require that Redis connection, with optional key isolation through `BffSessionCache:InstanceName`.
 
 The recorded local origin is `https://localhost:58627` (`http://localhost:58628` is the secondary development listener). The Keycloak development client uses `https://localhost:58627/signin-oidc` and origin `https://localhost:58627`. The Phase 8 development launcher publishes and starts this BFF with the hosted Product Owner Portal using `PLATFORM_ADMIN_BFF_CLIENT_SECRET` from the ignored `.env`.
 
@@ -29,3 +31,14 @@ The OIDC client requests the `nexaconnect-api` scope. Its realm-role mapper must
 Operational telemetry uses the shared observability foundation. JSON console output is always available; set `Observability__OtlpEnabled=true` and `Observability__OtlpEndpoint=http://localhost:4317` for the local collector. Correlation logging intentionally excludes bodies, query strings, authorization headers, cookies, and tokens.
 
 `dotnet publish` builds the Product Owner Portal workspace and includes its output under the BFF's `wwwroot`. Set `SkipProductOwnerPortalBuild=true` only when a trusted release pipeline has already supplied equivalent assets. The BFF serves `index.html` without caching, fingerprints assets with immutable caching, and applies CSP, frame, referrer, and MIME-sniffing response protections.
+## Dedicated-server pilot preparation
+
+The [pilot artifact tool](../../../docker/pilot/README.md) bundles this BFF with the
+built Product Owner Portal and exposes its separate HTTPS origin through the application
+edge. Its client remains `platform-admin-bff`; configure that client's independent secret
+and exact public redirect/origin through the separate production Keycloak bootstrap.
+Retain a distinct TLS Redis namespace and certificate-encrypted durable Data Protection
+keys. Customer Portal sessions never supply platform authority. Anonymous probes check
+the shell and `/bff/platform-admin/me` denial only. Real platform login, refresh/logout,
+customer/platform denial and restored sessions remain target gates in the
+[Phase 6 guide](../../../docs/Deployment/Next-Iteration-Phase-6.md).

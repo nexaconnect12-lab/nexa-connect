@@ -1,0 +1,53 @@
+# Local Windows draft only. All resources belong to the generated project.
+services:
+  postgres:
+    extends:
+      file: ../cashier-day-close/compose.yaml
+      service: postgres
+    ports: !override ["127.0.0.1:${NEXACONNECT_DRAFT_POSTGRES_PORT:?Run the draft launcher}:5432"]
+    tmpfs: !reset []
+    volumes:
+      - application-data:/var/lib/postgresql/data
+  keycloak-db:
+    extends:
+      file: ../cashier-day-close/compose.yaml
+      service: keycloak-db
+    tmpfs: !reset []
+    volumes:
+      - identity-data:/var/lib/postgresql/data
+  keycloak:
+    extends:
+      file: ../cashier-day-close/compose.yaml
+      service: keycloak
+    ports: !override ["127.0.0.1:${NEXACONNECT_DRAFT_KEYCLOAK_PORT:?Run the draft launcher}:8080"]
+    environment:
+      NEXA_REALM_DISPLAY_NAME: NexaConnect Local First Draft
+      NEXACONNECT_POS_REDIRECT_URI: nexaconnect-pos://oauth/callback
+  rabbitmq:
+    extends:
+      file: ../cashier-day-close/compose.yaml
+      service: rabbitmq
+    ports: !override ["127.0.0.1:${NEXACONNECT_DRAFT_RABBITMQ_PORT:?Run the draft launcher}:5672"]
+    hostname: draft-broker
+    volumes:
+      - broker-data:/var/lib/rabbitmq
+    healthcheck:
+      test: [CMD, gosu, rabbitmq, rabbitmq-diagnostics, -q, ping]
+  redis:
+    image: redis:7-alpine
+    environment:
+      DRAFT_REDIS_PASSWORD: ${NEXACONNECT_JOINED_REDIS_PASSWORD:?Run the draft launcher}
+    command: [sh, -c, 'exec redis-server --appendonly yes --requirepass "$${DRAFT_REDIS_PASSWORD}"']
+    ports: ["127.0.0.1:${NEXACONNECT_DRAFT_REDIS_PORT:?Run the draft launcher}:6379"]
+    volumes:
+      - session-data:/data
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$${DRAFT_REDIS_PASSWORD}" redis-cli ping']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  application-data:
+  identity-data:
+  broker-data:
+  session-data:

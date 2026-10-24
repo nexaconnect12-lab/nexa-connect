@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $settings = Get-Content -LiteralPath (Join-Path $root 'src/Clients/NexaConnect.POS/appsettings.json') -Raw | ConvertFrom-Json
 $ports = [ordered]@{ PlatformDirectory=53357; Authorization=51223; Restaurant=51225; Catalog=5268; Inventory=5270; Kitchen=5274; Order=5230; POS=5225; Reporting=51227 }
-$workloads = @('Catalog','Inventory','Kitchen','Order','POS')
+$workloads = @('Catalog','Inventory','Kitchen','Order','POS','Reporting')
 if ($EnableOmiseTestCheckout) { $ports['Payment'] = 5272; $workloads += 'Payment' }
 # Configuration and secrets remain in process environment; never interpolate secrets into command lines.
 $savedEnvironment = @{}

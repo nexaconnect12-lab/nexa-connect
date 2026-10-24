@@ -25,7 +25,7 @@ import {
   AuthorizationUiProvider,
   Authorized,
 } from "@nexaconnect/authorization-ui";
-import { NexaDesignProvider } from "@nexaconnect/design-system";
+import { NexaDesignProvider, RequestState } from "@nexaconnect/design-system";
 import { ErrorBoundary, normalizeError } from "@nexaconnect/error-handling";
 import { PortalLayout } from "@nexaconnect/layout";
 import {
@@ -229,9 +229,9 @@ function SummaryPanel() {
   const state = useLoad<Summary>("/bff/platform-admin/platform/summary");
   if (!state.data)
     return state.error ? (
-      <Alert type="error" message={state.error} />
+      <RequestState state="error" title="Platform summary unavailable" message={state.error} onRetry={state.reload} />
     ) : (
-      <Spin />
+      <RequestState state="loading" title="Loading platform summary" />
     );
   const s = state.data;
   const values: [
@@ -1510,9 +1510,9 @@ function App() {
   const capabilities = useMemo(() => capabilitiesFor(roles), [roles.join("|")]);
   if (!session.data)
     return session.error ? (
-      <Alert type="error" message={session.error} />
+      <RequestState state="error" title="Platform workspace unavailable" message={session.error} onRetry={session.reload} />
     ) : (
-      <Spin fullscreen />
+      <RequestState state="loading" title="Opening Product Owner" />
     );
   const capability = (key: Section) =>
     key === "summary"
@@ -1587,10 +1587,11 @@ function App() {
     <AuthorizationUiProvider can={(c) => capabilities.has(c)}>
       <PortalLayout
         title="Product Owner"
+        description="Manage organizations, product access and platform administration."
         items={nav}
         selectedKey={section}
         headerActions={
-          <Space>
+          <Space wrap>
             <span>{session.data.username ?? session.data.subjectId}</span>
             <Button href="/bff/platform-admin/logout">Sign out</Button>
           </Space>

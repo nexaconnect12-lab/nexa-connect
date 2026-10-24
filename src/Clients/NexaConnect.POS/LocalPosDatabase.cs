@@ -33,6 +33,52 @@ public sealed record LocalPosScope(Guid OrganizationId, Guid BranchId, Guid Stor
 internal sealed class LocalPosDatabase
 {
     internal const int CurrentSchemaVersion = 2;
+    internal static bool HasRetainedWorkForInstallation(string storageDirectory)
+    {
+        string path = Path.Combine(storageDirectory, "pos-state.db");
+        if (!File.Exists(path)) return false;
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        { DataSource = path, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
+        connection.Open();
+        using var query = connection.CreateCommand();
+        query.CommandText = """
+            SELECT EXISTS(SELECT 1 FROM local_state
+                WHERE state_key IN ('active-shift','cash-session','pending-settlement','pending-checkout','pending-refund','pending-cash-review'))
+                OR EXISTS(SELECT 1 FROM outbox_operations WHERE state <> 'completed');
+            """;
+        return Convert.ToInt32(query.ExecuteScalar(), CultureInfo.InvariantCulture) != 0;
+    }
+    internal static void ValidateExistingScope(PosClientConfiguration configuration, string? storageDirectory = null)
+    {
+        string path = Path.Combine(storageDirectory ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NexaConnect", "POS"), "pos-state.db");
+        if (!File.Exists(path))
+        {
+            string parent = Path.GetDirectoryName(path)!;
+            if (new[] { "state.json", "cash-session.json", "pending-settlement.bin", "pending-checkout.bin", "outbox.json" }
+                .Any(name => File.Exists(Path.Combine(parent, name))))
+                throw new InvalidDataException("Review legacy recovery with the original installation before updating.");
+            return;
+        }
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        { DataSource = path, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
+        connection.Open();
+        using var query = connection.CreateCommand();
+        query.CommandText = "PRAGMA quick_check;";
+        if (query.ExecuteScalar() as string != "ok") throw new InvalidDataException("Local recovery integrity check failed.");
+        query.CommandText = "PRAGMA user_version;";
+        if (Convert.ToInt32(query.ExecuteScalar()) != CurrentSchemaVersion)
+            throw new InvalidDataException("Review local recovery schema before updating this terminal.");
+        query.CommandText = "SELECT protected_payload FROM local_state WHERE state_key='terminal-scope';";
+        if (query.ExecuteScalar() is not byte[] payload
+            || JsonSerializer.Deserialize<LocalPosScope>(WindowsDataProtection.Unprotect(payload)) != LocalPosScope.From(configuration))
+            throw new InvalidDataException("Retained recovery belongs to a different terminal scope.");
+        // Pending checkout additionally binds restaurant, currency and payment mode.
+        query.CommandText = "SELECT protected_payload FROM local_state WHERE state_key='pending-checkout';";
+        if (query.ExecuteScalar() is byte[] checkout)
+            (JsonSerializer.Deserialize<PendingCheckout>(WindowsDataProtection.Unprotect(checkout))
+                ?? throw new InvalidDataException("Invalid pending checkout.")).Validate(configuration);
+    }
     private readonly string directory;
     private readonly string databasePath;
     private readonly ILocalPayloadProtector protector;

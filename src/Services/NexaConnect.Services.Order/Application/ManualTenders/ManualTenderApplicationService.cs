@@ -24,7 +24,7 @@ public interface IManualTenderRepository
         CancellationToken cancellationToken);
 }
 
-public sealed class ManualTenderApplicationService(IOrderRepository orders, TimeProvider? timeProvider = null)
+public sealed class ManualTenderApplicationService(IOrderRepository orders, IManualTenderAdmission admission, TimeProvider? timeProvider = null)
 {
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
@@ -48,6 +48,17 @@ public sealed class ManualTenderApplicationService(IOrderRepository orders, Time
         ManualTenderSettlement settlement = ManualTenderSettlement.Create(order, command.OrganizationId, command.BranchId,
             command.TerminalId, command.IdempotencyKey, command.Method, command.Amount, command.Currency,
             command.OperatorSubjectId, command.ReceiptConfirmed, command.BankReference, now);
+        // Exact committed replay above remains readable after a drawer/shift closes. New
+        // collection must first observe POS-owned active scope and the same cashier.
+        DateTimeOffset admittedAt = await admission.AdmitAsync(new(command.OrganizationId, order.RestaurantId,
+            command.BranchId, command.TerminalId, command.OperatorSubjectId,
+            settlement.Method == ManualTenderMethod.Cash ? "cash" : "promptpay_manual", settlement.Currency), cancellationToken);
+        if (admittedAt > now.AddSeconds(30) || admittedAt < now.AddSeconds(-30))
+            throw new HttpRequestException("POS terminal admission clock is outside the supported boundary.");
+        settlement = ManualTenderSettlement.Create(order, command.OrganizationId, command.BranchId,
+            command.TerminalId, command.IdempotencyKey, command.Method, command.Amount, command.Currency,
+            command.OperatorSubjectId, command.ReceiptConfirmed, command.BankReference, admittedAt);
+        now = admittedAt;
         order.MarkManuallyPaid(settlement);
         var settled = new OrderManualTenderSettledV1(Guid.NewGuid(), command.CorrelationId, now, order.OrganizationId,
             order.RestaurantId, order.BranchId, order.Id, settlement.Id, settlement.TerminalId,

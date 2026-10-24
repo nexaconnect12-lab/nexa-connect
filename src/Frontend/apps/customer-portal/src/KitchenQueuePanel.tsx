@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Card, Form, Input, Space, Tag, Typography } from "antd";
+import { Alert, Button, Card, Form, Space, Tag, Typography } from "antd";
+import {OperationalBranchPicker} from "./OperationalBranchPicker";
 import { ApiError, createApiClient, type RequestOptions } from "@nexaconnect/api-client";
+import { isKitchenEntry, signInToCustomer } from "./navigation";
 
 type Ticket = { ticketId:string; orderId:string; status:string; concurrencyVersion:number; queuedAtUtc:string;
   lines:Array<{productId:string; name:string; quantity:number; preparationStation:string}> };
 type Page = { items:Ticket[]; nextCursor?:string; canTransition:boolean };
-const api = createApiClient({onUnauthorized:()=>location.assign("/bff/customer/login")});
+const api = createApiClient({onUnauthorized:signInToCustomer});
 const base = "/bff/customer/kitchen";
 const next:Record<string,{label:string;status:string}> = {
   Queued:{label:"Start",status:"InProgress"}, InProgress:{label:"Ready",status:"Ready"}, Ready:{label:"Complete",status:"Completed"},
@@ -24,6 +26,13 @@ async function request<T>(path:string, parent:AbortSignal, options:RequestOption
 export function KitchenQueuePanel() {
   const [branch,setBranch] = useState("");
   const [station,setStation] = useState("");
+  const [stations,setStations] = useState<string[]>();
+  const [stationError,setStationError] = useState(false);
+  useEffect(()=>{const controller=new AbortController();setStations(undefined);setStationError(false);
+    if(branch)void api.request<Array<{preparationStation:string}>>(`/bff/customer/catalog/branches/${branch}/menu-items`,{signal:controller.signal,cache:"no-store"})
+      .then(menu=>{if(!controller.signal.aborted)setStations([...new Set(menu.map(item=>item.preparationStation).filter(Boolean))].sort());})
+      .catch(()=>{if(!controller.signal.aborted)setStationError(true);});
+    return()=>controller.abort();},[branch]);
   const [active,setActive] = useState(false);
   const [page,setPage] = useState<Page>();
   const [cursor,setCursor] = useState<string>();
@@ -54,8 +63,12 @@ export function KitchenQueuePanel() {
   };
   const load = async (after?:string) => {
     const signal=begin();if(!signal)return;
-    try {await fetchPage(signal,after);}
-    catch {if(!signal.aborted){setStale(true);setNotice("Queue unavailable. Actions are locked until a successful refresh. Check your connection and branch access.");}}
+    try {await fetchPage(signal,after);if(!signal.aborted)setNotice(undefined);}
+    catch(error) {if(!signal.aborted){
+      setStale(true);
+      if(error instanceof ApiError && (error.status===401 || error.status===403)) {setPage(undefined);setUpdated(undefined);}
+      setNotice("Queue unavailable. Actions are locked until a successful refresh. Check your connection and branch access.");
+    }}
     finally {finish(signal);}
   };
   // Refresh the current page only; mutations are always explicit and never replayed.
@@ -84,8 +97,11 @@ export function KitchenQueuePanel() {
       const authoritative=await request<Ticket>(`${path}/${ticket.ticketId}`,signal);
       message+=` Current ticket status: ${authoritative.status}.`;
       await fetchPage(signal);
-    } catch {
-      if(!signal.aborted)setStale(true);
+    } catch(error) {
+      if(!signal.aborted){
+        setStale(true);
+        if(error instanceof ApiError && (error.status===401 || error.status===403)) {setPage(undefined);setUpdated(undefined);}
+      }
       message+=" Refresh failed. Reload the queue before continuing.";
     } finally {if(!signal.aborted)setNotice(message);finish(signal);}
   };
@@ -93,13 +109,15 @@ export function KitchenQueuePanel() {
 
   return <Space direction="vertical" size="middle" style={{width:"100%"}}>
     <Typography.Title level={2}>Kitchen queue</Typography.Title>
+    {!isKitchenEntry() && <Button href="/kitchen">Open Kitchen display</Button>}
     <Alert type="info" message="Preparation can begin before payment settles. Kitchen completion does not confirm payment. A payment failure can cancel unfinished tickets; completed preparation needs operator investigation."/>
     <Form layout="inline" onFinish={()=>void load()}>
-      <Form.Item label="Branch UUID"><Input aria-label="Kitchen branch UUID" value={branch} disabled={busy} onChange={e=>{clear();setBranch(e.target.value.trim());}}/></Form.Item>
-      <Form.Item label="Station"><Input aria-label="Kitchen station" placeholder="All stations" maxLength={100} value={station} disabled={busy} onChange={e=>{clear();setStation(e.target.value);}}/></Form.Item>
+      <Form.Item label="Branch"><OperationalBranchPicker capability="kitchen" label="Kitchen branch" value={branch} disabled={busy} onChange={value=>{clear();setStation("");setStations(undefined);setBranch(value);}}/></Form.Item>
+      <Form.Item label="Station"><select aria-label="Kitchen station" style={{minWidth:180,padding:8}} value={station} disabled={busy||!stations} onChange={event=>{clear();setStation(event.target.value);}}><option value="">All stations</option>{stations?.map(value=><option key={value} value={value}>{value}</option>)}</select></Form.Item>
       <Button htmlType="submit" disabled={busy||!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(branch)}>Refresh queue</Button>
     </Form>
-    <Typography.Text>Use the branch UUID and station code supplied by your administrator. Tickets are oldest first, 50 per page. The current page refreshes every 10 seconds.</Typography.Text>
+    <Typography.Text>Station choices come from the current branch menu. All stations includes older ticket station codes. Tickets are oldest first, 50 per page. The current page refreshes every 10 seconds.</Typography.Text>
+    {stationError&&<Alert type="warning" message="Station discovery unavailable. You can still refresh all stations."/>}
     {notice&&<Alert role="status" type="warning" message={notice}/>}
     {page&&<>
       <Alert type={stale?"warning":"success"} message={stale?"Queue is stale or refreshing. Actions are locked.":`Last refreshed ${new Date(updated!).toLocaleTimeString()}`}/>

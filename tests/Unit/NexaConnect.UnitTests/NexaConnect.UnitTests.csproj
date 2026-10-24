@@ -54,6 +54,7 @@
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PendingCheckout.cs" Link="POS\PendingCheckout.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosApiClient.cs" Link="POS\PosApiClient.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosClientConfiguration.cs" Link="POS\PosClientConfiguration.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosInstallationPolicy.cs" Link="POS\PosInstallationPolicy.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosTokenSet.cs" Link="POS\PosTokenSet.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosSessionPolicy.cs" Link="POS\PosSessionPolicy.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosAuthentication.cs" Link="POS\PosAuthentication.cs" />
@@ -61,6 +62,10 @@
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Pkce.cs" Link="POS\Pkce.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\SettlementAttempt.cs" Link="POS\SettlementAttempt.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\CashierPresentation.cs" Link="POS\CashierPresentation.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\CustomerDisplayState.cs" Link="POS\CustomerDisplayState.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\DisplayTopology.cs" Link="POS\DisplayTopology.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosGalleryPolicy.cs" Link="POS\PosGalleryPolicy.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosGalleryCache.cs" Link="POS\PosGalleryCache.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalPosStore.cs" Link="POS\LocalPosStore.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalPosDatabase.cs" Link="POS\LocalPosDatabase.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalOutboxStore.cs" Link="POS\LocalOutboxStore.cs" />

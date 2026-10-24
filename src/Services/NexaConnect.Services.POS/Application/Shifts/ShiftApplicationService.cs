@@ -52,6 +52,11 @@ public interface IRestaurantScopeReader
 
 public interface IAuthorizationDecisionClient
 {
+    async Task<AuthorizationDecision> DecideForAmountAsync(PosUserContext user,RestaurantAuthorizationScope scope,string permission,decimal amount,string currency,CancellationToken ct)
+    {
+        var decision=await DecideAsync(user,scope,permission,ct);
+        return decision with{Granted=decision.Granted&&amount>0&&decision.EvaluatedLimit is not null&&amount<=decision.EvaluatedLimit};
+    }
     Task<AuthorizationDecision> DecideAsync(
         PosUserContext user,
         RestaurantAuthorizationScope scope,

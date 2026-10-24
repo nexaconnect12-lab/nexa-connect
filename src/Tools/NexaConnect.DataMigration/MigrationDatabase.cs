@@ -120,6 +120,12 @@ internal sealed class MigrationHistoryStore(NpgsqlConnection connection)
             await using var revoke = CreateCommand(
                 $"REVOKE ALL PRIVILEGES ON TABLE {HistoryTable} FROM {quotedRole};");
             await revoke.ExecuteNonQueryAsync(cancellationToken);
+            // Payment readiness needs the current version, never checksums or history mutation.
+            if (runtimeRole == "nexaconnect_payment_app")
+            {
+                await using var readiness = CreateCommand($"GRANT SELECT (version) ON TABLE {HistoryTable} TO {quotedRole};");
+                await readiness.ExecuteNonQueryAsync(cancellationToken);
+            }
         }
     }
 

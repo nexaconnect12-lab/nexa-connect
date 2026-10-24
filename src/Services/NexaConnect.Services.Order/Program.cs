@@ -13,6 +13,7 @@ using NexaConnect.Infrastructure.Authorization;
 using NexaConnect.Observability;
 using NexaConnect.Services.Order.Application.PaymentReviews;
 using NexaConnect.Services.Order.Application.ManualTenders;
+using NexaConnect.Services.Order.Application.Cancellations;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-order");
@@ -21,6 +22,19 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(new BoundedRequestGate(TimeProvider.System, perKey: 1000, global: 1000));
+builder.Services.AddScoped<QrMenuService>();
+builder.Services.AddScoped<QrRequestService>();
+builder.Services.AddScoped<QrAcceptanceService>();
+builder.Services.AddScoped<IQrAcceptancePort,HttpQrMenuPort>();
+builder.Services.AddHttpClient("QrAcceptanceContext",client=>client.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]!))
+    .ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
+builder.Services.AddScoped<IQrMenuPort, HttpQrMenuPort>();
+builder.Services.AddHttpClient("QrGuestContext", client => client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"]!))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false }).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient("QrGuestCatalog", client => client.BaseAddress = new Uri(builder.Configuration["Services:Catalog"]!))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false }).AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient("keycloak-token");
 builder.Services.AddHttpClient<OrderWorkloadTokenProvider>();
@@ -36,11 +50,19 @@ builder.Services.AddOptions<CardCheckoutOptions>().Bind(builder.Configuration.Ge
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "order");
 var usePostgres = builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true;
+if(builder.Configuration.GetValue<bool>("QrAcceptance:Enabled")&&(!usePostgres||!builder.Configuration.GetValue<bool>("QrRequests:Enabled")||!builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters")||!builder.Configuration.GetValue<bool>("WorkflowRecovery:Enabled")))
+    throw new InvalidOperationException("QR acceptance requires durable QR requests, HTTP adapters and enabled Order workflow recovery.");
+if (builder.Configuration.GetValue<bool>("QrRequests:Enabled") && (!usePostgres || !builder.Configuration.GetValue<bool>("QrMenu:Enabled")))
+    throw new InvalidOperationException("QR requests require PostgreSQL and QR menu enablement.");
+if (usePostgres) builder.Services.AddScoped<IQrRequestRepository, PostgresQrRequestRepository>();
+else builder.Services.AddScoped<IQrRequestRepository, DisabledQrRequestRepository>();
 if (usePostgres)
 {
     var connectionString = builder.Configuration.GetConnectionString("Order") ?? throw new InvalidOperationException("ConnectionStrings:Order is required for PostgreSQL persistence.");
     builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(connectionString).Build());
     builder.Services.AddSingleton<PostgresOrderRepository>();
+    builder.Services.AddSingleton<PostgresOrderCancellationRepository>();
+    builder.Services.AddSingleton<IOrderCancellationRepository>(services => services.GetRequiredService<PostgresOrderCancellationRepository>());
     builder.Services.AddSingleton<IOrderRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
     builder.Services.AddSingleton<IOrderWorkflowRecoveryRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
     builder.Services.AddSingleton<IManualTenderRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
@@ -53,15 +75,20 @@ else
     builder.Services.AddSingleton<InMemoryOrderApplicationService>();
     builder.Services.AddSingleton<IOrderApplicationService>(services => services.GetRequiredService<InMemoryOrderApplicationService>());
     builder.Services.AddSingleton<IOrderRepository>(services => services.GetRequiredService<InMemoryOrderApplicationService>());
+    builder.Services.AddSingleton<IOrderCancellationRepository, InMemoryOrderCancellationRepository>();
 }
 builder.Services.AddSingleton<InMemoryIntegrationEventPublisher>();
 builder.Services.AddSingleton<IIntegrationEventPublisher>(services =>
     services.GetRequiredService<InMemoryIntegrationEventPublisher>());
 builder.Services.AddScoped<PlaceOrderWorkflow>();
+builder.Services.AddScoped<OrderPricingService>();
+builder.Services.AddScoped<OrderReceiptService>();
+builder.Services.AddSingleton<IOrderReceiptRepository>(services => (IOrderReceiptRepository)services.GetRequiredService<IOrderRepository>());
 builder.Services.AddScoped<OrderWorkflowRecoveryService>();
 builder.Services.AddScoped<PaymentReconciliationApplicationService>();
 builder.Services.AddScoped<PaymentReviewApplicationService>();
 builder.Services.AddScoped<ManualTenderApplicationService>();
+builder.Services.AddScoped<OrderCancellationApplicationService>();
 if (usePostgres)
 {
     builder.Services.AddPostgresOutbox(builder.Configuration, "Order");
@@ -73,11 +100,20 @@ if (builder.Configuration.GetValue<bool>("PaymentReconciliationConsumer:Enabled"
         throw new InvalidOperationException("Payment reconciliation consumption requires PostgreSQL Order persistence and HTTP workflow adapters.");
     builder.Services.AddPaymentReconciliationConsumer(builder.Configuration);
 }
+builder.Services.AddTransient<OutboundTokenHandler>();
+builder.Services.AddHttpClient<IManualTenderAdmission, HttpManualTenderAdmission>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Services:POS"] ?? "https://pos.example.invalid/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+}).AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
+builder.Services.AddSingleton<IOutboundAccessTokenProvider, KeycloakClientCredentialsTokenProvider>();
+builder.Services.AddHttpClient<IBranchPricingPort, HttpBranchPricingPort>(client =>
+    client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+    .AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
 if (builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters"))
 {
-    builder.Services.AddTransient<OutboundTokenHandler>();
     builder.Services.AddTransient<RetryingHttpMessageHandler>();
-    builder.Services.AddSingleton<IOutboundAccessTokenProvider, KeycloakClientCredentialsTokenProvider>();
     builder.Services.AddHttpClient("keycloak-token");
     builder.Services.AddHttpClient<IMenuCatalogPort, HttpMenuCatalogPort>(client =>
         client.BaseAddress = new Uri(builder.Configuration["Services:Catalog"] ?? throw new InvalidOperationException("Services:Catalog is required.")))
@@ -106,8 +142,39 @@ if (builder.Configuration.GetValue<bool>("WorkflowRecovery:Enabled"))
     builder.Services.AddHostedService<OrderWorkflowRecoveryWorker>();
 }
 
+if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true)
+{
+    builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.IOrderDayReader, NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderDayReader>();
+}
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderDayRead>();
+
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderCutoffs>();
+if (usePostgres) builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.IOrderCutoffStore, NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderCutoffStore>();
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderDayFences>();
+if (builder.Configuration["Persistence:Provider"]?.Equals("PostgreSQL",StringComparison.OrdinalIgnoreCase)==true) builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.IOrderDayFenceStore,NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderDayFenceStore>();
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.IOrderDayBarrierStore, NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderDayBarrierStore>();
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderDayBarriers>();
+builder.Services.AddScoped<NexaConnect.Services.Order.Infrastructure.Messaging.LatePaymentReconciliation>();
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.IOrderLateWorkStore,NexaConnect.Services.Order.Infrastructure.Persistence.PostgresOrderLateWorkStore>();
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.Orders.OrderLateWork>();
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.ManualTenders.IManualTenderEvidenceStore,NexaConnect.Services.Order.Infrastructure.Persistence.PostgresManualTenderEvidenceStore>();
+builder.Services.AddScoped<NexaConnect.Services.Order.Application.ManualTenders.ManualTenderEvidence>();
 var app = builder.Build();
+
 app.UseNexaConnectRequestLogging();
+app.Use(async (context,next)=>
+{
+    try { await next(); }
+    catch(Npgsql.PostgresException e)when(e.SqlState=="PDS01"||e.SqlState=="P0001"&&e.MessageText=="financial_day_fenced")
+    {
+        var code=e.SqlState=="PDS01"?"financial_day_barrier":"financial_day_fenced";
+        context.Response.StatusCode=409;context.Response.Headers.CacheControl="no-store";
+        app.Logger.LogWarning("Financial source mutation rejected; code {Code}",code);
+        await context.Response.WriteAsJsonAsync(new{code});
+    }
+});
+app.Use(async (context,next) => { if(context.Request.Path.StartsWithSegments("/api/order/v1/customer/manual-tender-evidence")||context.Request.Path.StartsWithSegments("/api/order/v1/customer/late-work")||context.Request.Path.StartsWithSegments("/api/order/v1/customer/day-cutoffs")||context.Request.Path.StartsWithSegments("/api/order/v1/internal/day-settlement-barriers")) context.Response.Headers.CacheControl="no-store"; await next(); });
+app.Use(async (context, next) => { if (context.Request.Path.StartsWithSegments("/api/order/v1/customer/end-of-day", StringComparison.OrdinalIgnoreCase)) context.Response.Headers.CacheControl = "no-store"; await next(context); });
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -120,6 +187,7 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapGet("/health/live", () => Results.Ok(new { Status = "Healthy" })).AllowAnonymous();
 app.MapControllers();
 
 app.Run();

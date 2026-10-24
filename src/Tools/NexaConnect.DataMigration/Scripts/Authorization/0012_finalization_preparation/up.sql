@@ -1,0 +1,1 @@
+INSERT INTO authorization_role_permissions(role_id,permission_code) SELECT id,'pos.day-close.finalization.prepare' FROM authorization_roles WHERE code IN('tenant-admin','store-manager') ON CONFLICT DO NOTHING;

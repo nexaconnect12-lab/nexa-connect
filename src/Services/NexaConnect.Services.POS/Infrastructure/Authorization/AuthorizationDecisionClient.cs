@@ -8,11 +8,13 @@ public sealed class AuthorizationDecisionClient(
     IHttpClientFactory clients,
     IConfiguration configuration) : IAuthorizationDecisionClient
 {
-    public async Task<AuthorizationDecision> DecideAsync(
+    public Task<AuthorizationDecision> DecideAsync(
         PosUserContext user,
         RestaurantAuthorizationScope scope,
         string permission,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken)=>DecideCoreAsync(user,scope,permission,null,null,cancellationToken);
+    public Task<AuthorizationDecision> DecideForAmountAsync(PosUserContext user,RestaurantAuthorizationScope scope,string permission,decimal amount,string currency,CancellationToken ct)=>DecideCoreAsync(user,scope,permission,amount,currency,ct);
+    private async Task<AuthorizationDecision> DecideCoreAsync(PosUserContext user,RestaurantAuthorizationScope scope,string permission,decimal? amount,string? currency,CancellationToken cancellationToken)
     {
         using HttpClient client = clients.CreateClient("Authorization");
         client.BaseAddress = new Uri(configuration["Services:Authorization"]
@@ -26,8 +28,8 @@ public sealed class AuthorizationDecisionClient(
                 RestaurantId = (Guid?)scope.RestaurantId,
                 BranchId = (Guid?)scope.BranchId,
                 Permission = permission,
-                Amount = (decimal?)null,
-                Currency = (string?)null
+                Amount = amount,
+                Currency = currency
             },
             cancellationToken);
         response.EnsureSuccessStatusCode();

@@ -1,5 +1,18 @@
 # Manual tender settlement
 
+Next-iteration Phase 4 strengthens Windows client response validation: a successful body must
+have a nonempty settlement identity, the requested Order, `Status=Paid`, matching method,
+exact amount and currency before local recovery clears or the customer display confirms
+payment. A mismatch remains unconfirmed with the same pending attempt. This adds no endpoint,
+grant or settlement rule. The adapter uses validated original-Order correlation and bounded
+structured failure events. See [client behavior and diagnostics](../Deployment/Next-Iteration-Phase-4.md).
+
+New settlements now require [POS-owned terminal admission](Terminal-Admission.md) before Paid commit. Unknown/inactive terminals, wrong cashier shifts and missing cash drawers return `409 terminal_not_ready`; dependency failures return `503 terminal_admission_unavailable`. Order requires `Services:POS` and matching POS binaries. Exact committed replay remains recoverable without current POS readiness; this preflight adds no schema or distributed lock.
+
+POS retains terminal/store/branch/shift validation when projecting the settled event. Admission is a point-in-time observation, so it does not serialize later closure or revocation with Order commit. The [draft checkout runner](../Deployment/First-Draft-Checkout.md) exercises unknown-terminal and wrong-cashier rejection before a valid settlement; broader distributed fencing remains outside this contract.
+
+The [joined draft runner](../Deployment/First-Draft-Checkout.md) uses real scoped identities and owning shift/drawer/checkout/manual-settlement commands. It simulates manual PromptPay verification without real transfer and tests stock/ticket/settlement retries and broker recovery. It supplies no physical printing or manual-tender refund acceptance.
+
 During placement, Order includes organization/application tenant headers on Inventory reservation and release calls. Trusted Inventory calls with both valid headers use tenant persistence; calls with neither retain legacy behavior and partial/invalid context is rejected. Inventory `5xx` responses raise a sanitized dependency failure rather than becoming persisted business rejection text. POS accepts a matching terminal `Rejected` or `PaymentFailed` placement result, including HTTP `409`, as permission to release its checkout lock; it does not unlock on arbitrary conflicts or intermediate states.
 
 `POST /api/order/v1/orders/{orderId}/manual-settlement` records Bangkok MVP cash or manually verified PromptPay settlement. It requires bearer authentication with a user subject, matching `X-Nexa-Organization-Id`, `X-Nexa-Application-Code: nexa_connect`, and branch-scoped `order.manual-payment.confirm` authorization.
