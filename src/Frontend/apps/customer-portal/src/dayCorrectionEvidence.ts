@@ -1,5 +1,5 @@
 import {z} from "zod";
-const id=z.string().uuid(),count=z.number().int().nonnegative().safe().max(2000),time=z.string().datetime({offset:true});
+const id=z.guid(),count=z.number().int().nonnegative().safe().max(2000),time=z.string().datetime({offset:true});
 const amount=z.string().regex(/^-?(?:0|[1-9]\d{0,17})(?:\.\d{1,4})?$/);
 export const dayCorrectionSchema=z.object({manifestId:id,revisionEpoch:id,sourceRevision:z.number().int().nonnegative().safe(),manifestHash:z.string().regex(/^[a-fA-F0-9]{64}$/),adjustmentText:amount,
  expected:count.max(1000),matched:count,missing:count,conflicting:count,unexpected:count,

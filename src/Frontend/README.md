@@ -1,5 +1,7 @@
 # NexaConnect frontend foundations
 
+QR6 pins patched Zod4.6.7, updates form-validation peer compatibility and uses z.guid() in financial API schemas to preserve the existing .NET GUID format. Existing scope, money, safe-version/date and authorization checks remain. New GUID/bounded-collection tests and preparation/cutoff/seal/settlement browser regressions accompany the QR matrix; both dependency audits remain required. See [QR6](../../docs/Deployment/QR6-Integration.md) and [dependency policy](../../docs/Deployment/Frontend-Dependency-Hardening.md).
+
 QR5 shows the accepted original collection reference and live-visit safe original paid receipt in guest status; staff queue distinguishes Paid. Browser adds no payment command or staff credential. See [QR5](../../docs/Deployment/QR5-Collection.md).
 
 QR4 browser contracts cover staff acceptance/version/CSRF and original-guest changed-price

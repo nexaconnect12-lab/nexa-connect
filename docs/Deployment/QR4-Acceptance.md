@@ -55,8 +55,9 @@ dotnet test tests/Integration/NexaConnect.IntegrationTests --filter 'FullyQualif
 ./scripts/test-qr-entry-persistence.ps1 -ConfirmDisposableInfrastructure
 ```
 
-The owned PostgreSQL runner now requires four non-skipped cases and cleanup. The QR4 case
-applies full Order/Inventory/Kitchen migrations to separate generated schemas, uses real
+The current [QR6 PostgreSQL/RabbitMQ runner](QR6-Integration.md) requires five non-skipped
+cases and cleanup of both generated containers. The comprehensive QR4/QR5 case applies
+full Order/Inventory/Kitchen/POS/Reporting migrations to separate generated schemas, using real
 owning repositories/recovery and synthetic scoped Catalog/Restaurant/Authorization ports.
 It tests exact changed-quote review/consent, live permission/dine-in denial,12 competing
 accepts, one original Order, immutable provenance, rollback after outbox failure, restart

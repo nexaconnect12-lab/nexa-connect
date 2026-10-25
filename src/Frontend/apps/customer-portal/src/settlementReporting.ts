@@ -1,5 +1,5 @@
 import {z} from "zod";
-const id=z.string().uuid().refine(v=>v!=="00000000-0000-0000-0000-000000000000"),time=z.string().datetime({offset:true});
+const id=z.guid().refine(v=>v!=="00000000-0000-0000-0000-000000000000"),time=z.string().datetime({offset:true});
 const date=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>Number.isFinite(Date.parse(v+"T00:00:00Z"))&&new Date(v+"T00:00:00Z").toISOString().slice(0,10)===v);
 const amount=z.string().regex(/^-?(?:0|[1-9]\d{0,17})(?:\.\d{1,4})?$/),count=z.number().int().nonnegative().safe();
 const correction=z.object({manifestId:id,revisionEpoch:id,sourceRevision:count,manifestHash:z.string().regex(/^[A-Fa-f0-9]{64}$/),expected:count.max(1000),matched:count.max(1000),missing:z.literal(0),conflicting:z.literal(0),unexpected:z.literal(0),adjustment:amount,

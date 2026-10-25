@@ -23,7 +23,9 @@ jobs:
           node-version: '24'
       - run: dotnet restore NexaConnect.sln
       - name: Verify guest routes remain behind the portal edge
-        run: node --test docker/pilot/hosting.test.mjs
+        run: |
+          node --test docker/pilot/hosting.test.mjs scripts/release/qr6.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify QR domain and HTTP boundaries
         run: |
           dotnet test tests/Unit/NexaConnect.UnitTests --no-restore --filter 'FullyQualifiedName~QrEntry|FullyQualifiedName~QrMenu|FullyQualifiedName~QrRequest|FullyQualifiedName~QrAcceptance|FullyQualifiedName~QrCollection|FullyQualifiedName~PosCheckout|FullyQualifiedName~ManualTender|FullyQualifiedName~OrderPricing|FullyQualifiedName~MigrationRunnerTests|FullyQualifiedName~OperationalBranchDiscoveryTests' --verbosity quiet
@@ -35,6 +37,8 @@ jobs:
       - name: Verify owning persistence and cleanup
         run: |
           docker pull postgres:17-alpine
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          docker pull rabbitmq:4-management
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./scripts/test-qr-entry-persistence.ps1 -ConfirmDisposableInfrastructure
       - working-directory: src/Frontend
@@ -50,3 +54,7 @@ jobs:
           }
           npx playwright test --config playwright.qr-entry.config.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($suite in @('day-close','day-cutoff','day-seal','settlement-reporting')) {
+            npx playwright test --config "playwright.$suite.config.mjs"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }

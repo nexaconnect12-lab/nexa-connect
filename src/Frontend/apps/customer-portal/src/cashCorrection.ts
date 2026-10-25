@@ -1,6 +1,6 @@
 import {z} from "zod";
 import {LateScope} from "./lateWork";
-const id=z.string().uuid(),time=z.string().datetime({offset:true}),version=z.number().int().positive().safe(),date=z.string().regex(/^\d{4}-\d{2}-\d{2}$/),fingerprint=z.string().regex(/^[0-9a-f]{64}$/);
+const id=z.guid(),time=z.string().datetime({offset:true}),version=z.number().int().positive().safe(),date=z.string().regex(/^\d{4}-\d{2}-\d{2}$/),fingerprint=z.string().regex(/^[0-9a-f]{64}$/);
 const scope=z.object({settlementId:id,window:z.object({organizationId:id,restaurantId:id,branchId:id,fromUtc:time,toUtc:time})});
 const money=z.string().regex(/^-(?:0|[1-9]\d{0,14})(?:\.\d{1,4})?$/).refine(v=>Number(v)<0);
 const preview=z.object({scope,workId:id,reviewVersion:version,orderId:id,tenderId:id,drawerId:id,currency:z.literal("THB"),adjustment:money,postingDate:date,timeZone:z.string().min(1).max(128),postingFromUtc:time,postingToUtc:time,fingerprint});

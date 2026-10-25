@@ -1,5 +1,7 @@
 # NexaConnect Project Architecture
 
+QR6 adds source/schema/compiled-SPA/POS integrity binding for local diagnostics and pending device attestations, independently of the existing signed artifact/configuration/freeze workflow. Owning integration joins actual Restaurant visitor and Catalog/pricing persistence to the existing Order/Inventory/Kitchen/POS/Reporting applications and RabbitMQ financial transport; synthetic identity/ports remain explicitly distinct from live OIDC/consumer/phone/hosted acceptance. Zod4.6.7 replaces the vulnerable3.23.8 dependency; financial schemas use GUID-compatible validation with their existing scope/value invariants. No owning schema, integration event, API authority or runtime topology changes. See [QR6](../Deployment/QR6-Integration.md).
+
 QR5 extends QR4 with original-UUID cashier collection, live branch manual-payment authority and exact POS-owned terminal/store/cashier/shift admission. Read-only preview precedes protected local recovery and immutable Order22 custody/audit transaction. Manual settlement checks original custody in Domain/Application and its Paid transaction; original financial contracts, sale publication and consumers remain unchanged. Guest receipts are an allow-listed original receipt projection gated by live visitor context; customer monitor/staff PDF disclosure remains separate. Admission does not hold a distributed lock. See [ADR048](Decisions/ADR-048-qr-cashier-collection.md), [contract](../API/QR-Collection.md) and [operations](../Deployment/QR5-Collection.md).
 
 QR4 now extends proposals into a single atomic owning Order handoff, after live scoped
@@ -593,7 +595,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 112 tables and 128 explicit indexes; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state, while Customer version 2 adds append-only audit that excludes profile fields and preserves its version-1 outbox. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 209 tables with service-owned indexes and constraints; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state, while Customer version 2 adds append-only audit that excludes profile fields and preserves its version-1 outbox. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Database creation is a provisioning concern, not a service migration. Local Docker initialization creates the 13 catalog databases, one migration owner, and separate restricted runtime roles before service migrations are applied. Production uses the equivalent infrastructure-as-code and secret-management workflow.
 

@@ -1,7 +1,7 @@
 import {dayCorrectionSchema,validateDayCorrections} from "./dayCorrectionEvidence";
 import {z} from "zod";
 
-const id=z.string().uuid(),version=z.number().int().positive().safe(),time=z.string().datetime({offset:true});
+const id=z.guid(),version=z.number().int().positive().safe(),time=z.string().datetime({offset:true});
 const identity=z.object({organizationId:id,restaurantId:id,branchId:id,businessDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/)});
 export const settlementCommand=z.object({branchId:id,businessDate:z.string(),operationId:id,expectedPreparationVersion:version,
  preparationOperationId:id,approvalId:id,reviewedApprovalVersion:version});

@@ -9,7 +9,8 @@ and authoritative THB totals. [QR3 requests](../Deployment/QR3-Requests.md) now 
 status recovery and staff rejection. [QR4 acceptance](../Deployment/QR4-Acceptance.md) now implements exact guest price review
 and atomic original Order handoff to Inventory/Kitchen recovery.
 [QR5 collection](../Deployment/QR5-Collection.md) implements Windows cashier payment and
-original private guest receipts. QR6 joined hardening and actual phone acceptance remain pending.
+original private guest receipts. [QR6](../Deployment/QR6-Integration.md) implements joined
+hardening and local candidate preparation; actual phone/hosted/release acceptance remains pending.
 
 ## Confirmed flow
 
@@ -49,10 +50,11 @@ or server readiness. A publicly reachable pilot and actual-phone acceptance cann
 claimed from those local tests. Kiosk, cloud migration and Store publication remain
 separate follow-ons.
 
-QR5's 24 October dependency audit identified a high-severity advisory in the existing
-Zod3.23.8 dependency (GHSA-mrhx-c7xc-m3w5). QR6 must resolve it and rerun dependency and
-affected validation gates before release. QR5 changes no packages; passing functional
-tests does not clear this release blocker. See [QR5 measured evidence](../Deployment/QR5-Collection.md).
+QR5's 24 October dependency audit identified GHSA-mrhx-c7xc-m3w5 in Zod3.23.8; that
+dated failed audit remains [historical evidence](../Deployment/QR5-Collection.md). QR6
+pins patched4.6.7 and adds GUID-compatible financial regressions plus mandatory fresh
+production/full dependency audits. See [current verification](../Deployment/QR6-Integration.md);
+a passing audit is time-dependent and does not replace the remaining release gates.
 
 ## Repository assessment and ownership constraints
 
@@ -84,7 +86,7 @@ table tabs/transfers/split bills, native apps or offline guest execution.
 
 Use the common instructions in the [next-iteration roadmap](Next-Iteration-Roadmap.md#common-instructions-for-every-implementation-prompt)
 with each prompt below. Implement and verify one coherent slice at a time. QR0 is this
-scope/repository assessment; QR1–QR5 source is implemented and QR6 remains pending. Intermediate slices must be visibly
+scope/repository assessment; QR1–QR6 source/tooling is implemented; actual hosted/device/release acceptance remains pending. Intermediate slices must be visibly
 incomplete and disabled from public ordering until the dependent flow is verified.
 
 | Slice | Deliverable | Depends on | Exit evidence |
@@ -95,7 +97,7 @@ incomplete and disabled from public ordering until the dependent flow is verifie
 | QR3 | Durable guest submission and staff review — implemented in source | QR2 | [Idempotency, isolation, expiry, quotas and verification](../Deployment/QR3-Requests.md) |
 | QR4 | Staff acceptance into existing Order/Inventory/Kitchen — implemented in source | QR3 | [Atomic identity, consent, recovery and verification](../Deployment/QR4-Acceptance.md) |
 | QR5 | Windows cashier retrieval and settlement — implemented in source | QR4 | [Original identity, immutable custody, receipt, cash/reporting and verification](../Deployment/QR5-Collection.md) |
-| QR6 | Joined hardening and phone-test candidate | QR1–QR5 | Security/financial regression, fresh candidate, deployment guidance and separately pending physical iOS/Android acceptance |
+| QR6 | Joined hardening and phone-test candidate — implemented in source | QR1–QR5 | [Security/financial/owning verification, fresh local candidate and pending actual-phone gates](../Deployment/QR6-Integration.md) |
 
 ### QR1 prompt — secure table entry
 

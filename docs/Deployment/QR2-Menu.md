@@ -2,8 +2,9 @@
 
 QR3 now optionally retains reviewed quotes and adds pending submissions/private status
 and staff rejection. The QR2 results below remain historical. Current QR persistence
-launcher requires four cases, including owning Order requests and accepted Inventory/Kitchen
-recovery. QR4 adds staff acceptance; see [QR3](QR3-Requests.md) and [QR4](QR4-Acceptance.md).
+launcher requires five cases with generated PostgreSQL/RabbitMQ infrastructure, including
+original-order recovery and the joined QR6 financial journey. QR4 adds staff acceptance;
+see [QR3](QR3-Requests.md), [QR4](QR4-Acceptance.md) and [QR6](QR6-Integration.md).
 
 
 QR2 source implements online menu/cart previews after QR1 admission. Separately enabled
@@ -67,9 +68,11 @@ dotnet test tests/Integration/NexaConnect.IntegrationTests --filter 'FullyQualif
 node --test docker/pilot/hosting.test.mjs
 ```
 
-The current persistence launcher creates only a uniquely named local PostgreSQL fixture,
-runs QR1 Restaurant admission, QR2 Catalog owner/branch/bounds, QR3 Order requests and
-QR4 accepted Inventory/Kitchen recovery. It requires four non-skipped cases and exact cleanup, then writes a protected `.runstate/qr-entry/<id>/verification.json`.
+The current persistence launcher creates uniquely named local PostgreSQL/RabbitMQ fixtures,
+runs QR1 Restaurant admission, QR2 Catalog owner/branch/bounds, QR3 Order requests,
+QR4/QR5 recovery/payment and the QR6 joined owning journey. It requires five non-skipped
+cases and exact cleanup, then writes a protected `.runstate/qr-entry/<id>/verification.json`.
+Prepare both locally cached images as described in [QR6](QR6-Integration.md).
 It never targets retained/live databases. Narrow production grants remain a deployment
 gate; the generated fixture applies owning migrations with its disposable administrator.
 

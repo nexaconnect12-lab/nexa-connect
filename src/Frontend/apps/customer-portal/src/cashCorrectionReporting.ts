@@ -1,5 +1,5 @@
 import {z} from "zod";
-const id=z.string().uuid(),time=z.string().datetime({offset:true}),count=z.number().int().nonnegative().max(2000);
+const id=z.guid(),time=z.string().datetime({offset:true}),count=z.number().int().nonnegative().max(2000);
 const money=z.string().regex(/^-?(?:0|[1-9]\d{0,17})(?:\.\d{1,4})?$/);
 const item=z.object({eventId:id,correctionId:id,originalSettlementId:id,workId:id,orderId:id,tenderId:id,drawerId:id,
   postingDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),postedAtUtc:time,currency:z.literal("THB"),adjustment:money,

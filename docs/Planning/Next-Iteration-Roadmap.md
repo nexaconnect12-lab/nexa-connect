@@ -1,5 +1,7 @@
 # Next iteration: phases, checklist and implementation prompts
 
+[QR6 integration/security/candidate preparation](../Deployment/QR6-Integration.md) is implemented in source. Patched Zod and fresh local evidence replace the QR5 security blocker once verified; actual hosted/iOS/Android/WPF/PDF/clean-CI/signing/user acceptance remains pending. The existing Phase6–9 specification-dependent work is still deferred.
+
 Prepared 21 October 2026 from the first-draft feedback and recorded agreements in
 [the November plan](November-2026-First-Draft.md#next-iteration-roadmap).
 This document defines planned work, not delivered product behavior. The phase-0

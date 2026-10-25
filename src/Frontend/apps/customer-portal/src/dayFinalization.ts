@@ -1,5 +1,5 @@
 import {z} from "zod";
-const id=z.string().uuid(),version=z.number().int().nonnegative().safe(),time=z.string().datetime({offset:true});
+const id=z.guid(),version=z.number().int().nonnegative().safe(),time=z.string().datetime({offset:true});
 export const finalizationCommand=z.object({branchId:id,businessDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),operationId:id,expectedVersion:version,approvalId:id,reviewedApprovalVersion:version.positive()});
 const identity=z.object({organizationId:id,restaurantId:id,branchId:id,businessDate:z.string()});
 const fence=z.object({source:z.enum(["Order","Payment","POS"]),sealId:id,epoch:id,revision:version,expiresAtUtc:time,active:z.boolean(),cancelled:z.boolean()});

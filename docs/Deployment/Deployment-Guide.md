@@ -1,5 +1,7 @@
 # Deployment Guide
 
+[QR6](QR6-Integration.md) prepares a source/schema/build-bound local test candidate and [actual-phone checklist](QR6-Phone-Test.md). Use trusted HTTPS/exact guest Origin and private service routing; pending server facts, signed artifacts/configuration binding, actual phones/PDF, clean CI and release freeze are not satisfied by local checks. Current QR/migration enablement remains QR5.
+
 QR5 requires Order22 before current Order binaries and matching POS admission binaries for exact shift/store checks. QrCollection__Enabled defaults false and requires durable QR acceptance. Preserve original client/profile recovery; no custody transfer is implemented. QR flags remain disabled in pilot templates; real-host/device/CI/release acceptance is pending. See [QR5 rollout](QR5-Collection.md).
 
 QR4 [isolated acceptance](QR4-Acceptance.md) requires current Order22 binaries/schema and

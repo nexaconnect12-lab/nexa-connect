@@ -1,8 +1,8 @@
 # QR3 durable submissions and staff review
 
 QR4 now implements staff acceptance/price review and one original unpaid Order handoff.
-Current binaries require Order22; the shared persistence launcher now requires four
-cases. QR3 evidence below is historical and QR3-alone behavior is distinguished from
+Current binaries require Order22; the shared [QR6 persistence launcher](QR6-Integration.md)
+now requires five cases and generated PostgreSQL/RabbitMQ infrastructure. QR3 evidence below is historical and QR3-alone behavior is distinguished from
 enabled QR4. See [current QR4 guide](QR4-Acceptance.md).
 
 
@@ -88,9 +88,11 @@ dotnet test tests/Integration/NexaConnect.IntegrationTests --filter 'FullyQualif
 ./scripts/test-qr-entry-persistence.ps1 -ConfirmDisposableInfrastructure
 ```
 
-The launcher creates uniquely named loopback PostgreSQL infrastructure, applies owning
-Restaurant/Catalog/Order/Inventory/Kitchen scripts to generated schemas, requires four non-skipped cases
-and exact cleanup, then retains private logs/TRX and `.runstate/qr-entry/<id>/verification.json`.
+The current launcher creates uniquely named loopback PostgreSQL/RabbitMQ infrastructure,
+applies owning Restaurant/Catalog/Order/Inventory/Kitchen/POS/Reporting scripts to generated
+schemas, requires five non-skipped cases and exact cleanup, then retains private logs/TRX
+and `.runstate/qr-entry/<id>/verification.json`. Prepare both cached fixture images; see
+[QR6 prerequisites and joined scope](QR6-Integration.md).
 No retained/live database is reset. The QR3-only owning Order case exercises concurrent retries,
 fresh repository reads, guessed visitor/owner denial, pending limits, expired quote replay,
 expiry, rejection/version checks, immutable audit, outbox rollback, quota contention and

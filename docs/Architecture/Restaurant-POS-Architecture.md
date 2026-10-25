@@ -1,5 +1,7 @@
 # NexaConnect Restaurant POS Architecture
 
+QR6 adds an owning seven-context journey from real table visits/menu/price through original Order recovery/cashier payment and RabbitMQ financial projection. Failures/retries preserve original identity; duplicated financial deliveries produce one effect. This is test-host verification with synthetic identity/transport seams, not a branch-edge, real-phone, WPF or hosted acceptance claim. Runtime ownership and QR default-off controls are unchanged. See [QR6](../Deployment/QR6-Integration.md).
+
 QR5 implements original accepted QR Order collection in Windows POS using immutable Order-owned cashier/terminal/store/shift/settlement custody and existing manual tender/receipt/financial projections. No floor-table account or aggregate bill is created; each accepted guest request remains its original Order. Original visitor may view the safe paid receipt while live. See [ADR048](Decisions/ADR-048-qr-cashier-collection.md) and [QR5](../Deployment/QR5-Collection.md).
 
 QR4 [staff acceptance](../Deployment/QR4-Acceptance.md) now checks live visitor/entry and
@@ -14,7 +16,7 @@ from executable Orders. Exact retained quote identities, private per-visitor rec
 live branch-authorized queue/rejection precede acceptance. Ending/rescanning never cancels
 a submitted request or grants access to another visitor. Pending work expires on scoped
 access; proposals alone have no stock/Kitchen/payment side effects. QR4 adds acceptance;
-cashier collection remains QR5.
+cashier collection is implemented in QR5.
 
 
 Phase 7 prepares a per-user, unpackaged Windows EXE installer with a self-contained

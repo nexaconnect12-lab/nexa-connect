@@ -2,11 +2,11 @@ import { z } from "zod";
 
 const money=z.number().finite();
 const count=z.number().int().nonnegative();
-const window=z.object({organizationId:z.string().uuid(),restaurantId:z.string().uuid(),branchId:z.string().uuid(),fromUtc:z.string().datetime({offset:true}),toUtc:z.string().datetime({offset:true})});
+const window=z.object({organizationId:z.guid(),restaurantId:z.guid(),branchId:z.guid(),fromUtc:z.string().datetime({offset:true}),toUtc:z.string().datetime({offset:true})});
 const source={window,observedAtUtc:z.string().datetime({offset:true})};
 const schema=z.object({
   businessDate:z.string(),status:z.literal("draft"),window,
-  branch:z.object({organizationId:z.string().uuid(),restaurantId:z.string().uuid(),branchId:z.string().uuid(),timeZone:z.string().min(1),currency:z.string().regex(/^[A-Z]{3}$/)}),
+  branch:z.object({organizationId:z.guid(),restaurantId:z.guid(),branchId:z.guid(),timeZone:z.string().min(1),currency:z.string().regex(/^[A-Z]{3}$/)}),
   grossSales:money,completedRefunds:money,netSales:money,cashVariance:money,
   tenders:z.array(z.object({method:z.string().min(1),currency:z.string(),amount:money.nonnegative()})),
   order:z.object({...source,completedOrders:count,unresolvedOrders:count,evidenceGaps:count}),
@@ -17,7 +17,7 @@ const schema=z.object({
 export type DayDraft=z.infer<typeof schema>;
 export function dayRequest(branchId:string,businessDate:string){
   const date=new Date(`${businessDate}T00:00:00Z`);
-  if(!z.string().uuid().safeParse(branchId).success||!/^\d{4}-\d{2}-\d{2}$/.test(businessDate)
+  if(!z.guid().safeParse(branchId).success||!/^\d{4}-\d{2}-\d{2}$/.test(businessDate)
     ||!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==businessDate)return undefined;
   return {branchId,businessDate};
 }

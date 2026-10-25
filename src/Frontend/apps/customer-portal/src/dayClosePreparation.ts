@@ -1,6 +1,6 @@
 import {dayCorrectionSchema,validateDayCorrections} from "./dayCorrectionEvidence";
 import {z} from "zod";
-const uuid=z.string().uuid(), money=z.number().finite(), count=z.number().int().nonnegative();
+const uuid=z.guid(), money=z.number().finite(), count=z.number().int().nonnegative();
 export const preparationCommand=z.object({branchId:uuid,businessDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),operationId:uuid,expectedVersion:count,reasonCode:z.enum(["routine_close","recheck"]),reviewedCutoffVersion:count.safe().positive().nullable().optional()});
 const cutoffReference=z.object({manifestId:uuid,generation:count.positive(),evidenceVersion:z.string().regex(/^[a-f0-9]{64}$/),revisionEpoch:uuid.nullable().optional(),sourceRevision:count.safe().nullable().optional()});
 const cutoff=z.object({order:cutoffReference,payment:cutoffReference,pos:cutoffReference,checkId:uuid,sourcesCurrent:z.boolean(),financialGaps:count,deliveryComplete:z.boolean().optional(),evidenceProtocolVersion:z.number().int().optional()});

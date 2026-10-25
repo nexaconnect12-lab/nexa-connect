@@ -1,6 +1,8 @@
 # NexaConnect
 
-[QR5](docs/Deployment/QR5-Collection.md) adds Windows POS collection of original accepted QR Orders, immutable cashier/terminal/shift custody, cash/manual PromptPay settlement and private original guest receipts. Order22 is required before current QR reader/settlement binaries; QrCollection defaults off. QR6 hosted/phone/integration acceptance remains pending.
+[QR6](docs/Deployment/QR6-Integration.md) adds the patched Zod4.6.7 GUID-compatible financial validators, joined live-visit/owning-service/RabbitMQ verification and a fresh source/schema/compiled-output-bound local candidate with separate pending iOS/Android test records. No deployment, clean-source CI, signed installer, real-device or user acceptance is implied.
+
+[QR5](docs/Deployment/QR5-Collection.md) adds Windows POS collection of original accepted QR Orders, immutable cashier/terminal/shift custody, cash/manual PromptPay settlement and private original guest receipts. Order22 is required before current QR reader/settlement binaries; QrCollection defaults off. QR6 local integration/candidate tooling is implemented; actual hosted/phone/release acceptance remains pending.
 
 [QR4](docs/Deployment/QR4-Acceptance.md) adds authorized staff acceptance, exact guest
 review of changed prices and atomic handoff of one original unpaid Order to existing

@@ -160,7 +160,7 @@ public sealed class QrAcceptancePersistenceTests
     private const string Token="SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS";
     private static async Task Sql(NpgsqlDataSource source,string sql){await using var command=source.CreateCommand(sql);await command.ExecuteNonQueryAsync();}
     private static async Task Seed(NpgsqlDataSource source,string sql,params object[] values){await using var c=source.CreateCommand(sql);foreach(var v in values)c.Parameters.AddWithValue(v);await c.ExecuteNonQueryAsync();}
-    private sealed class Admission(NpgsqlDataSource source,Guid org,Guid restaurant,Guid branch):IManualTenderAdmission
+    internal sealed class Admission(NpgsqlDataSource source,Guid org,Guid restaurant,Guid branch):IManualTenderAdmission
     {
         public async Task<DateTimeOffset> AdmitAsync(ManualTenderAdmissionRequest r,CancellationToken ct)
         {
@@ -179,19 +179,19 @@ public sealed class QrAcceptancePersistenceTests
         public Task<IReadOnlyList<CatalogMenuItem>> MenuAsync(Guid org,Guid branch,CancellationToken ct){Assert.Equal(Context.OrganizationId,org);Assert.Equal(Context.BranchId,branch);return Task.FromResult<IReadOnlyList<CatalogMenuItem>>([new(Product,"Soup",Price,"THB",true,"kitchen")]);}
     }
     private sealed class Policies:IBranchPricingPort{public Task<PricingPolicy> GetAsync(Guid org,Guid restaurant,Guid branch,CancellationToken ct)=>Task.FromResult(new PricingPolicy(1,7,true,10));}
-    private sealed class Auth:IOrderTenantAuthorizer{public bool Allowed=true;public Task<bool> HasBranchAccessAsync(Guid org,Guid branch,string p,string b,CancellationToken ct)=>Task.FromResult(Allowed);public Task<Guid?> GetBranchDecisionAsync(Guid org,Guid branch,string p,string b,CancellationToken ct)=>Task.FromResult<Guid?>(Allowed?Guid.NewGuid():null);}
-    private sealed class StockPort(InventoryStore store):IInventoryReservationPort
+    internal sealed class Auth:IOrderTenantAuthorizer{public bool Allowed=true;public Task<bool> HasBranchAccessAsync(Guid org,Guid branch,string p,string b,CancellationToken ct)=>Task.FromResult(Allowed);public Task<Guid?> GetBranchDecisionAsync(Guid org,Guid branch,string p,string b,CancellationToken ct)=>Task.FromResult<Guid?>(Allowed?Guid.NewGuid():null);}
+    internal sealed class StockPort(InventoryStore store):IInventoryReservationPort
     {
         private bool lose=true;
         public Task<InventoryReservationResult> ReserveAsync(Guid org,Guid id,Guid branch,IReadOnlyCollection<OrderLine> lines,CancellationToken ct)
         {try{var result=store.Reserve(org,new(id,branch,lines.Select(l=>new INVENTORY::NexaConnect.Services.Inventory.Application.Reservations.ReservationLine(l.ProductId,l.Quantity)).ToArray()),new("fixture",id));if(lose){lose=false;throw new HttpRequestException("simulated response loss");}return Task.FromResult(new InventoryReservationResult(true,result.ReservationId,null));}catch(InvalidOperationException){return Task.FromResult(new InventoryReservationResult(false,null,"unavailable"));}}
     }
-    private sealed class KitchenPort(KitchenStore store):IKitchenPort
+    internal sealed class KitchenPort(KitchenStore store):IKitchenPort
     {
         private bool lose=true;
         public async Task<KitchenTicketResult> CreateTicketAsync(Guid org,Guid restaurant,Guid id,Guid branch,IReadOnlyCollection<OrderLine> lines,CancellationToken ct)
         {var result=await store.CreateAsync(org,new(restaurant,id,branch,lines.Select(l=>new KITCHEN::NexaConnect.Services.Kitchen.Application.KitchenTicketLine(l.ProductId,l.Name,l.Quantity,l.PreparationStation)).ToArray()),new("fixture",id),ct);if(lose){lose=false;throw new HttpRequestException("simulated response loss");}return new(result.TicketId);}
     }
-    private sealed class NoPayment:IPaymentPort{public Task<PaymentResult> AuthorizeAsync(Guid org,Guid restaurant,Guid branch,Guid id,decimal amount,string currency,string method,CancellationToken ct)=>throw new InvalidOperationException("QR acceptance must stay unpaid.");}
-    private sealed class RecoveryClock:TimeProvider{public override DateTimeOffset GetUtcNow()=>DateTimeOffset.UtcNow.AddMinutes(1);}
+    internal sealed class NoPayment:IPaymentPort{public Task<PaymentResult> AuthorizeAsync(Guid org,Guid restaurant,Guid branch,Guid id,decimal amount,string currency,string method,CancellationToken ct)=>throw new InvalidOperationException("QR acceptance must stay unpaid.");}
+    internal sealed class RecoveryClock:TimeProvider{public override DateTimeOffset GetUtcNow()=>DateTimeOffset.UtcNow.AddMinutes(1);}
 }

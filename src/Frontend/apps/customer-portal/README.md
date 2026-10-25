@@ -1,5 +1,7 @@
 # NexaConnect Customer Portal
 
+QR6 uses patched Zod4.6.7 and GUID-compatible financial response validation. No portal route, permission or financial command changes. The QR, preparation/cutoff/seal and settlement-reporting browser suites feed a new local candidate; actual phones remain separately pending. See [QR6](../../../../docs/Deployment/QR6-Integration.md).
+
 QR5 shows the accepted original collection reference and live-visit safe original paid receipt in guest status; staff queue distinguishes Paid. Browser adds no payment command or staff credential. See [QR5](../../../../docs/Deployment/QR5-Collection.md).
 
 QR4 adds Accept original request (when enabled), accepted/price_review queue states,

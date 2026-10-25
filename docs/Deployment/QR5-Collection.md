@@ -1,5 +1,7 @@
 # QR5 Windows cashier collection
 
+Current [QR6](QR6-Integration.md) pins patched Zod4.6.7, adds the owning seven-context/RabbitMQ journey and requires fresh dependency/financial verification. The 24 October four-case/failed-audit record below is historical for QR5 inputs; actual hosted/phone/release gates remain pending.
+
 QR5 implements original accepted QR Order collection and cash/manual PromptPay payment.
 Hosted deployment, real phones, clean-source remote CI, signing and physical/PDF acceptance
 remain pending. No commit/push/deployment is implied by local verification.
@@ -43,7 +45,9 @@ late-work custody apply. See [contract/telemetry](../API/QR-Collection.md).
 
 Run the full unit suite (Windows DPAPI acceptance opt-in where supported), QR HTTP/transport
 and architecture tests, then `./scripts/test-qr-entry-persistence.ps1 -ConfirmDisposableInfrastructure`.
-The four-case owning runner now includes QR5 within the comprehensive QR acceptance case:
+The current [QR6 owning runner](QR6-Integration.md) requires five cases and cached
+PostgreSQL/RabbitMQ images, with exact cleanup of both generated containers. QR5 remains
+inside the comprehensive QR acceptance case:
 full Order/Inventory/Kitchen/POS/Reporting schemas, live POS-owned admission, immutable custody,
 concurrent claim/payment replay, wrong cashier/shift/scope, revocation, original receipt,
 cash and manual PromptPay projections, sale Reporting deduplication and downgrade guards.

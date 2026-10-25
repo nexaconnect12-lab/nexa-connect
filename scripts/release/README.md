@@ -1,5 +1,7 @@
 # Next-iteration release binding and freeze
 
+QR6 has an additional local diagnostic gate: `./scripts/test-qr6.ps1 -ConfirmDisposableInfrastructure`. It writes a fresh owner-restricted source/schema/compiled-output candidate and pending phone templates after strict source/financial/security/QR and owning PostgreSQL/RabbitMQ checks. `node scripts/release/qr6.mjs prepare <run-directory>` rechecks the current binding before write-once preparation. This is not a signed installer/hosting/configuration binding and cannot freeze a release; all existing commands/gates below still apply. See [QR6](../../docs/Deployment/QR6-Integration.md).
+
 Node 24+ and PowerShell 7.4+ tools prepare a new candidate independently of the retained
 first-draft release/UAT records. Nothing here commits, pushes, deploys, installs POS,
 submits to the Store or accepts the product. See [Phase 8](../../docs/Deployment/Next-Iteration-Phase-8.md)

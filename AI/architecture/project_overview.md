@@ -1,6 +1,8 @@
 # NexaConnect Project Architecture
 
-[QR5](../../docs/Deployment/QR5-Collection.md) implements original QR cashier collection through Windows POS and existing manual payment/receipt/cash/reporting paths. Order22 retains one immutable collecting actor/terminal/store/shift/operation with audit outbox; Domain custody and transactional settlement guards prevent transferred collection authority. POS verifies exact current scope before new payment; committed original replay remains readable after closure. Guest gets only the original live-visit safe receipt; customer display keeps its existing disclosure rules. No replacement Order, repricing or Inventory/Kitchen placement. QR6/hosted/device/clean-CI release gates remain pending.
+[QR6](../../docs/Deployment/QR6-Integration.md) adds integrated diagnostic verification and a source/schema/build-bound local candidate, preserving Phase6–9 actual-host/device/signing/freeze gates. A seven-owner PostgreSQL journey starts real Restaurant visits/Catalog/pricing, coordinates original QR acceptance/recovery/payment, then retries original financial outbox events over RabbitMQ into owning cash/sale projections. Identity and some transport ports remain synthetic; actual OIDC/WPF/phones/hosted consumers remain pending. Frontend upgrades vulnerable Zod3.23.8 to4.6.7; z.guid preserves existing .NET GUID wire semantics without changing business authority, financial invariants or schemas.
+
+[QR5](../../docs/Deployment/QR5-Collection.md) implements original QR cashier collection through Windows POS and existing manual payment/receipt/cash/reporting paths. Order22 retains one immutable collecting actor/terminal/store/shift/operation with audit outbox; Domain custody and transactional settlement guards prevent transferred collection authority. POS verifies exact current scope before new payment; committed original replay remains readable after closure. Guest gets only the original live-visit safe receipt; customer display keeps its existing disclosure rules. No replacement Order, repricing or Inventory/Kitchen placement. QR6 local integration/candidate tooling is implemented; hosted/device/clean-CI release gates remain pending.
 
 [QR4](../../docs/Deployment/QR4-Acceptance.md) adds versioned staff acceptance with live
 order.place, Restaurant visitor/dine-in checks and current Catalog/Restaurant pricing.
@@ -8,7 +10,7 @@ Changed prices require the same guest to confirm the retained review before anot
 staff decision. Order21 commits Submitted Order/request/immutable provenance/audit/outbox
 atomically, then existing fenced Order recovery reserves Inventory and creates Kitchen
 work using the original UUID. Channel qr/dine_in and explicit logical table provenance
-preserve POS history; no payment command. QR5 collection is implemented; QR6 remains pending; flags default off.
+preserve POS history; no payment command. QR5 collection is implemented; QR6 local tooling is implemented; actual hosted/device acceptance remains pending; flags default off.
 
 
 [QR3](../../docs/Deployment/QR3-Requests.md) now retains exact visitor/table-bound quotes
@@ -28,7 +30,7 @@ admission and audit/outbox. Customer BFF provides a separate HttpOnly guest cook
 exact-origin mutation boundary. [QR2](../../docs/Deployment/QR2-Menu.md) adds a mobile menu,
 memory-only cart and authoritative quote through capability-scoped Order reads, exact Order
 workload Catalog projection and existing Restaurant pricing. Public totals reuse Order
-commercial rules; no guest staff/order/payment authority is granted. QR5 collection is implemented; QR6 remains pending. Hosted release/signing/device/Phase 9 work is
+commercial rules; no guest staff/order/payment authority is granted. QR5 collection is implemented; QR6 local tooling is implemented; actual hosted/device acceptance remains pending. Hosted release/signing/device/Phase 9 work is
 deferred pending specifications, with existing readiness gates preserved. This selection
 preserves the existing readiness gates; no QR deployment/phone acceptance is claimed.
 
@@ -562,7 +564,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned migrations exist for all 13 service databases and currently define 112 tables and 128 explicit indexes. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. Customer version 2 adds append-only audit that excludes profile fields while its version-1 outbox remains authoritative. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned migrations exist for all 13 service databases and currently define 209 tables with service-owned indexes and constraints. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. Customer version 2 adds append-only audit that excludes profile fields while its version-1 outbox remains authoritative. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Rules:
 

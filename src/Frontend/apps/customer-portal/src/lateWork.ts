@@ -1,5 +1,5 @@
 import {z} from "zod";
-const id=z.string().uuid(),time=z.string().datetime({offset:true}),version=z.number().int().nonnegative().safe();
+const id=z.guid(),time=z.string().datetime({offset:true}),version=z.number().int().nonnegative().safe();
 const status=z.enum(["pending_review","investigating","correction_required","reviewed"]);
 const scope=z.object({settlementId:id,window:z.object({organizationId:id,restaurantId:id,branchId:id,fromUtc:time,toUtc:time})});
 const item=z.object({workId:id,eventType:z.string().max(128),receivedAtUtc:time,occurredAtUtc:time.nullable(),custodyReason:z.literal("late_delivery_for_settled_day"),records:z.record(z.string(),id),version,status});

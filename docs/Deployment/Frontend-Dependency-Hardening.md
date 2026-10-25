@@ -1,5 +1,7 @@
 # Frontend dependency and runtime policy
 
+QR6 upgrades the runtime validation dependency from Zod3.23.8 to pinned4.6.7 (workspace peer ^4.6.7), addressing GHSA-mrhx-c7xc-m3w5. Financial .NET GUID schemas use z.guid() to preserve existing wire semantics under Zod4; field errors, scope/value and authorization checks remain. Both audits and financial/frontend regressions are required; see [QR6 verification](QR6-Integration.md). Earlier Phase8/runtime-unchanged and QR5 audit observations below remain historical for those inputs.
+
 The shared frontend workspace requires Node 22.12+ on the 22.x line or Node 24+ (`^22.12.0 || >=24.0.0`). Node 20 is no longer supported by the workspace policy. Use Node 22 or 24 for verification; other versions accepted by the range are not covered by the CI matrix. This is a build/test runtime requirement, including BFF publish operations that build the portals; it does not change the browser session or service contracts.
 
 Vitest is pinned to 4.1.12, Vite to 7.3.7, SourceMap.js resolves to 1.2.2, and the affected Tinypool dependency is removed. Phase 8 updates the former 4.1.11/7.3.6 pins after the full audit rejected new build/test-tool advisories; runtime application dependencies are unchanged. The existing jsdom/include/plugin test configuration remains compatible and requires no migration edit. See [Phase 8 evidence](Next-Iteration-Phase-8.md).

@@ -62,3 +62,17 @@ local restore is not the hosted full-graph disaster recovery gate. Server/enviro
 prerequisites and actual Windows/device proof cannot be replaced by a green source run.
 See [Phase 8 operations](../../Deployment/Next-Iteration-Phase-8.md) and
 [release tool contract](../../../scripts/release/README.md).
+
+## QR6 local diagnostic candidate extension — 25 October 2026
+
+QR6 adds a separate local integrity candidate after strict source/security/financial/QR
+gates and the owning PostgreSQL/RabbitMQ journey. It binds current source/schema and
+compiled SPA/Debug POS inventories, with write-once candidate and pending phone templates.
+Private logs and arbitrary evidence payloads are not projected into that candidate.
+Dirty source is recorded; releaseReady remains false regardless of local success.
+
+This diagnostic binding cannot replace the signed installer/hosting/configuration/clean-CI
+and actual target observations required by this ADR. Its phone template is an explicit
+operator-attestation starting point, never automated device proof or a freeze input.
+Changed source/artifacts require replacement verification and binding. See
+[QR6 operations](../../Deployment/QR6-Integration.md).

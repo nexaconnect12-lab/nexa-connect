@@ -1,6 +1,6 @@
 import {z} from "zod";
 import {Preparation,readSealedPreparation} from "./dayClosePreparation";
-const id=z.string().uuid(),version=z.number().int().nonnegative().safe();
+const id=z.guid(),version=z.number().int().nonnegative().safe();
 export const approvalCommand=z.object({branchId:id,businessDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),operationId:id,expectedApprovalVersion:version,reviewedSealVersion:version.positive(),reasonCode:z.enum(["review_complete","review_after_changes"])});
 const identity=z.object({organizationId:id,restaurantId:id,branchId:id,businessDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/)});
 const decision=z.object({approvalId:id,operationId:id,identity,approvalVersion:version.positive(),sealVersion:version.positive(),approverSubject:z.string().min(1).max(128),reasonCode:z.enum(["review_complete","review_after_changes"]),approvedAtUtc:z.string().datetime({offset:true}),sourceValidatedAtUtc:z.string().datetime({offset:true}),validationCheckId:id,snapshot:z.unknown()});

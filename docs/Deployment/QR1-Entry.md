@@ -75,10 +75,12 @@ npx playwright test --config playwright.qr-entry.config.mjs
 npm run build
 ```
 
-The persistence script uses only a generated local PostgreSQL container/database/schema,
-checks the actual test receipt and verifies exact cleanup. Private logs/receipts are under
-owner-restricted `.runstate/qr-entry/<run-id>`. It requires locally cached
-`postgres:17-alpine` (`--pull never`); it never connects to a retained draft or server.
+The current [QR6 persistence runner](QR6-Integration.md) uses generated local PostgreSQL
+and RabbitMQ containers and five required cases, including the joined original-order
+journey. It checks the actual test receipt and exact cleanup. Private logs/receipts stay
+under owner-restricted `.runstate/qr-entry/<run-id>`. Locally cached `postgres:17-alpine`
+and `rabbitmq:4-management` images are required (`--pull never`); no retained draft/server
+is targeted. The dated QR1 results below remain historical.
 Browser fixtures cover desktop and Android Chromium/iPhone WebKit emulation, not physical
 iOS Safari/Android Chrome or public TLS certification. Record measured results below.
 
