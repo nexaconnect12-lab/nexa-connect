@@ -27,6 +27,8 @@ builder.Services.AddSingleton(new BoundedRequestGate(TimeProvider.System, perKey
 builder.Services.AddScoped<QrMenuService>();
 builder.Services.AddScoped<QrRequestService>();
 builder.Services.AddScoped<QrAcceptanceService>();
+builder.Services.AddScoped<QrCollectionService>();
+builder.Services.AddScoped<IQrCollectionRepository, PostgresQrCollectionRepository>();
 builder.Services.AddScoped<IQrAcceptancePort,HttpQrMenuPort>();
 builder.Services.AddHttpClient("QrAcceptanceContext",client=>client.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]!))
     .ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
@@ -50,6 +52,8 @@ builder.Services.AddOptions<CardCheckoutOptions>().Bind(builder.Configuration.Ge
 builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "order");
 var usePostgres = builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) == true;
+if(builder.Configuration.GetValue<bool>("QrCollection:Enabled") && (!usePostgres || !builder.Configuration.GetValue<bool>("QrAcceptance:Enabled")))
+    throw new InvalidOperationException("QR collection requires durable QR acceptance.");
 if(builder.Configuration.GetValue<bool>("QrAcceptance:Enabled")&&(!usePostgres||!builder.Configuration.GetValue<bool>("QrRequests:Enabled")||!builder.Configuration.GetValue<bool>("Workflow:UseHttpAdapters")||!builder.Configuration.GetValue<bool>("WorkflowRecovery:Enabled")))
     throw new InvalidOperationException("QR acceptance requires durable QR requests, HTTP adapters and enabled Order workflow recovery.");
 if (builder.Configuration.GetValue<bool>("QrRequests:Enabled") && (!usePostgres || !builder.Configuration.GetValue<bool>("QrMenu:Enabled")))
@@ -105,7 +109,7 @@ builder.Services.AddHttpClient<IManualTenderAdmission, HttpManualTenderAdmission
 {
     client.BaseAddress = new Uri(builder.Configuration["Services:POS"] ?? "https://pos.example.invalid/");
     client.Timeout = TimeSpan.FromSeconds(15);
-}).AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false }).AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
 builder.Services.AddSingleton<IOutboundAccessTokenProvider, KeycloakClientCredentialsTokenProvider>();
 builder.Services.AddHttpClient<IBranchPricingPort, HttpBranchPricingPort>(client =>
     client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"] ?? throw new InvalidOperationException("Services:Restaurant is required.")))

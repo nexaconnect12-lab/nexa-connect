@@ -3,7 +3,9 @@
 Apply Order migration21 `0021_qr_acceptance`, minimum catalog compatibility0.38.0, before
 deploying current QR repository readers even when acceptance is disabled. Financial
 schema/permission versions remain unchanged; this optional capability adds one table to
-the prior207=208 current catalog. See [contract](../API/QR-Acceptance.md).
+the prior207=208 catalog at QR4 introduction. QR5 adds one for the current209;
+current manual-settlement binaries also require [Order22](QR-Collection.md).
+See [contract](../API/QR-Acceptance.md).
 
 `order_qr_acceptances` is immutable request/Order binding, one row per original request
 UUID=Order UUID. It retains organization/restaurant/branch, logical label/entry/visitor,

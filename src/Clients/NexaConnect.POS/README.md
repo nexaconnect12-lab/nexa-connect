@@ -1,5 +1,7 @@
 # NexaConnect POS
 
+QR5 adds **QR collection**: enter the guest collection reference/original Order UUID, check original table/items/pricing, and collect through existing cash/manual PromptPay Payment controls. Read-only preview rejects invalid references before retaining work; claim persists original Order/operation/cashier/shift in existing DPAPI schema2 recovery before network I/O. QR recovery cannot invoke quote/place; original-cashier lock/resume and settlement replay retain identity. No table-wide combined bill or custody reassignment. Requires matching Order22/POS service and enabled QrCollection. See [contract](../../../docs/API/QR-Collection.md) and [setup/verification](../../../docs/Deployment/QR5-Collection.md).
+
 Phase 5 optionally uses `Services:MediaApi` for approved branch staff/customer screensavers.
 Active authenticated sessions refresh once a minute; lock displays separate role playlists
 beside staff Resume/Authenticate, with no customer authentication/transaction content.

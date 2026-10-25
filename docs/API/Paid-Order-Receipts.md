@@ -1,5 +1,11 @@
 # Paid order receipts
 
+QR5 reuses this original immutable paid receipt for accepted QR Orders. Staff lookup and
+printing retain the live order.read permission below. The original live guest visitor can
+read a separate allow-listed projection through private QR request status; it omits internal
+scope, actor/terminal and bank evidence and adds no payment authority. Current Order binaries
+require migration22; see [QR collection](QR-Collection.md).
+
 Windows print cancellation and spool submission now have explicit payment-preserving messages. A successful spool call does not certify that a PDF was saved or printed. See [Windows draft acceptance](../Deployment/First-Draft-Windows-POS.md) for the required PDF inspection/reprint/failure checks.
 
 Order issues one version-1 ordinary sales receipt when an Order first reaches `Paid`. The receipt is an immutable snapshot of the accepted line names, quantities and unit prices; accepted subtotal, service charge, tax and total; currency; tender; Order identity; tenant scope; and payment-completion timestamp. Its stable number is `R-{ORDER_ID_N_FORMAT}`. It is not a jurisdiction-specific tax invoice.

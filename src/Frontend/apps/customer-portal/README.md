@@ -1,5 +1,7 @@
 # NexaConnect Customer Portal
 
+QR5 shows the accepted original collection reference and live-visit safe original paid receipt in guest status; staff queue distinguishes Paid. Browser adds no payment command or staff credential. See [QR5](../../../../docs/Deployment/QR5-Collection.md).
+
 QR4 adds Accept original request (when enabled), accepted/price_review queue states,
 original Order state and exact guest updated-price confirmation. Confirmation returns
 the same request to staff review; no automatic acceptance/payment. Existing CSRF/version
@@ -20,7 +22,7 @@ it stores no guest capability in browser storage. QR display/links are one-time 
 output, cleared on branch/workspace changes. QR2 optionally adds menu browsing, up to 50
 cart lines/99 units, server tax/service totals and changed-price/availability/error feedback.
 Cart state is page memory only; reload/end/expiry clears it and edits invalidate totals.
-With QR3 disabled, no guest submit control is shown. Payment remains QR5. See [QR2 verification](../../../../docs/Deployment/QR2-Menu.md).
+With QR3 disabled, no guest submit control is shown. QR5 implements payment through Windows POS. See [QR2 verification](../../../../docs/Deployment/QR2-Menu.md).
 See [configuration/security/verification](../../../../docs/Deployment/QR1-Entry.md).
 
 Phase 5 adds **Approved screensaver gallery** under Media management for the NexaConnect

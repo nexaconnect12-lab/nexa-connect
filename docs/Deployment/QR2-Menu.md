@@ -7,7 +7,7 @@ recovery. QR4 adds staff acceptance; see [QR3](QR3-Requests.md) and [QR4](QR4-Ac
 
 
 QR2 source implements online menu/cart previews after QR1 admission. Separately enabled
-QR3 adds submission, QR4 adds staff acceptance/Kitchen, and cashier collection remains QR5.
+QR3 adds submission, QR4 adds staff acceptance/Kitchen, and [QR5](QR5-Collection.md) implements cashier collection.
 Physical phones/public hosting,
 server/device specifications, signing and exact release freeze remain pending. No service
 was deployed and no printed QR/physical-phone acceptance is claimed by local tests.
@@ -19,7 +19,7 @@ was deployed and no printed QR/physical-phone acceptance is claimed by local tes
    the public edge. Preserve the existing dedicated-server and release prerequisites.
 2. Use current Catalog and Order binaries with owning database configuration. Catalog
    requires its existing migration 4; QR2 alone requires Order migration 19. QR3 requires
-   Order migrations20–21 with current QR readers, including when acceptance is off. QR2 adds no migration,
+   Order migrations20–22 with current binaries, including when QR features are off. QR2 adds no migration,
    schema/version change, seed, permission or guest identity. Catalog menu rows must have
    the owning organization/branch; legacy empty-owner rows are not guest-visible.
 3. Configure direct HTTPS `Services__Restaurant`, `Services__Catalog` at Order and

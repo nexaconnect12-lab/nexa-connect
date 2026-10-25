@@ -1,14 +1,16 @@
 # NexaConnect
 
+[QR5](docs/Deployment/QR5-Collection.md) adds Windows POS collection of original accepted QR Orders, immutable cashier/terminal/shift custody, cash/manual PromptPay settlement and private original guest receipts. Order22 is required before current QR reader/settlement binaries; QrCollection defaults off. QR6 hosted/phone/integration acceptance remains pending.
+
 [QR4](docs/Deployment/QR4-Acceptance.md) adds authorized staff acceptance, exact guest
 review of changed prices and atomic handoff of one original unpaid Order to existing
-Inventory/Kitchen recovery. Order migration21 is required; flags default off. Cashier
-retrieval/settlement remains QR5 and real-device/hosted acceptance QR6.
+Inventory/Kitchen recovery. Current binaries require Order migration22; flags default off.
+Cashier retrieval/settlement is implemented in QR5; real-device/hosted acceptance remains QR6.
 
 
 [QR3](docs/Deployment/QR3-Requests.md) adds retained reviewed quotes, idempotent pending
 guest requests, private refresh recovery and an authorized staff rejection queue.
-Cashier collection remains QR5; acceptance/Kitchen is implemented in QR4. Features default off.
+Cashier collection is implemented in QR5; acceptance/Kitchen is implemented in QR4. Features default off.
 
 
 The next selected development track is [table QR ordering for iOS/Android browsers](docs/Planning/QR-Ordering-Roadmap.md):
@@ -16,7 +18,7 @@ guest ordering, staff acceptance before Kitchen, and payment at the cashier. Sco
 confirmed. [QR1 secure entry](docs/Deployment/QR1-Entry.md) implements scoped table QR
 issuance/rotation/revocation and independent visitor sessions, with a context-only mobile
 landing. [QR2](docs/Deployment/QR2-Menu.md) adds a mobile menu, memory-only cart and
-authoritative THB tax/service totals. Cashier handoff remains QR5.
+authoritative THB tax/service totals. QR5 implements cashier handoff.
 Remaining hosted-release and physical
 acceptance work is recorded as pending specifications; existing release gates still apply.
 

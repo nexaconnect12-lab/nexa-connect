@@ -22,7 +22,7 @@ an additive Restaurant capability, with no coordinated financial schema/version 
 Existing branch configuration, floor records, Order/POS/Payment and settlement history
 remain untouched. Restaurant now has eleven catalog tables (seven initial, branch audit,
 three QR tables); at QR1 introduction the full catalog added three tables to the prior
-201 = 204. QR3 increased the catalog to207; current QR4 catalog has208 tables.
+201 = 204. QR3 increased the catalog to207, QR4 to208 and QR5 to the current209 tables.
 
 - `restaurant_qr_entries`: organization/restaurant/branch, staff table code, SHA-256 entry
   hash, version, active state, absolute expiry. Unique branch/code and hash, branch/restaurant

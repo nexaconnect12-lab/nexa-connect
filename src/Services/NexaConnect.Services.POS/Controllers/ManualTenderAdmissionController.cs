@@ -19,7 +19,7 @@ public sealed class ManualTenderAdmissionController(ManualTenderAdmission applic
         {
             var at = await application.AdmitAsync(request, ct);
             if (at is null) { logger.LogWarning("Manual tender admission scope rejected"); return Conflict(); }
-            return Ok(new { admittedAtUtc = at.Value });
+            return Ok(new { admittedAtUtc = at.Value, admittedShiftId = request.ExpectedShiftId, admittedStoreId = request.ExpectedStoreId });
         }
         catch (ArgumentException) { return BadRequest(); }
         catch (Exception exception) when (!ct.IsCancellationRequested)

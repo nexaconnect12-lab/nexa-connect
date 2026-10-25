@@ -19,10 +19,12 @@ public sealed class QrRequestPersistenceTests
             settings.SearchPath=schema;await using var source=NpgsqlDataSource.Create(settings.ConnectionString);
             string scripts=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../../src/Tools/NexaConnect.DataMigration/Scripts/Order"));
             foreach(var dir in Directory.GetDirectories(scripts).Order()){await Sql(source,await File.ReadAllTextAsync(Path.Combine(dir,"up.sql")));}
+            await Sql(source,await File.ReadAllTextAsync(Path.Combine(scripts,"0022_qr_collection/down.sql")));
             await Sql(source,await File.ReadAllTextAsync(Path.Combine(scripts,"0021_qr_acceptance/down.sql")));
             await Sql(source,await File.ReadAllTextAsync(Path.Combine(scripts,"0020_qr_guest_requests/down.sql")));
             await Sql(source,await File.ReadAllTextAsync(Path.Combine(scripts,"0020_qr_guest_requests/up.sql")));
             await Sql(source,await File.ReadAllTextAsync(Path.Combine(scripts,"0021_qr_acceptance/up.sql")));
+            await Sql(source,await File.ReadAllTextAsync(Path.Combine(scripts,"0022_qr_collection/up.sql")));
             var repo=new PostgresQrRequestRepository(source);var scope=new GuestRequestScope(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"A1");
             var quote=Quote();await repo.SaveQuoteAsync(new(scope,quote),default);var input=new QrSubmission(quote.QuoteId!.Value,quote.Fingerprint);
             var results=await Task.WhenAll(Enumerable.Range(0,12).Select(_=>repo.SubmitAsync(scope,input,DateTimeOffset.UtcNow.AddHours(1),Guid.NewGuid(),default)));

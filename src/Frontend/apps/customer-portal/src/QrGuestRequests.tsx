@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from "react";
 import {Alert,Button,Typography} from "antd";
 import {QrMenuCart,type Quote} from "./QrMenuCart";
-export type RequestView={id:string;tableCode:string;status:"pending"|"price_review"|"accepted"|"rejected"|"expired";version:number;submittedAtUtc:string;deadlineUtc:string;reason?:string;quote:Quote;reviewQuote?:Quote;orderId?:string;orderStatus?:string};
+export type RequestView={id:string;tableCode:string;status:"pending"|"price_review"|"accepted"|"rejected"|"expired";version:number;submittedAtUtc:string;deadlineUtc:string;reason?:string;quote:Quote;reviewQuote?:Quote;orderId?:string;orderStatus?:string;collectionReference?:string;collectionStatus?:string;receipt?:{receiptNumber:string;paidAtUtc:string;currency:string;tender:string;lines:{name:string;unitPrice:number;quantity:number;total:number}[];subtotalAmount:number;serviceChargeAmount:number;taxAmount:number;totalAmount:number}};
 type Submission={quoteId:string;fingerprint:string};
 export function QrGuestRequests({currency,onExpired}:{currency:string;onExpired:()=>void}){
  const [requests,setRequests]=useState<RequestView[]>([]),[loaded,setLoaded]=useState(false),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false),[notice,setNotice]=useState<string>(),[cartKey,setCartKey]=useState(0);
@@ -42,7 +42,16 @@ export function QrGuestRequests({currency,onExpired}:{currency:string;onExpired:
    <p>{new Intl.NumberFormat(undefined,{style:"currency",currency:r.quote.currency}).format(r.quote.totalAmount)} · deadline {new Date(r.deadlineUtc).toLocaleTimeString()}</p>
    {r.reason&&<p>Staff category: {r.reason.replaceAll("_"," ")}</p>}
    <ul>{r.quote.lines.map(l=><li key={l.productId}>{l.name} × {l.quantity}</li>)}</ul>
-   {r.orderId&&<p>Original Order {r.orderId} · {r.orderStatus}. Ask staff about preparation and cashier collection.</p>}
+   {r.orderId&&<p>Original Order {r.orderId} · {r.orderStatus}. {r.orderStatus==="paid"?"Payment confirmed. Do not pay again.":"Ask staff about preparation and cashier collection."}</p>}
+   {r.collectionStatus&&<p>Collection: {r.collectionStatus.replaceAll("_"," ")}</p>}
+   {r.collectionReference&&r.orderStatus!=="paid"&&<p>Show this collection reference to the cashier: <strong>{r.collectionReference}</strong></p>}
+   {r.receipt&&<section aria-label="Paid receipt">
+    <strong>Paid receipt {r.receipt.receiptNumber}</strong>
+    <p>{new Date(r.receipt.paidAtUtc).toLocaleString()} · {r.receipt.tender==="cash"?"Cash":"PromptPay (manual confirmation)"}</p>
+    <ul>{r.receipt.lines.map((l,i)=><li key={i}>{l.quantity} × {l.name} @ {l.unitPrice.toFixed(2)} = {l.total.toFixed(2)}</li>)}</ul>
+    <p>{r.receipt.currency} · Subtotal {r.receipt.subtotalAmount.toFixed(2)} · Service {r.receipt.serviceChargeAmount.toFixed(2)} · Tax {r.receipt.taxAmount.toFixed(2)} · Total {r.receipt.totalAmount.toFixed(2)}</p>
+    <p>Ordinary sales receipt. Not a tax invoice.</p>
+   </section>}
    {r.status==="price_review"&&r.reviewQuote&&<section aria-label="Updated prices">
     <Alert type="warning" message="Prices changed. Review the new breakdown before confirming."/>
     <ul>{r.reviewQuote.lines.map(l=><li key={l.productId}>{l.name} × {l.quantity}: {l.lineTotal.toFixed(2)}</li>)}</ul>

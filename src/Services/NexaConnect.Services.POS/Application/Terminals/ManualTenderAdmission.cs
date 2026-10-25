@@ -3,7 +3,7 @@ using NexaConnect.Services.POS.Application.Shifts;
 namespace NexaConnect.Services.POS.Application.Terminals;
 
 public sealed record ManualTenderAdmissionRequest(Guid OrganizationId, Guid RestaurantId, Guid BranchId,
-    Guid TerminalId, string OperatorSubjectId, string Method, string Currency);
+    Guid TerminalId, string OperatorSubjectId, string Method, string Currency, Guid? ExpectedShiftId = null, Guid? ExpectedStoreId = null);
 public interface IManualTenderAdmissionStore
 {
     Task<bool> IsEligibleAsync(ManualTenderAdmissionRequest request, DateTimeOffset at, CancellationToken ct);
@@ -16,6 +16,7 @@ public sealed class ManualTenderAdmission(IManualTenderAdmissionStore store, IRe
     {
         if (new[] { request.OrganizationId, request.RestaurantId, request.BranchId, request.TerminalId }.Any(id => id == Guid.Empty)
             || string.IsNullOrWhiteSpace(request.OperatorSubjectId) || request.OperatorSubjectId.Length > 200
+            || request.ExpectedShiftId == Guid.Empty || request.ExpectedStoreId == Guid.Empty
             || request.Method is not ("cash" or "promptpay_manual") || request.Currency != "THB")
             throw new ArgumentException("Valid terminal scope, cashier and THB manual method are required.");
         var scope = await hierarchy.GetAsync(request.BranchId, ct);

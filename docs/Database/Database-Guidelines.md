@@ -1,8 +1,10 @@
 # Database Guidelines
 
+QR5 Order22 adds immutable original cashier/terminal/store/shift/settlement custody and atomic generic audit outbox, protected by owning Order locks. Current full catalog209; current manual-settlement binaries require22 even if QR flags are off. Existing financial/receipt/cash/reporting schemas and contracts remain unchanged. See [QR5](QR-Collection.md).
+
 QR4 Order21 shares existing Order event persistence inside the request acceptance
 transaction, with scoped branch/version fencing and immutable provenance. Current
-catalog208; no cross-service SQL or transaction. See [QR4](QR-Acceptance.md).
+catalog at QR4 introduction208; no cross-service SQL or transaction. See [QR4](QR-Acceptance.md).
 
 
 QR3 uses Order-owned parameterized quote/request persistence and branch transaction

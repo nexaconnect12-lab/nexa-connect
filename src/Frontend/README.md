@@ -1,5 +1,7 @@
 # NexaConnect frontend foundations
 
+QR5 shows the accepted original collection reference and live-visit safe original paid receipt in guest status; staff queue distinguishes Paid. Browser adds no payment command or staff credential. See [QR5](../../docs/Deployment/QR5-Collection.md).
+
 QR4 browser contracts cover staff acceptance/version/CSRF and original-guest changed-price
 review across the existing QR Chromium/WebKit/desktop matrix. Mocked browser HTTP remains
 separate from owning PostgreSQL recovery and actual hosted/phone acceptance.

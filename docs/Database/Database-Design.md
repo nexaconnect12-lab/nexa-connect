@@ -1,7 +1,9 @@
 # NexaConnect Database Design
 
+QR5 Order22 adds immutable original cashier/terminal/store/shift/settlement custody and atomic generic audit outbox, protected by owning Order locks. Current full catalog209; current manual-settlement binaries require22 even if QR flags are off. Existing financial/receipt/cash/reporting schemas and contracts remain unchanged. See [QR5](QR-Collection.md).
+
 QR4 Order21 adds immutable acceptance provenance and request review/consent state. Current
-catalog208 tables. One owning transaction commits original Submitted Order, accepted
+catalog at QR4 introduction208 tables. One owning transaction commits original Submitted Order, accepted
 request, provenance and audit/outbox; existing financial/stock/Kitchen owners remain
 separate. See [QR4 storage](QR-Acceptance.md).
 
@@ -22,7 +24,7 @@ POS 22 adds source_day_cutoffs.correction_revision_epoch as a generated nullable
 
 Reporting 21 owns cash_correction_facts and cash_correction_event_receipts, uniquely fencing event and organization/correction/work/tender/Order. Atomic receipt/fact/checkpoint commits and immutable triggers protect redelivery. POS 21 owns cash_correction_replay_runs/attempts, with operator UUID, database session_user and append-only started/confirmed outcomes. No cross-owner SQL is introduced. See [contract](../API/Cash-Correction-Reporting.md) and [operations](../Deployment/Cash-Correction-Reporting.md).
 
-POS 20 owns late_cash_corrections and late_cash_correction_audit (193 total catalog tables at introduction; the current catalog has 208). Scoped uniqueness covers operations/work/original event/tender/Order; local custody/review/drawer FKs preserve provenance. Ledger/receipt/audit/revision/outbox share one owning transaction. Posting-time journal selection preserves historical snapshots; source day hashes include correction identity/amount. No cross-database FK or transaction is introduced. See [correction contract](../API/Late-Cash-Corrections.md) and [operations](../Deployment/Late-Cash-Corrections.md).
+POS 20 owns late_cash_corrections and late_cash_correction_audit (193 total catalog tables at introduction; the current catalog has 209). Scoped uniqueness covers operations/work/original event/tender/Order; local custody/review/drawer FKs preserve provenance. Ledger/receipt/audit/revision/outbox share one owning transaction. Posting-time journal selection preserves historical snapshots; source day hashes include correction identity/amount. No cross-database FK or transaction is introduced. See [correction contract](../API/Late-Cash-Corrections.md) and [operations](../Deployment/Late-Cash-Corrections.md).
 
 Late-work review adds one independently owned source_late_work_reviews table to each of Order 19, Payment 18 and POS 19. Existing custody receives stable work UUIDs and organization/received/work indexes; no foreign database access or shared Domain entities are introduced. Review PK is organization/barrier/work/version, with organization/operation uniqueness, owning FKs, append guards and immutable history. Actor, authorization UUID and fingerprint remain private. Financial journals, custody disposition and settlement receipts do not change. See [DDL, transactions, grants and rollback](../Deployment/Late-Work-Reviews.md).
 

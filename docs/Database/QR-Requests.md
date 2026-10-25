@@ -1,13 +1,14 @@
 # Order QR3 persistence
 
-Current QR4 binaries require Order21 and retain accepted requests/provenance outside the
+Current binaries require Order22 and retain accepted requests/provenance outside the
 24hour proposal cleanup. The current launcher requires four cases; QR3 receipts below
 remain historical. See [QR4 storage](QR-Acceptance.md).
 
 
 Order migration20 `0020_qr_guest_requests`, additive optional capability, minimum migration
-compatibility0.38.0. Apply through Order21 before using current QR readers. At QR3
-introduction these three tables increased QR1's204 to207; QR4 adds one for current208. No existing financial schema/owner/history is rewritten.
+compatibility0.38.0. Apply through Order22 before deploying current binaries. At QR3
+introduction these three tables increased QR1's204 to207; QR4 added one for208 and QR5
+adds one for current209. No existing financial schema/owner/history is rewritten.
 
 - `order_qr_quotes`: exact public commercial JSON snapshot, opaque quote UUID, fingerprint,
   owning organization/restaurant/branch, visitor/entry UUIDs, table label and expiry.

@@ -1,5 +1,7 @@
 # NexaConnect Project Architecture
 
+QR5 extends QR4 with original-UUID cashier collection, live branch manual-payment authority and exact POS-owned terminal/store/cashier/shift admission. Read-only preview precedes protected local recovery and immutable Order22 custody/audit transaction. Manual settlement checks original custody in Domain/Application and its Paid transaction; original financial contracts, sale publication and consumers remain unchanged. Guest receipts are an allow-listed original receipt projection gated by live visitor context; customer monitor/staff PDF disclosure remains separate. Admission does not hold a distributed lock. See [ADR048](Decisions/ADR-048-qr-cashier-collection.md), [contract](../API/QR-Collection.md) and [operations](../Deployment/QR5-Collection.md).
+
 QR4 now extends proposals into a single atomic owning Order handoff, after live scoped
 staff authority, Restaurant admission/dine-in checks and current commercial resolution.
 Changed prices enter price_review for explicit original-guest consent and renewed staff
@@ -8,7 +10,7 @@ table provenance with Submitted Order and audit/outbox in one transaction. Exist
 Order recovery advances Inventory/Kitchen; cash_manual remains unpaid. No second worker,
 foreground side-effect coordinator, physical table account or guest payment authority.
 See [ADR047](Decisions/ADR-047-atomic-qr-acceptance.md), [API](../API/QR-Acceptance.md)
-and [rollout](../Deployment/QR4-Acceptance.md). Current QR readers require Order21.
+and [rollout](../Deployment/QR4-Acceptance.md). Current QR readers and manual-settlement binaries require Order22.
 
 
 QR3 extends this boundary with Order-owned durable quote/request aggregates (migration20).
@@ -37,7 +39,7 @@ Public responses omit stations/stock/assets; browser quantities are transient, n
 or owner authority. See [ADR-045](Decisions/ADR-045-qr-menu-and-authoritative-cart.md) and
 [QR2 operations](../Deployment/QR2-Menu.md). Table codes are staff-assigned ordering labels;
 the existing floor `dining_tables`/table-account model is not mutated or implicitly joined.
-Cashier retrieval/payment remains QR5. All QR host flags default off;
+Cashier retrieval/payment is implemented in QR5. All QR host flags default off;
 public hosting, real phones and release gates remain pending. See
 [ADR-044](Decisions/ADR-044-table-qr-entry-and-guest-sessions.md),
 [contract](../API/QR-Entry.md) and [operations](../Deployment/QR1-Entry.md).

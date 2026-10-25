@@ -1,5 +1,7 @@
 # Manual-tender terminal admission
 
+QR5 adds optional expectedShiftId and expectedStoreId to this workload-only request. When present they must be nonempty UUIDs and match the eligible open shift/store exactly. Current POS binaries are required before QR enablement. Original QR custody supplies those fields at new settlement; committed exact replay still precedes admission. No schema or distributed lock is added. See [QR collection](QR-Collection.md).
+
 New manual settlements require matching Order/POS binaries and Order `Services:POS`.
 The draft launcher and checkout development launcher supply this dependency. There is no
 new schema, customer permission, Payment-provider call or shared database access.
@@ -22,7 +24,10 @@ and store in that branch, an open shift for that terminal and cashier, and for c
 open THB drawer on that shift. PromptPay requires the shift but does not require a drawer.
 Unknown, inactive, wrong-scope or unready terminals return `409`; malformed input `400`;
 unavailable hierarchy/persistence `503`. Responses are no-store. A successful `200` returns
-`admittedAtUtc`, observed by POS before its eligibility query.
+`admittedAtUtc`, observed by POS before its eligibility query, plus `admittedShiftId`/
+`admittedStoreId` reflecting validated optional expected scope. Order rejects missing or
+mismatched exact-scope proof for QR; legacy timestamp-only proofs remain valid for non-QR
+requests without expected scope. The Order adapter bounds the proof to4096bytes.
 
 Order calls admission after validating the manual tender and before mutating the aggregate
 or committing Paid, receipt, audit and outbox. Conflict maps to `409 terminal_not_ready`;

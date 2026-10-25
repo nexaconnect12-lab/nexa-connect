@@ -34,6 +34,18 @@ public sealed class ManualTenderApplicationService(IOrderRepository orders, IMan
             throw new InvalidOperationException("Manual tender settlement requires a durable Order repository.");
         if (command.AuthorizationDecisionId == Guid.Empty || command.CorrelationId == Guid.Empty)
             throw new ArgumentException("Authorization decision and correlation identifiers are required.");
+        OrderAggregate? scopedOrder = await lookup.GetAsync(command.OrderId, cancellationToken);
+        if (scopedOrder is null || scopedOrder.OrganizationId != command.OrganizationId || scopedOrder.BranchId != command.BranchId) return null;
+        Domain.Qr.QrCollectionBinding? collection = null;
+        if (scopedOrder.Channel == "qr")
+        {
+            if (orders is not NexaConnect.Services.Order.Application.Orders.IQrCollectionRepository claims)
+                throw new InvalidOperationException("QR settlement requires durable collection custody.");
+            collection = await claims.BindingAsync(command.OrderId, cancellationToken);
+            if (collection is null) throw new InvalidOperationException("QR collection custody is required.");
+            collection.RequireOwner(command.OrderId,command.OrganizationId,command.BranchId,command.TerminalId,
+                command.IdempotencyKey,command.OperatorSubjectId);
+        }
         string fingerprint = Fingerprint(command);
         StoredManualTender? existing = await repository.FindAsync(command.OrganizationId, command.BranchId, command.IdempotencyKey, cancellationToken);
         if (existing is not null)
@@ -42,7 +54,7 @@ public sealed class ManualTenderApplicationService(IOrderRepository orders, IMan
                 throw new InvalidOperationException("The idempotency key was already used for a different manual settlement.");
             return ToResult(existing, true);
         }
-        OrderAggregate? order = await lookup.GetAsync(command.OrderId, cancellationToken);
+        OrderAggregate? order = scopedOrder;
         if (order is null || order.OrganizationId != command.OrganizationId || order.BranchId != command.BranchId) return null;
         DateTimeOffset now = clock.GetUtcNow();
         ManualTenderSettlement settlement = ManualTenderSettlement.Create(order, command.OrganizationId, command.BranchId,
@@ -52,7 +64,7 @@ public sealed class ManualTenderApplicationService(IOrderRepository orders, IMan
         // collection must first observe POS-owned active scope and the same cashier.
         DateTimeOffset admittedAt = await admission.AdmitAsync(new(command.OrganizationId, order.RestaurantId,
             command.BranchId, command.TerminalId, command.OperatorSubjectId,
-            settlement.Method == ManualTenderMethod.Cash ? "cash" : "promptpay_manual", settlement.Currency), cancellationToken);
+            settlement.Method == ManualTenderMethod.Cash ? "cash" : "promptpay_manual", settlement.Currency, collection?.ShiftId, collection?.StoreId), cancellationToken);
         if (admittedAt > now.AddSeconds(30) || admittedAt < now.AddSeconds(-30))
             throw new HttpRequestException("POS terminal admission clock is outside the supported boundary.");
         settlement = ManualTenderSettlement.Create(order, command.OrganizationId, command.BranchId,

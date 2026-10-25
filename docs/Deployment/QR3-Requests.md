@@ -1,20 +1,20 @@
 # QR3 durable submissions and staff review
 
 QR4 now implements staff acceptance/price review and one original unpaid Order handoff.
-Current binaries require Order21; the shared persistence launcher now requires four
+Current binaries require Order22; the shared persistence launcher now requires four
 cases. QR3 evidence below is historical and QR3-alone behavior is distinguished from
 enabled QR4. See [current QR4 guide](QR4-Acceptance.md).
 
 
 QR3 submission implements pending proposals. QR4 implements staff acceptance/Inventory/
-Kitchen integration; cashier collection/payment is QR5. Public hosted rollout, clean-source CI, actual
+Kitchen integration; [QR5](QR5-Collection.md) implements cashier collection/payment. Public hosted rollout, clean-source CI, actual
 iOS/Android camera scans and retained Phase6–9 gates remain pending. No server was deployed.
 
 ## Isolated setup and usage
 
 1. Follow [QR1](QR1-Entry.md) and [QR2](QR2-Menu.md) trusted HTTPS/private service setup.
    Configure actual owning Catalog/Restaurant menu/pricing and current Order workload.
-2. Apply Order migrations20–21 under the migration identity, compatibility0.38.0, then verify
+2. Apply Order migrations20–22 under the migration identity, compatibility0.38.0, then verify
    [runtime grants](../Database/QR-Requests.md). This optional capability adds three tables;
    existing financial versions/permissions are unchanged. Use PostgreSQL; no in-memory
    durability fallback. Order refuses startup if QR3 enabled without PostgreSQL/QR menu.

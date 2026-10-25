@@ -19,11 +19,34 @@ using ORDER::NexaConnect.Services.Order.Application.Workflow;
 using ORDER::NexaConnect.Services.Order.Domain;
 using ORDER::NexaConnect.Services.Order.Domain.Qr;
 using ORDER::NexaConnect.Services.Order.Application.Tenant;
+using ORDER::NexaConnect.Services.Order.Application.ManualTenders;
 
 namespace NexaConnect.IntegrationTests;
 
 public sealed class QrMenuBoundaryTests
 {
+    [Fact] public async Task Collection_http_requires_customer_tenant_live_permission_and_original_custody()
+    {
+        await using var factory=new OrderFactory(true,true,true);using var client=factory.CreateClient(Options());
+        client.DefaultRequestHeaders.Add("X-Nexa-Guest-Session",new string('S',43));
+        var quote=await (await client.PostAsJsonAsync("/api/order/v1/guest/qr/quote",new QrCart([new(factory.Port.Product,1)]))).Content.ReadFromJsonAsync<QrQuote>();
+        var request=await (await client.PostAsJsonAsync("/api/order/v1/guest/qr/requests",new QrSubmission(quote!.QuoteId!.Value,quote.Fingerprint))).Content.ReadFromJsonAsync<QrRequestView>();
+        var scope=factory.Port.Context;var input=new QrCollectionCommand(scope.RestaurantId,Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid());
+        string path=$"/api/order/v1/organizations/{scope.OrganizationId}/branches/{scope.BranchId}/qr-collections/{request!.Id}";
+        using(var anonymous=await client.PostAsJsonAsync(path,input))Assert.Equal(HttpStatusCode.Unauthorized,anonymous.StatusCode);
+        client.DefaultRequestHeaders.Add("X-Test-Staff","yes");client.DefaultRequestHeaders.Authorization=new("Bearer","staff");
+        using(var noTenant=await client.PostAsJsonAsync(path,input))Assert.Equal(HttpStatusCode.Forbidden,noTenant.StatusCode);
+        client.DefaultRequestHeaders.Add("X-Nexa-Organization-Id",scope.OrganizationId.ToString("D"));client.DefaultRequestHeaders.Add("X-Nexa-Application-Code","nexa_connect");
+        using(var denied=await client.PostAsJsonAsync(path,input))Assert.Equal(HttpStatusCode.Forbidden,denied.StatusCode);
+        factory.Authorization.Allowed=true;
+        await client.PostAsJsonAsync($"/api/order/v1/customer/organizations/{scope.OrganizationId}/branches/{scope.BranchId}/qr-requests/{request.Id}/accept",new QrAcceptance(1));
+        using(var preview=await client.PostAsJsonAsync(path+"/preview",input)){Assert.Equal(HttpStatusCode.OK,preview.StatusCode);Assert.True(preview.Headers.CacheControl?.NoStore);}
+        Assert.Null(factory.Repository.Binding);
+        using(var accepted=await client.PostAsJsonAsync(path,input))Assert.Equal(HttpStatusCode.OK,accepted.StatusCode);
+        Assert.NotNull(factory.Repository.Binding);
+        using(var changed=await client.PostAsJsonAsync(path,input with{SettlementKey=Guid.NewGuid()}))Assert.Equal(HttpStatusCode.Conflict,changed.StatusCode);
+        factory.Authorization.Allowed=false;using var revoked=await client.PostAsJsonAsync(path,input);Assert.Equal(HttpStatusCode.Forbidden,revoked.StatusCode);
+    }
     [Fact]public async Task Acceptance_http_enforces_staff_authority_version_and_guest_price_consent()
     {
         await using var factory=new OrderFactory(true,true,true);using var client=factory.CreateClient(Options());client.DefaultRequestHeaders.Add("X-Nexa-Guest-Session",new string('S',43));
@@ -99,8 +122,8 @@ public sealed class QrMenuBoundaryTests
         public Auth Authorization=new();public Repo Repository=new();
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            builder.UseEnvironment("Testing");builder.ConfigureAppConfiguration((_,c)=>c.AddInMemoryCollection(new Dictionary<string,string?>{["Authentication:Authority"]="https://identity.test/realms/test",["QrMenu:Enabled"]=enabled.ToString(),["QrRequests:Enabled"]=requests.ToString(),["QrAcceptance:Enabled"]=acceptance.ToString(),["Workflow:UseHttpAdapters"]=acceptance.ToString(),["WorkflowRecovery:Enabled"]=acceptance.ToString(),["Persistence:Provider"]=requests?"PostgreSQL":"InMemory",["ConnectionStrings:Order"]="Host=127.0.0.1;Port=1;Database=unused;Timeout=1"}));
-            builder.ConfigureTestServices(s=>{foreach(var d in s.Where(d=>d.ImplementationType?.Name is "OrderWorkflowRecoveryWorker" or "PaymentReconciliationOperationalMetricsWorker").ToArray())s.Remove(d);s.RemoveAll<IQrAcceptancePort>();s.AddSingleton<IQrAcceptancePort>(Port);s.RemoveAll<IQrMenuPort>();s.AddSingleton<IQrMenuPort>(Port);s.RemoveAll<IBranchPricingPort>();s.AddSingleton<IBranchPricingPort,Policies>();s.RemoveAll<IQrRequestRepository>();s.AddSingleton<IQrRequestRepository>(Repository);s.RemoveAll<IOrderTenantAuthorizer>();s.AddSingleton<IOrderTenantAuthorizer>(Authorization);ConfigureAuth(s);});
+            builder.UseEnvironment("Testing");builder.ConfigureAppConfiguration((_,c)=>c.AddInMemoryCollection(new Dictionary<string,string?>{["Authentication:Authority"]="https://identity.test/realms/test",["QrMenu:Enabled"]=enabled.ToString(),["QrRequests:Enabled"]=requests.ToString(),["QrAcceptance:Enabled"]=acceptance.ToString(),["QrCollection:Enabled"]=acceptance.ToString(),["Workflow:UseHttpAdapters"]=acceptance.ToString(),["WorkflowRecovery:Enabled"]=acceptance.ToString(),["Persistence:Provider"]=requests?"PostgreSQL":"InMemory",["ConnectionStrings:Order"]="Host=127.0.0.1;Port=1;Database=unused;Timeout=1"}));
+            builder.ConfigureTestServices(s=>{foreach(var d in s.Where(d=>d.ImplementationType?.Name is "OrderWorkflowRecoveryWorker" or "PaymentReconciliationOperationalMetricsWorker").ToArray())s.Remove(d);s.RemoveAll<IQrAcceptancePort>();s.AddSingleton<IQrAcceptancePort>(Port);s.RemoveAll<IQrMenuPort>();s.AddSingleton<IQrMenuPort>(Port);s.RemoveAll<IBranchPricingPort>();s.AddSingleton<IBranchPricingPort,Policies>();s.RemoveAll<IQrRequestRepository>();s.AddSingleton<IQrRequestRepository>(Repository);s.RemoveAll<IOrderRepository>();s.AddSingleton<IOrderRepository>(Repository);s.RemoveAll<IQrCollectionRepository>();s.AddSingleton<IQrCollectionRepository>(Repository);s.RemoveAll<IManualTenderAdmission>();s.AddSingleton<IManualTenderAdmission,Admission>();s.RemoveAll<IOrderTenantAuthorizer>();s.AddSingleton<IOrderTenantAuthorizer>(Authorization);ConfigureAuth(s);});
         }
     }
     private sealed class CatalogFactory:WebApplicationFactory<CATALOG::Program>
@@ -123,20 +146,27 @@ public sealed class QrMenuBoundaryTests
         public Task<IReadOnlyList<CatalogMenuItem>> MenuAsync(Guid org,Guid branch,CancellationToken ct){if(Failure)throw new HttpRequestException("private-secret");Assert.Equal(Context.OrganizationId,org);Branch=branch;return Task.FromResult<IReadOnlyList<CatalogMenuItem>>([new(Product,"Soup",Price,"THB",Available,"kitchen")]);}
     }
     private sealed class Policies:IBranchPricingPort{public Task<PricingPolicy> GetAsync(Guid org,Guid restaurant,Guid branch,CancellationToken ct)=>Task.FromResult(new PricingPolicy(1,7,true,10));}
+    private sealed class Admission:IManualTenderAdmission {public Task<DateTimeOffset> AdmitAsync(ManualTenderAdmissionRequest request,CancellationToken ct)=>Task.FromResult(DateTimeOffset.UtcNow);}
     private sealed class Auth:IOrderTenantAuthorizer
     {
         public bool Allowed;
         public Task<bool> HasBranchAccessAsync(Guid org,Guid branch,string permission,string bearer,CancellationToken ct)=>Task.FromResult(Allowed);
         public Task<Guid?> GetBranchDecisionAsync(Guid org,Guid branch,string permission,string bearer,CancellationToken ct)=>Task.FromResult<Guid?>(Allowed?Guid.NewGuid():null);
     }
-    private sealed class Repo:IQrRequestRepository
+    private sealed class Repo:IQrRequestRepository,IOrderRepository,IOrderLookup,IQrCollectionRepository,IOrderReceiptRepository
     {
+        public OrderAggregate? Order; public QrCollectionBinding? Binding;
+        public Task<PaidOrderReceipt?> GetReceiptAsync(Guid org,Guid branch,Guid id,CancellationToken ct)=>Task.FromResult<PaidOrderReceipt?>(null);
+        public Task SaveAsync(OrderAggregate order,CancellationToken ct)=>Task.CompletedTask;
+        public Task<OrderAggregate?> GetAsync(Guid id,CancellationToken ct)=>Task.FromResult(Order?.Id==id?Order:null);
+        public Task<QrCollectionBinding?> BindingAsync(Guid id,CancellationToken ct)=>Task.FromResult(Binding?.OrderId==id?Binding:null);
+        public Task<bool> ClaimAsync(QrCollectionBinding binding,Guid decision,Guid correlation,CancellationToken ct){Binding??=binding;return Task.FromResult(Binding==binding);}
         public Task<RetainedGuestRequest?> GetAsync(Guid org,Guid branch,Guid id,CancellationToken ct)=>Task.FromResult(requests.TryGetValue(id,out var r)&&r.Request.Scope.OrganizationId==org&&r.Request.Scope.BranchId==branch?r:null);
         public Task<RetainedGuestRequest> ChangeAsync(RetainedGuestRequest value,string action,QrQuote? review,QrAcceptedOrder? handoff,string actor,Guid? decision,Guid correlation,CancellationToken ct)
         {
             if(action=="price_review"){value.Request.ReviewPrice(value.Request.Version,DateTimeOffset.UtcNow);value=value with{ReviewQuote=review};}
             else if(action=="price_confirmed"){value.Request.ConfirmPrice(value.Request.Version,DateTimeOffset.UtcNow);value=value with{Quote=value.ReviewQuote!,ReviewQuote=null};}
-            else{value.Request.Accept(value.Request.Version,DateTimeOffset.UtcNow);value=value with{OrderId=handoff!.Order.Id,OrderStatus="submitted"};}
+            else{value.Request.Accept(value.Request.Version,DateTimeOffset.UtcNow);Order=handoff!.Order;Order.MarkInventoryReserved();Order.MarkKitchenAccepted();value=value with{OrderId=handoff.Order.Id,OrderStatus="submitted"};}
             requests[value.Request.Id]=value;return Task.FromResult(value);
         }
         private readonly Dictionary<Guid,RetainedGuestQuote> quotes=[];private readonly Dictionary<Guid,RetainedGuestRequest> requests=[];

@@ -28,7 +28,7 @@ Its scope confirmation, [QR1 entry foundation](../Deployment/QR1-Entry.md) and
 [QR2 menu/cart previews](../Deployment/QR2-Menu.md) are recorded;
 [QR3 submissions/private status/staff rejection](../Deployment/QR3-Requests.md) are implemented;
 [QR4 acceptance/price consent/original Order recovery](../Deployment/QR4-Acceptance.md) is implemented;
-cashier collection remains pending.
+[QR5 original cashier collection/payment](../Deployment/QR5-Collection.md) is implemented; QR6 integration/hosted/phone acceptance remains pending.
 
 The user considers the first draft sufficient to proceed. This does not fill its
 pending detailed UAT results. Preserve the original candidate, records and deferred

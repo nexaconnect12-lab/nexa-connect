@@ -1,5 +1,7 @@
 # QR1 guest authority
 
+QR5 collection references grant no authority. Staff must hold live branch order.manual-payment.confirm, and immutable Order custody binds original collecting subject/terminal/store/shift/operation. Exact POS workload admission enforces optional expected shift/store. Guest sees only original live-visit paid receipt projection without staff/terminal/bank/decision data; no guest settlement endpoint or new role. See [QR5](../API/QR-Collection.md).
+
 QR4 staff acceptance uses live branch order.place/Directory and CSRF, not guest authority.
 Only the original visitor can confirm a price-review snapshot via its existing cookie
 and exact Origin. Private Restaurant context admits only exact Order workload, returns

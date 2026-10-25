@@ -7,7 +7,9 @@ now implements entry/context APIs, storage, staff QR display and the mobile land
 [QR2 menu/cart](../Deployment/QR2-Menu.md) now adds responsive menu browsing, quantities
 and authoritative THB totals. [QR3 requests](../Deployment/QR3-Requests.md) now adds retained quote submissions, private
 status recovery and staff rejection. [QR4 acceptance](../Deployment/QR4-Acceptance.md) now implements exact guest price review
-and atomic original Order handoff to Inventory/Kitchen recovery. Cashier payment and actual phone acceptance remain pending.
+and atomic original Order handoff to Inventory/Kitchen recovery.
+[QR5 collection](../Deployment/QR5-Collection.md) implements Windows cashier payment and
+original private guest receipts. QR6 joined hardening and actual phone acceptance remain pending.
 
 ## Confirmed flow
 
@@ -47,6 +49,11 @@ or server readiness. A publicly reachable pilot and actual-phone acceptance cann
 claimed from those local tests. Kiosk, cloud migration and Store publication remain
 separate follow-ons.
 
+QR5's 24 October dependency audit identified a high-severity advisory in the existing
+Zod3.23.8 dependency (GHSA-mrhx-c7xc-m3w5). QR6 must resolve it and rerun dependency and
+affected validation gates before release. QR5 changes no packages; passing functional
+tests does not clear this release blocker. See [QR5 measured evidence](../Deployment/QR5-Collection.md).
+
 ## Repository assessment and ownership constraints
 
 The canonical [restaurant architecture](../Architecture/Restaurant-POS-Architecture.md#10-qr-ordering)
@@ -63,10 +70,10 @@ authority in Order/POS/Payment, and execution in Inventory/Kitchen. Define versi
 contracts/adapters before crossing these boundaries; no cross-service SQL or shared
 domain entities. A table label must not silently create floor-management/split-bill rules.
 
-The existing Windows POS checkout/recovery flow also needs an explicit accepted-order
-lookup/import path. Recreating the guest cart as a fresh cashier order would duplicate
-Inventory/Kitchen effects. Cashier handoff is a required implementation slice, not an
-assumed capability of the current portal.
+QR5 adds an explicit original accepted-order collection path to Windows POS
+checkout/recovery. Recreating the guest cart as a fresh cashier order would duplicate
+Inventory/Kitchen effects. Cashier handoff uses Windows POS; the portal grants no guest
+payment authority.
 
 The current draft's authoritative checkout currency is THB; Singapore is the business
 timezone/test location. QR must use the branch's supported authoritative currency and
@@ -77,7 +84,7 @@ table tabs/transfers/split bills, native apps or offline guest execution.
 
 Use the common instructions in the [next-iteration roadmap](Next-Iteration-Roadmap.md#common-instructions-for-every-implementation-prompt)
 with each prompt below. Implement and verify one coherent slice at a time. QR0 is this
-scope/repository assessment; QR1–QR4 source is implemented and QR5–QR6 remain pending. Intermediate slices must be visibly
+scope/repository assessment; QR1–QR5 source is implemented and QR6 remains pending. Intermediate slices must be visibly
 incomplete and disabled from public ordering until the dependent flow is verified.
 
 | Slice | Deliverable | Depends on | Exit evidence |
@@ -87,7 +94,7 @@ incomplete and disabled from public ordering until the dependent flow is verifie
 | QR2 | Mobile menu, authoritative quote and cart — implemented in source | QR1 | [Scope, bounds, verification and remaining gates](../Deployment/QR2-Menu.md) |
 | QR3 | Durable guest submission and staff review — implemented in source | QR2 | [Idempotency, isolation, expiry, quotas and verification](../Deployment/QR3-Requests.md) |
 | QR4 | Staff acceptance into existing Order/Inventory/Kitchen — implemented in source | QR3 | [Atomic identity, consent, recovery and verification](../Deployment/QR4-Acceptance.md) |
-| QR5 | Windows cashier retrieval and settlement | QR4 | Retrieve original accepted order, retained recovery identity, authorized single payment, original receipt and correct cash/reporting effects |
+| QR5 | Windows cashier retrieval and settlement — implemented in source | QR4 | [Original identity, immutable custody, receipt, cash/reporting and verification](../Deployment/QR5-Collection.md) |
 | QR6 | Joined hardening and phone-test candidate | QR1–QR5 | Security/financial regression, fresh candidate, deployment guidance and separately pending physical iOS/Android acceptance |
 
 ### QR1 prompt — secure table entry

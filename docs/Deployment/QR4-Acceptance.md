@@ -1,7 +1,7 @@
 # QR4 staff acceptance into Inventory and Kitchen
 
 QR4 source implements staff admission and price-change consent before existing durable
-Order recovery. Cashier lookup/import/payment remains QR5. No server deployment, actual
+Order recovery. [QR5](QR5-Collection.md) implements cashier lookup/collection/payment. No server deployment, actual
 phone test, hosted broker certification, clean-source CI or release freeze is claimed.
 Deferred Phase6–9 specifications and acceptance gates remain unchanged.
 
@@ -9,7 +9,7 @@ Deferred Phase6–9 specifications and acceptance gates remain unchanged.
 
 1. Follow [QR3 setup](QR3-Requests.md), preserving trusted HTTPS origin, separate cookies,
    private services and existing exact Order workload identity/API audience.
-2. Apply Order migration21 before current binaries, including QR3 readers. Verify
+2. Apply through Order migration22 before current binaries; QR4 introduced migration21. Verify
    [grants, retention and downgrade limits](../Database/QR-Acceptance.md). Existing
    Restaurant4/Catalog4/Inventory5/Kitchen3 and current Order financial schemas apply.
    No new identity or permission grant is needed. Confirm actual owning schema catalogs.
@@ -29,8 +29,8 @@ Deferred Phase6–9 specifications and acceptance gates remain unchanged.
    review; it never bypasses consent. Original request identity/deadline remains unchanged.
 6. Accepted tab shows the original Order ID/state. Existing recovery advances Submitted
    to InventoryReserved then KitchenAccepted. It stops unpaid at manual tender. Wait for
-   actual status; accepted alone is not proof of Kitchen completion. Collect via QR5 when
-   implemented; do not recreate it in POS as a fresh order.
+   actual status; accepted alone is not proof of Kitchen completion. Collect via [QR5](QR5-Collection.md);
+   do not recreate it in POS as a fresh order.
 
 On timeout, reload the original request; a successful acceptance retry returns its same
 Order. Do not create replacement requests/Orders. Recovery retains original scope,

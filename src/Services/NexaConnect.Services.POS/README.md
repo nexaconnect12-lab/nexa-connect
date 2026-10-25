@@ -1,5 +1,7 @@
 # NexaConnect POS Service
 
+QR5 adds optional expectedShiftId/expectedStoreId constraints to the existing exact Order-workload manual-tender admission. New QR collections/payments require those exact active POS-owned identities/current cashier; cash still needs its open THB drawer. No schema or new grant; existing settlement projection handles original QR events idempotently. Matching current POS service must deploy before QR collection is enabled. See [contract](../../../docs/API/QR-Collection.md) and [admission](../../../docs/API/Terminal-Admission.md).
+
 The [manual-tender admission endpoint](../../../docs/API/Terminal-Admission.md) accepts exact Order client credentials only and resolves Restaurant scope before its service-owned active-terminal/store, cashier-shift and THB-cash-drawer read. Customer tokens cannot invoke it. No schema or new grant; the returned observation time is not a distributed lock. Query `Manual tender admission` in `nexaconnect-pos` with correlation; bodies/subjects/tender values are excluded from boundary logs. Deploy with the matching Order binary and its `Services:POS` configuration.
 
 DraftStoreProvisioner is owner-local reference-only tooling, not an HTTP route. It restricts database names to generated draft POS databases and transactionally inserts/validates store and terminal identities without overwriting existing rows. No shifts/cash/settlements are seeded. See [draft setup](../../../docs/Deployment/First-Draft-Provisioning.md).

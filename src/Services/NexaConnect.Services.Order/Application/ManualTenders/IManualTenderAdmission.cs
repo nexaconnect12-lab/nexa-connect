@@ -1,7 +1,7 @@
 namespace NexaConnect.Services.Order.Application.ManualTenders;
 
 public sealed record ManualTenderAdmissionRequest(Guid OrganizationId, Guid RestaurantId, Guid BranchId,
-    Guid TerminalId, string OperatorSubjectId, string Method, string Currency);
+    Guid TerminalId, string OperatorSubjectId, string Method, string Currency, Guid? ExpectedShiftId = null, Guid? ExpectedStoreId = null);
 
 // POS owns terminal/shift/drawer facts. This observation is not a distributed lock.
 public interface IManualTenderAdmission

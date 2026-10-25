@@ -2,8 +2,9 @@
 
 QR4 extends these QR3 contracts with price_review/accepted states, original Order ID/
 status, versioned staff acceptance and guest price confirmation. Current QR binaries
-require Order21 even with acceptance off. QR3 alone retains proposal semantics below;
-see [QR4 contract](QR-Acceptance.md).
+require Order22 even with QR features off. QR3 alone retains proposal semantics below;
+see [QR4 contract](QR-Acceptance.md). [QR5](QR-Collection.md) adds the original
+collection reference and safe paid receipt to private guest status.
 
 
 See [ADR-046](../Architecture/Decisions/ADR-046-durable-qr-guest-requests.md),

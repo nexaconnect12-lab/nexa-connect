@@ -1,5 +1,7 @@
 # Reporting service
 
+QR5 reuses existing original Order sale-completed/manual settlement contracts for QR channel/dine_in sales. No Reporting schema, permission or projector behavior changes; local owning integration verifies duplicate original sale events project once. Hosted broker delivery remains separate. See [QR5](../../../docs/Deployment/QR5-Collection.md).
+
 Customer reporting, end-of-day, cutoff and sealed reconciliation entry filters include `customer-user`, consistent with draft provisioning. Existing live organization/branch/product permission checks remain mandatory; the entry role grants no financial authority. [Slice 5 acceptance](../../../docs/Deployment/First-Draft-Manager.md) exercises real manager/accountant reads, cashier denial and actual settlement CSV observations through missing/recovered delivery and source outages/revocation. No schema or new grant.
 
 Anonymous `GET /health/live` returns only `{ "status": "Healthy" }` and does not certify database, delivery or financial completeness. The [draft lifecycle](../../../docs/Deployment/First-Draft-Test-Stack.md) checks active financial consumers separately and retains `nexaconnect-reporting` structured telemetry. Reporting OpenAPI has a GUID schema-generation error and is not used as liveness evidence; business API acceptance remains distinct.

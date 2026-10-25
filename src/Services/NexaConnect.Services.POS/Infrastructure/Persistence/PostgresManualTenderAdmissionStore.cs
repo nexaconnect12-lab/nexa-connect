@@ -15,6 +15,7 @@ public sealed class PostgresManualTenderAdmissionStore(NpgsqlDataSource source) 
                   AND terminal.registration_status='active' AND store.operational_status='active'
                   AND shift.employee_identity_subject_id=$4 AND shift.status='open' AND shift.opened_at_utc<=$5
                   AND shift.closed_at_utc IS NULL
+                  AND ($8::uuid IS NULL OR shift.id=$8) AND ($9::uuid IS NULL OR store.id=$9)
                   AND ($6='promptpay_manual' OR EXISTS (
                       SELECT 1 FROM cash_sessions session WHERE session.shift_id=shift.id AND session.store_id=store.id
                         AND session.status='open' AND session.closed_at_utc IS NULL AND session.opened_at_utc<=$5
@@ -29,6 +30,8 @@ public sealed class PostgresManualTenderAdmissionStore(NpgsqlDataSource source) 
         command.Parameters.AddWithValue(at);
         command.Parameters.AddWithValue(request.Method);
         command.Parameters.AddWithValue(request.Currency);
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType=NpgsqlTypes.NpgsqlDbType.Uuid, Value=(object?)request.ExpectedShiftId ?? DBNull.Value });
+        command.Parameters.Add(new NpgsqlParameter { NpgsqlDbType=NpgsqlTypes.NpgsqlDbType.Uuid, Value=(object?)request.ExpectedStoreId ?? DBNull.Value });
         return await command.ExecuteScalarAsync(ct) is true;
     }
 }

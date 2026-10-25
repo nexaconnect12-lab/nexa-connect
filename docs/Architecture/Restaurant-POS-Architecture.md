@@ -1,10 +1,12 @@
 # NexaConnect Restaurant POS Architecture
 
+QR5 implements original accepted QR Order collection in Windows POS using immutable Order-owned cashier/terminal/store/shift/settlement custody and existing manual tender/receipt/financial projections. No floor-table account or aggregate bill is created; each accepted guest request remains its original Order. Original visitor may view the safe paid receipt while live. See [ADR048](Decisions/ADR-048-qr-cashier-collection.md) and [QR5](../Deployment/QR5-Collection.md).
+
 QR4 [staff acceptance](../Deployment/QR4-Acceptance.md) now checks live visitor/entry and
 dine-in policy, revalidates prices and requires guest consent to changes. One original
 unpaid Order and immutable logical-table provenance commit atomically; existing recovery
 then reserves Inventory and dispatches Kitchen. Table labels are explicitly retained,
-not mapped to floor/table-account records. QR5 cashier import remains pending.
+not mapped to floor/table-account records. QR5 cashier collection is implemented.
 
 
 QR3 now implements [durable pending proposals](../Deployment/QR3-Requests.md) separately
@@ -348,7 +350,7 @@ The same-origin Customer BFF keeps a distinct guest cookie; `/order` returns pub
 context plus QR2 mobile menu/cart and authoritative quote previews. Existing floor/table-account records are not edited by logical QR labels;
 future acceptance must explicitly translate any physical table model. QR1 adds no guest
 order/payment authority, stock reservation or Kitchen work. The complete flow below is
-completed through QR4 acceptance; QR5 cashier collection remains pending. QR2 revalidates visitor scope and uses Catalog menu prices
+completed through QR4 acceptance; QR5 cashier collection is implemented. QR2 revalidates visitor scope and uses Catalog menu prices
 and Restaurant policy through the shared Order resolver; no stock/payment/Kitchen write.
 See [ADR-044](Decisions/ADR-044-table-qr-entry-and-guest-sessions.md),
 [ADR-045](Decisions/ADR-045-qr-menu-and-authoritative-cart.md) and [QR2](../Deployment/QR2-Menu.md).

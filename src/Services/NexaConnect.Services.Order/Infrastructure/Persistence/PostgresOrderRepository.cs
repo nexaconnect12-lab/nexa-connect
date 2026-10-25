@@ -6,12 +6,16 @@ using NexaConnect.Services.Order.Application.Workflow;
 using NexaConnect.Services.Order.Application.PaymentReviews;
 using NexaConnect.Services.Order.Application.ManualTenders;
 using NexaConnect.Services.Order.Domain;
+using NexaConnect.Services.Order.Domain.Qr;
 
 namespace NexaConnect.Services.Order.Infrastructure.Persistence;
 
 public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource, TimeProvider? timeProvider = null)
-    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderWorkflowRecoveryRepository, IOrderLookup, IPaymentReviewRepository, IPaymentReviewHistoryRepository, IManualTenderRepository, IOrderReceiptRepository
+    : IOrderRepository, ITransactionalOrderRepository, IIdempotentOrderRepository, IOrderWorkflowRecoveryRepository, IOrderLookup, IPaymentReviewRepository, IPaymentReviewHistoryRepository, IManualTenderRepository, IOrderReceiptRepository, IQrCollectionRepository
 {
+    public Task<QrCollectionBinding?> BindingAsync(Guid orderId, CancellationToken ct) => new PostgresQrCollectionRepository(dataSource).BindingAsync(orderId, ct);
+    public Task<bool> ClaimAsync(QrCollectionBinding binding, Guid decision, Guid correlation, CancellationToken ct) => new PostgresQrCollectionRepository(dataSource).ClaimAsync(binding, decision, correlation, ct);
+
     public async Task<PaidOrderReceipt?> GetReceiptAsync(Guid organizationId, Guid branchId, Guid orderId, CancellationToken cancellationToken)
     {
         await using var command = dataSource.CreateCommand("SELECT receipt_snapshot::text FROM orders WHERE id=$1 AND organization_id=$2 AND branch_id=$3 AND status='completed'");
@@ -41,10 +45,11 @@ public sealed class PostgresOrderRepository(NpgsqlDataSource dataSource, TimePro
                 return new(value.Fingerprint==fingerprint?ManualTenderCommitStatus.Replayed:ManualTenderCommitStatus.IdempotencyConflict,value);
             }
         }
-        await using(var update=new NpgsqlCommand("UPDATE orders SET status='completed',receipt_snapshot=$8::jsonb,updated_at_utc=$1,updated_by=$2,concurrency_version=concurrency_version+1 WHERE id=$3 AND organization_id=$4 AND branch_id=$5 AND payment_intent_id IS NULL AND status IN('accepted','kitchen_accepted','payment_pending') AND total_amount=$6 AND btrim(currency)=$7",connection,transaction))
+        await using(var update=new NpgsqlCommand("UPDATE orders SET status='completed',receipt_snapshot=$8::jsonb,updated_at_utc=$1,updated_by=$2,concurrency_version=concurrency_version+1 WHERE id=$3 AND organization_id=$4 AND branch_id=$5 AND payment_intent_id IS NULL AND status IN('accepted','kitchen_accepted','payment_pending') AND total_amount=$6 AND btrim(currency)=$7 AND (channel<>'qr' OR EXISTS(SELECT 1 FROM order_qr_collections c WHERE c.order_id=orders.id AND c.organization_id=$4 AND c.branch_id=$5 AND c.terminal_id=$9 AND c.settlement_key=$10 AND c.actor=$2))",connection,transaction))
         {
             update.Parameters.AddWithValue(settlement.OccurredAtUtc);update.Parameters.AddWithValue(settlement.OperatorSubjectId);update.Parameters.AddWithValue(order.Id);update.Parameters.AddWithValue(order.OrganizationId);update.Parameters.AddWithValue(order.BranchId);update.Parameters.AddWithValue(settlement.Amount);update.Parameters.AddWithValue(settlement.Currency);
             update.Parameters.AddWithValue(JsonSerializer.Serialize(order.Receipt ?? throw new InvalidOperationException("Paid settlement requires a receipt.")));
+            update.Parameters.AddWithValue(settlement.TerminalId); update.Parameters.AddWithValue(settlement.IdempotencyKey);
             if(await update.ExecuteNonQueryAsync(cancellationToken)!=1){await transaction.RollbackAsync(cancellationToken);return new(ManualTenderCommitStatus.StateConflict,null);}
         }
         try

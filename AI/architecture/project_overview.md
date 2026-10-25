@@ -1,12 +1,14 @@
 # NexaConnect Project Architecture
 
+[QR5](../../docs/Deployment/QR5-Collection.md) implements original QR cashier collection through Windows POS and existing manual payment/receipt/cash/reporting paths. Order22 retains one immutable collecting actor/terminal/store/shift/operation with audit outbox; Domain custody and transactional settlement guards prevent transferred collection authority. POS verifies exact current scope before new payment; committed original replay remains readable after closure. Guest gets only the original live-visit safe receipt; customer display keeps its existing disclosure rules. No replacement Order, repricing or Inventory/Kitchen placement. QR6/hosted/device/clean-CI release gates remain pending.
+
 [QR4](../../docs/Deployment/QR4-Acceptance.md) adds versioned staff acceptance with live
 order.place, Restaurant visitor/dine-in checks and current Catalog/Restaurant pricing.
 Changed prices require the same guest to confirm the retained review before another
 staff decision. Order21 commits Submitted Order/request/immutable provenance/audit/outbox
 atomically, then existing fenced Order recovery reserves Inventory and creates Kitchen
 work using the original UUID. Channel qr/dine_in and explicit logical table provenance
-preserve POS history; no payment command. QR5–QR6 remain pending; flags default off.
+preserve POS history; no payment command. QR5 collection is implemented; QR6 remains pending; flags default off.
 
 
 [QR3](../../docs/Deployment/QR3-Requests.md) now retains exact visitor/table-bound quotes
@@ -26,7 +28,7 @@ admission and audit/outbox. Customer BFF provides a separate HttpOnly guest cook
 exact-origin mutation boundary. [QR2](../../docs/Deployment/QR2-Menu.md) adds a mobile menu,
 memory-only cart and authoritative quote through capability-scoped Order reads, exact Order
 workload Catalog projection and existing Restaurant pricing. Public totals reuse Order
-commercial rules; no guest staff/order/payment authority is granted. QR5–QR6 remain pending. Hosted release/signing/device/Phase 9 work is
+commercial rules; no guest staff/order/payment authority is granted. QR5 collection is implemented; QR6 remains pending. Hosted release/signing/device/Phase 9 work is
 deferred pending specifications, with existing readiness gates preserved. This selection
 preserves the existing readiness gates; no QR deployment/phone acceptance is claimed.
 

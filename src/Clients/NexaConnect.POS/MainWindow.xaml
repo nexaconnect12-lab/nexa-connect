@@ -150,6 +150,17 @@
           </Border>
         </ScrollViewer>
       </TabItem>
+      <TabItem Header="QR collection">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="16">
+            <TextBlock Text="Collect an accepted QR order" Style="{StaticResource Heading}" />
+            <TextBlock Text="Enter the guest's collection reference or original Order ID. Open your shift first. Once started, resume with this same cashier, terminal and shift." TextWrapping="Wrap" />
+            <TextBox x:Name="QrReferenceTextBox" MaxLength="36" AutomationProperties.Name="QR collection reference or Order ID" />
+            <Button x:Name="CollectQrButton" Content="Load original QR order" Click="CollectQr_Click" Style="{StaticResource Primary}" />
+            <TextBlock x:Name="QrCollectionDetailsText" TextWrapping="Wrap" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
       <TabItem x:Name="ShiftCashTab" Header="Shift &amp; cash">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <Grid Margin="0,16,0,0">

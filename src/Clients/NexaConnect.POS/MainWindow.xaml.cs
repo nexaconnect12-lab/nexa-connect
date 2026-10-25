@@ -520,6 +520,13 @@ public partial class MainWindow : Window
     private async void PlaceOrder_Click(object sender, RoutedEventArgs e)
     {
         if (_authentication.CurrentToken is null || busy || !PlaceOrderButton.IsEnabled) return;
+        if (pendingCheckout?.IsQrCollection == true)
+        {
+            try { SetBusy("Verifying original QR order…"); await ResumeQrCollectionAsync(); }
+            catch { StatusText.Text="Original QR collection retained. Verify with the original cashier and shift; do not collect again."; }
+            finally { UpdateOperationalState(); }
+            return;
+        }
         cardTokenRequired = false;
         if (pendingCheckout is null && _configuration.PaymentMethod == "cash_manual" && cashSessionId is null)
         {
@@ -643,6 +650,9 @@ public partial class MainWindow : Window
         if (_authentication.CurrentToken is null || pendingOrder is null || settlementIdempotencyKey is null
             || settlementInFlight || !PaidButton.IsEnabled) return;
         PosOrderResult currentOrder = pendingOrder;
+        if (pendingCheckout?.IsQrCollection == true && (_activeShift?.ShiftId != pendingCheckout.QrShiftId
+            || _authentication.CurrentToken.Subject != pendingCheckout.QrCashier))
+        { StatusText.Text="Resume the original collecting cashier and shift before confirming or verifying payment."; return; }
         Guid currentIdempotencyKey = settlementIdempotencyKey.Value;
         LocalPendingSettlementState? savedSettlement = _localStore.LoadPendingSettlement();
         string method = savedSettlement?.Method ?? SelectedTenderMethod();
@@ -1133,6 +1143,8 @@ public partial class MainWindow : Window
 
     private void ClearReceiptView()
     {
+        QrCollectionDetailsText.Text = "";
+        QrReferenceTextBox.Clear();
         receiptSessionGeneration++;
         displayedReceiptOrderId = null;
         ReceiptPreview.Document = null;
@@ -1352,6 +1364,10 @@ public partial class MainWindow : Window
         OpenShiftButton.IsEnabled = signedIn && !hasActiveShift;
         CloseShiftButton.IsEnabled = hasActiveShift;
         LoadMenuButton.IsEnabled = signedIn && hasActiveShift;
+        CollectQrButton.IsEnabled = signedIn && hasActiveShift && !busy && _configuration.PaymentMethod != "card_omise_test"
+            && (pendingCheckout?.IsQrCollection == true || pendingCheckout is null && pendingOrder is null && cart.Count == 0);
+        CollectQrButton.Content = pendingCheckout?.IsQrCollection == true ? "Verify original QR collection" : "Load original QR order";
+        QrReferenceTextBox.IsEnabled = signedIn && pendingCheckout is null;
         PlaceOrderButton.IsEnabled = CashierPresentation.CanAttemptOrder(
             signedIn, hasActiveShift, pendingOrder is not null, pendingCheckout is not null, cart.Count);
         PlaceOrderButton.Content = pendingCheckout is null ? "Send order · Continue to payment" : "Verify original order";

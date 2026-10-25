@@ -26,7 +26,9 @@ function Queue({branch}:{branch:string}){
    <ul>{item.quote.lines.map(l=><li key={l.productId}>{l.name} × {l.quantity} — {item.quote.currency} {l.lineTotal.toFixed(2)}</li>)}</ul>
    <p>Subtotal {item.quote.subtotalAmount.toFixed(2)} · Service {item.quote.serviceChargeAmount.toFixed(2)} · Tax {item.quote.taxAmount.toFixed(2)} · Total {item.quote.currency} {item.quote.totalAmount.toFixed(2)}</p>
    <p>Deadline {new Date(item.deadlineUtc).toLocaleString()}</p>
-   {item.orderId&&<p>Original Order {item.orderId} · {item.orderStatus} · Collect payment at cashier</p>}
+   {item.orderId&&<p>Original Order {item.orderId} · {item.orderStatus} · {item.orderStatus==="paid"?"Payment confirmed":"Collect payment at cashier"}</p>}
+   {item.collectionStatus&&<p>Collection: {item.collectionStatus.replaceAll("_"," ")}</p>}
+   {item.collectionReference&&item.orderStatus!=="paid"&&<p>Collection reference: {item.collectionReference}</p>}
    {item.status==="price_review"&&<Alert message="Waiting for the original guest to review current prices. Reload after confirmation."/>}
    {item.status==="price_review"&&acceptance&&<Button disabled={busy} style={{minHeight:44}} onClick={()=>void accept(item)}>Refresh guest price review</Button>}
    {item.status==="pending"&&acceptance&&<Button type="primary" disabled={busy} style={{minHeight:44}} onClick={()=>void accept(item)}>Accept original request</Button>}

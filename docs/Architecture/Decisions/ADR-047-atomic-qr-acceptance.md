@@ -38,6 +38,10 @@ state constraints and active-request indexes. No cross-service SQL or new grant/
 All flags default false; cashier import/settlement remains QR5 and joined hosted/phone
 acceptance remains QR6. See the QR4 API, database and deployment guides.
 
+QR5 extension: [ADR-048](ADR-048-qr-cashier-collection.md) implements original cashier
+collection and settlement with immutable custody. Its Order22 migration is required by
+current manual-settlement binaries; QR6 hosted/phone acceptance remains pending.
+
 Alternatives considered: a separate QR acceptance worker would require another durable
 handoff/lease protocol beside the existing Order recovery worker. Foreground Inventory/
 Kitchen calls would leave response-loss and process-crash gaps around Order creation.

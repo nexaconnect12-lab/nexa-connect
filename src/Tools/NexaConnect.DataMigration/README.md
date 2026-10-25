@@ -1,8 +1,10 @@
 # NexaConnect Data Migration
 
+Order22 adds immutable order_qr_collections custody (one table; current full catalog209). Current manual-settlement SQL requires22 even with QR flags disabled; compatibility0.38.0 remains. Empty downgrade/reapply only; collection history blocks downgrade. POS23/Reporting22 remain unchanged. See [QR5 storage](../../../docs/Database/QR-Collection.md).
+
 Order21 adds immutable order_qr_acceptances and request review/consent columns/state
-constraints. Current QR readers require this migration; financial compatibility remains
-0.38.0 and catalog208 tables. Forward recovery after any review/acceptance history; empty
+constraints. Current QR readers require through migration22; financial compatibility remains
+0.38.0; the catalog had208 tables at QR4 introduction. Forward recovery after any review/acceptance history; empty
 downgrade only while disabled. See [QR4 storage](../../../docs/Database/QR-Acceptance.md).
 
 

@@ -1,6 +1,8 @@
 # Order Service
 
-QR4 requires migration21 even for current QR3 readers. QrAcceptance__Enabled defaults
+QR5 requires migration22 before current manual settlement binaries, even with QrCollection__Enabled=false (the default). Collection preview/claim require live branch order.manual-payment.confirm and exact POS terminal/store/cashier/shift. Original accepted QR Order/pricing is loaded; immutable collecting custody/audit commits once. Manual settlement/replay checks original actor/terminal/operation; new payment also requires its exact original shift. Paid/receipt/sale/audit/outbox remain one existing transaction. Guest private status includes a safe original receipt while its original visit stays live. See [API/telemetry](../../../docs/API/QR-Collection.md), [schema](../../../docs/Database/QR-Collection.md), [operations](../../../docs/Deployment/QR5-Collection.md).
+
+QR4 introduced migration21; current QR readers also require QR5 migration22. QrAcceptance__Enabled defaults
 false; enable only with PostgreSQL/requests/HTTP adapters/WorkflowRecovery. Staff acceptance
 and guest price confirmation retain original version/UUID; accepted Order, logical-table
 provenance and audit/outbox commit atomically. Existing recovery handles Inventory/Kitchen

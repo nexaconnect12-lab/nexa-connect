@@ -1,6 +1,8 @@
 # Deployment Guide
 
-QR4 [isolated acceptance](QR4-Acceptance.md) requires Order21/current QR readers and
+QR5 requires Order22 before current Order binaries and matching POS admission binaries for exact shift/store checks. QrCollection__Enabled defaults false and requires durable QR acceptance. Preserve original client/profile recovery; no custody transfer is implemented. QR flags remain disabled in pilot templates; real-host/device/CI/release acceptance is pending. See [QR5 rollout](QR5-Collection.md).
+
+QR4 [isolated acceptance](QR4-Acceptance.md) requires current Order22 binaries/schema and
 explicit Order/BFF acceptance flags plus existing HTTP workflow/recovery. All flags
 remain off in validated pilot templates; no hosted rollout is asserted.
 

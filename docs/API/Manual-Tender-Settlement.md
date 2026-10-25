@@ -1,5 +1,11 @@
 # Manual tender settlement
 
+QR5 requires immutable original collecting actor/terminal/operation custody for QR Orders,
+including committed replay. New payment also validates its original exact shift/store
+through POS admission. Current Order binaries require migration22 even with QR features
+disabled. Existing non-QR settlement and financial contracts remain unchanged.
+See [QR collection](QR-Collection.md).
+
 Next-iteration Phase 4 strengthens Windows client response validation: a successful body must
 have a nonempty settlement identity, the requested Order, `Status=Paid`, matching method,
 exact amount and currency before local recovery clears or the customer display confirms

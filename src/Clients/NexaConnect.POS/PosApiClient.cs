@@ -21,6 +21,9 @@ public sealed record PosOrderPricing(long PolicyVersion, decimal TaxPercent, boo
 }
 public sealed record PosOrderQuote(string Fingerprint, PosOrderPricing Pricing, IReadOnlyList<PosQuoteLine> Lines);
 public sealed record PosQuoteLine(Guid ProductId, string Name, decimal UnitPrice, int Quantity);
+public sealed record PosQrCollection(Guid OrderId, Guid OrganizationId, Guid RestaurantId, Guid BranchId,
+    string TableCode, string Status, string Currency, decimal TotalAmount, PosOrderPricing Pricing,
+    PosQuoteLine[] Lines, Guid SettlementKey);
 public sealed class PosPricingChangedException : Exception;
 public sealed record ManualTenderResult(Guid SettlementId, Guid OrderId, string Status, string Method,
     decimal Amount, string Currency, DateTimeOffset OccurredAtUtc, bool Replayed);
@@ -235,6 +238,7 @@ public sealed class PosApiClient : IDisposable
 
     public async Task<PosOrderQuote> QuoteAsync(PosTokenSet token, PendingCheckout checkout, CancellationToken cancellationToken = default)
     {
+        if (checkout.IsQrCollection) throw new InvalidOperationException("QR collection uses original accepted pricing.");
         checkout.Validate(_configuration);
         using var request = CreateRequest(HttpMethod.Post, "api/order/v1/workflows/quote", token);
         AddTenantContext(request, checkout.OrganizationId);
@@ -262,6 +266,7 @@ public sealed class PosApiClient : IDisposable
 
     public async Task<PosOrderResult> PlaceOrderAsync(PosTokenSet token, PendingCheckout checkout, string? cardToken, CancellationToken cancellationToken = default)
     {
+        if (checkout.IsQrCollection) throw new InvalidOperationException("QR collections must never invoke placement.");
         checkout.Validate(_configuration);
         if (cardToken is not null && (checkout.PaymentMethod != "card_omise_test"
             || !System.Text.RegularExpressions.Regex.IsMatch(cardToken, @"\Atokn_test_[a-z0-9]{10,64}\z")))
@@ -313,6 +318,31 @@ public sealed class PosApiClient : IDisposable
         if (result.CardTokenRequired && (checkout.PaymentMethod != "card_omise_test"
             || result.Status is not (PosOrderStatus.KitchenAccepted or PosOrderStatus.PaymentPending)))
             throw new InvalidDataException("Card-token action does not match the original checkout state.");
+    }
+
+    public async Task<PosQrCollection> CollectQrAsync(PosTokenSet token, PendingCheckout checkout, CancellationToken ct = default, bool preview = false)
+    {
+        checkout.Validate(_configuration);
+        if (!checkout.IsQrCollection || token.Subject != checkout.QrCashier) throw new InvalidOperationException("Resume as the original collecting cashier.");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct); deadline.CancelAfter(TimeSpan.FromSeconds(20));
+        using var request = CreateRequest(HttpMethod.Post,
+            $"api/order/v1/organizations/{checkout.OrganizationId:D}/branches/{checkout.BranchId:D}/qr-collections/{checkout.OrderId:D}"+(preview?"/preview":""),token);
+        AddTenantContext(request,checkout.OrganizationId);
+        request.Content = JsonContent.Create(new { checkout.RestaurantId,checkout.TerminalId,checkout.StoreId,
+            shiftId=checkout.QrShiftId,checkout.SettlementKey });
+        using var response = await SendCheckoutAsync(_orderHttpClient,request,"order.qr.collection",checkout.OrderId,deadline.Token,true);
+        await EnsureSuccessAsync(response,"Original QR collection could not be verified. Keep its recovery identity.");
+        await response.Content.LoadIntoBufferAsync(131072,deadline.Token);
+        var result = await response.Content.ReadFromJsonAsync<PosQrCollection>(deadline.Token) ?? throw new InvalidDataException("Empty collection response.");
+        if (result.OrderId != checkout.OrderId || result.SettlementKey != checkout.SettlementKey
+            || result.OrganizationId != checkout.OrganizationId || result.RestaurantId != checkout.RestaurantId || result.BranchId != checkout.BranchId
+            || result.Currency != checkout.Currency || result.Status is not ("KitchenAccepted" or "Paid")
+            || result.Pricing is null || result.TotalAmount <= 0 || result.Pricing.TotalAmount != result.TotalAmount
+            || result.Pricing.SubtotalAmount + result.Pricing.ServiceChargeAmount + result.Pricing.TaxAmount != result.TotalAmount
+            || result.Lines is null || result.Lines.Length is < 1 or > 50
+            || result.Lines.Any(l=>l.ProductId==Guid.Empty || l.Quantity<=0 || l.UnitPrice<0 || string.IsNullOrWhiteSpace(l.Name)))
+            throw new InvalidDataException("Collection does not match the original scoped order.");
+        return result;
     }
 
     public async Task<ManualTenderResult> ConfirmManualSettlementAsync(

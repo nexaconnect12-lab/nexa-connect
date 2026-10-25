@@ -9,6 +9,30 @@ namespace NexaConnect.UnitTests;
 public sealed class PosCheckoutIntegrationTests
 {
     [Fact]
+    public async Task Qr_collection_preserves_original_identity_and_never_invokes_placement_or_accepts_wrong_scope()
+    {
+        var configuration=Configuration();var token=Token() with {Subject="cashier"};
+        var checkout=PendingCheckout.ForQr(configuration,"QR-"+Guid.NewGuid().ToString("N"),Guid.NewGuid(),"cashier");
+        var pricing=new PosOrderPricing(1,7,false,10,100,100,10,7.7m,117.7m);bool wrong=false;var calls=0;
+        using var api=new PosApiClient(configuration,orderHandler:new Handler(async request=>
+        {
+            calls++;Assert.Contains("/qr-collections/",request.RequestUri!.AbsolutePath);Assert.DoesNotContain("workflows",request.RequestUri.AbsolutePath);
+            using var body=JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(checkout.SettlementKey,body.RootElement.GetProperty("settlementKey").GetGuid());Assert.Equal(checkout.QrShiftId,body.RootElement.GetProperty("shiftId").GetGuid());
+            Assert.Equal(configuration.OrganizationId.ToString("D"),request.Headers.GetValues("X-Nexa-Organization-Id").Single());
+            return new(HttpStatusCode.OK){Content=JsonContent.Create(new PosQrCollection(checkout.OrderId,configuration.OrganizationId,
+                configuration.RestaurantId,wrong?Guid.NewGuid():configuration.BranchId,"A1","KitchenAccepted","THB",117.7m,pricing,[new(Guid.NewGuid(),"Soup",100,1)],checkout.SettlementKey))};
+        }));
+        await api.CollectQrAsync(token,checkout,preview:true);
+        var retained=JsonSerializer.Deserialize<PendingCheckout>(JsonSerializer.Serialize(checkout))!;retained.Validate(configuration);
+        await api.CollectQrAsync(token,retained);Assert.Equal(2,calls);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>api.PlaceOrderAsync(token,retained));Assert.Equal(2,calls);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>api.CollectQrAsync(token with{Subject="other"},retained));Assert.Equal(2,calls);
+        wrong=true;await Assert.ThrowsAsync<InvalidDataException>(()=>api.CollectQrAsync(token,retained));
+        Assert.Throws<ArgumentException>(()=>PendingCheckout.ParseCollectionReference("../../workflows/place"));
+        Assert.Throws<ArgumentException>(()=>PendingCheckout.ParseCollectionReference(new string('a',100)));
+    }
+    [Fact]
     public async Task Quote_and_submission_preserve_pricing_identity_and_changed_response_is_explicit()
     {
         var config = Configuration();

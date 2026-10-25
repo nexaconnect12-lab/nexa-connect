@@ -7,10 +7,10 @@ namespace NexaConnect.Services.Order.Application.Orders;
 
 public sealed record RetainedGuestQuote(GuestRequestScope Scope, QrQuote Quote);
 public sealed record QrAcceptedOrder(Domain.OrderAggregate Order,NexaConnect.Contracts.IntegrationEvents.OrderSubmittedV1 Submitted);
-public sealed record RetainedGuestRequest(GuestRequest Request, QrQuote Quote,QrQuote? ReviewQuote=null,Guid? OrderId=null,string? OrderStatus=null)
+public sealed record RetainedGuestRequest(GuestRequest Request, QrQuote Quote,QrQuote? ReviewQuote=null,Guid? OrderId=null,string? OrderStatus=null,string? CollectionStatus=null)
 {
     public QrRequestView View() => new(Request.Id, Request.Scope.TableCode, Request.Status, Request.Version,
-        Request.SubmittedAtUtc, Request.DeadlineUtc, Request.Reason, Quote,OrderId,OrderStatus,ReviewQuote);
+        Request.SubmittedAtUtc, Request.DeadlineUtc, Request.Reason, Quote,OrderId,OrderStatus,ReviewQuote,CollectionStatus:CollectionStatus);
 }
 public interface IQrRequestRepository
 {
@@ -21,7 +21,8 @@ public interface IQrRequestRepository
     Task<QrRequestList> ListAsync(Guid organization, Guid branch, Guid? visitor, string state, CancellationToken ct);
     Task<RetainedGuestRequest?> RejectAsync(Guid organization, Guid branch, Guid id, QrRejection rejection, string actor, Guid decision, Guid correlation, CancellationToken ct);
 }
-public sealed class QrRequestService(QrMenuService menu, IQrRequestRepository repository, IOrderTenantAuthorizer authorization)
+public sealed class QrRequestService(QrMenuService menu, IQrRequestRepository repository, IOrderTenantAuthorizer authorization,
+    IOrderReceiptRepository? receipts = null)
 {
     public async Task<QrQuote> QuoteAsync(string capability, QrCart cart, CancellationToken ct)
     {
@@ -41,6 +42,19 @@ public sealed class QrRequestService(QrMenuService menu, IQrRequestRepository re
     {
         var context = await menu.ContextAsync(capability, ct);
         var result = await repository.ListAsync(context.OrganizationId, context.BranchId, context.VisitorId, "all", ct);
+        if (receipts is not null)
+        {
+            var items = new List<QrRequestView>();
+            foreach (var item in result.Items)
+            {
+                var receipt = item.OrderId is { } id && item.OrderStatus == "paid"
+                    ? await receipts.GetReceiptAsync(context.OrganizationId, context.BranchId, id, ct) : null;
+                items.Add(receipt is null ? item : item with { Receipt = new(receipt.ReceiptNumber,receipt.PaidAtUtc,
+                    receipt.Currency,receipt.Tender,receipt.Lines.Select(l=>new QrGuestReceiptLine(l.Name,l.UnitPrice,l.Quantity,l.Total)).ToArray(),
+                    receipt.SubtotalAmount,receipt.ServiceChargeAmount,receipt.TaxAmount,receipt.TotalAmount) });
+            }
+            result = result with { Items = items };
+        }
         if (await menu.ContextAsync(capability, ct) != context) throw new UnauthorizedAccessException();
         return result;
     }
