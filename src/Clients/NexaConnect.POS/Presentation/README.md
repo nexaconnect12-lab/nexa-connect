@@ -1,5 +1,14 @@
 # POS presentation
 
+QR8 adds presentation-only order/collection labels and specific CollectionGuidance from current client state. The server eligibility hint remains advisory and original command validation remains authoritative. See [QR8](../../../../docs/Deployment/QR8-Usability.md).
+
+`PosOrderListState` holds only the staff session's bounded branch-history page and cursor.
+Generation invalidation rejects stale reads after privacy clear; collection selection
+requires the current shift/manual-tender/empty-cart/recovery conditions. The native
+**Orders** view uses original IDs through the existing QR preview/claim flow and does
+not publish branch history to the customer window. See
+[order-list behavior](../../../../docs/Deployment/POS-Order-List.md).
+
 Phase 5's `PosGalleryPolicy` validates scoped leased PNG bundles; `PosGalleryCache` atomically
 stores one DPAPI-protected current-user bundle. `MainWindow.Gallery.cs` handles independent
 refresh, decode and rotation without extending operator activity or blocking authentication.

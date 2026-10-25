@@ -1,5 +1,20 @@
 # NexaConnect
 
+QR9 adds TLS/guest-edge diagnostics and structured, retry-safe real-device acceptance checklists. Actual phone/cashier/PDF acceptance stays pending until observed; see [QR9](docs/Deployment/QR9-Acceptance.md).
+
+QR8 adds friendly QR statuses, active-screen read refresh and specific cashier collection/retry guidance. See [QR8 usage](docs/Deployment/QR8-Usability.md). Actual device acceptance remains pending.
+
+Windows POS now browses all configured-branch Orders with QR/POS and open/paid filters.
+Cashiers can select an eligible QR row instead of typing its UUID; original preview,
+custody and payment checks remain. See [cashier steps](docs/Deployment/POS-Order-List.md).
+
+QR local pilots can use an explicit scope-hashed POS recovery/token directory in the same
+Windows account, preserving the earlier terminal's default data. This is local loopback
+manual-tender testing, not a production migration; see [POS setup](docs/Deployment/First-Draft-Windows-POS.md)
+and [ADR-050](docs/Architecture/Decisions/ADR-050-local-pilot-pos-storage.md).
+
+[QR7](docs/Deployment/QR7-Pilot.md) adds an isolated QR-enabled local-stack profile, guest-only pinned HTTPS edge, protected certificate/prerequisite preparation and candidate-bound operator acceptance records. Preparation does not establish actual LAN or phone/POS/PDF acceptance; unknown facts remain prerequisites and activation is explicit. No trust/firewall/DNS or retained normal draft is changed automatically.
+
 [QR6](docs/Deployment/QR6-Integration.md) adds the patched Zod4.6.7 GUID-compatible financial validators, joined live-visit/owning-service/RabbitMQ verification and a fresh source/schema/compiled-output-bound local candidate with separate pending iOS/Android test records. No deployment, clean-source CI, signed installer, real-device or user acceptance is implied.
 
 [QR5](docs/Deployment/QR5-Collection.md) adds Windows POS collection of original accepted QR Orders, immutable cashier/terminal/shift custody, cash/manual PromptPay settlement and private original guest receipts. Order22 is required before current QR reader/settlement binaries; QrCollection defaults off. QR6 local integration/candidate tooling is implemented; actual hosted/phone/release acceptance remains pending.

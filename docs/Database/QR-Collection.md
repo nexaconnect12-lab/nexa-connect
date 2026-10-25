@@ -1,5 +1,13 @@
 # QR collection persistence
 
+The [staff branch order list](../API/Branch-Order-List.md) reads `orders` plus same-owner
+`order_qr_acceptances`/`order_qr_collections` and cancellation state in one parameterized
+statement snapshot. It filters organization, restaurant and branch and keyset-pages by
+descending creation time/UUID. Actual returned row ownership is checked again in
+Application. Viewing performs no claim, guest expiry, Order audit/outbox or financial write.
+Existing Order22 and its indexes remain; no table, index or migration is added. Displayed
+readiness can change concurrently, so preview/claim remain authoritative.
+
 Order migration22 adds one table, `order_qr_collections` (current full catalog209).
 One row per original accepted Order references `order_qr_acceptances.order_id`. A unique
 settlement UUID and immutable actor/organization/branch/terminal/store/shift/decision/

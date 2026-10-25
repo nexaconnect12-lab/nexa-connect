@@ -1,5 +1,14 @@
 # Next iteration: phases, checklist and implementation prompts
 
+[QR7 local pilot preparation](../Deployment/QR7-Pilot.md) follows QR6. Its initially
+unconfirmed LAN/certificate facts are supplied and checked before explicit activation;
+phone/POS/PDF results require actual operator observations. Dedicated-server,
+signing/hardware/clean-CI/freeze phases remain deferred and unchanged.
+
+The selected [native POS Orders list](../Deployment/POS-Order-List.md) shows all configured-
+branch Orders with a QR filter and eligible original-Order selection. This source update
+removes manual UUID entry without changing acceptance, custody, payment or release gates.
+
 [QR6 integration/security/candidate preparation](../Deployment/QR6-Integration.md) is implemented in source. Patched Zod and fresh local evidence replace the QR5 security blocker once verified; actual hosted/iOS/Android/WPF/PDF/clean-CI/signing/user acceptance remains pending. The existing Phase6–9 specification-dependent work is still deferred.
 
 Prepared 21 October 2026 from the first-draft feedback and recorded agreements in

@@ -1,5 +1,31 @@
 # Shared local draft lifecycle guards. No business rules or production defaults.
 Set-StrictMode -Version Latest
+function Assert-DraftQrPilotOrigin([string]$Origin) {
+    $uri=$null
+    if(-not [Uri]::TryCreate($Origin,[UriKind]::Absolute,[ref]$uri) -or $Origin.Length -gt 256 -or $uri.Scheme -ne 'https' -or $uri.IsLoopback -or $uri.Port -lt 1024 -or $uri.AbsolutePath -ne '/' -or $uri.Query -or $uri.Fragment -or $uri.UserInfo -or $uri.GetLeftPart([UriPartial]::Authority) -cne $Origin){throw 'QR pilot origin must be an exact non-loopback HTTPS origin on an unprivileged port.'}
+}
+function Get-DraftQrPilotSettings([string]$Name,[string]$Origin) {
+    Assert-DraftQrPilotOrigin $Origin
+    switch($Name){
+        'Restaurant' {return @{QrEntry__Enabled='true'}}
+        'Order' {return @{QrMenu__Enabled='true';QrRequests__Enabled='true';QrAcceptance__Enabled='true';QrCollection__Enabled='true'}}
+        'Bff' {return @{QrGuest__Enabled='true';QrGuest__MenuEnabled='true';QrGuest__RequestsEnabled='true';QrGuest__AcceptanceEnabled='true';QrGuest__PublicOrigin=$Origin}}
+        default {return @{}}
+    }
+}
+function Get-DraftQrPilotArtifactHash([string]$RunDirectory) {
+    $inventory=[ordered]@{}
+    foreach($name in @('PlatformDirectory','Authorization','Restaurant','Catalog','Inventory','Kitchen','Payment','POS','Reporting','Order','Bff')){
+        $directory=Join-Path $RunDirectory "apps/$name"
+        if(-not (Test-Path -LiteralPath $directory) -or ((Get-Item -LiteralPath $directory -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'QR pilot application artifact directory missing or linked.'}
+        $entries=@(Get-ChildItem -LiteralPath $directory -Recurse -Force)
+        if(@($entries|Where-Object {$_.Attributes -band [IO.FileAttributes]::ReparsePoint}).Count){throw 'QR pilot application inventory contains links.'}
+        $files=@($entries|Where-Object {-not $_.PSIsContainer -and [IO.Path]::GetRelativePath($directory,$_.FullName).Replace('\','/') -notmatch '^\.runstate/'}|Sort-Object FullName)
+        if(-not $files.Count){throw 'QR pilot application inventory is empty.'}
+        foreach($file in $files){if($file.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'QR pilot application inventory contains links.'};$inventory[[IO.Path]::GetRelativePath($RunDirectory,$file.FullName).Replace('\','/')]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}
+    }
+    return [Convert]::ToHexStringLower([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes(($inventory|ConvertTo-Json -Compress))))
+}
 function Assert-DraftRunId([string]$RunId) {
     if ($RunId -cnotmatch '^[a-f0-9]{32}$') { throw 'Draft RunId must be a generated 32-character lowercase UUID.' }
 }
@@ -102,7 +128,12 @@ function Set-DraftComposeEnvironment($Secrets,[string]$RunId,[int]$BffPort,$Infr
     return $previous
 }
 function Restore-DraftEnvironment($Previous) {
-    foreach ($entry in $Previous.GetEnumerator()) { [Environment]::SetEnvironmentVariable($entry.Key,$entry.Value,'Process') }
+    foreach ($entry in $Previous.GetEnumerator()) {
+        # PowerShell can bind a missing value as an empty string; modern .NET keeps
+        # empty environment variables, which breaks typed configuration binders.
+        if($null -eq $entry.Value){Remove-Item -LiteralPath ("Env:"+$entry.Key) -ErrorAction SilentlyContinue}
+        else{[Environment]::SetEnvironmentVariable($entry.Key,$entry.Value,'Process')}
+    }
 }
 function Wait-DraftHttp([string]$Url,[int]$TimeoutSeconds=90,$Headers=@{}) {
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)

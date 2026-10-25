@@ -5,6 +5,7 @@ param(
     [string]$RunId,
     [ValidateSet('cash_manual','promptpay_manual')][string]$PaymentMethod='cash_manual',
     [string]$QrImagePath,
+    [string]$QrPilotOrigin,
     [ValidateSet('PlatformDirectory','Authorization','Restaurant','Catalog','Inventory','Kitchen','Payment','POS','Reporting','Order','Bff')][string]$Service='Kitchen',
     [switch]$ConfirmTestResources,
     [switch]$NoBuild
@@ -17,6 +18,7 @@ $catalog=Get-DraftServiceCatalog $root
 $compatibility=($catalog.Values | Sort-Object { [version]$_.minimumApplicationVersion })[-1].minimumApplicationVersion
 if ($Action -eq 'Validate') {
     Assert-DraftPayment $PaymentMethod $QrImagePath
+    if($QrPilotOrigin){Assert-DraftQrPilotOrigin $QrPilotOrigin}
     [pscustomobject]@{paymentMethod=$PaymentMethod;currency='THB';timeZone='Asia/Singapore';applicationCompatibility=$compatibility;schemaTargets=$catalog;providerCheckoutEnabled=$false}
     return
 }
@@ -88,7 +90,7 @@ function Start-DraftApp([string]$Name) {
         foreach ($key in @([Environment]::GetEnvironmentVariables('Process').Keys)) {
             if ($key -match '__|^NEXACONNECT_|^NEXA_|^MINIO_|^ASPNETCORE_|^DOTNET_ENVIRONMENT$|^OTEL_') {
                 $old[$key]=[Environment]::GetEnvironmentVariable($key,'Process')
-                [Environment]::SetEnvironmentVariable($key,$null,'Process')
+                Remove-Item -LiteralPath ("Env:"+$key) -ErrorAction SilentlyContinue
             }
         }
         foreach ($entry in $settings.GetEnumerator()) {
@@ -161,6 +163,9 @@ function Set-Configurations {
             $config.ConnectionStrings__BffSessionCache="127.0.0.1:$($script:state.infrastructure.redis),password=$($script:secrets.REDIS_PASSWORD),abortConnect=false"
             $config.BffSessionCache__InstanceName="nexa:draft:$RunId:customer:"
         }
+        if($script:state.Contains('qrPilotOrigin') -and $script:state.qrPilotOrigin){
+            foreach($entry in (Get-DraftQrPilotSettings $name $script:state.qrPilotOrigin).GetEnumerator()){$config[$entry.Key]=$entry.Value}
+        }
         $script:configurations[$name]=$config
     }
 }
@@ -202,6 +207,7 @@ if($newRun) {
     if(-not $ConfirmTestResources){throw 'Start requires -ConfirmTestResources for isolated generated resources and migrations.'}
     if(Test-Path -LiteralPath $secretPath){throw 'Draft state is missing but protected credentials exist; preserve recovery material rather than reinitialize this run.'}
     Assert-DraftPayment $PaymentMethod $QrImagePath
+    if($QrPilotOrigin){Assert-DraftQrPilotOrigin $QrPilotOrigin}
     Protect-DraftDirectory $run
     Set-Content -LiteralPath (Join-Path $run 'compose.env') -Value '# No repository environment import.'
     $secrets=@{}
@@ -211,10 +217,12 @@ if($newRun) {
     foreach($name in $catalog.Keys){$urls[$name]="http://127.0.0.1:$($free[$index])/";$index++}
     $urls.Bff="https://127.0.0.1:$($free[10])/"
     $state=@{runId=$RunId;project=$project;status='Starting';paymentMethod=$PaymentMethod;realm="nexa-review-it-$RunId";urls=$urls;processes=@{};infrastructure=@{postgres=$free[11];keycloak=$free[12];rabbitmq=$free[13];redis=$free[14]};authority='';applicationCompatibility=$compatibility;schemaTargets=$catalog;provisionedBranch=$false}
+    if($QrPilotOrigin){$state.qrPilotOrigin=$QrPilotOrigin}
     Save-State
 } else {
     $state=Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json -AsHashtable
     if($state.runId -ne $RunId -or $state.project -ne $project -or $state.status -eq 'Reset'){throw 'Invalid or reset draft state.'}
+    if($QrPilotOrigin -and (-not $state.Contains('qrPilotOrigin') -or $state.qrPilotOrigin -cne $QrPilotOrigin)){throw 'QR pilot origin cannot be added to or changed on a retained draft. Create a fresh isolated QR pilot run.'}
     $secrets=Read-DraftSecrets $secretPath
 }
 Assert-DraftUrls $state.urls
@@ -264,6 +272,11 @@ try {
     }
     if($Action -eq 'Restart') {
         if($state.status -ne 'Ready'){throw 'Restart requires a Ready draft.'}
+        if($state.Contains('qrPilotOrigin')){
+            $current=& node (Join-Path $PSScriptRoot 'release/source.mjs')
+            if($LASTEXITCODE -ne 0 -or -not $state.Contains('qrPilotSource') -or ($current|ConvertFrom-Json|ConvertTo-Json -Compress) -cne ($state.qrPilotSource|ConvertTo-Json -Compress)){throw 'QR pilot source changed. Stop and rebuild this same isolated scope before restarting.'}
+            if(-not $state.Contains('qrPilotArtifacts') -or (Get-DraftQrPilotArtifactHash $run) -cne $state.qrPilotArtifacts){throw 'QR pilot published application files changed.'}
+        }
         Set-Configurations
         foreach($name in $configurations.Keys){if($name -notin @('Authorization','Reporting','Bff')){$configurations[$name].Outbox__Enabled='true';$configurations[$name].Outbox__BatchSize='100'}}
         Stop-DraftApp $Service;Start-DraftApp $Service
@@ -271,6 +284,12 @@ try {
         return
     }
     if($state.processes.Count){throw 'Draft has recorded application processes; Stop before Start.'}
+    $qrPilotSource=$null
+    if($state.Contains('qrPilotOrigin')){
+        $current=& node (Join-Path $PSScriptRoot 'release/source.mjs');if($LASTEXITCODE -ne 0){throw 'QR pilot source inventory failed.'};$qrPilotSource=$current|ConvertFrom-Json
+        if($NoBuild -and (-not $state.Contains('qrPilotSource') -or ($qrPilotSource|ConvertTo-Json -Compress) -cne ($state.qrPilotSource|ConvertTo-Json -Compress))){throw 'NoBuild QR pilot artifacts do not match current source.'}
+        if($NoBuild -and (-not $state.Contains('qrPilotArtifacts') -or (Get-DraftQrPilotArtifactHash $run) -cne $state.qrPilotArtifacts)){throw 'NoBuild QR pilot application inventory changed.'}
+    }
     if($NoBuild -and -not (Test-Path -LiteralPath (Join-Path $run 'pos/appsettings.json'))){throw 'NoBuild requires a previously completed draft publication including POS.'}
     $state.status='Starting';Save-State
     if(-not $NoBuild) {
@@ -349,6 +368,7 @@ try {
         if($LASTEXITCODE -ne 0){throw 'POS publication failed.'}
         $pos=if($existingPos){$existingPos}else{Get-Content (Join-Path $run 'pos/appsettings.json') -Raw | ConvertFrom-Json}
         $pos.Identity.Authority=$state.authority;$pos.Pos.PaymentMethod=$state.paymentMethod;$pos.Pos.EnableOmiseTestCheckout=$false;$pos.Pos.Currency='THB'
+        if($state.Contains('qrPilotOrigin')){$pos.Pos | Add-Member -NotePropertyName UseIsolatedLocalPilotStorage -NotePropertyValue $true -Force}
         if(-not $existingPos){foreach($name in @('OrganizationId','RestaurantId','BranchId','StoreId','TerminalId')){$pos.Pos.$name=[Guid]::NewGuid().ToString()};$pos.Pos.PromptPayQrImagePath=''}
         if($state.paymentMethod -eq 'promptpay_manual' -and -not $existingPos) {
             Assert-DraftPayment $state.paymentMethod $QrImagePath
@@ -358,6 +378,11 @@ try {
         $pos.Services.PosApi=$state.urls.POS;$pos.Services.OrderApi=$state.urls.Order;$pos.Services.PaymentApi=$state.urls.Payment;$pos.Services.CatalogApi=$state.urls.Catalog
         $pos | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $run 'pos/appsettings.json')
         $pos | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $savedPosPath
+    }
+    if($qrPilotSource){
+        $after=& node (Join-Path $PSScriptRoot 'release/source.mjs');if($LASTEXITCODE -ne 0 -or ($after|ConvertFrom-Json|ConvertTo-Json -Compress) -cne ($qrPilotSource|ConvertTo-Json -Compress)){throw 'QR pilot source changed during publication/startup.'}
+        $state.qrPilotSource=$qrPilotSource
+        $state.qrPilotArtifacts=Get-DraftQrPilotArtifactHash $run
     }
     $state.status='Ready';Save-State
     Write-Output "Draft Ready. RunId=$RunId Portal=$($state.urls.Bff)"

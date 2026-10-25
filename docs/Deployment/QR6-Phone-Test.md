@@ -1,7 +1,13 @@
 # QR6 actual-phone and cashier checklist
 
-All actual results start pending. Use the generated `phone-test.json` for the exact local
-candidate as an operator-attestation template, then record the matching hosted source,
+[QR9](QR9-Acceptance.md) now generates a bounded checklist for each case/device, validates explicit observed facts and links immutable evidence to QR7 records with retry-safe recording. Use it for current-PC acceptance; no phone/payment/PDF pass is automatic.
+
+For the current-PC test option selected in QR7, use [the isolated local profile/guest edge](QR7-Pilot.md) once LAN/certificate/device facts are supplied. Dedicated-server facts remain prerequisites for that separate hosted topology; they do not prevent preparing the local-PC plan. All actual cases below still start pending and require observation.
+
+All actual results start pending. For QR7, use its protected plan and append-only `Record`
+command, which bind the candidate, configured local environment and device facts. For the
+dedicated-server topology, use the generated `phone-test.json` for the exact candidate as
+an operator-attestation template and record the matching hosted source,
 configuration/installer binding and environment ID before testing. Record both phone
 models, OS/browser versions, observation UTC time and opaque evidence IDs. Do not store
 QR secrets, cookies, tokens, bank references, unrestricted screenshots or financial bodies
@@ -9,10 +15,13 @@ in candidate reports. No script marks these cases passed automatically.
 
 ## Network and staff prerequisites
 
-1. Confirm the dedicated-server OS/capacity, domain/DNS, backup and recovery facts first.
-   Follow [Phase6 hosting](Next-Iteration-Phase-6.md); keep prior Phase6–9 gates pending.
-2. Publish the Customer Portal/BFF on a hostname with HTTPS trusted by both phones.
-   Set its exact `QrGuest__PublicOrigin` including a nonstandard port if used. The QR
+1. Select the prepared topology. For the local PC, follow [QR7](QR7-Pilot.md), including
+   the exact LAN hostname, private address, trusted HTTPS and device facts. For the
+   dedicated server, first confirm OS/capacity, domain/DNS, backup and recovery facts and
+   follow [Phase6 hosting](Next-Iteration-Phase-6.md). Keep prior Phase6–9 gates pending.
+2. Expose the QR7 guest-only edge, or publish the Customer Portal/BFF through the approved
+   dedicated-server ingress, on HTTPS trusted by both phones. Set the BFF's exact
+   `QrGuest__PublicOrigin` including a nonstandard port if used. The QR
    destination is that origin's `/order#<opaque-entry-token>`. Print/handle it as a
    capability; do not place it in query parameters, access logs or public documentation.
 3. Phones need DNS/routing to that hostname (same LAN or explicitly configured public
@@ -42,9 +51,9 @@ the case calls for multiple guests. Tabs in one browser may share its visit cook
 | menu-cart-price-review | Add/edit quantities, rotate portrait/landscape and review server totals. Change price/policy before acceptance: guest must explicitly confirm the exact changed breakdown before staff can accept. |
 | submit-refresh-original | Submit once, refresh and switch away/back. Original request returns; pending blocks duplicate submission. Lost response retries the original identity. |
 | staff-accept-kitchen-once | Before acceptance, no stock/Kitchen effects. Staff accepts once; concurrent retry gives the same Order, one reservation and one Kitchen ticket. Observe actual Kitchen transition; acceptance alone is not ticket completion. |
-| cash-original-order | Cashier loads the reference/original UUID, original items/prices/tax/total and exact collecting custody. Receive exact cash, then confirm. One original Paid Order/cash movement; no second stock/Kitchen effect. |
+| cash-original-order | In POS Orders, filter QR orders and select the eligible original row, or use the reference/UUID fallback. Verify original items/prices/tax/total and exact collecting custody. Receive exact cash, then confirm. Paid/claimed history cannot start another collection. One original Paid Order/cash movement; no second stock/Kitchen effect. |
 | manual-promptpay-original-order | Use a separate accepted Order. Check the configured payment image, verify actual test payment/receipt/reference and confirm once. One original settlement/receipt; no cash movement. No real transfer is authorized by this checklist. |
-| switch-app-lock-resume | Switch apps on phone and idle-lock Windows POS with retained work. Original cashier authenticates/resumes; customer display uses its safe paused view. No automatic logout loses operational recovery. |
+| switch-app-lock-resume | Switch apps on phone and idle-lock Windows POS with retained work. Original cashier authenticates/resumes; staff history rows/cursor clear and late list responses cannot restore them. Customer display uses its safe paused view and never shows branch history. No automatic logout loses operational recovery. |
 | network-loss-original-recovery | Interrupt phone/network and cashier response separately, including after commit. Reconnect/restart and verify the original request/payment. Do not rescan/recreate/collect again to clear uncertainty. |
 | qr-revocation-scope-denial | Revoke/rotate a test entry and try old/guessed/wrong-scope work. Guest/pending acceptance fails closed; another table remains usable. Already accepted original Order recovery continues. |
 | paid-receipt-pdf-reprint | Original live visit shows safe Paid receipt; cashier loads/prints/reprints the same receipt to PDF. Verify actual saved PDF. Cancelled/failed print does not change Paid or authorize another collection. Ended/revoked visits cannot retrieve by guessing the reference. |

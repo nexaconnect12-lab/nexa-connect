@@ -26,14 +26,16 @@ iOS/Android camera scans and retained Phase6–9 gates remain pending. No server
    UUID/fingerprint is retained before submission. Only one pending request per visit.
    A pending proposal is unpaid, unreserved and has not reached Kitchen.
 5. **Check request status** or refresh with the same cookie to recover its request. Status
-   also polls every15seconds. On response loss, keep the visit open and **Retry original
+   also polls every15seconds while visible and focused under [QR8](QR8-Usability.md).
+   On response loss, keep the visit open and **Retry original
    request**, or recover status; never generate a replacement submission identity. Cart
    inputs freeze while submission outcome is unknown. Reload can recover a committed
    request; an unsent cart remains page memory only.
 6. Staff enters Customer Portal **QR requests**, selects an authorized branch, and reviews
    pending/rejected/expired requests. `order.read` discovers/reads; `order.place` rejects.
    Rejections use fixed categories and expected version/CSRF. Queue shows10 oldest pending
-   proposals and explicit more indicator. Resolve/reload to see more. With QR4 acceptance
+   proposals and explicit more indicator. QR8 refreshes this visible/focused queue every
+   15 seconds; explicit reload remains available. Resolve requests to see more. With QR4 acceptance
    disabled, no acceptance button is offered; enabled QR4 adds price_review/accepted tabs
    and versioned acceptance.
 

@@ -42,8 +42,7 @@ public sealed class QrCollectionService(IQrRequestRepository requests, IOrderRep
             command.ShiftId, command.SettlementKey, actor);
         var existing = await collections.BindingAsync(id, ct);
         if (existing is not null && existing != binding) throw new InvalidOperationException("Original collection belongs to another cashier, terminal, shift or operation. Reconcile it; do not collect again.");
-        if (order.Status is not (OrderStatus.KitchenAccepted or OrderStatus.Paid)
-            || order.Pricing is null || order.PaymentIntentId is not null)
+        if (!QrCollectionBinding.CanReadOriginalOrder(order.Channel, order.Status, order.Pricing is not null, order.PaymentIntentId is not null))
             throw new InvalidOperationException("Original order is not ready for collection.");
         // A paid result is readable only by the exact retained collecting operation.
         if (order.Status == OrderStatus.Paid && existing is null)
@@ -57,7 +56,7 @@ public sealed class QrCollectionService(IQrRequestRepository requests, IOrderRep
                 throw new InvalidOperationException("Original collection changed. Verify its retained identity.");
         }
         return new(id, organization, order.RestaurantId, branch, request.Request.Scope.TableCode,
-            order.Status.ToString(), order.Currency, order.TotalAmount, order.Pricing,
+            order.Status.ToString(), order.Currency, order.TotalAmount, order.Pricing!,
             order.Lines.Select(l => new QrCollectionLine(l.ProductId, l.Name, l.UnitPrice, l.Quantity)).ToArray(), command.SettlementKey);
     }
 }

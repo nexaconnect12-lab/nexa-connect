@@ -23,7 +23,8 @@ Deferred Phase6–9 specifications and acceptance gates remain unchanged.
    Current branch/visitor/entry, dine-in policy, availability and prices are checked.
    Missing/revoked/ended visitor, disabled dine-in or unavailable product blocks admission.
 5. A changed price/policy moves it to **price_review**. Original guest sees the full updated
-   line/tax/service/total breakdown and explicitly confirms. Staff reloads pending and
+   line/tax/service/total breakdown and explicitly confirms. Staff waits for the active
+   [QR8 queue refresh](QR8-Usability.md) or reloads pending, then
    accepts that new version. If the two-minute review expires, staff selects price_review
    and uses **Refresh guest price review** on the original request. This only refreshes guest
    review; it never bypasses consent. Original request identity/deadline remains unchanged.

@@ -1,5 +1,29 @@
 # POS local SQLite
 
+## Local QR pilot storage selection
+
+Default clients continue using `%LOCALAPPDATA%\NexaConnect\POS`. The explicit local-only
+`Pos:UseIsolatedLocalPilotStorage=true` option instead selects
+`%LOCALAPPDATA%\NexaConnect\POS-Pilots\<scope-hash>`. The QR first-draft launcher supplies
+this option for its generated loopback realm and manual-tender terminal. It is rejected
+for remote/hosted identity or services, a non-generated realm, or test-card checkout.
+The lowercase SHA256 directory key hashes UTF-8
+`organizationN|branchN|storeN|terminalN`, with lowercase UUID `N` formatting. No arbitrary
+storage path is accepted; selected ancestors cannot be links or junctions.
+
+Read-only preflight, `pos-state.db`/WAL/SHM, outbox and `tokens.bin` share this selected
+directory. A restart returns to the same profile. Changing tender or endpoint ports does
+not hide pending work by choosing another directory; the existing checkout/operator guards
+still validate it. A distinct provisioned scope receives a separate profile. The default
+terminal's files and unresolved work are never moved, copied, rebound or deleted. Keep
+using its original compatible installation to reconcile it. Storage selection is immutable
+for an installed release's update custody. See [ADR-050](../Architecture/Decisions/ADR-050-local-pilot-pos-storage.md).
+
+The schema remains version 2 in either directory. Backup/inspection must target the selected
+profile and preserve current-user DPAPI custody; a pilot profile is not portable local state.
+
+## Durable recovery behavior
+
 Receipt retrieval adds the protected `last-receipt` local-state key containing only an Order UUID. Receipt contents, tender and bill values are not cached; POS reloads them from Order with live authorization before preview/reprint and clears the rendered document on lock/sign-out. The key-based addition needs no SQLite schema migration.
 
 Pricing checkout extends the existing protected JSON payloads with pricingFingerprint/needsPricingReview and pending-settlement pricing. These additive fields use the existing SQLite schema. Original identity is retained during reconfirmation; missing fields on old pending work remain compatible for original-order verification. See [pricing contract and rollout](../API/Order-Pricing.md).

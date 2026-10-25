@@ -1,5 +1,12 @@
 # Keycloak Client Matrix
 
+Native POS branch history reuses the public `nexaconnect-pos` customer bearer and live
+branch `order.read`; tenant/application and stable `sub` remain required. A separate live
+`order.manual-payment.confirm` decision plus enabled collection controls only the QR
+selection hint. No new client, role, scope, mapper or grant is added. Guest capabilities
+and workload-only identities cannot list staff history. See
+[history authorization](../API/Branch-Order-List.md).
+
 Phase 5 introduces no client, token, mapper or permission grant. Gallery approval uses
 branch `restaurant.configuration.manage` plus organization Media-read authority for selected
 assets. POS delivery reuses its customer bearer and live branch `catalog.menu.read` to retrieve
@@ -100,3 +107,13 @@ Callback takeover from another install path requires explicit operator approval;
 removes only its own exact command. Hosted profile and retained protected cashier/realm
 bindings must agree; unsupported realm/account transfers require original-installation
 reconciliation. No MSIX package identity or identity-provider migration is applied here.
+
+## Local pilot POS credentials
+
+The optional QR-only `Pos:UseIsolatedLocalPilotStorage` setting keeps `tokens.bin` and its
+original-cashier lock marker in the same scope-hashed `POS-Pilots` directory as recovery
+and outbox. It retains current-user/device DPAPI, existing public PKCE client/callback,
+UserInfo/operator checks and single-instance callback ownership. The original default
+terminal's credentials are neither read for adoption nor replaced. Hosted profiles reject
+the option; no client, role, audience or permission changes. See
+[ADR-050](../Architecture/Decisions/ADR-050-local-pilot-pos-storage.md).

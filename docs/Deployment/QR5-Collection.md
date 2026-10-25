@@ -15,9 +15,12 @@ remain pending. No commit/push/deployment is implied by local verification.
 3. Keep all prior QR prerequisites and set Order `QrCollection__Enabled=true` only on an
    isolated configured host. Default is false; pilot artifacts remain disabled pending
    hosted readiness. Keep collection available while retained collection work exists.
-4. Sign in to Windows POS, open your shift and clear any current cart/recovery. In **QR
-   collection**, enter the guest's `QR-...` reference or original Order UUID and select
-   **Load original QR order**. It checks scope/readiness without side effects, then retains
+4. Sign in to Windows POS, open your shift, finish/reconcile any current checkout and
+   empty the cart. In
+   **Orders**, filter **QR orders**, select an awaiting-cashier row and choose **Load
+   selected QR order**. Alternatively, **QR collection** accepts the guest's `QR-...`
+   reference or original Order UUID through **Load original QR order**. Both check
+   scope/readiness without side effects, then retain
    original operation before claiming. Pending/rejected/paid/other-branch references cannot
    start another sale. Full UUID input is supported; table-wide lookup/combined bills are not.
 5. Review original table/items/pricing and choose cash or manual PromptPay in Payment.
@@ -45,12 +48,14 @@ late-work custody apply. See [contract/telemetry](../API/QR-Collection.md).
 
 Run the full unit suite (Windows DPAPI acceptance opt-in where supported), QR HTTP/transport
 and architecture tests, then `./scripts/test-qr-entry-persistence.ps1 -ConfirmDisposableInfrastructure`.
-The current [QR6 owning runner](QR6-Integration.md) requires five cases and cached
+The current [QR6 owning runner](QR6-Integration.md) requires six cases and cached
 PostgreSQL/RabbitMQ images, with exact cleanup of both generated containers. QR5 remains
 inside the comprehensive QR acceptance case:
 full Order/Inventory/Kitchen/POS/Reporting schemas, live POS-owned admission, immutable custody,
 concurrent claim/payment replay, wrong cashier/shift/scope, revocation, original receipt,
 cash and manual PromptPay projections, sale Reporting deduplication and downgrade guards.
+The additional order-history case verifies stable paging, exact scope and parameterized
+filters; the joined journey also checks read-only selection hints before/after claim/Paid.
 Restaurant/Catalog/Authorization ports and clock-crossing recovery remain synthetic fixture
 inputs; no retained database, actual provider, hosted broker or device is certified.
 

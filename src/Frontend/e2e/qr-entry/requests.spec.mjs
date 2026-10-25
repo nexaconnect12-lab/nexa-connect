@@ -3,7 +3,7 @@ const branch="22222222-2222-2222-2222-222222222222",org="33333333-3333-3333-3333
 const visit={visitorId:"guest",entryId:"entry",restaurantName:"Restaurant",branchName:"Branch",tableCode:"A1",currency:"THB",expiresAtUtc:new Date(Date.now()+3600000).toISOString(),menuAvailable:true,requestsAvailable:true,orderingAvailable:false};
 const quote={quoteId:id,fingerprint:"A".repeat(64),currency:"THB",expiresAtUtc:new Date(Date.now()+120000).toISOString(),lines:[{productId:product,name:"Soup",quantity:1,unitPrice:107,lineTotal:107}],menuAmount:107,subtotalAmount:100,serviceChargeAmount:10,taxAmount:7.7,totalAmount:117.7,taxPercent:7,taxInclusive:true,serviceChargePercent:10};
 const proposal={id,tableCode:"A1",status:"pending",version:1,submittedAtUtc:new Date().toISOString(),deadlineUtc:new Date(Date.now()+900000).toISOString(),quote};
-async function setup(page,{lose=false}={}){
+async function setup(page,{lose=false,delay=false}={}){
  const inputs=[];let saved=false;
  await page.route("**/bff/**",async route=>{
   const path=new URL(route.request().url()).pathname;
@@ -12,7 +12,7 @@ async function setup(page,{lose=false}={}){
   if(path==="/bff/guest/qr/quote")return route.fulfill({json:quote});
   if(path==="/bff/guest/qr/requests"){
    if(route.request().method()==="GET")return route.fulfill({json:{items:saved?[proposal]:[],hasMore:false}});
-   inputs.push(route.request().postDataJSON());saved=true;if(lose&&inputs.length===1)return route.abort("failed");return route.fulfill({json:proposal});
+   inputs.push(route.request().postDataJSON());saved=true;if(delay&&inputs.length===1)return; if(lose&&inputs.length===1)return route.abort("failed");return route.fulfill({json:proposal});
   }
   return route.fulfill({status:404,json:{}});
  });
@@ -39,7 +39,7 @@ test("lost response can be recovered by private status instead of resubmitting",
  await expect(page.getByText("A request is pending.",{exact:false})).toBeVisible();expect(inputs).toHaveLength(1);await expect(page.getByRole("button",{name:"Retry original request",exact:true})).toHaveCount(0);
 });
 test("staff queue has versioned CSRF rejection and no acceptance command",async({page})=>{
- let saved=proposal;const writes=[];
+ await page.clock.install();let saved=proposal;const writes=[];let queueReads=0;
  await page.route("**/bff/customer/**",async route=>{
   const path=new URL(route.request().url()).pathname;let json;
   if(path.endsWith("/me"))json={subjectId:"operator"};else if(path.endsWith("/access"))json={organizations:[{organizationId:org,organizationName:"One",applicationCode:"nexa_connect"}]};
@@ -47,11 +47,22 @@ test("staff queue has versioned CSRF rejection and no acceptance command",async(
   else if(path.includes("operational-branches"))json=[{branchId:branch,name:"Branch",code:"B1",currency:"THB",timeZone:"Asia/Singapore"}];
   else if(path.endsWith("/csrf"))json={requestToken:"synthetic-csrf"};
   else if(path.endsWith("/reject")){writes.push({body:route.request().postDataJSON(),csrf:route.request().headers()["x-nexa-csrf"]});saved={...proposal,status:"rejected",version:2,reason:"closing"};json=saved;}
-  else if(path.includes("/qr-requests/branches/"))json={items:saved.status===(new URL(route.request().url()).searchParams.get("state")??"pending")?[saved]:[],hasMore:false};
+  else if(path.includes("/qr-requests/branches/")){queueReads++;json={items:saved.status===(new URL(route.request().url()).searchParams.get("state")??"pending")?[saved]:[],hasMore:false};}
   else return route.fulfill({status:404,json:{}});return route.fulfill({json});
  });
- await page.goto("/#qr-requests");await page.getByLabel("QR review branch").selectOption(branch);await expect(page.getByText("Table A1 · pending",{exact:false})).toBeVisible();
+ await page.goto("/#qr-requests");await page.getByLabel("QR review branch").selectOption(branch);await expect(page.getByText("Table A1 · Waiting for staff",{exact:false})).toBeVisible();
+ const before=queueReads;await page.bringToFront();await page.clock.fastForward(15100);await expect.poll(()=>queueReads).toBeGreaterThan(before);expect(writes).toHaveLength(0);
  await expect(page.getByRole("button",{name:/accept/i})).toHaveCount(0);await page.getByRole("button",{name:"Reject: closing",exact:true}).click();
  await expect(page.getByText("No pending requests.")).toBeVisible();expect(writes).toEqual([{body:{expectedVersion:1,reason:"closing"},csrf:"synthetic-csrf"}]);
- await page.getByLabel("Request state",{exact:true}).selectOption("rejected");await expect(page.getByText("Table A1 · rejected",{exact:false})).toBeVisible();
+ await page.getByLabel("Request state",{exact:true}).selectOption("rejected");await expect(page.getByText("Table A1 · Declined by staff",{exact:false})).toBeVisible();
+});
+
+test("slow submission times out safely and retries the same identity",async({page})=>{
+ await page.clock.install();const inputs=await setup(page,{delay:true});
+ await page.getByRole("button",{name:"Submit for staff review",exact:true}).click();
+ await expect(page.getByText("Checking the original request.",{exact:false})).toBeVisible();
+ await page.clock.fastForward(21000);
+ await expect(page.getByText("Submission outcome is unknown.",{exact:false})).toBeVisible();
+ await page.getByRole("button",{name:"Retry original request",exact:true}).click();
+ await expect(page.getByText("A request is pending.",{exact:false})).toBeVisible();expect(inputs).toHaveLength(2);expect(inputs[1]).toEqual(inputs[0]);
 });

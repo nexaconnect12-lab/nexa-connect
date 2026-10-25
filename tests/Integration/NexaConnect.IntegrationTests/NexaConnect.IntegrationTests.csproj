@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Tools\NexaConnect.QrPilotEdge\NexaConnect.QrPilotEdge.csproj" Aliases="QRPILOT" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Media\NexaConnect.Services.Media.csproj" Aliases="MEDIA" />
     <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="SkiaSharp" />

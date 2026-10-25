@@ -27,7 +27,7 @@ public sealed class PosAuthentication : IDisposable
     private Func<bool> _hasRetainedWork = () => false;
 
     public PosAuthentication(PosClientConfiguration configuration)
-        : this(configuration, new HttpClientHandler { AllowAutoRedirect = false }, new WindowsTokenStore())
+        : this(configuration, new HttpClientHandler { AllowAutoRedirect = false }, new WindowsTokenStore(configuration.GetStorageDirectory()))
     {
     }
 

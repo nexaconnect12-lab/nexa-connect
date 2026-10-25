@@ -2,6 +2,11 @@
 
 Status: accepted, 24 October 2026.
 
+25 October follow-up: [native branch history](../../API/Branch-Order-List.md) lets staff
+select an original eligible QR Order instead of copying a reference. The history GET is
+read-only and its readiness hint is not a new claim/settlement operation. This retains
+the original decision's actor/terminal/shift custody, durable retry and Paid invariants.
+
 QR5 collects the original QR4 accepted Order through existing manual settlement, receipt,
 cash and sale-reporting paths. A bounded original-UUID reference identifies work without
 granting authority. Live customer branch payment permission and POS-owned exact terminal/

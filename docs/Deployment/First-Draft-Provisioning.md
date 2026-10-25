@@ -22,6 +22,11 @@ The POS configuration in the owned run directory is updated with the stable grap
 both `pos/appsettings.json` and retained `pos-configuration.json` survive rebuilds.
 Existing local POS recovery is untouched and WPF is not automatically launched.
 
+For the explicit QR stack profile, publication selects isolated current-user POS storage;
+the stable scope provisioned here derives its `POS-Pilots` directory. This permits the same
+Windows account to keep earlier terminal recovery without adopting it. A normal draft
+retains the original storage default. See [Windows setup](First-Draft-Windows-POS.md).
+
 Cashier, Kitchen and accountant assignments are branch-scoped. Kitchen has only
 Catalog menu read and Kitchen read/transition. Accountant has the existing read
 permissions and no manager mutations. The existing `store-manager` role covers

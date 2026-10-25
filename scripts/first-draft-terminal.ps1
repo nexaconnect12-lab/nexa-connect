@@ -45,9 +45,7 @@ if($Action -eq 'Package'){
 }
 $install=Assert-TerminalPath $InstallDirectory
 Assert-TerminalInstallOwnership $install
-$recovery=[IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'NexaConnect/POS'))
-if($install -eq $recovery -or $install.StartsWith($recovery+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase) -or
-    $recovery.StartsWith($install+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){throw 'Install directory must be separate from protected POS recovery.'}
+Assert-TerminalRecoverySeparation $install $env:LOCALAPPDATA
 if($Action -in @('Status','Launch')){
     $active=Get-Content (Join-Path $install 'active.json') -Raw | ConvertFrom-Json -AsHashtable
     if($active.releaseId -cnotmatch '^[a-f0-9]{32}$'){throw 'Invalid active terminal release.'}

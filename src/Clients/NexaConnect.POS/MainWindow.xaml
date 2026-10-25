@@ -28,7 +28,7 @@
         <Button x:Name="SignOutButton" Content="Sign out" Click="SignOut_Click" ToolTipService.ShowOnDisabled="True" />
       </StackPanel>
     </Grid>
-    <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Background="Transparent" BorderThickness="0">
+    <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Background="Transparent" BorderThickness="0" SelectionChanged="WorkspaceTab_Changed">
       <TabItem Header="Checkout">
         <Grid Margin="0,16,0,0">
           <Grid.ColumnDefinitions>
@@ -149,6 +149,40 @@
             </StackPanel>
           </Border>
         </ScrollViewer>
+      </TabItem>
+      <TabItem x:Name="OrdersTab" Header="Orders">
+        <Grid Margin="16">
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <TextBlock Text="Branch orders" Style="{StaticResource Heading}"/>
+          <WrapPanel Grid.Row="1" Margin="0,8,0,16">
+            <ComboBox x:Name="OrdersChannelFilter" SelectedIndex="0" Width="180" SelectionChanged="OrdersFilter_Changed" AutomationProperties.Name="Order source filter">
+              <ComboBoxItem Content="All sources" Tag="all"/><ComboBoxItem Content="QR orders" Tag="qr"/><ComboBoxItem Content="POS orders" Tag="pos"/>
+            </ComboBox>
+            <ComboBox x:Name="OrdersStateFilter" SelectedIndex="0" Width="180" SelectionChanged="OrdersFilter_Changed" AutomationProperties.Name="Order status filter">
+              <ComboBoxItem Content="All statuses" Tag="all"/><ComboBoxItem Content="Open orders" Tag="open"/><ComboBoxItem Content="Paid orders" Tag="paid"/>
+            </ComboBox>
+            <Button x:Name="RefreshOrdersButton" Content="Refresh orders" Click="RefreshOrders_Click"/>
+            <Button x:Name="MoreOrdersButton" Content="Next page" Click="MoreOrders_Click"/>
+          </WrapPanel>
+          <DataGrid Grid.Row="2" x:Name="OrdersGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" CanUserAddRows="False" SelectionChanged="OrdersSelection_Changed" AutomationProperties.Name="Branch orders">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Order" Binding="{Binding OrderNumber}" Width="*"/>
+              <DataGridTextColumn Header="Source" Binding="{Binding Channel}" Width="65"/>
+              <DataGridTextColumn Header="Table" Binding="{Binding TableCode}" Width="65"/>
+              <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="130"/>
+              <DataGridTextColumn Header="Collection" Binding="{Binding CollectionLabel}" Width="135"/>
+              <DataGridTextColumn Header="Total" Binding="{Binding TotalAmount, StringFormat=N2}" Width="85"/>
+              <DataGridTextColumn Header="Currency" Binding="{Binding Currency}" Width="70"/>
+              <DataGridTextColumn Header="Created (local)" Binding="{Binding CreatedLocal, StringFormat=g}" Width="145"/>
+            </DataGrid.Columns>
+          </DataGrid>
+          <StackPanel Grid.Row="3" Margin="0,12,0,0">
+            <TextBlock x:Name="OrdersNoticeText" Text="Sign in and refresh orders. Guest requests appear after staff accepts them." TextWrapping="Wrap"/>
+            <Button x:Name="CollectSelectedQrButton" Content="Load selected QR order" Click="CollectSelectedQr_Click" Style="{StaticResource Primary}" HorizontalAlignment="Left"/>
+            <TextBlock x:Name="OrdersCollectionGuidance" Text="Select an order to see collection availability." TextWrapping="Wrap" Foreground="#63756A"/>
+            <TextBlock Text="Refreshes every 15 seconds while Orders is selected and this window is active. Refresh never collects or pays an order." TextWrapping="Wrap" Foreground="#63756A"/>
+          </StackPanel>
+        </Grid>
       </TabItem>
       <TabItem Header="QR collection">
         <ScrollViewer VerticalScrollBarVisibility="Auto">

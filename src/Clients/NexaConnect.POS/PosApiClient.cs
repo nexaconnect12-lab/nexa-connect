@@ -24,6 +24,27 @@ public sealed record PosQuoteLine(Guid ProductId, string Name, decimal UnitPrice
 public sealed record PosQrCollection(Guid OrderId, Guid OrganizationId, Guid RestaurantId, Guid BranchId,
     string TableCode, string Status, string Currency, decimal TotalAmount, PosOrderPricing Pricing,
     PosQuoteLine[] Lines, Guid SettlementKey);
+public sealed record PosBranchOrder(Guid OrderId, string OrderNumber, DateTimeOffset CreatedAtUtc,
+    string Channel, string Status, string Currency, decimal TotalAmount, string? TableCode,
+    string? CollectionReference, string? CollectionStatus, bool CanCollectQr)
+{
+    public DateTime CreatedLocal => CreatedAtUtc.LocalDateTime;
+    public string StatusLabel => Status switch
+    {
+        "KitchenAccepted" => "Preparing", "InventoryReserved" => "Preparing",
+        "Submitted" => "Preparing", "PaymentPending" => "Payment pending",
+        "PaymentReview" => "Payment needs review", "PaymentFailed" => "Payment failed",
+        "CancellationPending" => "Cancellation pending", "CancellationReview" => "Cancellation needs review",
+        _ => Status
+    };
+    public string CollectionLabel => CollectionStatus switch
+    {
+        "awaiting_cashier" => "Awaiting cashier", "collecting" => "At cashier",
+        "paid" => "Paid", "preparing" => "Preparing", "unavailable" => "Unavailable", _ => "—"
+    };
+}
+public sealed record PosBranchOrderPage(Guid OrganizationId, Guid RestaurantId, Guid BranchId,
+    IReadOnlyList<PosBranchOrder> Items, string? NextCursor);
 public sealed class PosPricingChangedException : Exception;
 public sealed record ManualTenderResult(Guid SettlementId, Guid OrderId, string Status, string Method,
     decimal Amount, string Currency, DateTimeOffset OccurredAtUtc, bool Replayed);
@@ -318,6 +339,40 @@ public sealed class PosApiClient : IDisposable
         if (result.CardTokenRequired && (checkout.PaymentMethod != "card_omise_test"
             || result.Status is not (PosOrderStatus.KitchenAccepted or PosOrderStatus.PaymentPending)))
             throw new InvalidDataException("Card-token action does not match the original checkout state.");
+    }
+
+    public async Task<PosBranchOrderPage> ListOrdersAsync(PosTokenSet token, string channel = "all", string state = "all",
+        string? cursor = null, CancellationToken ct = default)
+    {
+        if (channel is not ("all" or "qr" or "pos") || state is not ("all" or "open" or "paid")
+            || cursor is not null && (cursor.Length is < 1 or > 128 || cursor.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_'))))
+            throw new ArgumentException("Invalid order list filter.");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct); deadline.CancelAfter(TimeSpan.FromSeconds(20));
+        string path = $"api/order/v1/organizations/{_configuration.OrganizationId:D}/branches/{_configuration.BranchId:D}/orders"
+            + $"?restaurantId={_configuration.RestaurantId:D}&channel={channel}&state={state}&limit=25"
+            + (cursor is null ? "" : "&cursor=" + Uri.EscapeDataString(cursor));
+        using var request = CreateRequest(HttpMethod.Get, path, token);
+        AddTenantContext(request, _configuration.OrganizationId);
+        using var response = await SendCheckoutAsync(_orderHttpClient, request, "order.list", Guid.NewGuid(), deadline.Token, true);
+        await EnsureSuccessAsync(response, "Orders could not be loaded.");
+        await response.Content.LoadIntoBufferAsync(262144, deadline.Token);
+        var page = await response.Content.ReadFromJsonAsync<PosBranchOrderPage>(deadline.Token)
+            ?? throw new InvalidDataException("Empty order list response.");
+        if (page.OrganizationId != _configuration.OrganizationId || page.RestaurantId != _configuration.RestaurantId
+            || page.BranchId != _configuration.BranchId || page.Items is null || page.Items.Count > 25
+            || page.Items.Select(i => i?.OrderId).Distinct().Count() != page.Items.Count
+            || page.NextCursor is not null && (page.NextCursor.Length is < 1 or > 128
+                || page.NextCursor.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_')))
+            || page.Items.Any(i => i is null || i.OrderId == Guid.Empty || string.IsNullOrWhiteSpace(i.OrderNumber) || i.OrderNumber.Length > 128
+                || i.CreatedAtUtc == default || string.IsNullOrWhiteSpace(i.Channel) || i.Channel.Length > 32
+                || !(Enum.TryParse<PosOrderStatus>(i.Status, out var status) && Enum.IsDefined(status) || i.Status is "Preparing" or "Ready")
+                || i.Currency is null || i.Currency.Length != 3 || i.Currency.Any(c => c is < 'A' or > 'Z') || i.TotalAmount < 0
+                || i.TableCode?.Length > 32 || i.CollectionReference is not null && i.CollectionReference != "QR-" + i.OrderId.ToString("N")
+                || i.CollectionStatus is not (null or "preparing" or "awaiting_cashier" or "collecting" or "paid" or "unavailable")
+                || i.CanCollectQr && (i.Channel != "qr" || i.Status != "KitchenAccepted" || i.CollectionStatus != "awaiting_cashier"
+                    || i.CollectionReference is null)))
+            throw new InvalidDataException("Order list did not match the configured branch or safe collection state.");
+        return page;
     }
 
     public async Task<PosQrCollection> CollectQrAsync(PosTokenSet token, PendingCheckout checkout, CancellationToken ct = default, bool preview = false)

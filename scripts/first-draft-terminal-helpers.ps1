@@ -30,6 +30,11 @@ function Get-TerminalScope($Configuration) {
     }
     $scope.Authority=[string]$identity.Authority;$scope.ClientId=[string]$identity.ClientId
     $scope.Currency=[string]$pos.Currency;$scope.PaymentMethod=[string]$pos.PaymentMethod
+    $hasPilotSetting=if($pos -is [System.Collections.IDictionary]){$pos.Contains('UseIsolatedLocalPilotStorage')}else{$null -ne $pos.PSObject.Properties['UseIsolatedLocalPilotStorage']}
+    if($hasPilotSetting){
+        if($pos.UseIsolatedLocalPilotStorage -isnot [bool]){throw 'Pilot storage selection must be Boolean.'}
+        if($pos.UseIsolatedLocalPilotStorage){$scope.UseIsolatedLocalPilotStorage='true'}
+    }
     return $scope
 }
 function Assert-TerminalInstallOwnership([string]$Directory) {
@@ -41,6 +46,14 @@ function Assert-TerminalInstallOwnership([string]$Directory) {
     }
     $owner=Get-Content -LiteralPath $marker -Raw | ConvertFrom-Json
     if($owner.kind -cne 'nexaconnect-draft-terminal' -or $owner.id -cnotmatch '^[a-f0-9]{32}$'){throw 'Invalid terminal installation ownership.'}
+}
+function Assert-TerminalRecoverySeparation([string]$Install,[string]$LocalApplicationData) {
+    $target=[IO.Path]::GetFullPath($Install)
+    foreach($name in @('POS','POS-Pilots')){
+        $recovery=[IO.Path]::GetFullPath((Join-Path $LocalApplicationData "NexaConnect/$name"))
+        if($target -eq $recovery -or $target.StartsWith($recovery+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase) -or
+            $recovery.StartsWith($target+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){throw 'Install directory must be separate from protected POS recovery.'}
+    }
 }
 function Assert-TerminalScopeEqual($Expected,$Actual) {
     if($Expected.Count -ne $Actual.Count){throw 'Terminal scope inventory changed.'}

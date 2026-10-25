@@ -34,6 +34,23 @@ try{
     $configuration=@{Identity=@{Authority='http://127.0.0.1:18500/realms/nexa-review-it-test';ClientId='nexaconnect-pos';RedirectUri='nexaconnect-pos://oauth/callback'};Services=@{PosApi='http://127.0.0.1:18501/';OrderApi='http://127.0.0.1:18502/';CatalogApi='http://127.0.0.1:18503/'};Pos=@{OrganizationId=[Guid]::NewGuid();RestaurantId=[Guid]::NewGuid();BranchId=[Guid]::NewGuid();StoreId=[Guid]::NewGuid();TerminalId=[Guid]::NewGuid();Currency='THB';PaymentMethod='cash_manual';EnableOmiseTestCheckout=$false}}
     $scope=Get-TerminalScope $configuration
     Assert-TerminalScopeEqual $scope (Get-TerminalScope $configuration);$checks++
+    $configuration.Pos.UseIsolatedLocalPilotStorage=$true
+    $isolatedScope=Get-TerminalScope $configuration
+    Rejected {Assert-TerminalScopeEqual $scope $isolatedScope}
+    Assert-TerminalScopeEqual $isolatedScope (Get-TerminalScope $configuration);$checks++
+    $jsonConfiguration=$configuration|ConvertTo-Json -Depth 5|ConvertFrom-Json
+    Assert-TerminalScopeEqual $isolatedScope (Get-TerminalScope $jsonConfiguration);$checks++
+    $jsonConfiguration.Pos.UseIsolatedLocalPilotStorage=$false
+    Assert-TerminalScopeEqual $scope (Get-TerminalScope $jsonConfiguration);$checks++
+    $jsonConfiguration.Pos.UseIsolatedLocalPilotStorage='true'
+    Rejected {Get-TerminalScope $jsonConfiguration}
+    $configuration.Pos.UseIsolatedLocalPilotStorage='true'
+    Rejected {Get-TerminalScope $configuration}
+    $configuration.Pos.Remove('UseIsolatedLocalPilotStorage')
+    foreach($relative in @('NexaConnect/POS','NexaConnect/POS-Pilots','NexaConnect/POS-Pilots/profile/releases','NexaConnect')){
+        Rejected {Assert-TerminalRecoverySeparation (Join-Path $testRoot $relative) $testRoot}
+    }
+    Assert-TerminalRecoverySeparation (Join-Path $testRoot 'NexaConnect/DraftTerminal') $testRoot;$checks++
     $configuration.Pos.TerminalId=[Guid]::NewGuid()
     Rejected {Assert-TerminalScopeEqual $scope (Get-TerminalScope $configuration)}
     $configuration.Pos.TerminalId=$scope.TerminalId

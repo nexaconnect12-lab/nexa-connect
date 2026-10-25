@@ -1,5 +1,13 @@
 # Order Service
 
+The [branch order-list API](../../../docs/API/Branch-Order-List.md) returns no-store,
+exact-scope, keyset-paged staff history for Windows POS. Live `order.read` permits viewing;
+enabled QR collection plus live `order.manual-payment.confirm` contributes only a readiness
+hint. Existing preview/claim/admission/payment revalidate authority and custody. PostgreSQL
+and Order22 are required; no migration, permission or event is added. Service
+`nexaconnect-order` logs safe `Order list` authorization/unavailable boundaries with validated
+correlation; POS transport operation is `order.list`. See [usage and checks](../../../docs/Deployment/POS-Order-List.md).
+
 QR6 adds owning integration evidence for the unchanged QR runtime: actual Restaurant visits/Catalog/pricing and original Order/Inventory/Kitchen/POS/Reporting flows, plus financial outbox connection failure/recovery and RabbitMQ duplicate projection. Identity and HTTP adapters are synthetic seams in that fixture; no hosted/phone acceptance is claimed. No new schema/configuration or event contract. See [QR6](../../../docs/Deployment/QR6-Integration.md).
 
 QR5 requires migration22 before current manual settlement binaries, even with QrCollection__Enabled=false (the default). Collection preview/claim require live branch order.manual-payment.confirm and exact POS terminal/store/cashier/shift. Original accepted QR Order/pricing is loaded; immutable collecting custody/audit commits once. Manual settlement/replay checks original actor/terminal/operation; new payment also requires its exact original shift. Paid/receipt/sale/audit/outbox remain one existing transaction. Guest private status includes a safe original receipt while its original visit stays live. See [API/telemetry](../../../docs/API/QR-Collection.md), [schema](../../../docs/Database/QR-Collection.md), [operations](../../../docs/Deployment/QR5-Collection.md).

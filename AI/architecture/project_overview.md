@@ -1,5 +1,23 @@
 # NexaConnect Project Architecture
 
+QR9 adds local read-only certificate/live-TLS diagnostics and bounded, source/activation-bound operator checklists over QR7 observations. It adds no financial command or service boundary; actual-device acceptance remains separate. See [QR9](../../docs/Deployment/QR9-Acceptance.md).
+
+QR8 adds presentation-only QR status labels, visible/focused portal refresh and active native Orders refresh with late-response fencing. Explicit decisions and original financial authority remain unchanged; see [QR8](../../docs/Deployment/QR8-Usability.md).
+
+Windows POS adds a session-local branch order list through Order's scoped, no-store
+history read model. All persisted branch Orders can be paged/filter-read under live
+`order.read`; eligible QR selection reuses original preview/claim/payment and does not
+grant collection authority. No schema or event changes. See
+[contract](../../docs/API/Branch-Order-List.md) and [usage](../../docs/Deployment/POS-Order-List.md).
+
+QR first-draft POS clients explicitly isolate local recovery, outbox and DPAPI token/lock
+state by immutable provisioned scope under `POS-Pilots`, allowing an existing Windows
+account to retain its original default terminal. The option rejects non-owned/remote
+profiles and test-card mode; default and hosted storage behavior is unchanged. See
+[ADR-050](../../docs/Architecture/Decisions/ADR-050-local-pilot-pos-storage.md).
+
+[QR7](../../docs/Deployment/QR7-Pilot.md) prepares a fresh local QR test profile and a closed guest HTTPS edge to the loopback Customer BFF. Only the explicit new profile enables QR flags at a fixed origin; source/server inventories protect restart/NoBuild. The Development-only ASP.NET edge uses shared observability, a private IPv4 listener, exact Origin/host, upstream certificate pinning and guest-only cookies/routes, with no staff/financial authority. Protected plans/certificates and immutable activation/operator records leave missing LAN/device facts and actual acceptance pending. No business schema/contract changes; see [ADR049](../../docs/Architecture/Decisions/ADR-049-local-qr-pilot-activation.md).
+
 [QR6](../../docs/Deployment/QR6-Integration.md) adds integrated diagnostic verification and a source/schema/build-bound local candidate, preserving Phase6–9 actual-host/device/signing/freeze gates. A seven-owner PostgreSQL journey starts real Restaurant visits/Catalog/pricing, coordinates original QR acceptance/recovery/payment, then retries original financial outbox events over RabbitMQ into owning cash/sale projections. Identity and some transport ports remain synthetic; actual OIDC/WPF/phones/hosted consumers remain pending. Frontend upgrades vulnerable Zod3.23.8 to4.6.7; z.guid preserves existing .NET GUID wire semantics without changing business authority, financial invariants or schemas.
 
 [QR5](../../docs/Deployment/QR5-Collection.md) implements original QR cashier collection through Windows POS and existing manual payment/receipt/cash/reporting paths. Order22 retains one immutable collecting actor/terminal/store/shift/operation with audit outbox; Domain custody and transactional settlement guards prevent transferred collection authority. POS verifies exact current scope before new payment; committed original replay remains readable after closure. Guest gets only the original live-visit safe receipt; customer display keeps its existing disclosure rules. No replacement Order, repricing or Inventory/Kitchen placement. QR6 local integration/candidate tooling is implemented; hosted/device/clean-CI release gates remain pending.

@@ -1,5 +1,7 @@
 # NexaConnect Customer Portal
 
+QR8 adds friendly request/collection labels and 15-second mounted, visible/focused read refresh with serialization, cancellation and 20-second timeouts. Guest unknown outcomes retain the original in-memory submission identity for explicit retry; no automatic acceptance/payment or browser persistence. See [QR8](../../../../docs/Deployment/QR8-Usability.md).
+
 QR6 uses patched Zod4.6.7 and GUID-compatible financial response validation. No portal route, permission or financial command changes. The QR, preparation/cutoff/seal and settlement-reporting browser suites feed a new local candidate; actual phones remain separately pending. See [QR6](../../../../docs/Deployment/QR6-Integration.md).
 
 QR5 shows the accepted original collection reference and live-visit safe original paid receipt in guest status; staff queue distinguishes Paid. Browser adds no payment command or staff credential. See [QR5](../../../../docs/Deployment/QR5-Collection.md).
@@ -13,7 +15,7 @@ and cookie/origin boundaries remain. See [QR4](../../../../docs/Deployment/QR4-A
 QR3 optionally adds Submit for staff review, private status recovery/polling and original
 quote-identity retry after response loss. Pending/uncertain submissions freeze new cart
 submission. /#qr-requests is the staff branch/state queue with versioned CSRF rejection;
-there is no acceptance control yet. End/rescan does not cancel requests or recover another
+QR4 adds the acceptance controls described above. End/rescan does not cancel requests or recover another
 visitor. See [setup, constraints and browser evidence](../../../../docs/Deployment/QR3-Requests.md).
 
 

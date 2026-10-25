@@ -24,7 +24,8 @@ public sealed record PosClientConfiguration(
     int TokenRefreshLeadSeconds = 60,
     bool EnableOmiseTestCheckout = false,
     string PaymentApi = "",
-    string MediaApi = "")
+    string MediaApi = "",
+    bool UseIsolatedLocalPilotStorage = false)
 {
     public void ValidateCheckout()
     {
@@ -50,6 +51,30 @@ public sealed record PosClientConfiguration(
             throw new InvalidDataException("Session:AbsoluteTimeoutHours must be between 1 and 24.");
         if (TokenRefreshLeadSeconds is < 15 or > 240)
             throw new InvalidDataException("Session:TokenRefreshLeadSeconds must be between 15 and 240.");
+        if (UseIsolatedLocalPilotStorage && (EnableOmiseTestCheckout
+            || PaymentMethod is not ("cash_manual" or "promptpay_manual")
+            || !System.Text.RegularExpressions.Regex.IsMatch(new Uri(Authority).AbsolutePath,
+                "\\A/realms/nexa-review-it-[a-f0-9]{32}\\z")
+            || new[] { Authority, PosApi, OrderApi, CatalogApi, PaymentApi, MediaApi }
+                .Where(value => !string.IsNullOrWhiteSpace(value)).Any(value => !new Uri(value).IsLoopback)))
+            throw new InvalidDataException("Isolated pilot storage requires an owned loopback draft realm and manual tender.");
+    }
+
+    internal string GetStorageDirectory(string? localApplicationData = null)
+    {
+        ValidateCheckout();
+        string root = localApplicationData ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string path = UseIsolatedLocalPilotStorage
+            ? Path.Combine(root, "NexaConnect", "POS-Pilots", Convert.ToHexStringLower(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(
+                    $"{OrganizationId:N}|{BranchId:N}|{StoreId:N}|{TerminalId:N}"))))
+            : Path.Combine(root, "NexaConnect", "POS");
+        // A profile may never redirect protected state through a junction or symlink.
+        for (string? cursor = Path.GetFullPath(path); cursor is not null; cursor = Path.GetDirectoryName(cursor))
+            if ((File.Exists(cursor) || Directory.Exists(cursor))
+                && (File.GetAttributes(cursor) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException("POS storage paths cannot traverse links or junctions.");
+        return path;
     }
 
     public static PosClientConfiguration Load(string? configurationPath = null)
@@ -85,7 +110,8 @@ public sealed record PosClientConfiguration(
             GetInt32(session, "TokenRefreshLeadSeconds", 60),
             root.GetProperty("Pos").TryGetProperty("EnableOmiseTestCheckout", out var cardEnabled) && cardEnabled.GetBoolean(),
             services.TryGetProperty("PaymentApi", out var payment) ? payment.GetString() ?? "" : "",
-            services.TryGetProperty("MediaApi", out var media) ? media.GetString() ?? "" : "");
+            services.TryGetProperty("MediaApi", out var media) ? media.GetString() ?? "" : "",
+            root.GetProperty("Pos").TryGetProperty("UseIsolatedLocalPilotStorage", out var isolated) && isolated.GetBoolean());
         configuration.ValidateCheckout();
         return configuration;
     }

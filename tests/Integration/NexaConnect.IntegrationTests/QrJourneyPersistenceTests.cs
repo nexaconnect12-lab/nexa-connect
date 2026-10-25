@@ -97,7 +97,14 @@ public sealed class QrJourneyPersistenceTests
             var admission=new QrAcceptancePersistenceTests.Admission(pos,org,restaurantId,branch);
             var collection=new QrCollectionService(qr,original,new PostgresQrCollectionRepository(orders),auth,admission,TimeProvider.System);
             var collect=new QrCollectionCommand(restaurantId,terminal,store,shift,Guid.NewGuid());
+            var browse = new OrderListService(new PostgresOrderListRepository(orders), auth, true);
+            var browseScope = new OrderListScope(org, restaurantId, branch);
+            var selectable = Assert.Single((await browse.ListAsync(browseScope, "qr", "open", null, 25, "Bearer fixture", default)).Items);
+            Assert.Equal(id, selectable.OrderId); Assert.True(selectable.CanCollectQr); Assert.Equal("awaiting_cashier", selectable.CollectionStatus);
+            Assert.Null(await new PostgresQrCollectionRepository(orders).BindingAsync(id, default));
             await collection.CollectAsync(org,branch,id,collect,"cashier","Bearer fixture",Guid.NewGuid(),default);
+            var claimed = Assert.Single((await browse.ListAsync(browseScope, "all", "all", null, 25, "Bearer fixture", default)).Items);
+            Assert.False(claimed.CanCollectQr); Assert.Equal("collecting", claimed.CollectionStatus);
             var tender=new ConfirmManualTenderCommand(org,branch,id,terminal,collect.SettlementKey,"cash",mainQuote.TotalAmount,"THB",false,null,"cashier",Guid.NewGuid(),Guid.NewGuid());
             await new ManualTenderApplicationService(original,admission).ConfirmAsync(tender,default);
             Assert.True((await new ManualTenderApplicationService(new PostgresOrderRepository(orders),admission).ConfirmAsync(tender,default))!.Replayed);
@@ -105,6 +112,8 @@ public sealed class QrJourneyPersistenceTests
             await PublishAndProject(orders,pos,sources["Reporting"],broker,id);
             var mine=Assert.Single((await requests.MineAsync(main.SessionToken,default)).Items);var receipt=(await original.GetReceiptAsync(org,branch,id,default))!;
             Assert.Equal("paid",mine.CollectionStatus);Assert.Equal(receipt.ReceiptNumber,mine.Receipt!.ReceiptNumber);Assert.Equal(receipt.TotalAmount,mine.Receipt.TotalAmount);
+            var paidHistory = Assert.Single((await browse.ListAsync(browseScope, "qr", "paid", null, 25, "Bearer fixture", default)).Items);
+            Assert.Equal("Paid", paidHistory.Status); Assert.False(paidHistory.CanCollectQr); Assert.Equal("paid", paidHistory.CollectionStatus);
             Assert.Equal(1L,await Count(orders,"orders"));Assert.Equal(1L,await Count(sources["Kitchen"],"kitchen_tickets"));Assert.Equal(9,inventory.GetStock(org,branch).Single().AvailableQuantity);
             await entries.EndAsync(main.SessionToken,default);await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>requests.MineAsync(main.SessionToken,default));
         }

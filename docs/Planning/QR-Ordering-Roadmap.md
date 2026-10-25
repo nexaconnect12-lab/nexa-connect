@@ -1,5 +1,21 @@
 # Table QR ordering — implementation roadmap
 
+QR9 — end-to-end pilot acceptance and fixes: diagnostic/checklist/recording tooling is implemented; execute actual iOS/Android, cashier/Kitchen/payment/PDF and interruption cases, resolve observed defects and retain fresh candidate evidence. Source implementation does not complete actual acceptance. See [QR9](../Deployment/QR9-Acceptance.md).
+
+QR8 — workflow usability and status feedback is implemented in source: friendly labels, active-screen refresh, collection blocker guidance and bounded guest submission recovery. Integrated verification and local rollout evidence are tracked in [QR8](../Deployment/QR8-Usability.md); actual devices and release acceptance remain separately pending.
+
+QR7 was selected 25 October 2026 as local pilot activation/actual acceptance. At selection,
+LAN hostname/trusted certificates were unconfirmed, so [tooling/prerequisites](../Deployment/QR7-Pilot.md)
+were prepared before explicit activation. Device results still require actual observations.
+QR1–QR6 source remains implemented; QR7 adds the isolated profile/guest edge and pending
+operator records without reopening deferred server/hardware purchasing decisions.
+
+The user subsequently selected [all branch Orders in Windows POS with a QR filter](../Deployment/POS-Order-List.md).
+The native list and scoped staff read API remove manual UUID entry for eligible QR
+collection while preserving original acceptance, custody, payment and recovery. The
+operational list does not merge table bills or add guest payment authority; actual
+cashier/phone/PDF acceptance remains separately observed.
+
 Recorded 23 October 2026. This is the selected next development track, following the
 user's instruction to retain the remaining release work until specifications are ready.
 Scope confirmation/repository assessment is complete. [QR1 secure entry](../Deployment/QR1-Entry.md)

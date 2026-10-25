@@ -1,5 +1,13 @@
 # Next-iteration release binding and freeze
 
+QR9 adds `qr-acceptance.ps1` Diagnose/Prepare/Record/Report and `qr9.mjs` checklist/evidence guards. The QR6 gate requires 39 acceptance guards and 21 candidate guards. See [QR9 usage and trust limits](../../docs/Deployment/QR9-Acceptance.md).
+
+Current QR6 candidate minima include 1,043 unit tests, 27 QR/history HTTP tests and six
+owning PostgreSQL/RabbitMQ cases after the [native order-list update](../../docs/Deployment/POS-Order-List.md).
+QR8 additionally requires 88 frontend unit and 57 QR browser checks. These source checks do not replace actual cashier/phone/PDF or release gates.
+
+QR7 uses `scripts/qr-pilot.ps1` and `qr7.mjs` to bind a fresh QR6 diagnostic candidate to a prepared local-pilot plan, optional short-lived certificates, exact isolated stack/edge files/configuration/scope and append-only explicitly observed device results. All 24 phone cases start pending; `releaseReady=false` remains invariant. Unknown LAN/trust/device prerequisites block Configure/Start. See [QR7](../../docs/Deployment/QR7-Pilot.md); existing release signing/configuration/freeze commands remain separate.
+
 QR6 has an additional local diagnostic gate: `./scripts/test-qr6.ps1 -ConfirmDisposableInfrastructure`. It writes a fresh owner-restricted source/schema/compiled-output candidate and pending phone templates after strict source/financial/security/QR and owning PostgreSQL/RabbitMQ checks. `node scripts/release/qr6.mjs prepare <run-directory>` rechecks the current binding before write-once preparation. This is not a signed installer/hosting/configuration binding and cannot freeze a release; all existing commands/gates below still apply. See [QR6](../../docs/Deployment/QR6-Integration.md).
 
 Node 24+ and PowerShell 7.4+ tools prepare a new candidate independently of the retained

@@ -1,6 +1,6 @@
 #requires -Version 7.4
 [CmdletBinding()]
-param([switch]$ConfirmDisposableInfrastructure,[string]$RunId,[switch]$NoBuild)
+param([switch]$ConfirmDisposableInfrastructure,[string]$RunId,[switch]$NoBuild,[string]$QrPilotOrigin)
 $ErrorActionPreference='Stop'
 if(-not $ConfirmDisposableInfrastructure){throw 'Confirm isolated draft startup, migrations and exact cleanup.'}
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
@@ -22,13 +22,22 @@ function Browser-Smoke([string]$Mode) {
 }
 try {
     & (Join-Path $PSScriptRoot 'test-first-draft-guards.ps1')
-    if(-not $existing){& (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -RunId $RunId -ConfirmTestResources -NoBuild:$NoBuild}
+    if(-not $existing){& (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -RunId $RunId -ConfirmTestResources -NoBuild:$NoBuild -QrPilotOrigin $QrPilotOrigin}
     $state=Get-Content (Join-Path $run 'state.json') -Raw | ConvertFrom-Json -AsHashtable
     if($state.status -ne 'Ready'){throw 'Only a Ready owned draft can enter verification.'}
     if(-not (Test-Path (Join-Path $run 'pos/appsettings.json'))){throw 'POS artifact/configuration missing; build the draft first.'}
     $pos=Get-Content (Join-Path $run 'pos/appsettings.json') -Raw | ConvertFrom-Json
     if($pos.Pos.Currency -ne 'THB' -or $pos.Pos.PaymentMethod -ne 'cash_manual' -or $pos.Pos.EnableOmiseTestCheckout){throw 'Manual-tender draft configuration not enforced.'}
     $checks.manualConfiguration=$true
+    if($QrPilotOrigin){
+        if(-not $pos.Pos.UseIsolatedLocalPilotStorage){throw 'QR pilot must use isolated current-user terminal storage.'}
+        if(-not $state.Contains('qrPilotOrigin') -or $state.qrPilotOrigin -cne $QrPilotOrigin -or $state.qrPilotArtifacts -cne (Get-DraftQrPilotArtifactHash $run)){throw 'QR pilot profile/source binding missing.'}
+        $reply=Invoke-WebRequest ($state.urls.Bff+'bff/guest/qr/context') -SkipCertificateCheck -SkipHttpErrorCheck
+        if($reply.StatusCode -ne 403){throw 'Loopback Host must not bypass the configured public guest origin.'}
+        $reply=Invoke-WebRequest ($state.urls.Bff+'bff/guest/qr/context') -Headers @{Host=([uri]$QrPilotOrigin).Authority} -SkipCertificateCheck -SkipHttpErrorCheck
+        if($reply.StatusCode -ne 401){throw 'Enabled exact-host guest context must require its separate visitor cookie.'}
+        $checks.qrPilotProfile=$true
+    }
     foreach($name in @('Order','POS','Reporting')) {
         $body=Invoke-RestMethod ($state.urls[$name]+'health/live')
         if($body.status -ne 'Healthy' -or @($body.PSObject.Properties).Count -ne 1){throw 'Liveness response disclosed extra fields or was malformed.'}
@@ -58,6 +67,7 @@ try {
     & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Stop -RunId $RunId
     & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -RunId $RunId -NoBuild
     Browser-Smoke 'resume';$checks.fullStopStartPersistence=$true
+    if($QrPilotOrigin){$reply=Invoke-WebRequest ($state.urls.Bff+'bff/guest/qr/context') -Headers @{Host=([uri]$QrPilotOrigin).Authority} -SkipCertificateCheck -SkipHttpErrorCheck;if($reply.StatusCode -ne 401){throw 'QR profile was lost after restart.'};$checks.qrPilotRestart=$true}
     & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Status -RunId $RunId | Out-Null
     $checks.status=$true;$passed=$true
 } finally {

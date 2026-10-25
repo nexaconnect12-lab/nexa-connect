@@ -63,6 +63,7 @@
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\SettlementAttempt.cs" Link="POS\SettlementAttempt.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\CashierPresentation.cs" Link="POS\CashierPresentation.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\CustomerDisplayState.cs" Link="POS\CustomerDisplayState.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosOrderListState.cs" Link="POS\PosOrderListState.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\DisplayTopology.cs" Link="POS\DisplayTopology.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosGalleryPolicy.cs" Link="POS\PosGalleryPolicy.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosGalleryCache.cs" Link="POS\PosGalleryCache.cs" />

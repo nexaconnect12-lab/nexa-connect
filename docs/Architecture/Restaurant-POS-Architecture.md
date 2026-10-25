@@ -1,5 +1,19 @@
 # NexaConnect Restaurant POS Architecture
 
+Native POS can read all persisted Orders in its configured branch and filter QR history,
+then select an eligible original QR Order for collection. Guest requests join this history
+only after acceptance creates their original Order. This is a read projection, not a table
+bill, custody transfer or second payment workflow; original cashier/terminal/shift recovery
+and settlement still govern. See [cashier workflow](../Deployment/POS-Order-List.md).
+
+Local QR test terminals can coexist with an earlier terminal's stored data in one Windows
+account through explicit scope-derived `POS-Pilots` storage. Recovery/outbox and protected
+operator state share that profile; original scope and transaction identities remain guarded.
+This adds no branch edge, financial transition, database schema or production migration.
+See [ADR-050](Decisions/ADR-050-local-pilot-pos-storage.md).
+
+QR7 prepares a current-PC QR pilot through an isolated existing-stack profile and a Development-only guest edge. Phones reach only guest QR/order assets; staff QR acceptance, Kitchen and Windows collection remain on the existing authorized paths and scopes. No new table aggregation, financial workflow, schema, permission or offline capability. Actual LAN/trust/phone/PDF facts remain pending. See [QR7](../Deployment/QR7-Pilot.md).
+
 QR6 adds an owning seven-context journey from real table visits/menu/price through original Order recovery/cashier payment and RabbitMQ financial projection. Failures/retries preserve original identity; duplicated financial deliveries produce one effect. This is test-host verification with synthetic identity/transport seams, not a branch-edge, real-phone, WPF or hosted acceptance claim. Runtime ownership and QR default-off controls are unchanged. See [QR6](../Deployment/QR6-Integration.md).
 
 QR5 implements original accepted QR Order collection in Windows POS using immutable Order-owned cashier/terminal/store/shift/settlement custody and existing manual tender/receipt/financial projections. No floor-table account or aggregate bill is created; each accepted guest request remains its original Order. Original visitor may view the safe paid receipt while live. See [ADR048](Decisions/ADR-048-qr-cashier-collection.md) and [QR5](../Deployment/QR5-Collection.md).

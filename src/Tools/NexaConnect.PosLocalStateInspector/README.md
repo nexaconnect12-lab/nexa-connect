@@ -10,3 +10,9 @@ dotnet run --project src/Tools/NexaConnect.PosLocalStateInspector --configuratio
 ```
 
 The normal entry points are `scripts/verify-pos-cashier-live-acceptance.ps1` for cashier checkout and `scripts/verify-pos-cash-review-live-acceptance.ps1` for supervisor recovery. Stop the POS client before copying or restoring the database. A missing database, SQLite error, or incompatible schema fails either acceptance gate.
+
+For an explicitly isolated QR pilot, pass the actual selected
+`%LOCALAPPDATA%\NexaConnect\POS-Pilots\<scope-hash>\pos-state.db` instead. The inspector
+does not infer/select a profile, migrate data or decrypt credentials. Default-path examples
+and earlier acceptance receipts concern their original terminal, not the new pilot.
+See [storage selection](../../../docs/Database/POS-Local-SQLite.md).

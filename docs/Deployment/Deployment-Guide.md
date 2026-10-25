@@ -1,5 +1,21 @@
 # Deployment Guide
 
+[QR9](QR9-Acceptance.md) adds local certificate/live-TLS diagnostics and bounded,
+retry-safe operator checklists linked to the exact QR7 candidate/activation. Preparing
+or diagnosing a pilot does not pass a phone, payment, saved-PDF or release gate.
+
+The [POS order-list update](POS-Order-List.md) requires matching Order/native client builds
+and current Order22 for its local QR joins. It adds a staff read route, not a guest ingress
+route or schema migration. Refresh source-bound local candidates/activation records before
+pilot use and preserve original scope, realm, certificates and protected recovery.
+
+The QR first-draft POS profile can run in the same Windows account as retained original
+terminal data using explicit local-only isolated storage. Normal/hosted defaults do not
+switch directories. Follow [Windows setup](First-Draft-Windows-POS.md) and
+[same-scope QR source refresh](QR7-Pilot.md); preserve old recovery and activation evidence.
+
+[QR7](QR7-Pilot.md) prepares a local-PC guest edge and fixed-origin isolated QR test profile independently of dedicated-server deployment. Unknown LAN/DNS/trust/device facts stay pending. No automatic CA trust/firewall/DNS, retained-draft conversion or actual-device pass. Existing production hosting templates and release gates remain unchanged.
+
 [QR6](QR6-Integration.md) prepares a source/schema/build-bound local test candidate and [actual-phone checklist](QR6-Phone-Test.md). Use trusted HTTPS/exact guest Origin and private service routing; pending server facts, signed artifacts/configuration binding, actual phones/PDF, clean CI and release freeze are not satisfied by local checks. Current QR/migration enablement remains QR5.
 
 QR5 requires Order22 before current Order binaries and matching POS admission binaries for exact shift/store checks. QrCollection__Enabled defaults false and requires durable QR acceptance. Preserve original client/profile recovery; no custody transfer is implemented. QR flags remain disabled in pilot templates; real-host/device/CI/release acceptance is pending. See [QR5 rollout](QR5-Collection.md).

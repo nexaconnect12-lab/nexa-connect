@@ -1,5 +1,12 @@
 # Local first-draft infrastructure
 
+QR-profile publication also sets local-only `Pos:UseIsolatedLocalPilotStorage=true` for the
+Windows client. Its scope-derived current-user recovery/token directory is separate from
+the earlier terminal's default data. This is a client setting; Compose ports, databases,
+volumes and financial ownership are unchanged. See [Windows setup](../../docs/Deployment/First-Draft-Windows-POS.md).
+
+QR7 host tooling optionally selects a fresh fixed-origin QR profile; Compose infrastructure remains loopback, owned and isolated. No container port is exposed to phones. The separate private guest HTTPS edge is described in [QR7](../../docs/Deployment/QR7-Pilot.md).
+
 The [Slice 6 restore drill](../../docs/Deployment/First-Draft-Release.md) quiesces a disposable draft, backs up ten service databases plus Keycloak and restores into separately label-owned, network-isolated PostgreSQL clones using exact source image IDs. Compose topology and schema are unchanged; original broker/Redis volumes stay retained. Private backups include credentials/financial data and must not enter shared artifacts.
 
 Compose binds generated retained loopback ports from NEXACONNECT_DRAFT_POSTGRES_PORT,

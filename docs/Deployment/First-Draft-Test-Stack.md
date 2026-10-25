@@ -1,5 +1,7 @@
 # First-draft local test stack
 
+QR7 adds optional `-QrPilotOrigin https://<confirmed-lan-host>:8443` at fresh draft creation only. It enables the explicit local QR profile, pins that origin across rebuild/restart and verifies source/published server inventories before Restart/NoBuild. It cannot convert a retained normal draft. Host/API/identity/database listeners remain loopback; phones use the separate closed [QR7 HTTPS edge](QR7-Pilot.md). Normal QR defaults remain disabled. Runtime Data Protection keys are retained separately from executable inventory.
+
 For final user testing, retain the provisioned environment across Singapore midnight and follow the [Slice 7 UAT/handover guide](First-Draft-UAT.md). Disposable release-gate environments are Reset after verification and cannot serve as the retained user installation.
 
 Slice 6 adds [candidate verification and a quiesced isolated restore drill](First-Draft-Release.md), including owning service and Keycloak databases, copied configuration/key ring and same-account credentials. Clone databases have no network or published ports. Original broker/Redis volumes are retained rather than restored; the original graph resumes. See executed evidence for status; production backup restoration and clean-commit CI remain distinct gates.
@@ -31,6 +33,12 @@ Every child host receives explicit `ASPNETCORE_ENVIRONMENT=Development` and
 `DOTNET_ENVIRONMENT=Development` through `Start-Process -Environment`, including restart.
 An inherited Production environment cannot select the child's hosting mode; this
 restriction is local draft tooling, not a production deployment setting.
+
+Inherited application, hosting and telemetry configuration overrides are removed before
+launching each child; only the run's explicit settings are supplied. Transient launcher
+environment values are restored after each scoped operation. An
+originally absent variable is removed rather than restored as an empty string, preserving
+typed configuration defaults for later verification commands in the same PowerShell session.
 
 After Ready, run the [slice 2 provisioner](First-Draft-Provisioning.md) before launching POS. It creates stable branch/store/terminal IDs and scoped accounts, retains reference edits/revocation on completed reruns and updates the separate generated POS settings. Joined financial workflows remain later acceptance slices.
 
@@ -75,9 +83,18 @@ Reset verifies owned containers and data volumes, removes the exact project's in
 
 ## Configuration and scope
 
-The launcher derives each target and the highest minimum application compatibility from migration metadata, currently `0.38.0`: Platform Directory 3, Authorization 15, Restaurant 3, Catalog 4, Inventory 5, Kitchen 3, Order 19, Payment 18, POS 23 and Reporting 22. Compatibility is not a schema target. Database names retain the reused helper's `nexa_review_it_<uuid>_<service>` namespace, exclusively inside the generated draft PostgreSQL container. Runtime identities remain service-owned and cannot create databases/roles/tables or write migration history.
+The launcher derives each target and the highest minimum application compatibility from migration metadata, currently `0.38.0`: Platform Directory 3, Authorization 15, Restaurant 4, Catalog 4, Inventory 5, Kitchen 3, Order 22, Payment 18, POS 23 and Reporting 22. Compatibility is not a schema target. Database names retain the reused helper's `nexa_review_it_<uuid>_<service>` namespace, exclusively inside the generated draft PostgreSQL container. Runtime identities remain service-owned and cannot create databases/roles/tables or write migration history.
 
 Generated POS artifacts live under `.runstate/first-draft/<run-id>/pos`, with a retained `pos-configuration.json` beside them. Checked-in POS defaults are now `cash_manual`, disabled test card and an empty QR path. The launcher supplies loopback addresses and the generated identity realm without modifying the checked-in file or an existing terminal's protected recovery state. Initial organization/restaurant/branch/store/terminal UUIDs are placeholders: do not launch POS until slice 2 provisions actual owning records and updates the retained configuration. Subsequent rebuilds preserve that retained scope rather than generating new identifiers. Configure the actual branch as `Asia/Singapore` in slice 2; the launcher does not claim to have created the branch.
+
+Only the explicit QR profile also sets `Pos:UseIsolatedLocalPilotStorage=true` in the
+published and retained POS configuration. A same-scope rebuild preserves the provisioned
+identifiers and selects the same scope-hashed current-user `POS-Pilots` directory for
+recovery/outbox/tokens. Earlier default `POS` data is untouched. A normal draft retains
+the absent/false default. This flag requires the generated loopback realm and manual
+tender; it cannot enable remote/hosted isolation or change an existing installed release's
+custody. See [Windows setup](First-Draft-Windows-POS.md) and
+[same-scope source refresh](QR7-Pilot.md).
 
 For a new manual PromptPay run, provide an administrator-controlled test QR image:
 

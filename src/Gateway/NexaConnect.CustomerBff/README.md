@@ -1,5 +1,7 @@
 # NexaConnect Customer BFF
 
+QR7 can front a fresh local QR-enabled draft with a private guest-only HTTPS edge. Exact QrGuest PublicOrigin stays fixed in that isolated profile; staff/Kitchen continue on protected loopback portal entry. The edge forwards no staff/tenant authority and uses the original pinned BFF certificate. Existing BFF guest/origin/capability/CSRF and business boundaries remain authoritative; no BFF route/role change. See [QR7](../../../docs/Deployment/QR7-Pilot.md).
+
 QR4 adds protected-tenant/version/CSRF staff acceptance and cookie/exact-Origin guest
 price confirmation, default-off QrGuest__AcceptanceEnabled. Current membership and owning
 order.place remain mandatory; guest calls never forward staff identity. Typed request

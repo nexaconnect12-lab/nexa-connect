@@ -50,8 +50,7 @@ internal sealed class LocalPosDatabase
     }
     internal static void ValidateExistingScope(PosClientConfiguration configuration, string? storageDirectory = null)
     {
-        string path = Path.Combine(storageDirectory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NexaConnect", "POS"), "pos-state.db");
+        string path = Path.Combine(storageDirectory ?? configuration.GetStorageDirectory(), "pos-state.db");
         if (!File.Exists(path))
         {
             string parent = Path.GetDirectoryName(path)!;

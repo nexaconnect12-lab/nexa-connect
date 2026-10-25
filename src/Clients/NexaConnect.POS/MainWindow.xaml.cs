@@ -119,6 +119,9 @@ public partial class MainWindow : Window
         _authentication.StatusChanged += OnStatusChanged;
         sessionTimer.Tick += SessionTimer_Tick;
         sessionTimer.Start();
+        orderListTimer.Tick += OrderListTimer_Tick;
+        orderListTimer.Start();
+        Deactivated += (_, _) => { if (viewInitialized && OrdersTab.IsSelected) ClearOrderList(); };
         StatusText.Text = pendingCheckout is not null
             ? $"Original order {pendingCheckout.OrderId:D} needs verification. Sign in, then verify this order; do not collect again."
             : pendingCashReviewAttempt is null
@@ -1143,6 +1146,7 @@ public partial class MainWindow : Window
 
     private void ClearReceiptView()
     {
+        ClearOrderList();
         QrCollectionDetailsText.Text = "";
         QrReferenceTextBox.Clear();
         receiptSessionGeneration++;
@@ -1349,6 +1353,7 @@ public partial class MainWindow : Window
         busy = false;
         WorkspaceTabs.IsEnabled = !reauthenticationRequired;
         bool signedIn = IsSignedIn();
+        UpdateOrderListControls();
         ApplyDisplaysButton.IsEnabled = DisableCustomerDisplayButton.IsEnabled = signedIn && !displaySafetyBlocked;
         StaffDisplayPicker.IsEnabled = CustomerDisplayPicker.IsEnabled = signedIn && !displaySafetyBlocked;
         LoadReceiptButton.IsEnabled = signedIn;
@@ -1656,6 +1661,8 @@ public partial class MainWindow : Window
         windowCancellation.Cancel();
         signInCancellation?.Cancel();
         sessionTimer.Stop();
+        orderListTimer.Stop();
+        orderListTimer.Tick -= OrderListTimer_Tick;
         galleryTimer.Stop();
         galleryTimer.Tick -= GalleryTick;
         sessionTimer.Tick -= SessionTimer_Tick;

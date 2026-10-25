@@ -50,6 +50,8 @@ internal static class PosInstallationPolicy
     internal static void ValidateHosted(PosClientConfiguration c)
     {
         c.ValidateCheckout();
+        if (c.UseIsolatedLocalPilotStorage)
+            throw new InvalidDataException("Hosted installations cannot select local pilot storage.");
         foreach (var endpoint in new[] { c.Authority, c.PosApi, c.OrderApi, c.CatalogApi, c.PaymentApi, c.MediaApi }.Where(v => !string.IsNullOrWhiteSpace(v)))
         {
             var uri = new Uri(endpoint);
@@ -73,7 +75,8 @@ internal static class PosInstallationPolicy
         if (previous.Authority != next.Authority || previous.ClientId != next.ClientId || previous.RedirectUri != next.RedirectUri
             || previous.OrganizationId != next.OrganizationId || previous.RestaurantId != next.RestaurantId
             || previous.BranchId != next.BranchId || previous.StoreId != next.StoreId || previous.TerminalId != next.TerminalId
-            || previous.Currency != next.Currency || previous.PaymentMethod != next.PaymentMethod || previous.EnableOmiseTestCheckout != next.EnableOmiseTestCheckout)
+            || previous.Currency != next.Currency || previous.PaymentMethod != next.PaymentMethod || previous.EnableOmiseTestCheckout != next.EnableOmiseTestCheckout
+            || previous.UseIsolatedLocalPilotStorage != next.UseIsolatedLocalPilotStorage)
             throw new InvalidDataException("Update changes terminal custody. Preserve recovery and reconcile with the original installation.");
     }
 

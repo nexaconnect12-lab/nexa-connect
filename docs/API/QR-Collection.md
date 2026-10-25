@@ -1,5 +1,10 @@
 # QR5 cashier collection
 
+Windows POS can choose an eligible original Order from the
+[branch order list](Branch-Order-List.md) instead of manual reference entry. That staff
+GET is read-only; its readiness hint does not replace the preview/claim routes below or
+grant custody. Paid/claimed rows remain history and cannot start another collection.
+
 Order exposes authenticated customer-role routes:
 
 - `POST /api/order/v1/organizations/{organization}/branches/{branch}/qr-collections/{orderId}/preview`

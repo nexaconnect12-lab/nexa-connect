@@ -1,5 +1,19 @@
 # NexaConnect POS
 
+QR8 Orders refreshes the current page every 15 seconds while selected, signed in and active. Deactivation clears rows; collection guidance explains blockers without granting authority. See [QR8](../../../docs/Deployment/QR8-Usability.md).
+
+**Orders** automatically loads current-branch history with all/QR/POS source and open/paid
+filters, refresh and 25-row continuation. A cashier selects an eligible original QR row
+and **Load selected QR order** reuses preview, persisted custody and Payment without typing
+a UUID. Reading history needs `order.read`; collection retains live payment permission,
+shift/admission and empty-cart/recovery guards. Session-local rows/cursors clear on
+lock/sign-out and never reach the customer display. See
+[cashier steps and checks](../../../docs/Deployment/POS-Order-List.md) and
+[API/telemetry](../../../docs/API/Branch-Order-List.md). Matching Order/POS builds are
+required; this adds no SQLite/backend schema or financial command.
+
+QR7 prepares a fresh isolated test-stack QR profile and guest phone edge; Windows POS remains on the matching provisioned loopback scope and original-cashier DPAPI recovery. No native checkout, financial authority or customer-display behavior changes. Actual POS/OIDC/lock/resume/dual-screen/PDF observations stay pending in the operator record. See [QR7](../../../docs/Deployment/QR7-Pilot.md).
+
 QR5 adds **QR collection**: enter the guest collection reference/original Order UUID, check original table/items/pricing, and collect through existing cash/manual PromptPay Payment controls. Read-only preview rejects invalid references before retaining work; claim persists original Order/operation/cashier/shift in existing DPAPI schema2 recovery before network I/O. QR recovery cannot invoke quote/place; original-cashier lock/resume and settlement replay retain identity. No table-wide combined bill or custody reassignment. Requires matching Order22/POS service and enabled QrCollection. See [contract](../../../docs/API/QR-Collection.md) and [setup/verification](../../../docs/Deployment/QR5-Collection.md).
 
 Phase 5 optionally uses `Services:MediaApi` for approved branch staff/customer screensavers.
@@ -167,5 +181,19 @@ hosted profile cannot silently replace the original HTTP draft realm or terminal
 The new maintenance mutex masks normal startup while setup runs in the same logon session;
 existing primary-instance callbacks still use the original current-user pipe/state checks.
 Use the actual Windows account, never elevate or transplant DPAPI state. Uninstall retains
-recovery/display/gallery state and public config. The old loopback draft installer remains
-unchanged. Trusted signing, VM interruption and real device/browser checks remain pending.
+recovery/display/gallery state and public config. The loopback draft installer remains a
+separate workflow, with explicit local QR storage selection documented below. Trusted
+signing, VM interruption and real device/browser checks remain pending.
+
+## Local QR pilot in an existing Windows account
+
+`Pos:UseIsolatedLocalPilotStorage` defaults false. QR first-draft publication explicitly
+sets it true for its generated loopback/manual-tender scope, selecting a fixed
+`%LOCALAPPDATA%\NexaConnect\POS-Pilots\<scope-hash>` directory for preflight, SQLite,
+outbox and protected tokens/lock markers. Original `%LOCALAPPDATA%\NexaConnect\POS`
+state remains untouched; existing scope/integrity/operator/pending-work guards still apply
+to the selected profile. Remote/hosted configuration cannot enable this option, and an
+existing installed release cannot switch storage selection during an update. No arbitrary
+path setting or recovery migration is added. See [storage ownership](../../../docs/Database/POS-Local-SQLite.md),
+[current-user setup](../../../docs/Deployment/First-Draft-Windows-POS.md) and
+[ADR-050](../../../docs/Architecture/Decisions/ADR-050-local-pilot-pos-storage.md).

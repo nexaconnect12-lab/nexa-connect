@@ -1,5 +1,26 @@
 # NexaConnect Project Architecture
 
+QR9 extends local operational tooling with exact live-leaf/default-OS TLS diagnostics and immutable bounded checklist evidence linked to existing QR7 observations. Candidate freshness, activation scope and explicit operator confirmation remain required; no service/schema/financial authority changes. See [QR9](../Deployment/QR9-Acceptance.md).
+
+QR8 refreshes existing scoped read projections in active clients only; it adds no worker, command, schema or cross-service contract. Native pages clear on deactivation/tab exit/lock; browser unmount aborts reads and guest retry retains the original submission identity. See [QR8 behavior and limits](../Deployment/QR8-Usability.md).
+
+Order owns a branch-history read projection used directly by the native POS **Orders**
+tab. Its API/Application/Infrastructure boundary authorizes the exact organization,
+restaurant and branch, uses one parameterized keyset-paged PostgreSQL snapshot and returns
+only bounded staff metadata. A current collection-permission/readiness hint enables row
+selection; original preview, immutable custody, admission and settlement remain the command
+authority. Session-local rows/cursors clear on lock/sign-out and never feed the customer
+display. No new schema, shared domain model or integration event. See
+[API and telemetry](../API/Branch-Order-List.md).
+
+The QR local POS profile optionally selects a fixed scope-hashed current-user `POS-Pilots`
+directory, shared by read-only validation, SQLite/outbox and DPAPI tokens/lock markers.
+The default `POS` directory is preserved; storage selection is explicit, loopback/manual-
+tender only and immutable for installed update custody. Existing service authorization,
+operator recovery and schema boundaries remain. See [ADR-050](Decisions/ADR-050-local-pilot-pos-storage.md).
+
+QR7 adds the local-only QrPilotEdge tool and explicit isolated QR first-draft profile. A closed guest route/method/cookie boundary fronts a pinned loopback BFF over trusted private-LAN HTTPS; staff/Kitchen/POS keep their existing protected entry. Exact source/server/edge/config/certificate/scope hashes bind activation and operator attestations. Shared correlation/JSON/optional OTLP uses normalized untrusted edge paths/queries/host; authority and business ownership remain in existing services. Unknown LAN/trust/device facts block activation; actual server/phone/WPF/PDF/signing/CI/freeze gates remain pending. See [ADR049](Decisions/ADR-049-local-qr-pilot-activation.md) and [QR7](../Deployment/QR7-Pilot.md).
+
 QR6 adds source/schema/compiled-SPA/POS integrity binding for local diagnostics and pending device attestations, independently of the existing signed artifact/configuration/freeze workflow. Owning integration joins actual Restaurant visitor and Catalog/pricing persistence to the existing Order/Inventory/Kitchen/POS/Reporting applications and RabbitMQ financial transport; synthetic identity/ports remain explicitly distinct from live OIDC/consumer/phone/hosted acceptance. Zod4.6.7 replaces the vulnerable3.23.8 dependency; financial schemas use GUID-compatible validation with their existing scope/value invariants. No owning schema, integration event, API authority or runtime topology changes. See [QR6](../Deployment/QR6-Integration.md).
 
 QR5 extends QR4 with original-UUID cashier collection, live branch manual-payment authority and exact POS-owned terminal/store/cashier/shift admission. Read-only preview precedes protected local recovery and immutable Order22 custody/audit transaction. Manual settlement checks original custody in Domain/Application and its Paid transaction; original financial contracts, sale publication and consumers remain unchanged. Guest receipts are an allow-listed original receipt projection gated by live visitor context; customer monitor/staff PDF disclosure remains separate. Admission does not hold a distributed lock. See [ADR048](Decisions/ADR-048-qr-cashier-collection.md), [contract](../API/QR-Collection.md) and [operations](../Deployment/QR5-Collection.md).

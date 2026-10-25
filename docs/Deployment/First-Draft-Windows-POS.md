@@ -1,5 +1,11 @@
 # Windows first-draft terminal (slice 4)
 
+Current POS builds include [Orders history and QR row selection](POS-Order-List.md).
+Use matching Order/POS versions and the existing immutable package/source/scope checks.
+Viewing is available with branch read access; collecting still requires the original
+cashier shift/admission and retained-operation rules. Updating preserves the selected
+default or isolated local-pilot recovery directory.
+
 Next-iteration source includes [Phase 1 authenticated idle resume](Next-Iteration-Phase-1.md).
 The original first-draft package is unchanged. New builds require provider UserInfo and
 retain the original operator in a lock marker; legacy retained work without that binding
@@ -16,6 +22,38 @@ terminal uses THB with Asia/Singapore branch dates and manual cash/fictional Pro
 No real transfer, fiscal receipt, physical receipt-printer, drawer or scanner is certified.
 
 ## Package, install and update
+
+### QR pilot in the current Windows account
+
+A newly provisioned pilot must not open an earlier terminal's default recovery. The
+explicit QR stack profile now generates `Pos:UseIsolatedLocalPilotStorage=true`. It selects
+`%LOCALAPPDATA%\NexaConnect\POS-Pilots\<scope-hash>` for database, outbox and protected
+tokens/lock markers, leaving `%LOCALAPPDATA%\NexaConnect\POS` untouched. The hash is stable
+for organization/branch/store/terminal; see [storage details](../Database/POS-Local-SQLite.md).
+The setting is restricted to the generated loopback draft realm and manual tender. It
+does not clear or reconcile the earlier terminal's pending work.
+
+For a new isolated pilot, package its provisioned Ready run as below. If the normal
+DraftTerminal installation already represents another scope/storage selection, choose a
+separate owned installation, for example:
+
+```powershell
+./scripts/first-draft-terminal.ps1 -Action Install -PackageDirectory <new-package-path> -InstallDirectory "$env:LOCALAPPDATA/NexaConnect/QrPilotTerminal" -RegisterProtocol
+./scripts/first-draft-terminal.ps1 -Action Status -InstallDirectory "$env:LOCALAPPDATA/NexaConnect/QrPilotTerminal"
+./scripts/first-draft-terminal.ps1 -Action Launch -InstallDirectory "$env:LOCALAPPDATA/NexaConnect/QrPilotTerminal"
+```
+
+Close the previous POS first. Both profiles retain the same existing single-instance and
+callback ownership controls; this does not support simultaneous cashier windows. A package
+update cannot change storage selection. Install directories cannot overlap either `POS`
+or `POS-Pilots` recovery roots. After the client passes read-only preflight, primary startup
+can register its own callback and request fresh cashier sign-in. Never move/copy/delete
+the earlier data to bypass a scope error. Hosted installation cannot enable this option.
+
+Source changes require the [same-scope QR refresh procedure](QR7-Pilot.md) before a new
+candidate is configured/activated. Do not use stale source/certificate/activation evidence.
+
+### Normal package workflow
 
 ```powershell
 ./scripts/first-draft-terminal.ps1 -Action Package -RunId <run-id>
@@ -48,7 +86,7 @@ Primary startup registers only after configuration and protected recovery open s
 a wrong-scope startup cannot replace the original terminal's callback registration.
 
 Updates refuse changes to organization/restaurant/branch/store/terminal, identity realm,
-public client, currency or default tender. Endpoints may be updated within the same local
+public client, currency, default tender or local-pilot storage selection. Endpoints may be updated within the same local
 realm/scope. Preserve the old release and active pointer if validation fails. Do not force
 a prior binary after a recovery schema upgrade; review compatibility and roll forward.
 This draft has no automatic uninstall, rollback, data purge or local-state portability.
@@ -97,6 +135,16 @@ normal profile retains another terminal's recovery. Preserve that recovery; do n
 copy or replace it to satisfy this check. The recorded isolated application-container
 profile install/reinstall/preflight proof is separate from acceptance on the user's PC
 profile and supplies no UI, callback or PDF result.
+
+Those original normal-draft checks keep their default recovery path. The explicit QR
+pilot option above is an alternative for the current Windows account, with its own new
+source/configuration/package proof; historical default-profile receipts do not certify it.
+`verify-pos-cashier-live-acceptance.ps1` and `verify-pos-cash-review-live-acceptance.ps1`
+still inspect the original `POS` directory. For isolated pilot diagnostics invoke the
+[read-only inspector](../../src/Tools/NexaConnect.PosLocalStateInspector/README.md) with the
+selected `POS-Pilots/<scope-hash>/pos-state.db` path, then separately perform/record the
+interactive QR cashier/PDF checklist. A successful diagnostic is not a financial/device pass.
+
 Retained test artifacts reference a retired backend after cleanup and must not be used for
 cashier testing. See [executed evidence](../Architecture/Evidence/First-Draft-Slice-4.md).
 

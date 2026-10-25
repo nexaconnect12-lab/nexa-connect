@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {blockers,privateIPv4,origin,safeFile} from './qr7.mjs';
+const plan=()=>({version:1,id:'a'.repeat(32),stackRunId:'b'.repeat(32),candidateBinding:'c'.repeat(64),publicOrigin:'https://qr.example.test:8443',listenAddress:'192.168.1.10',trust:{windows:true,'ios-safari':true,'android-chrome':true},devices:{'ios-safari':{model:'fixture',osVersion:'fixture',browserVersion:'fixture'},'android-chrome':{model:'fixture',osVersion:'fixture',browserVersion:'fixture'}}});
+test('complete facts satisfy configuration prerequisites without certifying devices or release',()=>assert.deepEqual(blockers(plan()),[]));
+test('initial unknown facts remain explicit blockers',()=>{const p=plan();p.publicOrigin=null;p.listenAddress=null;p.trust={};p.devices={};assert.equal(blockers(p).length,7);});
+for(const address of ['0.0.0.0','127.0.0.1','169.254.1.2','8.8.8.8','::1','172.32.0.1','192.168.1.300'])test(`unapproved listener ${address} fails`,()=>assert.equal(privateIPv4(address),false));
+for(const value of ['http://qr.example.test:8443','https://localhost:8443','https://qr.example.test','https://u:p@qr.example.test:8443','https://qr.example.test:8443/order','https://qr.example.test:8443?token=redacted','https://8.8.8.8:8443'])test('unsafe origin fails: '+value,()=>assert.equal(origin(value),false));
+for(const name of ['../outside','edge/../../secret','edge\\outside','/absolute','edge/.hidden','edge/..','edge/one/two'])test('configuration inventory cannot escape: '+name,()=>assert.equal(safeFile(name),false));
+test('certificate and edge assembly inventory entries are accepted',()=>{for(const name of ['certificate.pem','private-key.pem','client-ca.cer','edge/appsettings.json','edge/NexaConnect.QrPilotEdge.dll'])assert(safeFile(name));});
+test('missing device or trust facts cannot be inferred from passing source tests',()=>{const p=plan();p.trust['ios-safari']=false;p.devices['android-chrome'].osVersion=null;assert.deepEqual(blockers(p),['certificate-trust:ios-safari','device-facts:android-chrome']);});

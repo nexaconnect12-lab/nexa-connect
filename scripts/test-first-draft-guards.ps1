@@ -53,6 +53,9 @@ if($argsList -notcontains "nexa-draft-$id" -or $argsList -notcontains (Join-Path
 $probe='NEXACONNECT_JOINED_GUARD_PROBE'
 $original=[Environment]::GetEnvironmentVariable($probe,'Process')
 try {
+    [Environment]::SetEnvironmentVariable($probe,'temporary','Process')
+    Restore-DraftEnvironment @{$probe=$null}
+    if($null -ne [Environment]::GetEnvironmentVariable($probe,'Process')){throw 'Absent environment variable was restored as empty.'};$passed++
     [Environment]::SetEnvironmentVariable($probe,'before','Process')
     $previous=Set-DraftComposeEnvironment @{GUARD_PROBE='synthetic-private-value'} $id 12345 @{postgres=12346;keycloak=12347;rabbitmq=12348;redis=12349}
     if($env:NEXACONNECT_DRAFT_RABBITMQ_PORT -ne '12348'){throw 'Retained broker port was not supplied.'};$passed++

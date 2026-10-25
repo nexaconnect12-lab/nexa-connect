@@ -28,6 +28,8 @@ builder.Services.AddScoped<QrMenuService>();
 builder.Services.AddScoped<QrRequestService>();
 builder.Services.AddScoped<QrAcceptanceService>();
 builder.Services.AddScoped<QrCollectionService>();
+builder.Services.AddScoped(services => new OrderListService(services.GetRequiredService<IOrderListRepository>(),
+    services.GetRequiredService<IOrderTenantAuthorizer>(), builder.Configuration.GetValue<bool>("QrCollection:Enabled")));
 builder.Services.AddScoped<IQrCollectionRepository, PostgresQrCollectionRepository>();
 builder.Services.AddScoped<IQrAcceptancePort,HttpQrMenuPort>();
 builder.Services.AddHttpClient("QrAcceptanceContext",client=>client.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]!))
@@ -65,6 +67,7 @@ if (usePostgres)
     var connectionString = builder.Configuration.GetConnectionString("Order") ?? throw new InvalidOperationException("ConnectionStrings:Order is required for PostgreSQL persistence.");
     builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(connectionString).Build());
     builder.Services.AddSingleton<PostgresOrderRepository>();
+    builder.Services.AddScoped<IOrderListRepository, PostgresOrderListRepository>();
     builder.Services.AddSingleton<PostgresOrderCancellationRepository>();
     builder.Services.AddSingleton<IOrderCancellationRepository>(services => services.GetRequiredService<PostgresOrderCancellationRepository>());
     builder.Services.AddSingleton<IOrderRepository>(services => services.GetRequiredService<PostgresOrderRepository>());
@@ -77,6 +80,7 @@ if (usePostgres)
 else
 {
     builder.Services.AddSingleton<InMemoryOrderApplicationService>();
+    builder.Services.AddScoped<IOrderListRepository, UnavailableOrderListRepository>();
     builder.Services.AddSingleton<IOrderApplicationService>(services => services.GetRequiredService<InMemoryOrderApplicationService>());
     builder.Services.AddSingleton<IOrderRepository>(services => services.GetRequiredService<InMemoryOrderApplicationService>());
     builder.Services.AddSingleton<IOrderCancellationRepository, InMemoryOrderCancellationRepository>();

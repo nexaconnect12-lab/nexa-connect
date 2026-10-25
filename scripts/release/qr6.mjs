@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {repository,source,sameSource,sha} from './source.mjs';
 import {catalog} from './next-release.mjs';
 
-export const gates={unit:991,architecture:6,http:22,hosting:47,'candidate-guards':20,'frontend-unit':78,'frontend-check':1,'frontend-build':1,'audit-production':1,'audit-all':1,'qr-browser':54,'day-close-browser':8,'day-cutoff-browser':8,'day-seal-browser':22,'settlement-reporting-browser':7,'pos-build':1,owning:5};
+export const gates={unit:1043,architecture:6,http:27,hosting:47,'candidate-guards':21,'acceptance-guards':39,'frontend-unit':88,'frontend-check':1,'frontend-build':1,'audit-production':1,'audit-all':1,'qr-browser':57,'day-close-browser':8,'day-cutoff-browser':8,'day-seal-browser':22,'settlement-reporting-browser':7,'pos-build':1,owning:6};
 export const phoneCases=['camera-scan-https','independent-guests-same-table','menu-cart-price-review','submit-refresh-original','staff-accept-kitchen-once','cash-original-order','manual-promptpay-original-order','switch-app-lock-resume','network-loss-original-recovery','qr-revocation-scope-denial','paid-receipt-pdf-reprint','cash-reporting-reconciliation'];
 const pending=['clean-source-remote-ci','hosted-https-configuration','signed-matching-installer-and-hosting-artifacts','ios-safari-camera-acceptance','android-chrome-camera-acceptance','windows-pos-oidc-displays-pdf','dedicated-server-reboot-restore-monitoring','user-acceptance'];
 const requireValue=(ok)=>{if(!ok)throw new Error('QR6 evidence is missing, changed, failed or incomplete.');};
@@ -35,7 +35,7 @@ export function assess(evidence,current,schemas,outputs){
 export function prepare(run){
  noLinks(run);const evidence=read(path.join(run,'verification.json'));
  const candidate=assess(evidence,source(),catalog(),artifacts());
- const own=read(path.join(run,'owning.json'));requireValue(own.passed===true&&own.caseCount>=5&&own.cleanupVerified===true&&own.brokerRecoveryVerified===true&&own.productionVerified===false);
+ const own=read(path.join(run,'owning.json'));requireValue(own.passed===true&&own.caseCount>=6&&own.cleanupVerified===true&&own.brokerRecoveryVerified===true&&own.productionVerified===false);
  requireValue(sha(fs.readFileSync(path.join(run,'owning.json')))===candidate.checks.owning.evidenceSha256);
  candidate.verificationSha256=sha(fs.readFileSync(path.join(run,'verification.json')));
  candidate.binding=sha(JSON.stringify(candidate));

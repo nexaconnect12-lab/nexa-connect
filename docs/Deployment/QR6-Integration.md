@@ -42,6 +42,9 @@ dirty flag, Git-clean non-Markdown input hash and the actual migration catalog b
 running all unit tests with current-user DPAPI, architecture, QR HTTP/transport, hosting
 and candidate guards, Windows POS build, frontend type/unit/build, both dependency audits,
 QR phone-emulation/desktop and financial preparation/cutoff/seal/settlement browser suites.
+QR9 adds 39 bounded operator-evidence guards; the candidate gate now requires 21 guards.
+After the matching local activation, use [QR9 diagnostics and checklists](QR9-Acceptance.md)
+to collect actual-device observations separately from these automated checks.
 The exact inventories must pass without skips or retries. Private logs/JSON/TRX stay in
 a generated current-user-restricted `.runstate/qr6/<run-id>` directory. Environment options
 are restored. A failed/incomplete run cannot prepare a candidate.
@@ -52,7 +55,7 @@ The owning fixture is independently reusable:
 ./scripts/test-qr-entry-persistence.ps1 -ConfirmDisposableInfrastructure
 ```
 
-It now requires five cases and creates only uniquely named local PostgreSQL/RabbitMQ
+It now requires six cases and creates only uniquely named local PostgreSQL/RabbitMQ
 containers with random credentials and loopback ports. Both are removed on completion or
 failure; receipt success requires cleanup. The joined journey applies full owning
 Restaurant/Catalog/Order/Inventory/Kitchen/POS/Reporting schemas. Actual table entry/session,
@@ -60,6 +63,11 @@ Catalog and Restaurant price reads feed Order quote/submission/price consent/adm
 then original Inventory/Kitchen recovery and cashier settlement. It exercises independent
 visitors/tables, quote guessing, entry revocation, concurrent retries, committed dependency
 response loss, original paid receipt, and event-derived cash/reporting deduplication.
+The sixth case verifies branch order-history keyset paging, exact tenant/restaurant/branch
+isolation and parameterized filters; the joined journey checks original QR readiness before
+claim and read-only claimed/Paid history. Current minima are 1,043 unit and 27 QR/history
+HTTP tests, including the order-list authorization/transport boundary. Historical dated
+counts below remain evidence for their original inputs.
 
 Publication failure is injected through an unavailable loopback connection endpoint;
 the real outbox retains its original financial events and retries after its real30second
@@ -90,9 +98,11 @@ Rebuild/reverify after input changes; do not overwrite or attach old evidence to
 candidate. Existing [release binding/freeze](../../scripts/release/README.md), clean-source
 remote CI, signing and confirmed-host requirements still apply independently.
 
-Use [the actual-phone checklist](QR6-Phone-Test.md) after server specifications and a
-matching deployed/configured release are available. Bind its deployment/configuration
-and installer evidence then; do not treat this local candidate as hosted readiness.
+Use [the actual-phone checklist](QR6-Phone-Test.md) with either the prepared
+[QR7 local-PC profile/guest edge](QR7-Pilot.md) after LAN/trust/device facts are ready, or
+a matching deployed/configured release after dedicated-server prerequisites are ready.
+Bind the selected environment and its applicable configuration/artifact evidence before
+testing; do not treat this local candidate as hosted readiness.
 
 ## Executed local verification — 25 October 2026
 

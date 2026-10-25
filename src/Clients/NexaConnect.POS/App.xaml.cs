@@ -76,20 +76,21 @@ public partial class App : Application
         {
             // Check retained scope read-only before creating or replacing session metadata.
             LocalPosDatabase.ValidateExistingScope(configuration);
+            string storageDirectory = configuration.GetStorageDirectory();
             _authentication = new PosAuthentication(configuration);
             var scope = LocalPosScope.From(configuration);
             window = new MainWindow(
                 _authentication,
                 new PosApiClient(configuration),
-                new LocalPosStore(scope),
-                new LocalOutboxStore(scope),
+                new LocalPosStore(scope, storageDirectory),
+                new LocalOutboxStore(scope, storageDirectory),
                 configuration);
         }
         catch (Exception exception) when (exception is InvalidDataException or IOException
             or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
         {
             MessageBox.Show(
-                "Local POS recovery could not be opened safely. Preserve %LOCALAPPDATA%\\NexaConnect\\POS for reconciliation and contact support before taking another order.",
+                "Local POS recovery could not be opened safely. Preserve this terminal's data under %LOCALAPPDATA%\\NexaConnect for reconciliation and contact support before taking another order.",
                 "Recovery required", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown();
             return;
