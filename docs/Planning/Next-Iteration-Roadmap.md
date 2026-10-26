@@ -1,5 +1,11 @@
 # Next iteration: phases, checklist and implementation prompts
 
+26 October 2026: the user confirmed purchase of **`usenexaconnect.com` at Cloudflare
+Registrar**. This is the domain for upcoming dedicated-server/QR10 planning and later
+cloud migration. DNS/subdomain assignments and trusted HTTPS are not yet configured or
+verified; remaining server prerequisites are unchanged. See
+[hosting prerequisites](../Deployment/Next-Iteration-Phase-6.md).
+
 [QR7 local pilot preparation](../Deployment/QR7-Pilot.md) follows QR6. Its initially
 unconfirmed LAN/certificate facts are supplied and checked before explicit activation;
 phone/POS/PDF results require actual operator observations. Dedicated-server,

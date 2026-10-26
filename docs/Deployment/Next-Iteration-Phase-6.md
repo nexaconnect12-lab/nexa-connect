@@ -24,6 +24,13 @@ service rollout instructions remain authoritative for runtime grants and data tr
 
 ## 1. Confirm the target and isolation boundary
 
+**Confirmed domain (26 October 2026):** the user purchased `usenexaconnect.com` through
+Cloudflare Registrar for NexaConnect. Use it for dedicated-server/QR10 planning and retain
+it for later cloud migration. Subdomain assignments, DNS records, public server address,
+TLS issuance/renewal and reachable service endpoints remain unconfigured/unverified.
+Domain registration alone does not satisfy hosted readiness or change the existing local
+QR pilot. No DNS, registrar account or live deployment was modified when recording this fact.
+
 Record OS/version, Linux-container support, architecture, CPU/RAM/free storage, existing
 workloads, location/upload/network/power reliability and administrative access. Select
 an otherwise isolated staging hostname/network/data set before any public cutover.

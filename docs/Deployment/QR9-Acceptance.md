@@ -57,7 +57,10 @@ The existing pilot root is `NexaConnect QR7 c7838516cddc4ad7aaa6ba01b1fd37cf`, p
 SHA256 `714821cbf6609aeb1d56484d0975a7ebfc02842c6da3dc0a8065b1d76cf69be4`.
 Its current leaf expires 8 November 2026 at 16:40 Singapore time. After expiry, prepare
 and trust a fresh certificate/activation; never extend validity by editing evidence.
-Safari's prior warning remains unresolved until the user confirms an actual clean load.
+On 26 October 2026 the user confirmed that both devices load the exact guest origin
+without a certificate warning. This resolves the reported warning for that direct URL;
+camera scanning, table context, fragment removal and complete workflow cases still require
+their own observations. The 25 October records below retain their original pending state.
 
 ## Execute and record observations
 
@@ -126,13 +129,50 @@ Start with the phone check at [the guest origin](https://192.168.0.191:8443/orde
 issue/scan the table QR from the authorized [staff portal](https://127.0.0.1:63417/#configuration).
 Use [staff QR review](https://127.0.0.1:63417/#qr-requests),
 [Kitchen](https://127.0.0.1:63417/kitchen) and POS Orders for the remaining workflow.
-The loopback links are PC-only; phones use the guest origin. Current templates are under
+The loopback links are PC-only; phones use the guest origin. That activation's templates are under
 `.runstate/qr7/0b2b0dbf51754dc298e470cd2c4097a4/qr9/`.
 
 ```powershell
-./scripts/qr-acceptance.ps1 -Action Report -PilotId 0b2b0dbf51754dc298e470cd2c4097a4
+$qr9 = Get-Content .runstate/qr9-current.json -Raw | ConvertFrom-Json
+./scripts/qr-acceptance.ps1 -Action Report -PilotId $qr9.pilotId
 ```
 
 This candidate's freshness expires after 24 hours. If source/configuration/artifacts,
 certificate validity or prerequisites change, preserve recovery and prepare a fresh
 matching candidate/activation before recording more observations.
+
+The 26 October continuation found the same source content and compiled artifacts after
+commit `1b155335f9c694d4a8e6a073000f2e0e98a5f595`, but revision/dirty metadata differed
+from the earlier proof. That historical proof must not be edited or reused as current.
+Use a fresh verified candidate/activation and the protected `qr9-current.json` pointer;
+new device-case observations belong to that activation. Direct URL trust confirmation
+alone does not pass the complete camera-scan case or any payment case.
+
+Fresh candidate `df870ba5-bfa9-40e5-afbc-47f3f77174c4` passed on 26 October against
+that committed revision (`dirty:true` after this guide update), with the same canonical
+content hash and 1,842 files. All required counts remain passing: 1,043 unit, 6 architecture,
+27 HTTP, 88 frontend unit, 57 QR browser, 45 financial browser, 47 hosting, 21 candidate,
+39 acceptance and six owning cases with cleanup/broker recovery; builds and dependency
+audits also passed. This refresh does not establish clean-source remote CI.
+
+After the operator confirmed POS was closed, the same retained stack was rebuilt and
+matching POS release `33e2b362c6074271b4b3b7174edf5c0d` installed. Closed-profile recovery
+hashes matched, preflight returned 0 and the reopened Cashier window responded. The
+original default profile's three recovery files remained unchanged.
+
+Fresh activation `96651bc1c59440a38f62794e8633cd21` now binds the new candidate with the
+same branch scope and exact certificate files. Normal Windows TLS/exact live leaf and
+guest 200/staff 404 checks passed with no candidate prerequisites. At refresh it had 24
+templates and zero complete device cases passed; the direct-URL confirmation was recorded
+separately from the then-pending camera-scan case. `qr9-current.json` now identifies this
+activation, while `.runstate/qr9-refresh-pending.json` retains `status:refresh-complete`.
+Its protected `qr9-rollout-verification.json` records bounded refresh evidence.
+
+The user subsequently confirmed the complete `camera-scan-https` case on both iPhone
+Safari and Android Chrome: camera entry at the exact origin without a certificate warning,
+correct restaurant/table, fragment removal and no staff sign-in. Both were recorded as
+explicit operator observations in this activation, with evidence IDs
+`14a06ded-e7f3-4d94-a160-ea73f2e4fddf` (iOS) and
+`7bddc56f-f7b5-416c-85ba-c0e97ebf6e12` (Android). The report now has **2 passed, 22 pending**;
+release/production readiness remains false. Separate guest histories and original receipt
+isolation are the next checks; no submission, Kitchen or payment result is inferred.

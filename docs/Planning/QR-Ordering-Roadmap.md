@@ -28,6 +28,14 @@ and atomic original Order handoff to Inventory/Kitchen recovery.
 original private guest receipts. [QR6](../Deployment/QR6-Integration.md) implements joined
 hardening and local candidate preparation; actual phone/hosted/release acceptance remains pending.
 
+## Confirmed domain — 26 October 2026
+
+The user purchased `usenexaconnect.com` through **Cloudflare Registrar** for NexaConnect.
+Use this owned domain when planning QR10's dedicated-server pilot and later cloud migration.
+Subdomain assignments, DNS records, public server address and trusted HTTPS activation
+remain to be configured and verified; registration does not mean services are deployed.
+See the [hosting prerequisites](../Deployment/Next-Iteration-Phase-6.md).
+
 ## Confirmed flow
 
 - One QR code per table, bound to its organization, restaurant, branch and table context.
@@ -50,7 +58,7 @@ invented for these remaining gates:
 
 | Remaining work | Existing owner/phase | Prerequisites/evidence still needed |
 | --- | --- | --- |
-| Dedicated-server pilot | Phase 6 | OS/version, CPU, RAM, storage, location, workloads, upload speed, domain/TLS, off-server backup destination, operational targets |
+| Dedicated-server pilot | Phase 6 | Domain `usenexaconnect.com` purchased at Cloudflare Registrar; OS/version, CPU, RAM, storage, location, workloads, upload speed, DNS/TLS setup, off-server backup destination and operational targets remain pending |
 | Hosted verification | Phases 6/8 | Actual login/denial, remote POS/Kitchen, supervision/reboot/outage, full-graph off-server restore, alert delivery, measured capacity |
 | Windows delivery | Phase 7 | Trusted publisher signing; actual ordinary-account installation, update, callback, reboot and interrupted-install recovery |
 | Physical hardware | Phases 4/5/7/9 | Intended Windows PC, two display sizes/resolutions/touch/DPI, disconnect/reconnect, gallery behavior and PDF inspection; purchase specifications remain unconfirmed |
