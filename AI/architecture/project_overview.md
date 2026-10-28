@@ -1,5 +1,10 @@
 # NexaConnect Project Architecture
 
+POS UX2 adds a staff-only pinned workflow dock with existing financial actions, explicit
+estimate/server-total provenance and guarded navigation. Pure client presentation leaves
+owning-service validation, customer disclosure and original recovery unchanged. See
+[UX2](../../docs/Deployment/POS-UX2-Cashier-Workflows.md) for source/device verification.
+
 POS UX1 adds staff-only docked text/numeric input and Windows `osk.exe` launch for the
 unchanged external PKCE flow. Presentation drafts retain existing command validation,
 scope, lock and recovery rules; no service/schema boundary changes. Physical touch,

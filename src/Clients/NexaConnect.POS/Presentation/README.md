@@ -1,5 +1,10 @@
 # POS presentation
 
+`CashierWorkflow` projects client state into guidance and explicitly labeled estimate or
+original unpaid server totals. `MainWindow.Workflow.cs` pins the original buttons and maps
+guarded shortcuts to existing tabs; it invokes no financial commands. See
+[POS UX2](../../../../docs/Deployment/POS-UX2-Cashier-Workflows.md).
+
 `TouchKeyboard` renders focus-preserving touch keys. `TouchInputEdit` provides bounded
 selection replacement, culture-aware numeric drafts and Unicode backspace boundaries.
 `MainWindow.TouchInput.cs` owns the current staff field, docked viewport and privacy/session

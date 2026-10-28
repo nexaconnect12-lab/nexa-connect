@@ -1,5 +1,11 @@
 # NexaConnect Project Architecture
 
+POS UX2 projects current cashier state into a pinned staff dock outside the scrolling
+workspace: original checkout/payment buttons, explicitly labeled estimate/server totals,
+busy/status feedback and navigation-only next steps. Lock/display safety masks the dock;
+customer projections, native confirmations, business authority, persistence and service
+boundaries remain unchanged. See [UX2](../Deployment/POS-UX2-Cashier-Workflows.md).
+
 POS UX1 keeps touch draft editing inside the staff presentation layer: a docked keyboard
 reserves workspace space and clears its field target across privacy/busy transitions.
 Existing command validators remain authoritative. The system-directory Windows keyboard

@@ -1,5 +1,9 @@
 # NexaConnect POS
 
+POS UX2 adds a pinned staff workflow/amount/action dock, direct next-step navigation,
+menu filter reset and touch-control refinements. Existing financial handlers and original
+recovery remain authoritative. See [UX2](../../../docs/Deployment/POS-UX2-Cashier-Workflows.md).
+
 POS UX1 adds a docked staff text keyboard/numeric cash keypad, cancellation-reason shortcuts
 and Windows on-screen-keyboard launch for external browser authentication. Existing command
 validation and original-cashier recovery remain authoritative. See [usage and pending device

@@ -67,6 +67,10 @@ internal static class Program
                 var inputRect = input.TransformToAncestor(shell).TransformBounds(new Rect(input.RenderSize));
                 var viewportRect = viewport.TransformToAncestor(shell).TransformBounds(new Rect(viewport.RenderSize));
                 Require(viewportRect.Bottom <= inputRect.Top + 1, "keyboard never overlays workspace");
+                var dock = (Border)window.FindName("WorkflowDock");
+                var dockRect = dock.TransformToAncestor(shell).TransformBounds(new Rect(dock.RenderSize));
+                Require(viewportRect.Bottom <= dockRect.Top + 1 && dockRect.Bottom <= inputRect.Top + 1, "workflow amount/actions stay above keyboard without overlap");
+                Require(dockRect.Bottom <= shell.ActualHeight && dockRect.Top >= 0, "workflow dock stays on screen");
                 if (args is ["--preview"] && size.Width == 1280)
                 {
                     var bitmap = new RenderTargetBitmap((int)shell.ActualWidth, (int)shell.ActualHeight, 96, 96, PixelFormats.Pbgra32);
@@ -77,23 +81,70 @@ internal static class Program
                 Require(field.Text == "12678345", "native scanner-style insertion is preserved");
                 Invoke(window, "HideTouchInput"); Require(input.Visibility == Visibility.Collapsed, "hide restores workspace");
             }
+            foreach (var size in new[] { new Size(1000, 680), new Size(1280, 850), new Size(1536, 864) })
+            {
+                window.Width = size.Width; window.Height = size.Height;
+                tabs.SelectedIndex = 0; Pump(window);
+                var search = (TextBox)window.FindName("MenuSearchTextBox");
+                Invoke(window, "ShowTouchInput", search); Pump(window);
+                var viewport = (ScrollViewer)window.FindName("InputViewport");
+                var bounds = search.TransformToAncestor(viewport).TransformBounds(new Rect(search.RenderSize));
+                Require(bounds.Top >= -1 && bounds.Bottom <= viewport.ActualHeight + 1, "search stays visible with sticky actions");
+                Require(((Button)window.FindName("PlaceOrderButton")).IsVisible, "checkout retains original action button");
+                Require(!((Button)window.FindName("PaidButton")).IsVisible, "payment action hidden outside Payment");
+                if (args is ["--preview"] && size.Width == 1280) SavePreview(window, ".runstate/pos-ux2-checkout-preview.png");
+            }
+            Invoke(window, "WorkflowNext_Click", window, new RoutedEventArgs()); Pump(window);
+            Require(((TabItem)window.FindName("ShiftCashTab")).IsSelected, "next step only navigates to shift setup");
+            tabs.SelectedIndex = 0; Pump(window);
+            var searchField = (TextBox)window.FindName("MenuSearchTextBox"); searchField.Text = "fixture filter";
+            Invoke(window, "ClearMenuSearch_Click", window, new RoutedEventArgs());
+            Require(searchField.Text.Length == 0, "clear filters requires no typing");
+            typeof(MainWindow).GetField("pendingOrder", Private)!.SetValue(window,
+                new PosOrderResult(Guid.NewGuid(), PosOrderStatus.KitchenAccepted, 123.45m, "THB"));
+            ((TabItem)window.FindName("PaymentTab")).IsSelected = true; Pump(window);
+            Require(((Button)window.FindName("PaidButton")).IsVisible && !((Button)window.FindName("PlaceOrderButton")).IsVisible, "Payment retains only original payment action");
+            Require(((TextBlock)window.FindName("WorkflowAmount")).Text == CashierPresentation.Money(123.45m, "THB"), "original server total wins over zero cart");
+            typeof(MainWindow).GetField("settlementUncertain", Private)!.SetValue(window, true);
+            Invoke(window, "RenderWorkflow");
+            Require(((TextBlock)window.FindName("WorkflowTitle")).Text == "Verify the previous payment", "uncertain payment guidance");
+            typeof(MainWindow).GetField("cancellationStatus", Private)!.SetValue(window, "pending");
+            Invoke(window, "RenderWorkflow");
+            Require(((TextBlock)window.FindName("WorkflowTitle")).Text == "Verify the original cancellation", "cancellation recovery guidance");
+            typeof(MainWindow).GetField("pendingOrder", Private)!.SetValue(window, null);
+            typeof(MainWindow).GetField("settlementUncertain", Private)!.SetValue(window, false);
+            typeof(MainWindow).GetField("cancellationStatus", Private)!.SetValue(window, null);
+            tabs.SelectedIndex = 0; Pump(window);
             Invoke(window, "ShowTouchInput", field);
             Invoke(window, "SetBusy", "Fixture busy");
             Require(((TouchKeyboard)window.FindName("InputKeyboard")).Visibility == Visibility.Collapsed, "busy clears input target");
+            Require(!((Button)window.FindName("PlaceOrderButton")).IsEnabled && !((Button)window.FindName("PaidButton")).IsEnabled, "pinned financial actions disabled while busy");
+            Require(((ProgressBar)window.FindName("BusyProgress")).Visibility == Visibility.Visible, "busy progress visible");
+            Invoke(window, "BrowseOrders_Click", window, new RoutedEventArgs());
+            Require(tabs.SelectedIndex == 0, "busy shortcut cannot navigate or load orders");
             typeof(MainWindow).GetField("busy", Private)!.SetValue(window, false);
             field.IsEnabled = false; Invoke(window, "ShowTouchInput", field);
             Require(((TouchKeyboard)window.FindName("InputKeyboard")).Visibility == Visibility.Collapsed, "disabled field rejected");
             field.IsEnabled = true;
             typeof(MainWindow).GetField("reauthenticationRequired", Private)!.SetValue(window, true);
+            Invoke(window, "RenderWorkflow");
+            Require(((Border)window.FindName("WorkflowDock")).Visibility == Visibility.Collapsed, "workflow totals and controls hidden while locked");
             Invoke(window, "ShowTouchInput", field);
             Require(((TouchKeyboard)window.FindName("InputKeyboard")).Visibility == Visibility.Collapsed, "locked field rejected");
             Invoke(window, "ReportWindowsKeyboardFailure");
             Require(((TextBlock)window.FindName("LockStatusText")).Text.Contains("Accessibility"), "keyboard failure guidance visible during lock");
-            Console.WriteLine("PASS: keyboard actions, focus policy, three viewport layouts, native insertion, busy/disabled/locked guards and visible locked fallback guidance. Physical touch/scanner/OIDC acceptance remains pending.");
+            Console.WriteLine("PASS: keyboard actions, numeric/text viewport layouts at three sizes, pinned totals/actions, navigation, filter reset, native insertion, busy/disabled/locked guards and visible locked fallback guidance. Physical touch/scanner/OIDC acceptance remains pending.");
         }
         finally { window.Close(); }
     }
     private static void Pump(Window window) { window.UpdateLayout(); window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, () => { }); window.UpdateLayout(); }
+    private static void SavePreview(Window window, string path)
+    {
+        var root = (FrameworkElement)window.Content;
+        var bitmap = new RenderTargetBitmap((int)root.ActualWidth, (int)root.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(root); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        Directory.CreateDirectory(".runstate"); using var output = File.Create(path); encoder.Save(output);
+    }
     private static void Invoke(MainWindow window, string name, params object[] args) => typeof(MainWindow).GetMethod(name, Private)!.Invoke(window, args);
     private static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
     private static void Click(DependencyObject root, string content)

@@ -131,6 +131,11 @@ a new financial workflow as a UI task. Cached screensaver images are not offline
 
 ## Long-term POS product design principles
 
+The next bounded implementation, [POS UX2 — cashier workflows/UI refinement](../Deployment/POS-UX2-Cashier-Workflows.md),
+adds pinned original actions and amount provenance, guarded next-step navigation, clearer
+menu states and touch styling. It preserves financial authority and leaves physical and
+end-to-end operator acceptance pending; it does not deliver card-reader authentication.
+
 The first bounded implementation is [POS UX1 — touch-first input foundation](../Deployment/POS-UX1-Touch-Input.md):
 docked text/numeric keyboards, reason shortcuts and Windows keyboard launch for browser
 sign-in. This supplies source behavior; physical touch/scanner/OIDC acceptance and the

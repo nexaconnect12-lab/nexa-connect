@@ -1,5 +1,9 @@
 # NexaConnect
 
+Windows POS UX2 pins workflow guidance, original checkout/payment actions and explicit
+estimate/server totals above the touch keyboard, with clearer menu states and navigation.
+See [UX2 behavior and acceptance](docs/Deployment/POS-UX2-Cashier-Workflows.md).
+
 Windows POS adds a touch-first input foundation with docked text/numeric keyboards and
 Windows keyboard launch for browser sign-in. [POS UX1](docs/Deployment/POS-UX1-Touch-Input.md)
 records source verification and pending physical POS/scanner/authentication acceptance.

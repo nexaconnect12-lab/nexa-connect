@@ -7,9 +7,9 @@
     </ResourceDictionary>
   </Window.Resources>
   <Grid xmlns:pos="clr-namespace:NexaConnect.POS">
-    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <ScrollViewer x:Name="InputViewport" Margin="24" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly">
-  <Grid x:Name="OperationalSurface" MinHeight="600" Height="{Binding ViewportHeight, ElementName=InputViewport}">
+  <Grid x:Name="OperationalSurface" MinHeight="480" Height="{Binding ViewportHeight, ElementName=InputViewport}">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
@@ -32,7 +32,7 @@
       </StackPanel>
     </Grid>
     <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Background="Transparent" BorderThickness="0" SelectionChanged="WorkspaceTab_Changed">
-      <TabItem Header="Checkout">
+      <TabItem x:Name="CheckoutTab" Header="Checkout">
         <Grid Margin="0,16,0,0">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="3*" />
@@ -50,7 +50,10 @@
                 <Button x:Name="LoadMenuButton" DockPanel.Dock="Right" Content="Refresh menu" Click="LoadMenu_Click" />
                 <TextBlock Text="Build an order" Style="{StaticResource Heading}" />
               </DockPanel>
-              <TextBox Grid.Row="1" x:Name="MenuSearchTextBox" AutomationProperties.Name="Search menu" ToolTip="Search menu by name" TextChanged="MenuFilter_Changed" />
+              <DockPanel Grid.Row="1">
+                <Button DockPanel.Dock="Right" Content="Clear filters" Click="ClearMenuSearch_Click" Margin="8,4,0,14" />
+                <TextBox x:Name="MenuSearchTextBox" AutomationProperties.Name="Search menu" ToolTip="Search menu by name" TextChanged="MenuFilter_Changed" />
+              </DockPanel>
               <DockPanel Grid.Row="2">
                 <TextBlock Text="Station" Margin="0,16,12,0" />
                 <ComboBox x:Name="StationComboBox" SelectionChanged="StationFilter_Changed" AutomationProperties.Name="Preparation station filter" />
@@ -119,7 +122,6 @@
                   <TextBlock Text="Paste a fresh token from the local HTTPS test helper. Leave blank to verify the original order. Do not enter card details or keys." TextWrapping="Wrap" Margin="0,8" />
                   <PasswordBox x:Name="CardTokenBox" MaxLength="100" PasswordChanged="CardToken_Changed" AutomationProperties.Name="Fresh Omise test token" Margin="0,0,0,12" />
                 </StackPanel>
-                <Button x:Name="PlaceOrderButton" Content="Send order · Continue to payment" Click="PlaceOrder_Click" Style="{StaticResource Primary}" ToolTipService.ShowOnDisabled="True" />
                 <TextBlock x:Name="PricingBreakdownText" Text="Review server pricing before confirming the order." FontSize="12" Foreground="#63756A" TextWrapping="Wrap" />
               </StackPanel>
             </Grid>
@@ -145,7 +147,6 @@
                 <CheckBox x:Name="ReceiptConfirmedCheckBox" Content="I verified the received payment and receipt" MinHeight="48" VerticalContentAlignment="Center" />
               </StackPanel>
               <TextBlock Text="Confirm only after receiving the exact amount. If the result is uncertain, verify the existing payment; do not collect again." TextWrapping="Wrap" Margin="0,16" Foreground="#63756A" />
-              <Button x:Name="PaidButton" Content="Confirm payment received" Click="Paid_Click" Style="{StaticResource Primary}" />
               <TextBlock Text="Cancellation reason" Margin="0,16,0,0" />
               <TextBox x:Name="CancellationReasonTextBox" MaxLength="200" AutomationProperties.Name="Cancellation reason" />
               <WrapPanel>
@@ -195,7 +196,8 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="16">
             <TextBlock Text="Collect an accepted QR order" Style="{StaticResource Heading}" />
-            <TextBlock Text="Enter the guest's collection reference or original Order ID. Open your shift first. Once started, resume with this same cashier, terminal and shift." TextWrapping="Wrap" />
+            <TextBlock Text="Browse accepted orders to choose a QR order without typing. You can also enter the guest's collection reference. Open your shift first; continue collection with the original cashier, terminal and shift." TextWrapping="Wrap" />
+            <Button Content="Browse accepted orders" Click="BrowseOrders_Click" HorizontalAlignment="Left" />
             <TextBox x:Name="QrReferenceTextBox" MaxLength="36" AutomationProperties.Name="QR collection reference or Order ID" />
             <Button x:Name="CollectQrButton" Content="Load original QR order" Click="CollectQr_Click" Style="{StaticResource Primary}" />
             <TextBlock x:Name="QrCollectionDetailsText" TextWrapping="Wrap" />
@@ -378,7 +380,7 @@
           <FlowDocumentScrollViewer Grid.Row="4" x:Name="ReceiptPreview" IsToolBarVisible="False" />
         </Grid>
       </TabItem>
-      <TabItem Header="Terminal &amp; sync">
+      <TabItem x:Name="TerminalTab" Header="Terminal &amp; sync">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <Border Style="{StaticResource Card}" Margin="0,16,0,0">
             <StackPanel>
@@ -419,20 +421,38 @@
         </ScrollViewer>
       </TabItem>
     </TabControl>
-    <Border Grid.Row="2" Background="White" BorderBrush="#D3DDD6" BorderThickness="1" Padding="16,12" CornerRadius="8" Margin="0,16,0,0">
-      <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto">
-      <StackPanel>
-        <TextBlock Text="WORKSPACE STATUS" Foreground="#52655A" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,8" />
-        <TextBlock x:Name="SessionGuidanceText" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,6" />
-        <TextBlock x:Name="StatusText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-      </StackPanel>
-      </ScrollViewer>
-    </Border>
   </Grid>
   </ScrollViewer>
-    <pos:TouchKeyboard x:Name="InputKeyboard" Grid.Row="1" Visibility="Collapsed" />
+    <Border x:Name="WorkflowDock" Grid.Row="1" Background="White" BorderBrush="#D3DDD6" BorderThickness="1" CornerRadius="12" Padding="12,8" Margin="24,0,24,8">
+      <StackPanel>
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="230"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
+            <TextBlock x:Name="WorkflowTitle" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock x:Name="WorkflowDescription" Foreground="#52655A" FontSize="12" TextWrapping="Wrap" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Margin="0,0,12,0" VerticalAlignment="Center">
+            <TextBlock x:Name="WorkflowAmountLabel" FontSize="11" Foreground="#52655A" TextWrapping="Wrap"/>
+            <TextBlock x:Name="WorkflowAmount" FontSize="22" FontWeight="SemiBold" Foreground="#14532D" TextWrapping="Wrap"/>
+          </StackPanel>
+          <StackPanel Grid.Column="2" VerticalAlignment="Center">
+            <Button x:Name="WorkflowNextButton" Click="WorkflowNext_Click" Margin="0" />
+            <Button x:Name="PlaceOrderButton" Content="Send order · Continue to payment" Click="PlaceOrder_Click" Style="{StaticResource Primary}" Margin="0" ToolTipService.ShowOnDisabled="True" />
+            <Button x:Name="PaidButton" Content="Confirm payment received" Click="Paid_Click" Style="{StaticResource Primary}" Margin="0" />
+          </StackPanel>
+        </Grid>
+        <ProgressBar x:Name="BusyProgress" IsIndeterminate="True" Height="3" Margin="0,6,0,0" Visibility="Collapsed" AutomationProperties.Name="Action in progress"/>
+        <ScrollViewer MaxHeight="54" VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly" Margin="0,6,0,0">
+          <StackPanel>
+            <TextBlock x:Name="SessionGuidanceText" TextWrapping="Wrap" FontSize="12" Foreground="#52655A" />
+            <TextBlock x:Name="StatusText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+          </StackPanel>
+        </ScrollViewer>
+      </StackPanel>
+    </Border>
+    <pos:TouchKeyboard x:Name="InputKeyboard" Grid.Row="2" Visibility="Collapsed" />
     <Border x:Name="SessionLockOverlay" Visibility="Collapsed" Background="#13251B"
-            Grid.RowSpan="2" Panel.ZIndex="100" Focusable="True" KeyboardNavigation.TabNavigation="Cycle"
+            Grid.RowSpan="3" Panel.ZIndex="100" Focusable="True" KeyboardNavigation.TabNavigation="Cycle"
             AutomationProperties.Name="POS locked" AutomationProperties.HelpText="Tap or press a key to show authentication controls. Your workspace remains locked.">
       <Grid ClipToBounds="True">
         <Image x:Name="StaffGalleryImage" Stretch="UniformToFill" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
@@ -462,7 +482,7 @@
         </Border>
       </Grid>
     </Border>
-    <Border x:Name="DisplaySafetyOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#F4F6F3" Padding="40" Panel.ZIndex="200">
+    <Border x:Name="DisplaySafetyOverlay" Grid.RowSpan="3" Visibility="Collapsed" Background="#F4F6F3" Padding="40" Panel.ZIndex="200">
       <StackPanel MaxWidth="600" HorizontalAlignment="Center" VerticalAlignment="Center">
         <TextBlock Text="NexaConnect" FontSize="28" FontWeight="SemiBold" Foreground="#14532D" />
         <TextBlock Text="Display setup changed" FontSize="36" FontWeight="Bold" TextWrapping="Wrap" Margin="0,24,0,16" />

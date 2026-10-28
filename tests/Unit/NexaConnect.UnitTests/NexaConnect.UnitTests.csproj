@@ -68,6 +68,7 @@
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\ScreensaverPlacement.cs" Link="POS\ScreensaverPlacement.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\LockPromptState.cs" Link="POS\LockPromptState.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\TouchInputEdit.cs" Link="POS\TouchInputEdit.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\CashierWorkflow.cs" Link="POS\CashierWorkflow.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosGalleryPolicy.cs" Link="POS\PosGalleryPolicy.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosGalleryCache.cs" Link="POS\PosGalleryCache.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalPosStore.cs" Link="POS\LocalPosStore.cs" />

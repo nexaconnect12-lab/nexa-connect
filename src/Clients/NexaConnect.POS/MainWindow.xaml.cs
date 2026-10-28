@@ -520,7 +520,7 @@ public partial class MainWindow : Window
         if (!viewInitialized) return;
         var view = System.Windows.Data.CollectionViewSource.GetDefaultView(menu);
         view.Refresh();
-        MenuEmptyText.Text = menu.Count == 0 ? "Open a shift, then refresh the menu to start." : "No menu items match your search.";
+        MenuEmptyText.Text = CashierWorkflow.MenuEmptyMessage(IsSignedIn(), _activeShift is not null, menu.Count > 0, busy);
         MenuEmptyText.Visibility = view.IsEmpty ? Visibility.Visible : Visibility.Collapsed;
     }
     private async void PlaceOrder_Click(object sender, RoutedEventArgs e)
@@ -1344,12 +1344,16 @@ public partial class MainWindow : Window
         CloseShiftButton.IsEnabled = false;
         CloseCashButton.IsEnabled = false;
         RecordMovementButton.IsEnabled = false;
+        PlaceOrderButton.IsEnabled = false;
         PaidButton.IsEnabled = false;
         CancelOrderButton.IsEnabled = false;
         LoadCashReviewsButton.IsEnabled = false;
         LoadMoreCashReviewsButton.IsEnabled = false;
         InvestigateCashReviewButton.IsEnabled = false;
         ApproveCashReviewButton.IsEnabled = false;
+        BusyProgress.Visibility = Visibility.Visible;
+        RefreshMenuFilter();
+        RenderWorkflow();
     }
 
     private void UpdateOperationalState()
@@ -1437,6 +1441,7 @@ public partial class MainWindow : Window
         IReadOnlyList<LocalOutboxOperation> operations = outbox.Load();
         int rejected = operations.Count(operation => operation.TerminalFailureStatusCode is not null);
         bool movementsPending = operations.Count > 0;
+        workflowMovementsPending = movementsPending;
         ReplayOutboxButton.IsEnabled = signedIn && operations.Count > rejected;
         RetryRejectedOutboxButton.IsEnabled = signedIn && rejected > 0;
         DateTimeOffset? lastAttempt = operations.Max(operation => operation.LastAttemptAtUtc);
@@ -1481,6 +1486,7 @@ public partial class MainWindow : Window
         ResumeButton.IsEnabled = !busy || signInCancellation is not null;
         LockedSignOutButton.IsEnabled = !busy && !HasRetainedWork();
         RenderLockPrompt();
+        RenderWorkflow();
     }
 
     private bool IsSignedIn()
@@ -1689,7 +1695,11 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 
-    private void UpdateCartTotal() => TotalText.Text = CashierPresentation.Money(cart.Sum(line => line.LineTotal), _configuration.Currency);
+    private void UpdateCartTotal()
+    {
+        TotalText.Text = CashierPresentation.Money(cart.Sum(line => line.LineTotal), _configuration.Currency);
+        RenderWorkflow();
+    }
 
     private sealed class CartLine(PosMenuItem item)
     {
