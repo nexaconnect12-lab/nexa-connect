@@ -1,5 +1,9 @@
 # NexaConnect POS
 
+**Terminal & sync → Input settings → Display density** offers Standard (default) or
+Touch controls independently of automatic keyboards. Small-window cash panels stack and
+the pinned workflow dock remains accessible. See [UX3](../../../docs/Deployment/POS-UX3-Display-Density.md).
+
 **Terminal & sync → Input settings → Enable touch-first POS** is optional and off by
 default. It controls automatic application/Windows keyboards; manual Windows keyboard
 access and UX2 workflows remain available in either mode. See [saved input mode](../../../docs/Deployment/POS-Input-Mode.md).
@@ -30,7 +34,7 @@ QR7 prepares a fresh isolated test-stack QR profile and guest phone edge; Window
 QR5 adds **QR collection**: enter the guest collection reference/original Order UUID, check original table/items/pricing, and collect through existing cash/manual PromptPay Payment controls. Read-only preview rejects invalid references before retaining work; claim persists original Order/operation/cashier/shift in existing DPAPI schema2 recovery before network I/O. QR recovery cannot invoke quote/place; original-cashier lock/resume and settlement replay retain identity. No table-wide combined bill or custody reassignment. Requires matching Order22/POS service and enabled QrCollection. See [contract](../../../docs/API/QR-Collection.md) and [setup/verification](../../../docs/Deployment/QR5-Collection.md).
 
 Phase 5 optionally uses `Services:MediaApi` for approved branch staff/customer screensavers.
-Active authenticated sessions refresh once a minute; lock displays separate role playlists
+UX4 refreshes once a minute while active or locked with a valid gallery-only reader; lock displays separate role playlists
 across each assigned monitor. Aspect-preserving images fill the display with edge cropping;
 a centered staff authentication panel starts hidden and appears on tap/click/keypress, while the customer view
 has only approved images/optional public text and no authentication/transaction content.
@@ -41,6 +45,12 @@ Validated PNGs/public text have a five-minute maximum lease in a bounded DPAPI c
 expired or removed content becomes neutral branding. Defaults remain disabled/neutral until
 the Media endpoint is configured. Media never renews operator activity or submits business
 commands. See [settings, cache and acceptance](../../../docs/Deployment/Next-Iteration-Phase-5.md).
+
+Reader bootstrap/renewal requires an active authenticated cashier; locked refresh never keeps
+cashier access/refresh tokens. Separate DPAPI readers bind full terminal/authority/endpoint
+scope and original subject, expire after 24 hours, and clear on sign-out/denial. Image leases
+remain five minutes. Unchanged playlists retain rotation across refresh. See
+[UX4 rollout, failures and pending acceptance](../../../docs/Deployment/POS-UX4-Locked-Gallery.md).
 
 Staff screensaver placement snapshots and restores prior window bounds/chrome on resume.
 It uses physical monitor bounds, including the taskbar area, without spanning monitors.

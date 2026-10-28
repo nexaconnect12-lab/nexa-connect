@@ -21,6 +21,10 @@ public sealed class BranchGalleryDelivery(IBranchGallerySelectionPort selections
     {
         // Restaurant repeats live membership/branch/menu-read authorization. Caller cannot supply selection IDs.
         var selection=await selections.ReadAsync(org,branch,bearer,ct);
+        return await DeliverSelectionAsync(org,branch,selection,ct);
+    }
+    public async Task<GalleryBundle> DeliverSelectionAsync(Guid org,Guid branch,BranchGallery selection,CancellationToken ct)
+    {
         if(selection.OrganizationId!=org||selection.BranchId!=branch||selection.Staff is null||selection.Customer is null
             ||selection.Staff.Length>6||selection.Customer.Length>6||selection.SecondsPerSlide is <5 or >60)
             throw new InvalidDataException("Invalid gallery scope.");

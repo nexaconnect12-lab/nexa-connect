@@ -1,5 +1,10 @@
 # Next iteration phase 0 — baseline and execution assessment
 
+Subsequent [POS UX4](../Deployment/POS-UX4-Locked-Gallery.md) implements expiring gallery-only
+readers for locked playback; automated verification, local activation and physical/human
+acceptance remain distinct. Purchased screen resolution/scaling/touch mapping remain
+unconfirmed and do not block this software slice.
+
 Recorded 21 October 2026 (Asia/Singapore). Phase 0 is a source/evidence assessment,
 not a new release, runtime change or server deployment. The
 [phase plan and prompts](Next-Iteration-Roadmap.md) define the subsequent implementation.
@@ -82,7 +87,7 @@ These findings identify review targets; they are not a complete security certifi
 | E02 | Singapore test context | Server location, routing/upload speed, internet reliability and power arrangements unknown | Phase 6 capacity/connectivity |
 | E03 | Separate portal origins intended | Domain/DNS ownership, certificate method, identity origin and administrative access method unconfirmed | Phase 6 external access |
 | E04 | Off-server recovery required | Backup destination, retention, recovery time/data-loss objectives, alert recipient and maintenance owner unconfirmed | Phase 6 restore and phase 8 readiness |
-| E05 | Purchased S200D confirmed 28 October 2026: Windows 11, Intel Core i5 5th generation, 8 GB RAM, 128 GB SSD; 15.6-inch main staff screen and 11.6-inch extended customer screen; advertised touch dual-screen, Wi-Fi and Bluetooth | Confirm exact CPU, OS edition/architecture, resolutions/DPI, touch support per screen, ports, GPU/display topology and mounting; verify actual runtime and display operation | Phases 4, 7 hardware verification; phase 9 |
+| E05 | Purchased S200D confirmed 28 October 2026: Windows 11, Intel Core i5 5th generation, 8 GB RAM, 128 GB SSD; 15.6-inch main staff screen and 11.6-inch extended customer screen; advertised touch dual-screen, Wi-Fi and Bluetooth. Seller website lists `1366x76.8 / 1920x1080`; user believes maximum may be `1920×1080`, unverified. POS has not arrived; actual delivered specifications cannot yet be checked | After delivery, confirm native/actual resolutions and main/customer assignment, Windows scaling/DPI, exact CPU, OS edition/architecture, touch support per screen, ports, GPU/display topology and mounting. `1366×768` is only a possible typo correction; seller-listed options/maximum are not confirmed delivered specifications or measured acceptance | Phases 4, 7 hardware verification; phase 9 |
 | E06 | Purchased bundle includes cash drawer, 80 mm roll-paper POS printer and barcode scanner; Microsoft Print to PDF remains the verified test target | Confirm peripheral models, connection interfaces, printer driver/protocol, drawer connection and scanner input mode. Physical integration remains separately scoped and unverified | Phase 9 PDF acceptance; separately scoped peripheral acceptance |
 | D01 | Idle screen lock, authenticated resume, no work discard | Prefer existing Keycloak interactive flow as the implementation starting point; mechanism/UX reviewed in phase 1. No new PIN, bypass or shared unlock credential approved | Phase 1 |
 | D02 | Gallery selection by authorized staff, approved product/menu assets | Select owning context and permission, playlist schema/version, refresh/capacity/withdrawal rules and fallback branding in phase 5 | Phase 5 |

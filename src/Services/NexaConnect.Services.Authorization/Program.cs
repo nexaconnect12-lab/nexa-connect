@@ -17,6 +17,7 @@ builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(
     ?? throw new InvalidOperationException("ConnectionStrings:Authorization is required.")));
 builder.Services.AddScoped<IAuthorizationDecisionStore, PostgresAuthorizationDecisionStore>();
 builder.Services.AddScoped<IAuthorizationDecisionService, AuthorizationDecisionService>();
+builder.Services.AddScoped<GalleryPermission>();
 builder.Services.AddScoped<IAuthorizationAssignmentService, AuthorizationAssignmentService>();
 builder.Services.AddScoped<IAuthorizationAssignmentRepository, PostgresAuthorizationAssignmentRepository>();
 var app = builder.Build();

@@ -1,4 +1,4 @@
-<Window x:Class="NexaConnect.POS.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="NexaConnect · Cashier" Width="1280" Height="850" MinWidth="1000" MinHeight="680" WindowStartupLocation="CenterScreen" Background="#F4F6F3" FontFamily="Segoe UI" FontSize="14" Foreground="#172A22">
+<Window x:Class="NexaConnect.POS.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="NexaConnect · Cashier" Width="1280" Height="850" MinWidth="960" MinHeight="640" WindowStartupLocation="CenterScreen" SizeChanged="DensityWindow_SizeChanged" Background="#F4F6F3" FontFamily="Segoe UI" FontSize="{DynamicResource PosBodyFontSize}" Foreground="#172A22">
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
@@ -73,8 +73,8 @@
                   </ListBox.ItemContainerStyle>
                   <ListBox.ItemTemplate>
                     <DataTemplate>
-                      <Button Width="180" MinHeight="126" Click="AddMenuItem_Click" IsEnabled="{Binding Available}" AutomationProperties.Name="{Binding Name}">
-                        <StackPanel Width="144">
+                      <Button Width="{DynamicResource PosMenuWidth}" MinHeight="{DynamicResource PosMenuHeight}" Click="AddMenuItem_Click" IsEnabled="{Binding Available}" AutomationProperties.Name="{Binding Name}">
+                        <StackPanel>
                           <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
                           <TextBlock Text="{Binding PreparationStation}" Foreground="#63756A" FontSize="12" Margin="0,6" />
                           <TextBlock FontSize="18">
@@ -106,9 +106,9 @@
                       <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
                       <DockPanel Margin="0,8,0,0">
                         <TextBlock Text="{Binding LineTotal, StringFormat=N2}" DockPanel.Dock="Right" VerticalAlignment="Center" />
-                        <Button Content="−" Width="48" Padding="0" Click="DecreaseQuantity_Click" AutomationProperties.Name="Decrease quantity" />
+                        <Button Content="−" Width="{DynamicResource PosControlHeight}" Padding="0" Click="DecreaseQuantity_Click" AutomationProperties.Name="Decrease quantity" />
                         <TextBlock Text="{Binding Quantity}" Width="30" VerticalAlignment="Center" TextAlignment="Center" />
-                        <Button Content="+" Width="48" Padding="0" Click="IncreaseQuantity_Click" AutomationProperties.Name="Increase quantity" />
+                        <Button Content="+" Width="{DynamicResource PosControlHeight}" Padding="0" Click="IncreaseQuantity_Click" AutomationProperties.Name="Increase quantity" />
                       </DockPanel>
                     </StackPanel>
                   </DataTemplate>
@@ -129,7 +129,7 @@
         </Grid>
       </TabItem>
       <TabItem x:Name="PaymentTab" Header="Payment">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
           <Border Style="{StaticResource Card}" Margin="0,16,0,0" MaxWidth="700" HorizontalAlignment="Center">
             <StackPanel>
               <TextBlock Text="Complete payment" Style="{StaticResource Heading}" />
@@ -144,7 +144,7 @@
                 <Image x:Name="PromptPayQrImage" Width="220" Height="220" Margin="0,16" HorizontalAlignment="Left" />
                 <TextBlock Text="Receipt or bank reference" />
                 <TextBox x:Name="BankReferenceTextBox" MaxLength="64" AutomationProperties.Name="Receipt or bank reference" />
-                <CheckBox x:Name="ReceiptConfirmedCheckBox" Content="I verified the received payment and receipt" MinHeight="48" VerticalContentAlignment="Center" />
+                <CheckBox x:Name="ReceiptConfirmedCheckBox" Content="I verified the received payment and receipt" VerticalContentAlignment="Center" />
               </StackPanel>
               <TextBlock Text="Confirm only after receiving the exact amount. If the result is uncertain, verify the existing payment; do not collect again." TextWrapping="Wrap" Margin="0,16" Foreground="#63756A" />
               <TextBlock Text="Cancellation reason" Margin="0,16,0,0" />
@@ -174,7 +174,7 @@
           </WrapPanel>
           <DataGrid Grid.Row="2" x:Name="OrdersGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" CanUserAddRows="False" SelectionChanged="OrdersSelection_Changed" AutomationProperties.Name="Branch orders">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="Order" Binding="{Binding OrderNumber}" Width="*"/>
+              <DataGridTextColumn Header="Order" Binding="{Binding OrderNumber}" Width="*" MinWidth="150"/>
               <DataGridTextColumn Header="Source" Binding="{Binding Channel}" Width="65"/>
               <DataGridTextColumn Header="Table" Binding="{Binding TableCode}" Width="65"/>
               <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="130"/>
@@ -193,7 +193,7 @@
         </Grid>
       </TabItem>
       <TabItem Header="QR collection">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
           <StackPanel Margin="16">
             <TextBlock Text="Collect an accepted QR order" Style="{StaticResource Heading}" />
             <TextBlock Text="Browse accepted orders to choose a QR order without typing. You can also enter the guest's collection reference. Open your shift first; continue collection with the original cashier, terminal and shift." TextWrapping="Wrap" />
@@ -205,13 +205,14 @@
         </ScrollViewer>
       </TabItem>
       <TabItem x:Name="ShiftCashTab" Header="Shift &amp; cash">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <Grid Margin="0,16,0,0">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
+          <Grid x:Name="ShiftCashLayout" Margin="0,16,0,0">
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
               <ColumnDefinition />
               <ColumnDefinition />
             </Grid.ColumnDefinitions>
-            <Border Style="{StaticResource Card}" Margin="0,0,16,0">
+            <Border x:Name="ShiftSetupCard" Style="{StaticResource Card}" Margin="0,0,16,0">
               <StackPanel>
                 <TextBlock Text="Your shift" Style="{StaticResource Heading}" />
                 <TextBlock x:Name="ActiveShiftText" TextWrapping="Wrap" Margin="0,0,0,16" />
@@ -230,7 +231,7 @@
                 <Button x:Name="CloseCashButton" Content="Close cash session" Click="CloseCash_Click" />
               </StackPanel>
             </Border>
-            <Border Grid.Column="1" Style="{StaticResource Card}">
+            <Border x:Name="CashReconciliationCard" Grid.Column="1" Style="{StaticResource Card}">
               <StackPanel>
                 <TextBlock Text="Cash reconciliation" Style="{StaticResource Heading}" />
                 <TextBlock x:Name="ReconciliationStatusText" Text="Open a cash session to view reconciliation." TextWrapping="Wrap" Margin="0,0,0,12" />
@@ -319,7 +320,7 @@
               </StackPanel>
             </Border>
             <Border Grid.Column="1" Style="{StaticResource Card}">
-              <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
                 <StackPanel>
                   <TextBlock Text="Review detail" Style="{StaticResource Heading}" />
                   <TextBlock x:Name="CashReviewDetailText" Text="Select a closed cash session." TextWrapping="Wrap" Margin="0,0,0,12" />
@@ -381,13 +382,18 @@
         </Grid>
       </TabItem>
       <TabItem x:Name="TerminalTab" Header="Terminal &amp; sync">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
           <Border Style="{StaticResource Card}" Margin="0,16,0,0">
             <StackPanel>
               <TextBlock Text="Input settings" Style="{StaticResource Heading}" />
               <CheckBox x:Name="TouchFirstCheckBox" Content="Enable touch-first POS" Checked="TouchFirst_Changed" Unchecked="TouchFirst_Changed" AutomationProperties.Name="Enable touch-first POS" />
               <TextBlock Text="Optional. Default is keyboard and mouse operation. Changes apply immediately and are saved for this terminal and Windows user." TextWrapping="Wrap" Foreground="#52655A" Margin="0,4,0,8" />
               <TextBlock x:Name="InputModeStatusText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,24" />
+              <TextBlock Text="Display density" />
+              <ComboBox x:Name="DensityPicker" SelectionChanged="Density_Changed" AutomationProperties.Name="Display density" MaxWidth="400" HorizontalAlignment="Left" MinWidth="220">
+                <ComboBoxItem Content="Standard (default)"/><ComboBoxItem Content="Touch · larger controls"/>
+              </ComboBox>
+              <TextBlock x:Name="DensityStatusText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,24" />
               <TextBlock Text="Staff and customer displays" Style="{StaticResource Heading}" />
               <TextBlock Text="Use Windows extended desktop. Select roles on each startup; customer view contains no input or unlock controls." TextWrapping="Wrap" Margin="0,0,0,12" />
               <TextBlock Text="Staff display" />
@@ -430,7 +436,7 @@
     <Border x:Name="WorkflowDock" Grid.Row="1" Background="White" BorderBrush="#D3DDD6" BorderThickness="1" CornerRadius="12" Padding="12,8" Margin="24,0,24,8">
       <StackPanel>
         <Grid>
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="230"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition x:Name="WorkflowAmountColumn" Width="230"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
           <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
             <TextBlock x:Name="WorkflowTitle" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
             <TextBlock x:Name="WorkflowDescription" Foreground="#52655A" FontSize="12" TextWrapping="Wrap" />
@@ -446,7 +452,7 @@
           </StackPanel>
         </Grid>
         <ProgressBar x:Name="BusyProgress" IsIndeterminate="True" Height="3" Margin="0,6,0,0" Visibility="Collapsed" AutomationProperties.Name="Action in progress"/>
-        <ScrollViewer MaxHeight="54" VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly" Margin="0,6,0,0">
+        <ScrollViewer x:Name="WorkflowStatusScroll" MaxHeight="54" VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly" Margin="0,6,0,0">
           <StackPanel>
             <TextBlock x:Name="SessionGuidanceText" TextWrapping="Wrap" FontSize="12" Foreground="#52655A" />
             <TextBlock x:Name="StatusText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />

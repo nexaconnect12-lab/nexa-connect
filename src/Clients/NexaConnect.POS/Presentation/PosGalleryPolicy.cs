@@ -29,12 +29,16 @@ public static class PosGalleryPolicy
         }
         return slides.Select(x=>x.AssetId).ToHashSet().SetEquals(bundle.Images.Select(x=>x.AssetId));
     }
-    public static GallerySlide? Slide(GalleryBundle? bundle,bool customer,DateTimeOffset now)
+    public static bool SamePlaylist(BranchGallery? previous,BranchGallery next)=>previous is not null
+        && previous.OrganizationId==next.OrganizationId && previous.BranchId==next.BranchId
+        && previous.SecondsPerSlide==next.SecondsPerSlide && previous.Staff.SequenceEqual(next.Staff)
+        && previous.Customer.SequenceEqual(next.Customer);
+    public static GallerySlide? Slide(GalleryBundle? bundle,bool customer,DateTimeOffset now,DateTimeOffset? rotationEpoch=null)
     {
         if(bundle is null||bundle.ExpiresAtUtc<=now)return null;
         var list=customer?bundle.Selection.Customer:bundle.Selection.Staff;
         if(list.Length==0)return null;
-        var seconds=Math.Max(0,(now-bundle.IssuedAtUtc).TotalSeconds);
+        var seconds=Math.Max(0,(now-(rotationEpoch??bundle.IssuedAtUtc)).TotalSeconds);
         return list[(int)(seconds/bundle.Selection.SecondsPerSlide)%list.Length];
     }
 }

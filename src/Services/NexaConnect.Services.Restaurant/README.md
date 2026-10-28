@@ -1,5 +1,13 @@
 # Restaurant Service
 
+UX4 adds a Media-workload-only internal gallery selection use case. It resolves active
+owning hierarchy through existing persistence, then rechecks original-subject Directory
+membership and fixed Authorization menu-read via dedicated bounded, redirect-disabled
+correlation-propagating clients using existing service addresses. No schema or configuration
+write is added. Service `nexaconnect-restaurant` emits safe `Gallery reader`/`Gallery authority`
+boundary events, searchable by correlation ID. See [API](../../../docs/API/Screensaver-Gallery.md)
+and [deployment/tests](../../../docs/Deployment/POS-UX4-Locked-Gallery.md).
+
 QR4 adds exact-Order-workload-only internal QR visitor/entry context read, including
 current dine-in policy. Owning parameterized lookup checks organization/branch/visitor/
 entry, active hierarchy/version, session ended/expiry; no secret recovery or public

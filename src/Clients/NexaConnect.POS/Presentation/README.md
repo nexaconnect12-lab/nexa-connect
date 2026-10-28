@@ -1,9 +1,13 @@
 # POS presentation
 
-`PosUiPreferences` stores only a versioned touch-first boolean per current Windows user
+`PosUiPreferences` stores versioned touch-first and independent density choices per current Windows user
 and exact terminal scope, outside release and financial storage. Missing/invalid data
-defaults off. `MainWindow.TouchInput.cs` gates automatic keyboards and applies saved
+defaults to off/Standard. `MainWindow.TouchInput.cs` gates automatic keyboards and applies saved
 changes immediately with failed-save rollback. See [input modes](../../../../docs/Deployment/POS-Input-Mode.md).
+
+`PosDensityMetrics`/`PosResponsiveLayout` define staff presentation sizing and logical
+breakpoints. `MainWindow.Density.cs` updates window-local resources, preserves keyboard
+choice and reflows existing controls without submitting commands. See [UX3](../../../../docs/Deployment/POS-UX3-Display-Density.md).
 
 `CashierWorkflow` projects client state into guidance and explicitly labeled estimate or
 original unpaid server totals. `MainWindow.Workflow.cs` pins the original buttons and maps
@@ -28,6 +32,10 @@ not publish branch history to the customer window. See
 Phase 5's `PosGalleryPolicy` validates scoped leased PNG bundles; `PosGalleryCache` atomically
 stores one DPAPI-protected current-user bundle. `MainWindow.Gallery.cs` handles independent
 refresh, decode and rotation without extending operator activity or blocking authentication.
+UX4 adds `PosGalleryReaderCache`, a separate bounded scoped DPAPI reader bound to the
+original subject. Locked refresh uses only that gallery credential; active authentication
+bootstraps/renews it. Stable playlist rotation survives image lease renewal. See
+[UX4](../../../../docs/Deployment/POS-UX4-Locked-Gallery.md).
 Only frozen approved images/public text reach the customer screensaver; normal transaction
 projection stays separate. See [gallery contract](../../../../docs/API/Screensaver-Gallery.md).
 

@@ -1,5 +1,14 @@
 # Keycloak Client Matrix
 
+UX4 reuses `nexaconnect-media-service` for dedicated internal gallery delegation in Restaurant,
+Directory and Authorization, with exact `azp` and existing API audience/issuer checks. It does
+not broaden general ServiceWorkload policy or add clients/roles/secrets. Native POS receives
+only a separate 24-hour gallery-only capability after live caller branch authorization;
+locked refresh never retains cashier access/refresh tokens. Live membership/menu-read removal
+is rechecked; OIDC logout/account disable alone does not revoke a reader. See
+[ADR-051](../Architecture/Decisions/ADR-051-locked-gallery-readers.md) and
+[UX4 custody/rollout](../Deployment/POS-UX4-Locked-Gallery.md).
+
 The local Media client now has an explicit API-audience mapper; opt-in startup repairs only a missing exact mapper in the owned local realm and verifies fresh tokens. Staff storage CSP is an exact configured origin; guest policy is unchanged. See [local setup](../Deployment/First-Draft-Media.md).
 
 Media asset reads and mutations admit the existing `customer-user` role while retaining live organization membership plus Media read/manage decisions. The explicit local fixture grants those two organization permissions only to its store-manager subject; no new Keycloak role/client/secret or financial authority. See [scope and revocation limits](../Deployment/First-Draft-Media.md).

@@ -1,5 +1,12 @@
 # Platform Directory Service
 
+UX4 exposes a dedicated Media-workload-only boolean gallery membership check, using the
+existing live organization/product access reader. It reveals no member details and adds no
+schema or generic impersonation route. Service `nexaconnect-platform-directory` uses shared
+request correlation and safe `Gallery membership denied` events; search by correlation ID,
+never subject/body/header. See [contract](../../../docs/API/Screensaver-Gallery.md) and
+[rollout/verification](../../../docs/Deployment/POS-UX4-Locked-Gallery.md).
+
 This service owns cross-product organization membership and organization-level application access. It never reads Keycloak tables; it uses the validated `sub` claim as the stable identity identifier.
 
 `GET /api/platform-directory/v1/organizations/{organizationId}/access` returns access only when the caller has an active membership and the organization has enabled `nexa_connect` access. Unauthorized callers receive `403` without membership details.

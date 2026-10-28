@@ -1,5 +1,13 @@
 # Identity Claims Contract
 
+UX4's dedicated internal gallery routes require authenticated `azp=nexaconnect-media-service`
+with the existing validated issuer/API audience. They never accept native gallery capabilities
+as Bearer tokens. Only the Media gallery-reader GET accepts its purpose-protected header
+capability; original-subject live membership and fixed branch menu-read are rechecked through
+owning services. General workload authorization remains unchanged. See
+[reader contract/limits](../API/Screensaver-Gallery.md) and
+[ADR-051](../Architecture/Decisions/ADR-051-locked-gallery-readers.md).
+
 Settlement original-event replay is now provided by [ADR-035](../Architecture/Decisions/ADR-035-audited-settlement-replay.md) and [the administrative runbook](../Deployment/Settlement-Replay.md). POS 23 adds two immutable audit tables; Reporting stays 22 and compatibility is 0.38.0 (201 tables, POS 52 / Reporting 19). Customer routes/permissions remain read-only; unknown original publication fields fail closed.
 
 Reporting 22 adds two owned immutable settlement projection/hash tables; current catalog 201 tables (Reporting 19/POS 52). Settlement reporting reuses reporting.sales.read and pos.day-close.read with customer membership/scope revalidation; it adds no grant. Current cutoff acceptance uses Reporting 22/POS 23 and compatibility 0.38.0 with both settlement event bindings. New POS publication is V2; original V1 history stays unchanged. See [settlement reporting](../API/Settlement-Reporting.md) and [operations](../Deployment/Settlement-Reporting.md).

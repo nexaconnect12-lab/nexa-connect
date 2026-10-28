@@ -49,6 +49,15 @@ Leased, bounded cache output is not offline authorization or checkout. See
 [ADR-040](Decisions/ADR-040-branch-approved-screensaver-gallery.md) and
 [operations/evidence](../Deployment/Next-Iteration-Phase-5.md).
 
+POS UX4 extends locked refresh through a separate gallery-only reader with at most 24-hour
+absolute lifetime. Media
+delegates live original-subject membership/menu-read checks to their owning services through
+dedicated workload-only routes; approved image leases remain at most five minutes. Native
+DPAPI storage binds the reader to its original operator and full terminal/authority scope.
+No cashier session, financial authority, branch edge or business data ownership changes.
+See [ADR-051](Decisions/ADR-051-locked-gallery-readers.md) and
+[deployment/remaining acceptance](../Deployment/POS-UX4-Locked-Gallery.md).
+
 Next-iteration Phase 4 adds separate staff/customer WPF windows within one terminal process.
 An allow-listed current-order projection drives customer prices/outcomes; it carries no staff
 identity, credential or command. Explicit monitor roles and topology safety preserve the

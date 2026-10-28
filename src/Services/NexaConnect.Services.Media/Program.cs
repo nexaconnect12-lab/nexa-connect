@@ -16,6 +16,11 @@ builder.Services.AddControllers();builder.Services.AddOpenApi();builder.Services
 builder.Services.AddMemoryCache();builder.Services.AddHttpClient<IServiceWorkloadTokenProvider,ServiceWorkloadTokenProvider>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<BranchGalleryDelivery>();
+builder.Services.AddScoped<GalleryReaders>();
+builder.Services.AddSingleton<IGalleryReaderProtector,GalleryReaderProtector>();
+builder.Services.AddSingleton(new NexaConnect.Infrastructure.Http.BoundedRequestGate(TimeProvider.System));
+builder.Services.AddHttpClient<IDelegatedGallerySelection,HttpDelegatedGallerySelection>(client=>{client.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]??"https://restaurant.invalid/");client.Timeout=TimeSpan.FromSeconds(15);})
+    .ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddSingleton<IGalleryImageEncoder,GalleryImageEncoder>();
 builder.Services.AddHttpClient<IBranchGallerySelectionPort,HttpBranchGallerySelectionPort>(client=>{client.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]??"https://restaurant.invalid/");client.Timeout=TimeSpan.FromSeconds(15);}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddSingleton(_=>NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Media")??throw new InvalidOperationException("ConnectionStrings:Media is required.")));

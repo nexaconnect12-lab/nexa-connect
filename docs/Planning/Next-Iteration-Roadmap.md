@@ -6,7 +6,14 @@ staff screen and 11.6-inch extended customer screen. The unit is described as a
 touch dual-screen machine with Wi-Fi and Bluetooth, including a cash drawer,
 80 mm roll-paper POS printer and barcode scanner. See the updated
 [equipment prerequisites E05–E06](Next-Iteration-Phase-0-Baseline.md#environment-prerequisites-and-decision-register).
-Screen resolutions/DPI, which screens support touch, OS edition/architecture and
+Resolution update, 28 October 2026: the seller's website lists **`1366x76.8 / 1920x1080`**.
+The user clarified that the purchased POS has not arrived and its actual specifications
+cannot yet be checked. They believe the maximum may be `1920×1080`; this is unverified.
+`1366×768` is only a possible correction of the seller's first value. Neither actual/native
+resolution nor assignment to the 15.6-inch staff versus 11.6-inch customer screen is
+confirmed. Do not treat seller-listed options or a possible maximum as measured Windows
+settings, the delivered configuration or hardware acceptance.
+Windows scaling/DPI, which screens support touch, OS edition/architecture and
 peripheral models/interfaces/drivers still require confirmation. Purchase does not
 establish physical display or peripheral integration acceptance.
 
@@ -130,6 +137,16 @@ If selected, give each its own contracts, invariants and acceptance plan; do not
 a new financial workflow as a UI task. Cached screensaver images are not offline checkout.
 
 ## Long-term POS product design principles
+
+[POS UX4 — continuous locked screensaver playback](../Deployment/POS-UX4-Locked-Gallery.md)
+adds a separate expiring gallery-only reader with live delegated authorization. It preserves
+five-minute image withdrawal and cashier lock/resume protection. Implementation and automated
+verification are distinct from local activation, ten-minute locked playback and physical
+dual-screen acceptance, which must be recorded when observed.
+
+The [POS UX3 density slice](../Deployment/POS-UX3-Display-Density.md) adds Standard (default)
+and Touch layouts independently of the optional keyboard setting, with responsive staff
+screens. Physical display/scaling and full operator acceptance remain pending.
 
 The next bounded implementation, [POS UX2 — cashier workflows/UI refinement](../Deployment/POS-UX2-Cashier-Workflows.md),
 adds pinned original actions and amount provenance, guarded next-step navigation, clearer

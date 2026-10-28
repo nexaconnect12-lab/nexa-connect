@@ -111,16 +111,38 @@ public sealed class PosApiClient : IDisposable
     private readonly ILoggerFactory loggerFactory = NexaConnectObservabilityExtensions.CreateClientLoggerFactory("nexaconnect-pos-client");
 
     public PosApiClient(PosClientConfiguration configuration, HttpMessageHandler? posHandler = null,
-        HttpMessageHandler? orderHandler = null, HttpMessageHandler? catalogHandler = null, HttpMessageHandler? paymentHandler = null)
+        HttpMessageHandler? orderHandler = null, HttpMessageHandler? catalogHandler = null, HttpMessageHandler? paymentHandler = null,
+        HttpMessageHandler? mediaHandler = null)
     {
         _configuration = configuration;
         configuration.ValidateCheckout();
-        _mediaHttpClient=new HttpClient(new HttpClientHandler{AllowAutoRedirect=false}){BaseAddress=new Uri(string.IsNullOrWhiteSpace(configuration.MediaApi)?configuration.OrderApi:configuration.MediaApi),Timeout=TimeSpan.FromSeconds(15)};
+        _mediaHttpClient=new HttpClient(mediaHandler??new HttpClientHandler{AllowAutoRedirect=false}){BaseAddress=new Uri(string.IsNullOrWhiteSpace(configuration.MediaApi)?configuration.OrderApi:configuration.MediaApi),Timeout=TimeSpan.FromSeconds(15)};
         _httpClient = new HttpClient(posHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.PosApi) };
         _orderHttpClient = new HttpClient(orderHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.OrderApi) };
         _catalogHttpClient = new HttpClient(catalogHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.CatalogApi) };
         _paymentHttpClient = new HttpClient(paymentHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(
             string.IsNullOrWhiteSpace(configuration.PaymentApi) ? configuration.OrderApi : configuration.PaymentApi) };
+    }
+
+    public async Task<NexaConnect.Contracts.Media.GalleryReaderCredential> CreateGalleryReaderAsync(PosTokenSet token,CancellationToken ct)
+    {
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(ct);deadline.CancelAfter(TimeSpan.FromSeconds(20));ct=deadline.Token;
+        using var request=CreateRequest(HttpMethod.Post,$"api/media/v1/customer/organizations/{_configuration.OrganizationId:D}/branches/{_configuration.BranchId:D}/screensaver-gallery/readers",token);
+        using var response=await SendCheckoutAsync(_mediaHttpClient,request,"gallery.reader.issue",Guid.NewGuid(),ct,true);
+        await EnsureSuccessAsync(response,"Gallery access unavailable.");
+        await response.Content.LoadIntoBufferAsync(16384,ct);
+        return await response.Content.ReadFromJsonAsync<NexaConnect.Contracts.Media.GalleryReaderCredential>(ct)??throw new InvalidDataException();
+    }
+
+    public async Task<NexaConnect.Contracts.Media.GalleryBundle> ReadGalleryAsync(string credential,CancellationToken ct)
+    {
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(ct);deadline.CancelAfter(TimeSpan.FromSeconds(20));ct=deadline.Token;
+        using var request=new HttpRequestMessage(HttpMethod.Get,$"api/media/v1/gallery-readers/organizations/{_configuration.OrganizationId:D}/branches/{_configuration.BranchId:D}");
+        request.Headers.Add("X-Nexa-Gallery-Reader",credential);
+        using var response=await SendCheckoutAsync(_mediaHttpClient,request,"gallery.reader.read",Guid.NewGuid(),ct,true);
+        await EnsureSuccessAsync(response,"Gallery unavailable.");
+        await response.Content.LoadIntoBufferAsync(25_165_824,ct);
+        return await response.Content.ReadFromJsonAsync<NexaConnect.Contracts.Media.GalleryBundle>(ct)??throw new InvalidDataException();
     }
 
     public async Task<NexaConnect.Contracts.Media.GalleryBundle> GalleryAsync(PosTokenSet token,CancellationToken ct)

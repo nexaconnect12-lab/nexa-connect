@@ -141,5 +141,6 @@ Pending actual-device checks:
 - Verify customer privacy, display disconnect safety, original recovery and paid-state
   preservation. No actual peripheral/OIDC/device acceptance is claimed by fixture tests.
 
-Card-reader sign-in, additional application keyboard languages, full UI redesign and
-continuous screensaver playback during prolonged lock remain separate follow-ups.
+Card-reader sign-in, additional application keyboard languages and full UI redesign remain
+separate follow-ups. [UX4](POS-UX4-Locked-Gallery.md) subsequently implements continuous
+locked gallery refresh in source; its deployment and human/device acceptance are separate.

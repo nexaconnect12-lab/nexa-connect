@@ -1,5 +1,13 @@
 # Authorization Service
 
+UX4 exposes a dedicated Media-workload-only boolean gallery check for the fixed
+`catalog.menu.read` permission at organization/restaurant/branch scope. Application code
+uses the existing live decision service and audit; callers cannot choose another permission
+or financial amount. No schema/grant change. Service `nexaconnect-authorization` uses shared
+request correlation and safe `Gallery permission denied` events; search by correlation ID
+without subjects/bodies/headers. See [API](../../../docs/API/Screensaver-Gallery.md) and
+[rollout/tests](../../../docs/Deployment/POS-UX4-Locked-Gallery.md).
+
 New cashier/store-manager/tenant-admin assignments include order.cancel, matching the existing migration-8 backfill. No new schema or broader role scope is added. Joined draft acceptance exercises real cancellation decisions; see [runner](../../../docs/Deployment/First-Draft-Checkout.md).
 
 The new branch-scoped kitchen-operator assignment contains only catalog.menu.read, kitchen.ticket.read and kitchen.ticket.transition. New assignment operations materialize these permissions through the existing repository; no schema migration or broader realm role is required. Draft-only owning Infrastructure tooling inserts a bounded late-cash THB subject limit without overwriting/reviving existing limits. See [draft provisioning](../../../docs/Deployment/First-Draft-Provisioning.md).

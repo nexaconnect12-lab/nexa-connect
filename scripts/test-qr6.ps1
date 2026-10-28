@@ -33,7 +33,7 @@ try{
     $env:NEXACONNECT_ENVIRONMENT='Testing';$env:NEXACONNECT_POS_DPAPI_ACCEPTANCE='1'
     Trx unit 'tests/Unit/NexaConnect.UnitTests' '' 1052
     Trx architecture 'tests/Architecture/NexaConnect.ArchitectureTests' '' 6
-    Trx http 'tests/Integration/NexaConnect.IntegrationTests' 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests|FullyQualifiedName~OrderListBoundaryTests|FullyQualifiedName~MediaAuthenticatedHttpAcceptanceTests' 31
+    Trx http 'tests/Integration/NexaConnect.IntegrationTests' 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests|FullyQualifiedName~OrderListBoundaryTests|FullyQualifiedName~MediaAuthenticatedHttpAcceptanceTests|FullyQualifiedName~GalleryReaderBoundaryTests' 47
     Native hosting node @('--test','--test-reporter=tap','docker/pilot/hosting.test.mjs')
     $checks.hosting.count=CountResult tap (Join-Path $run 'hosting.private.log') 47
     Native candidate-guards node @('--test','--test-reporter=tap','scripts/release/qr6.test.mjs')

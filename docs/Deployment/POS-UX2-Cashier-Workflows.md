@@ -1,5 +1,10 @@
 # POS UX2 — cashier workflows and UI refinement
 
+Current sizing follows [UX3 display density](POS-UX3-Display-Density.md): Standard uses
+36-DIP minimum controls/rows and Touch uses 52 DIP, independently of automatic keyboards.
+The fixed 48-DIP control sizing below records the original UX2 layout; application keyboard
+keys retain their own 48-DIP minimum.
+
 The [optional input-mode setting](POS-Input-Mode.md) now defaults to keyboard/mouse
 operation. Enable touch-first explicitly for automatic keyboards; the pinned UX2 dock
 and financial/recovery behavior apply in both modes. Historical UX2 evidence below
@@ -151,5 +156,6 @@ Pending operator acceptance:
   lock/resume and scanner input. Actual financial UAT, OIDC, scanner and hardware acceptance
   remain pending until observed; automated fixture results do not replace them.
 
-Card-reader sign-in, continuous locked screensaver playback, new payment/refund workflows
-and broader professional UI redesign remain separate work.
+Card-reader sign-in, new payment/refund workflows and broader professional UI redesign
+remain separate work. [UX4](POS-UX4-Locked-Gallery.md) subsequently implements continuous
+locked gallery refresh in source, with separate deployment and human/device acceptance.

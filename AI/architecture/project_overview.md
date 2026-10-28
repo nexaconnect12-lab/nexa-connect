@@ -1,5 +1,17 @@
 # NexaConnect Project Architecture
 
+[ADR-051](../../docs/Architecture/Decisions/ADR-051-locked-gallery-readers.md) adds Media-issued
+24-hour gallery-only readers for locked POS refresh. Restaurant rechecks the original subject's
+live Directory membership and fixed Authorization menu-read permission through Media-only
+internal routes. Image leases remain at most five minutes; credentials use a separate scoped
+DPAPI cache. No financial authority, cashier token retention or schema change is introduced.
+See [UX4 deployment/acceptance](../../docs/Deployment/POS-UX4-Locked-Gallery.md).
+
+POS UX3 adds Standard/Touch staff density independently of automatic keyboards, with
+window-local resources and responsive cash/short-window layouts. Additive local preferences
+retain legacy choices; financial, identity and customer-display boundaries are unchanged.
+See [UX3](../../docs/Deployment/POS-UX3-Display-Density.md).
+
 POS input mode defaults to keyboard/mouse. An optional touch-first setting persists
 per Windows user/terminal as non-secret presentation preferences outside release and
 financial storage. It gates automatic keyboards only; authority/recovery remain unchanged.

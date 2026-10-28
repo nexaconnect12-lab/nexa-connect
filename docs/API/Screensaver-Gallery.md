@@ -1,5 +1,47 @@
 # Branch-approved screensaver gallery v1
 
+## Gallery-only readers (POS UX4)
+
+`POST /api/media/v1/customer/organizations/{org}/branches/{branch}/screensaver-gallery/readers`
+requires the existing customer-role bearer and live branch menu-read authorization. No request
+body is needed. Response `GalleryReaderCredential` contains `credential`, `organizationId`,
+`branchId`, `issuedAtUtc`, `expiresAtUtc` (at most 24 hours). POS buffers the issue response
+up to 16 KiB and validates credential/scope/lifetime before use.
+The credential binds the authenticated stable subject; callers cannot supply another subject.
+
+`GET /api/media/v1/gallery-readers/organizations/{org}/branches/{branch}` accepts exactly one
+`X-Nexa-Gallery-Reader` header. It does not require a cashier bearer and returns the existing
+`GalleryBundle`. Query parameters are rejected; Bearer/cookie credentials are not substitutes.
+Both routes are no-store. Invalid header/query shape returns 401; invalid/tampered/expired or
+foreign credentials and live access denial return 403; missing selection returns 404;
+dependency/selection-change failure returns 503. Reads are limited in memory to 60 per IP
+and 600 globally per minute, with at most 4096 keys; excess returns 429. No CORS/public
+anonymous image-listing authority is introduced by this capability route.
+
+New internal POST routes accept only the existing authenticated Media workload identity
+(`azp=nexaconnect-media-service`, normal API audience/issuer). Missing authentication returns
+401; other identities return 403. Bodies are capped at 4096 bytes:
+
+| Service route | Body | Result |
+| --- | --- | --- |
+| `/api/platform-directory/v1/internal/gallery-access` | `{organizationId,subject}` | `{granted}` for live organization/product membership |
+| `/api/authorization/v1/internal/gallery-access` | `{organizationId,restaurantId,branchId,subject}` | `{granted}` for fixed `catalog.menu.read`, existing decision audit |
+| `/api/restaurant/v1/internal/organizations/{org}/branches/{branch}/screensaver-gallery` | `{subject}` | Current `BranchGallery` after active hierarchy and both live checks |
+
+Subjects must be nonblank, at most 256 characters, without controls. No arbitrary permission,
+amount or membership-detail request exists. Invalid membership/permission queries return
+`granted:false`; Restaurant denies invalid scope/subject with 403. Media repeats delegated
+checks after provider reads and refuses a changed selection/version. The five-minute bundle
+lease is clipped to reader expiry. Revocation after checks is bounded by that issued lease;
+OIDC session logout/account disable alone does not revoke a reader. It cannot self-renew.
+
+Client operations `gallery.reader.issue`/`gallery.reader.read` and structured `Gallery reader`,
+`Gallery authority`, `Gallery membership`, `Gallery permission` events use shared correlation.
+Service names additionally include `nexaconnect-platform-directory`/`nexaconnect-authorization`.
+No reader, subject, body or header is logged. See
+[ADR-051](../Architecture/Decisions/ADR-051-locked-gallery-readers.md) and
+[cache, rollout and acceptance](../Deployment/POS-UX4-Locked-Gallery.md).
+
 The Customer Portal **Media management → Approved screensaver gallery** configures one
 branch. Upload/scan/process using existing Media management first. Select separate ordered
 staff/customer lists, optional plain-text titles/captions and a 5–60 second interval. Each

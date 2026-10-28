@@ -26,6 +26,7 @@ builder.Services.AddSingleton<NpgsqlDataSource>(_ =>
     return NpgsqlDataSource.Create(connectionString);
 });
 builder.Services.AddScoped<IOrganizationAccessReader, PostgresOrganizationAccessReader>();
+builder.Services.AddScoped<GalleryMembership>();
 builder.Services.AddScoped<IPlatformDirectoryManagement, PlatformDirectoryManagementService>();
 builder.Services.AddScoped<IPlatformDirectoryManagementRepository, PostgresPlatformDirectoryManagementRepository>();
 builder.Services.AddScoped<CustomerMembershipManagement>();

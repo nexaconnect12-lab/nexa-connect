@@ -17,8 +17,12 @@ public partial class MainWindow
 
     private void InitializeTouchInput()
     {
-        touchFirst = inputPreferences.LoadTouchFirst();
+        var options = inputPreferences.Load();
+        touchFirst = options.TouchFirst;
+        displayDensity = options.Density;
         TouchFirstCheckBox.IsChecked = touchFirst;
+        DensityPicker.SelectedIndex = displayDensity == PosDisplayDensity.Touch ? 1 : 0;
+        ApplyDisplayDensity();
         RenderInputModeStatus();
         OperationalSurface.AddHandler(Keyboard.GotKeyboardFocusEvent,
             new KeyboardFocusChangedEventHandler((_, e) => {
@@ -90,7 +94,7 @@ public partial class MainWindow
         try
         {
             if (!allowed) return;
-            inputPreferences.SaveTouchFirst(requested);
+            inputPreferences.Save(new(requested, displayDensity));
             touchFirst = requested;
             if (!touchFirst) HideTouchInput();
             RenderInputModeStatus();

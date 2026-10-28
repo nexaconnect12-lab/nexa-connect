@@ -9,7 +9,7 @@ namespace NexaConnect.POS;
 public sealed class PosUiPreferences(string directory)
 {
     private readonly string path = Path.Combine(Path.GetFullPath(directory), "input.json");
-    private sealed record Settings(int Version, bool TouchFirst);
+    private sealed record Settings(int Version, bool TouchFirst, string? Density = null);
 
     public static PosUiPreferences ForTerminal(PosClientConfiguration configuration, string? localApplicationData = null)
     {
@@ -18,12 +18,14 @@ public sealed class PosUiPreferences(string directory)
         return new(Path.Combine(localApplicationData ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NexaConnect", "Preferences", hash));
     }
 
-    public bool LoadTouchFirst()
+    public bool LoadTouchFirst() => Load().TouchFirst;
+
+    public PosUiOptions Load()
     {
         try
         {
             PosInstallationPolicy.AssertNoLinks(path);
-            if (!File.Exists(path)) return false;
+            if (!File.Exists(path)) return new();
             using var stream = File.OpenRead(path);
             byte[] bytes = new byte[1025];
             int length = 0;
@@ -33,21 +35,25 @@ public sealed class PosUiPreferences(string directory)
                 if (count == 0) break;
                 length += count;
             }
-            if (length is <= 0 or > 1024) return false;
+            if (length is <= 0 or > 1024) return new();
             var settings = JsonSerializer.Deserialize<Settings>(bytes.AsSpan(0, length));
-            return settings is { Version: 1, TouchFirst: true };
+            return settings is { Version: 1 } ? new(settings.TouchFirst,
+                settings.Density == nameof(PosDisplayDensity.Touch) ? PosDisplayDensity.Touch : PosDisplayDensity.Standard) : new();
         }
-        catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException) { return false; }
+        catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException or JsonException) { return new(); }
     }
 
-    public void SaveTouchFirst(bool enabled)
+    public void SaveTouchFirst(bool enabled) => Save(Load() with { TouchFirst = enabled });
+
+    public void Save(PosUiOptions options)
     {
+        if (!Enum.IsDefined(options.Density)) throw new ArgumentOutOfRangeException(nameof(options));
         PosInstallationPolicy.AssertNoLinks(path);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            File.WriteAllBytes(temporary, JsonSerializer.SerializeToUtf8Bytes(new Settings(1, enabled)));
+            File.WriteAllBytes(temporary, JsonSerializer.SerializeToUtf8Bytes(new Settings(1, options.TouchFirst, options.Density.ToString())));
             PosInstallationPolicy.AssertNoLinks(path);
             File.Move(temporary, path, true);
         }

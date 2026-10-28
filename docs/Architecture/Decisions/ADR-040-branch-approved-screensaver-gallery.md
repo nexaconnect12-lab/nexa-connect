@@ -1,5 +1,10 @@
 # ADR-040: Branch-approved gallery and leased POS screensavers
 
+The authenticated-only refresh decision below is extended by
+[ADR-051](ADR-051-locked-gallery-readers.md), 28 October 2026: a separate expiring gallery-only
+reader enables locked refresh with live membership/permission checks. The five-minute image
+lease, ownership and original-cashier resume protections remain unchanged.
+
 - Status: Accepted
 - Date: 2026-10-23
 

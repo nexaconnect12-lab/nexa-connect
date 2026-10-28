@@ -31,7 +31,8 @@ ownership/lease decisions; [the API contract](../API/Screensaver-Gallery.md) def
    cannot be approved yet. Empty selections remove media. A conflict/unconfirmed outcome clears
    editable proof and requires reload; no automatic write retry occurs.
 6. Start POS on its private staff screen and assign Phase 4 monitor roles. While signed in
-   and active, its independent gallery timer refreshes once a minute. Leave POS untouched
+   or locked with a valid UX4 gallery reader, its independent timer refreshes once a minute.
+   See [UX4 rollout](POS-UX4-Locked-Gallery.md). Leave POS untouched
    for the automatic five-minute idle lock (there is no manual Lock button): staff
    sees its playlist across the assigned monitor with authentication controls initially hidden.
    Tap/click or press a key to reveal a centered panel, then choose Resume/Authenticate
@@ -66,8 +67,9 @@ Restaurant's `Gallery configuration authorization denied` event before changing 
 
 ## Cache and failure semantics
 
-- Media issues a maximum five-minute lease after live scoped reads. POS refreshes only while
-  signed in and active. A long lock or outage can therefore expire into neutral branding.
+- Media issues a maximum five-minute lease after live scoped reads. UX4 uses a separate
+  expiring gallery-only reader while locked; expiry/outage can still produce neutral branding.
+  Only an active authenticated cashier can obtain or replace that reader.
 - One DPAPI-protected current-user file lives under
   `%LOCALAPPDATA%\NexaConnect\GalleryCache\screensaver-gallery-v1.bin`. It includes scope,
   approved public selection, hashes/images and lease; no bearer, URL or secret. Ciphertext

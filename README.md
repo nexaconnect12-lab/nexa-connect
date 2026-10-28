@@ -1,5 +1,14 @@
 # NexaConnect
 
+[POS UX4](docs/Deployment/POS-UX4-Locked-Gallery.md) adds gallery-only, expiring readers
+for continuous approved screensaver refresh while locked. Cashier authentication and the
+five-minute image lease remain separate; compatible backend/POS deployment and human
+acceptance are required. See [ADR-051](docs/Architecture/Decisions/ADR-051-locked-gallery-readers.md).
+
+POS UX3 adds independent **Standard (default)** / **Touch** display density and responsive
+staff layouts. Automatic keyboards remain a separate default-off choice.
+See [density and device acceptance](docs/Deployment/POS-UX3-Display-Density.md).
+
 POS defaults to keyboard/mouse operation. Automatic keyboards are an optional saved
 **Enable touch-first POS** setting; see [input modes](docs/Deployment/POS-Input-Mode.md).
 

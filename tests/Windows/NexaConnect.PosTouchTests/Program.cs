@@ -39,7 +39,7 @@ internal static class Program
             Private | BindingFlags.Public, null, [root], null)!;
         using var auth = (PosAuthentication)Activator.CreateInstance(typeof(PosAuthentication), Private, null,
             [config, new HttpClientHandler(), tokenStore, (Action<string>)(_ => throw new InvalidOperationException("Fixture must not launch sign-in"))], null)!;
-        using var api = new PosApiClient(config);
+        using var api = new PosApiClient(config, new NoNetworkHandler(config), new NoNetworkHandler(config), new NoNetworkHandler(config), new NoNetworkHandler(config));
         var scope = LocalPosScope.From(config);
         var preferences = new PosUiPreferences(Path.Combine(root, "preferences"));
         var window = new MainWindow(auth, api, new LocalPosStore(scope, root), new LocalOutboxStore(scope, root), config, preferences)
@@ -134,6 +134,8 @@ internal static class Program
             typeof(MainWindow).GetField("settlementUncertain", Private)!.SetValue(window, false);
             typeof(MainWindow).GetField("cancellationStatus", Private)!.SetValue(window, null);
             tabs.SelectedIndex = 0; Pump(window);
+            VerifyDensity(window, preferences, args);
+            tabs.SelectedIndex = 0; Pump(window);
             Invoke(window, "ShowTouchInput", field);
             Invoke(window, "SetBusy", "Fixture busy");
             inputMode.IsChecked = false;
@@ -154,11 +156,84 @@ internal static class Program
             Require(((TouchKeyboard)window.FindName("InputKeyboard")).Visibility == Visibility.Collapsed, "locked field rejected");
             Invoke(window, "ReportWindowsKeyboardFailure");
             Require(((TextBlock)window.FindName("LockStatusText")).Text.Contains("Accessibility"), "keyboard failure guidance visible during lock");
-            Console.WriteLine("PASS: keyboard actions, numeric/text viewport layouts at three sizes, pinned totals/actions, navigation, filter reset, native insertion, busy/disabled/locked guards and visible locked fallback guidance. Physical touch/scanner/OIDC acceptance remains pending.");
+            Console.WriteLine("PASS: independent density/keyboard combinations at four sizes, responsive cash panels, Orders rows, exact payment totals, preference rollback and existing input/workflow/lock guards. Physical touch/scanner/OIDC acceptance remains pending.");
         }
         finally { window.Close(); }
     }
     private static void Pump(Window window) { window.UpdateLayout(); window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, () => { }); window.UpdateLayout(); }
+    private static void VerifyDensity(MainWindow window, PosUiPreferences preferences, string[] args)
+    {
+        var picker = (ComboBox)window.FindName("DensityPicker"); var input = (CheckBox)window.FindName("TouchFirstCheckBox");
+        Require(picker.SelectedIndex == 0, "density defaults Standard independently of keyboard opt-in");
+        foreach (var density in new[] { PosDisplayDensity.Standard, PosDisplayDensity.Touch })
+        foreach (bool keyboard in new[] { false, true })
+        {
+            picker.SelectedIndex = (int)density; input.IsChecked = keyboard; Pump(window);
+            Require(preferences.Load() == new PosUiOptions(keyboard, density), "density and automatic keyboard choices remain independent");
+            Require(((Button)window.FindName("OpenShiftButton")).MinHeight == PosDensityMetrics.For(density).ControlHeight, "dynamic control height follows density");
+            foreach (var size in new[] { new Size(960, 640), new Size(1024, 768), new Size(1280, 800), new Size(1536, 864) })
+            {
+                window.Width = size.Width; window.Height = size.Height; Pump(window);
+                var tabs = (TabControl)window.FindName("WorkspaceTabs");
+                tabs.SelectedIndex = 0; Pump(window);
+                var search = (TextBox)window.FindName("MenuSearchTextBox");
+                Invoke(window, "ShowTouchInput", search); search.BringIntoView(); Pump(window);
+                var keys = (TouchKeyboard)window.FindName("InputKeyboard");
+                Require((keys.Visibility == Visibility.Visible) == keyboard, "density does not enable automatic keyboard");
+                var viewport = (ScrollViewer)window.FindName("InputViewport");
+                var searchBounds = search.TransformToAncestor(viewport).TransformBounds(new Rect(search.RenderSize));
+                Require(searchBounds.Top >= -1 && searchBounds.Bottom <= viewport.ActualHeight + 1, $"search visible at {size} {density}/{keyboard}");
+                var root = (FrameworkElement)window.Content; var dock = (Border)window.FindName("WorkflowDock");
+                var dockBounds = dock.TransformToAncestor(root).TransformBounds(new Rect(dock.RenderSize));
+                Require(dockBounds.Top >= 0 && dockBounds.Bottom <= root.ActualHeight + 1, "pinned dock remains inside window");
+                if (keyboard)
+                {
+                    var keyBounds = keys.TransformToAncestor(root).TransformBounds(new Rect(keys.RenderSize));
+                    Require(dockBounds.Bottom <= keyBounds.Top + 1, "density dock does not overlay keyboard");
+                }
+                if (args is ["--preview"] && size.Width == 960 && keyboard)
+                    SavePreview(window, $".runstate/pos-ux3-{density}-preview.png");
+                tabs.SelectedIndex = 4; Pump(window);
+                Require(((ScrollViewer)((TabItem)window.FindName("ShiftCashTab")).Content).PanningMode == PanningMode.VerticalOnly, "stacked cash page supports vertical touch panning");
+                Require(Grid.GetRow((Border)window.FindName("CashReconciliationCard")) == (size.Width < 1100 ? 1 : 0), "cash panels stack at narrow width");
+                var amount = (TextBox)window.FindName("MovementAmountTextBox");
+                Invoke(window, "ShowTouchInput", amount); amount.BringIntoView(); Pump(window);
+                var amountBounds = amount.TransformToAncestor(viewport).TransformBounds(new Rect(amount.RenderSize));
+                Require(amountBounds.Top >= -1 && amountBounds.Bottom <= viewport.ActualHeight + 1, "cash amount remains reachable");
+                tabs.SelectedIndex = 2; Pump(window);
+                Require(ScrollViewer.GetPanningMode((DataGrid)window.FindName("OrdersGrid")) == PanningMode.Both, "Orders keeps two-axis panning for wide columns");
+                Require(((DataGrid)window.FindName("OrdersGrid")).RowHeight == PosDensityMetrics.For(density).ControlHeight, "Orders row density updates");
+                typeof(MainWindow).GetField("pendingOrder", Private)!.SetValue(window, new PosOrderResult(Guid.NewGuid(), PosOrderStatus.KitchenAccepted, 999999999.99m, "THB"));
+                ((TabItem)window.FindName("PaymentTab")).IsSelected = true; Pump(window);
+                var total = (TextBlock)window.FindName("WorkflowAmount");
+                Require(total.Text == CashierPresentation.Money(999999999.99m, "THB"), "large server total stays exact");
+                var totalBounds = total.TransformToAncestor(dock).TransformBounds(new Rect(total.RenderSize));
+                Require(totalBounds.Left >= 0 && totalBounds.Right <= dock.ActualWidth + 1, "total is not horizontally clipped");
+                typeof(MainWindow).GetField("pendingOrder", Private)!.SetValue(window, null);
+            }
+        }
+        input.IsChecked = true; picker.SelectedIndex = 1; Pump(window);
+        // Read-only fixture path is obtained by the test, never from product input.
+        string file = PreferencesPath(preferences);
+        using (var locked = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            picker.SelectedIndex = 0;
+            Require(picker.SelectedIndex == 1, "failed density save restores selection");
+            Require(((TextBlock)window.FindName("DensityStatusText")).Text.Contains("previous layout"), "density save failure is visible");
+        }
+        Require(input.IsChecked == true && preferences.Load() == new PosUiOptions(true, PosDisplayDensity.Touch), "failed density save preserves both preferences");
+    }
+    private static string PreferencesPath(PosUiPreferences preferences) => (string)typeof(PosUiPreferences).GetField("path", Private)!.GetValue(preferences)!;
+    private sealed class NoNetworkHandler(PosClientConfiguration configuration) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Require(request.Method == HttpMethod.Get, "presentation fixture must not issue financial commands");
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) {
+                Content = System.Net.Http.Json.JsonContent.Create(new PosBranchOrderPage(configuration.OrganizationId,
+                    configuration.RestaurantId, configuration.BranchId, Array.Empty<PosBranchOrder>(), null)) });
+        }
+    }
     private static void SavePreview(Window window, string path)
     {
         var root = (FrameworkElement)window.Content;

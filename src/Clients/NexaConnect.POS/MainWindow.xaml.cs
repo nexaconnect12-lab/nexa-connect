@@ -1364,6 +1364,7 @@ public partial class MainWindow : Window
         WorkspaceTabs.IsEnabled = !reauthenticationRequired;
         bool signedIn = IsSignedIn();
         TouchFirstCheckBox.IsEnabled = signedIn && !displaySafetyBlocked;
+        DensityPicker.IsEnabled = signedIn && !displaySafetyBlocked;
         UpdateOrderListControls();
         ApplyDisplaysButton.IsEnabled = DisableCustomerDisplayButton.IsEnabled = signedIn && !displaySafetyBlocked;
         StaffDisplayPicker.IsEnabled = CustomerDisplayPicker.IsEnabled = signedIn && !displaySafetyBlocked;

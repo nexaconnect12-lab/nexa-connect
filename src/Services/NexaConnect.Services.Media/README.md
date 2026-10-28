@@ -1,5 +1,14 @@
 # Media service
 
+UX4 adds `GalleryReaders`, purpose-separated protected 24-hour capabilities and a bounded
+gallery-only GET. Caller issuance requires live branch menu-read. Locked reads use Media's
+existing workload identity for dedicated Restaurant delegation, repeat live selection checks
+after provider reads and retain at most five-minute image leases. Persist the existing key
+ring. No schema/grant change. Shared correlation and safe `Gallery reader` events use service
+`nexaconnect-media`; filter by correlation ID without logging credentials/subjects/bodies.
+See [routes/security](../../../docs/API/Screensaver-Gallery.md) and
+[UX4 rollout/tests/failures](../../../docs/Deployment/POS-UX4-Locked-Gallery.md).
+
 Current `customer-user` identities can enter the upload/read controller but still require live organization Media permissions. Local drafts can explicitly enable the complete storage/scanner/worker profile; cashier permissions remain unchanged. Safe dependency failures omit provider exception text. See [local testing](../../../docs/Deployment/First-Draft-Media.md).
 
 Phase 5 adds metadata readiness and branch-authorized gallery bundle delivery. Set

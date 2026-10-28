@@ -4,7 +4,8 @@ Touch-first operation is optional and **off by default**, including existing ter
 that have no saved preference. Keyboard, mouse and supported scanner input remain usable
 in either mode. The UX2 workflow dock, original financial actions and readable controls
 remain available in both modes; the switch does not select a different business workflow
-or a compact layout.
+or a compact layout. The independent [UX3 display-density setting](POS-UX3-Display-Density.md)
+now provides Standard (default) and Touch layouts without changing this keyboard preference.
 
 ## Change the setting
 
@@ -32,7 +33,7 @@ preferences default to off without blocking sign-in or financial recovery.
 One non-secret `input.json` is stored beneath
 `%LOCALAPPDATA%\NexaConnect\Preferences\<scope-hash>`. The key is lowercase SHA256 over
 UTF-8 `organizationN|restaurantN|branchN|storeN|terminalN` UUIDs. File version 1 contains
-only `Version` and `TouchFirst`; accepted payloads are capped at 1024 bytes, reads use a
+`Version`, `TouchFirst` and optional `Density` (`Standard` or `Touch`); accepted payloads are capped at 1024 bytes, reads use a
 fixed bounded buffer and writes use an atomic temporary-file replacement. Linked/junction
 paths default off on load and are rejected on save. The preference survives
 normal release installation because it is outside immutable release files.

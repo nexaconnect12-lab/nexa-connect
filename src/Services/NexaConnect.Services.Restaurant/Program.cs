@@ -28,6 +28,11 @@ builder.Services.AddScoped<OperationalBranchDiscovery>();
 builder.Services.AddScoped<IBranchManagementRepository, PostgresBranchManagementRepository>();
 builder.Services.AddScoped<BranchProductConfigurationService>();
 builder.Services.AddScoped<BranchGalleryService>();
+builder.Services.AddScoped<GalleryReaderSelection>();
+builder.Services.AddScoped<IGalleryReaderAuthorizer,HttpGalleryReaderAuthorizer>();
+foreach(var service in new[]{("GalleryDirectory","PlatformDirectory"),("GalleryAuthorization","Authorization")})
+    builder.Services.AddHttpClient(service.Item1,client=>{client.BaseAddress=new Uri(builder.Configuration[$"Services:{service.Item2}"]??throw new InvalidOperationException("Gallery authority service is required."));client.Timeout=TimeSpan.FromSeconds(10);})
+        .ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<NexaConnect.Services.Restaurant.Application.Qr.IQrSecrets, QrSecrets>();
 builder.Services.AddScoped<NexaConnect.Services.Restaurant.Application.Qr.IQrEntryRepository, PostgresQrEntryRepository>();

@@ -1,11 +1,18 @@
 # POS local SQLite
 
+UX4 adds no SQLite schema/state change. Its gallery-only credential uses a separate scoped
+DPAPI file under `NexaConnect\GalleryReaders`, bound to original operator and full terminal
+scope; it is not financial recovery or a cashier token. See
+[cache custody and expiry](../Deployment/POS-UX4-Locked-Gallery.md).
+
 Input mode is stored separately as non-secret presentation preferences under
 `%LOCALAPPDATA%\NexaConnect\Preferences\<scope-hash>\input.json`, not in SQLite,
 outbox or protected token/recovery files. Its scope key includes restaurant as well as
 organization/branch/store/terminal and is distinct from the local-pilot recovery key.
 See [input-mode ownership and defaults](../Deployment/POS-Input-Mode.md). No SQLite schema
-or recovery format changes are introduced.
+or recovery format changes are introduced. The same presentation file now also stores
+independent display density through an additive optional version-1 field; legacy keyboard
+choices are preserved. See [UX3 compatibility](../Deployment/POS-UX3-Display-Density.md#ownership-and-compatibility).
 
 ## Local QR pilot storage selection
 

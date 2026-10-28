@@ -1,5 +1,27 @@
 # NexaConnect Project Architecture
 
+## Locked gallery refresh (POS UX4)
+
+Media issues purpose-protected 24-hour gallery readers after live caller branch authorization.
+POS uses them while locked without cashier access/refresh tokens. Media's existing workload
+identity calls a dedicated Restaurant route; Restaurant resolves active hierarchy and checks
+original-subject membership and fixed menu-read permission through dedicated Directory and
+Authorization boolean routes. All internal delegation requires exact Media `azp`, normal
+issuer/audience and shared correlation. Existing general workload grants are unchanged.
+Media repeats authority/selection checks after image reads; approved image leases remain
+at most five minutes, clipped to reader expiry. Separate native DPAPI credentials bind full
+terminal/authority/endpoint scope and original subject. Sign-out/denial clears caches;
+outages expire into neutral branding. Unchanged playlists retain rotation across renewal.
+No schema, financial authority or cashier session extension is added. See
+[ADR-051](Decisions/ADR-051-locked-gallery-readers.md), [API](../API/Screensaver-Gallery.md)
+and [operations/remaining acceptance](../Deployment/POS-UX4-Locked-Gallery.md).
+
+POS UX3 keeps density and responsive layout in the staff presentation layer. Window-local
+resources apply independent Standard/Touch metrics; the existing scoped preference file
+adds optional density while retaining the keyboard choice. Reflow moves existing controls,
+not commands or financial authority; customer display and recovery remain unchanged.
+See [UX3](../Deployment/POS-UX3-Display-Density.md).
+
 POS has an optional default-off touch-first input mode. A small current-user, exact-scope
 presentation file outside immutable releases controls automatic keyboards, with bounded
 reads and atomic writes. Financial storage, authentication and customer disclosure are
@@ -127,7 +149,7 @@ each assigned display with aspect-preserving cropping; staff authentication cont
 hidden and a first gesture reveals a centered original-operator resume/sign-out panel
 without authenticating. The customer view has no controls. Physical monitor
 leases and existing topology/DPI/movement fencing protect placement, restoring prior staff
-geometry/chrome on resume. No client credential, new
+geometry/chrome on resume. UX4 adds a separate gallery-only reader; no new OAuth client,
 business command, table, permission or offline selling capability is added. See
 [ADR-040](Decisions/ADR-040-branch-approved-screensaver-gallery.md),
 [API](../API/Screensaver-Gallery.md) and [operations/evidence](../Deployment/Next-Iteration-Phase-5.md).

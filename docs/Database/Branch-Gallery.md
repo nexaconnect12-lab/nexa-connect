@@ -1,5 +1,10 @@
 # Branch gallery persistence
 
+UX4 retains this ownership/schema. Media gallery readers are purpose-protected capabilities,
+not new database records. Dedicated workload routes query the owning services' existing
+repositories and Authorization decision audit; no shared database access is added. See
+[ADR-051](../Architecture/Decisions/ADR-051-locked-gallery-readers.md).
+
 Restaurant retains ownership of `branches.business_configuration.ScreensaverGallery`.
 The value stores `UpdateBranchGallery`: `ExpectedVersion`, ordered `Staff` and `Customer`
 asset/title/caption lists and `SecondsPerSlide`. Reads expose the current branch row version,
