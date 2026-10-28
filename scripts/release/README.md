@@ -1,9 +1,9 @@
 # Next-iteration release binding and freeze
 
-QR9 adds `qr-acceptance.ps1` Diagnose/Prepare/Record/Report and `qr9.mjs` checklist/evidence guards. The QR6 gate requires 39 acceptance guards and 21 candidate guards. See [QR9 usage and trust limits](../../docs/Deployment/QR9-Acceptance.md).
+QR9 adds `qr-acceptance.ps1` Diagnose/Prepare/Record/Report and `qr9.mjs` checklist/evidence guards. The QR6 gate requires 39 acceptance guards and 22 candidate guards, plus the optional Media profile guard runner. See [QR9 usage and trust limits](../../docs/Deployment/QR9-Acceptance.md).
 
-Current QR6 candidate minima include 1,043 unit tests, 27 QR/history HTTP tests and six
-owning PostgreSQL/RabbitMQ cases after the [native order-list update](../../docs/Deployment/POS-Order-List.md).
+Current QR6 candidate minima include 1,052 unit tests, 31 QR/history/Media HTTP tests and seven
+owning PostgreSQL/RabbitMQ cases after the [local Media update](../../docs/Deployment/First-Draft-Media.md).
 QR8 additionally requires 88 frontend unit and 57 QR browser checks. These source checks do not replace actual cashier/phone/PDF or release gates.
 
 QR7 uses `scripts/qr-pilot.ps1` and `qr7.mjs` to bind a fresh QR6 diagnostic candidate to a prepared local-pilot plan, optional short-lived certificates, exact isolated stack/edge files/configuration/scope and append-only explicitly observed device results. All 24 phone cases start pending; `releaseReady=false` remains invariant. Unknown LAN/trust/device prerequisites block Configure/Start. See [QR7](../../docs/Deployment/QR7-Pilot.md); existing release signing/configuration/freeze commands remain separate.

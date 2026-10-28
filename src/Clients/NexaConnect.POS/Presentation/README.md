@@ -1,5 +1,11 @@
 # POS presentation
 
+`TouchKeyboard` renders focus-preserving touch keys. `TouchInputEdit` provides bounded
+selection replacement, culture-aware numeric drafts and Unicode backspace boundaries.
+`MainWindow.TouchInput.cs` owns the current staff field, docked viewport and privacy/session
+guards; it sends no business command. Windows `osk.exe` owns external browser input.
+See [POS UX1](../../../../docs/Deployment/POS-UX1-Touch-Input.md) for limits and verification.
+
 QR8 adds presentation-only order/collection labels and specific CollectionGuidance from current client state. The server eligibility hint remains advisory and original command validation remains authoritative. See [QR8](../../../../docs/Deployment/QR8-Usability.md).
 
 `PosOrderListState` holds only the staff session's bounded branch-history page and cursor.
@@ -14,6 +20,20 @@ stores one DPAPI-protected current-user bundle. `MainWindow.Gallery.cs` handles 
 refresh, decode and rotation without extending operator activity or blocking authentication.
 Only frozen approved images/public text reach the customer screensaver; normal transaction
 projection stays separate. See [gallery contract](../../../../docs/API/Screensaver-Gallery.md).
+
+Locked images use `UniformToFill` across the monitor with aspect-preserving edge cropping.
+The staff view starts with its centered scrollable authentication panel hidden; the customer view
+has optional public captions and no controls. `ScreensaverPlacement` validates a physical
+monitor lease, rejects ambiguous spans/overlap and invalidates changed topology.
+`PosDisplayCoordinator` snapshots/restores staff bounds/chrome and fences fullscreen moves;
+it owns no authentication or financial state. Missing/expired media retains neutral fallback.
+Minimized windows remain minimized; a later render after restore can enter fullscreen.
+
+`LockPromptState` is presentation-only. The first tap/click/keypress reveals the centered
+panel without authenticating; held/repeated wake-key events are consumed through key-up.
+Focus goes to the panel rather than Resume. Escape/Back hides it while preserving the lock;
+active authentication keeps cancel controls visible. New locks reset hidden, while ordinary
+gallery renders preserve prompt visibility. Original resume/sign-out guards remain authoritative.
 
 `PosTheme.xaml` provides reusable native styles. `CustomerDisplayState` creates a detached,
 allow-listed read model of only the current transaction. It calls no service and stores no

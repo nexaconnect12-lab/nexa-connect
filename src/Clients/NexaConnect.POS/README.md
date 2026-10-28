@@ -1,5 +1,10 @@
 # NexaConnect POS
 
+POS UX1 adds a docked staff text keyboard/numeric cash keypad, cancellation-reason shortcuts
+and Windows on-screen-keyboard launch for external browser authentication. Existing command
+validation and original-cashier recovery remain authoritative. See [usage and pending device
+acceptance](../../../docs/Deployment/POS-UX1-Touch-Input.md); a matching new package is needed.
+
 QR8 Orders refreshes the current page every 15 seconds while selected, signed in and active. Deactivation clears rows; collection guidance explains blockers without granting authority. See [QR8](../../../docs/Deployment/QR8-Usability.md).
 
 **Orders** automatically loads current-branch history with all/QR/POS source and open/paid
@@ -18,11 +23,29 @@ QR5 adds **QR collection**: enter the guest collection reference/original Order 
 
 Phase 5 optionally uses `Services:MediaApi` for approved branch staff/customer screensavers.
 Active authenticated sessions refresh once a minute; lock displays separate role playlists
-beside staff Resume/Authenticate, with no customer authentication/transaction content.
+across each assigned monitor. Aspect-preserving images fill the display with edge cropping;
+a centered staff authentication panel starts hidden and appears on tap/click/keypress, while the customer view
+has only approved images/optional public text and no authentication/transaction content.
+The first gesture only reveals the panel; select Resume/Authenticate separately to start
+original-cashier authentication. Escape or Back to screensaver hides controls and stays locked.
+During authentication the panel stays visible so cancellation remains available.
 Validated PNGs/public text have a five-minute maximum lease in a bounded DPAPI cache; invalid,
 expired or removed content becomes neutral branding. Defaults remain disabled/neutral until
 the Media endpoint is configured. Media never renews operator activity or submits business
 commands. See [settings, cache and acceptance](../../../docs/Deployment/Next-Iteration-Phase-5.md).
+
+Staff screensaver placement snapshots and restores prior window bounds/chrome on resume.
+It uses physical monitor bounds, including the taskbar area, without spanning monitors.
+Without assigned display roles it uses the sole monitor or the unique monitor containing
+the window; ambiguous/overlapping geometry is not enlarged. Display/DPI/unsafe-move changes
+retain the existing neutral safety lock. This is application fullscreen, not OS kiosk mode.
+
+Local draft build-enabled Start now publishes the persisted Media profile's validated
+loopback endpoint into `Services:MediaApi` in both saved and published settings. Default/off
+profiles keep it empty; older settings gain the property. Install the matching refreshed
+package after publication. A blank endpoint skips `InitializeGallery`, so portal approval
+alone cannot make an older installed client show the playlist. No new API, schema, permission
+or financial recovery behavior is introduced.
 
 Phase 4 adds a read-only customer window using the same active transaction. In **Terminal & sync**
 an authenticated operator selects distinct **Staff display**/**Customer display** roles on an

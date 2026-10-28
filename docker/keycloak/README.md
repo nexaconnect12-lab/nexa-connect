@@ -1,5 +1,12 @@
 # NexaConnect Keycloak
 
+The development template gives `nexaconnect-media-service` an explicit access-token
+`nexaconnect-api` audience mapper. Media-enabled local draft startup adds the named mapper
+to its exact owned loopback realm only when missing, rejects conflicting mapper type/
+audience/access-token settings and validates a fresh workload token before applications
+start. This changes no user role or client secret and does not migrate production realms.
+See [local Media setup](../../docs/Deployment/First-Draft-Media.md).
+
 The [Slice 6 local restore drill](../../docs/Deployment/First-Draft-Release.md) stops the generated draft's Keycloak before backing up its complete database and PostgreSQL roles. It restores the original archive in a network-isolated clone using the exact source image, checks DDL success, and separately compares data/sequence dumps and ownership/permission statements. Private backups contain identity password hashes and must remain owner-restricted. The drill resumes the original identity stack; login against a cloned identity/application graph remains unverified. It changes no realm template, client, role or mapper.
 
 Manual-tender terminal admission requires the existing confidential Order client to issue

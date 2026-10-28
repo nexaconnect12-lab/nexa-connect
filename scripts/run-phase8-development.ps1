@@ -125,6 +125,8 @@ $env:Services__Authorization = 'http://localhost:51223/'
 $env:Services__Restaurant = 'http://localhost:51225/'
 $env:Services__Reporting = 'http://localhost:51227/'
 $env:Services__Media = 'http://localhost:51229/'
+# The direct signed upload must match the storage endpoint's exact browser origin.
+$env:Bff__MediaUploadOrigin = ([uri]$env:MediaStorage__ServiceUrl).GetLeftPart([UriPartial]::Authority)
 $env:Services__Notification = 'http://localhost:5020/'
 $env:Services__Catalog = 'http://localhost:5268/'
 $env:Services__Inventory = 'http://localhost:5270/'

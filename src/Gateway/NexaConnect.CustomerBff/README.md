@@ -1,5 +1,12 @@
 # NexaConnect Customer BFF
 
+Set optional `Bff:MediaUploadOrigin` for direct signed staff uploads: one exact HTTPS origin, or loopback HTTP only in Development/Test. Only staff connect-src gains this origin; guest /order stays self-only. The local Media profile supplies it; default is empty. See [local setup](../../../docs/Deployment/First-Draft-Media.md).
+
+The optional local `-EnableMedia` draft profile supplies `Services:Media` from the owned
+loopback service inventory. Media reads/mutations retain the selected NexaConnect
+organization and current bearer/permission checks; private storage/scanner ports are not
+guest routes. See [local upload testing](../../../docs/Deployment/First-Draft-Media.md).
+
 QR7 can front a fresh local QR-enabled draft with a private guest-only HTTPS edge. Exact QrGuest PublicOrigin stays fixed in that isolated profile; staff/Kitchen continue on protected loopback portal entry. The edge forwards no staff/tenant authority and uses the original pinned BFF certificate. Existing BFF guest/origin/capability/CSRF and business boundaries remain authoritative; no BFF route/role change. See [QR7](../../../docs/Deployment/QR7-Pilot.md).
 
 QR4 adds protected-tenant/version/CSRF staff acceptance and cookie/exact-Origin guest

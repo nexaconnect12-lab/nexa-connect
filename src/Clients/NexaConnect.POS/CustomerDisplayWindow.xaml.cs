@@ -15,6 +15,7 @@ public partial class CustomerDisplayWindow : Window
     {
         bool show=locked&&image is not null;
         SaverImage.Source=show?image:null;SaverTitle.Text=show?title:"";SaverCaption.Text=show?caption:"";
+        SaverTextPanel.Visibility=show&&(!string.IsNullOrWhiteSpace(title)||!string.IsNullOrWhiteSpace(caption))?Visibility.Visible:Visibility.Collapsed;
         SaverView.Visibility=show?Visibility.Visible:Visibility.Collapsed;
         TransactionView.Visibility=show?Visibility.Collapsed:Visibility.Visible;
     }

@@ -7,6 +7,12 @@ list has at most six unique asset IDs; title ≤80 and caption ≤160 characters
 Check explicit public-display approval before saving. Empty lists withdraw the slideshow.
 Unconfirmed/conflicting writes require reload; neither portal nor POS automatically repeats writes.
 
+Restaurant resolves the requested branch's active owning restaurant within the selected
+organization before evaluating either permission. The live decision includes organization,
+restaurant and branch, so an existing restaurant-scoped manager assignment applies to its
+branches. An unavailable, inactive or foreign hierarchy is denied with 403. This adds no
+permission grant; existing live denials remain authoritative.
+
 | Route | Authority and behavior |
 | --- | --- |
 | `GET /api/restaurant/v1/customer/organizations/{org}/branches/{branch}/screensaver-gallery` | Live membership and branch `catalog.menu.read`; active branch/restaurant only |
@@ -19,9 +25,13 @@ Unconfirmed/conflicting writes require reload; neither portal nor POS automatica
 The owning services repeat authority; discovery, cookies and selected IDs are not grants.
 The BFF derives the organization, suppresses downstream error bodies and buffers selection
 responses up to 16 KiB. PUT body limit is 16 KiB. No browser-supplied actor/tenant is forwarded.
-Responses are no-store. Anonymous API calls return 401; denied scope 403; absent active branch
-or asset 404; invalid selection/readiness 400; stale/unavailable branch on write 409;
-dependency/delivery failure 503 (unexpected provider failures can surface as generic server errors).
+Responses are no-store. Anonymous API calls return 401. Gallery configuration returns 403
+for denied scope or an unavailable, foreign or inactive branch/restaurant detected before
+authorization. A branch disappearing after authorization can return 404 on read or 409 on
+write; stale versions also return 409. Asset-readiness lookup returns 404 for an unavailable
+or unready asset, and Media delivery can return 404 when selection is unavailable. Invalid
+selection/readiness returns 400; dependency/delivery failure returns 503 (unexpected provider
+failures can surface as generic server errors).
 
 `BranchGallery` contains `organizationId`, `branchId`, current branch `version`, `staff` and
 `customer` arrays of `{assetId,title,caption}`, and `secondsPerSlide`. Default selection is empty.
@@ -31,7 +41,12 @@ with the selection under the existing `branch.configuration.updated` vocabulary.
 
 `GalleryBundle` contains `selection`, `issuedAtUtc`, `expiresAtUtc` and `images` of
 `{assetId,sha256,png}` (base64 JSON bytes). Media converts ready display variants to complete
-PNG images, maximum 1280×1280, 2 MiB each and 16 MiB total. Missing/deleted/unready images and
+PNG images, maximum 1280×1280, 2 MiB each and 16 MiB total. A compressed processed photo can
+expand beyond the PNG limit. Media tries at most three PNG encodings: full size, then
+three-quarter dimensions twice (a 1280-pixel side becomes 960, then 720), preserving aspect
+ratio within integer rounding. Only the delivery copy changes; stored originals and variants
+remain unchanged. Hashes describe the delivered PNG bytes. If encoding still cannot satisfy
+the bound, delivery fails closed rather than raising the limit. Missing/deleted/unready images and
 their selection entries are removed before delivery. The readiness check is repeated after
 the object read; concurrent deletion after response and token revocation are bounded by
 the maximum five-minute lease, not claimed as instantaneous withdrawal. It contains no

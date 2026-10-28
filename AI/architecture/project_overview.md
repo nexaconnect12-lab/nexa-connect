@@ -1,5 +1,13 @@
 # NexaConnect Project Architecture
 
+POS UX1 adds staff-only docked text/numeric input and Windows `osk.exe` launch for the
+unchanged external PKCE flow. Presentation drafts retain existing command validation,
+scope, lock and recovery rules; no service/schema boundary changes. Physical touch,
+scanner and OS-keyboard/OIDC acceptance remain pending. See
+[POS UX1](../../docs/Deployment/POS-UX1-Touch-Input.md).
+
+The opt-in local Media profile adds the existing Media owner, private MinIO/ClamAV, Media migration4/runtime login and two explicit local-manager Media permissions. QR guest routes and financial authority remain unchanged. See [local uploads](../../docs/Deployment/First-Draft-Media.md).
+
 QR9 adds local read-only certificate/live-TLS diagnostics and bounded, source/activation-bound operator checklists over QR7 observations. It adds no financial command or service boundary; actual-device acceptance remains separate. See [QR9](../../docs/Deployment/QR9-Acceptance.md).
 
 QR8 adds presentation-only QR status labels, visible/focused portal refresh and active native Orders refresh with late-response fencing. Explicit decisions and original financial authority remain unchanged; see [QR8](../../docs/Deployment/QR8-Usability.md).
@@ -75,7 +83,10 @@ interruption, device and Store acceptance remain pending. See
 Phase 5 adds branch-owned approved screensaver selection in Restaurant configuration and
 Media-owned bounded PNG delivery from ready product variants. POS uses one protected leased
 cache and separate staff/customer playlists under the existing lock; media cannot authenticate
-or mutate business work. No schema/grant changes; see
+or mutate business work. Full-display images preserve aspect ratio with cropped edges;
+staff reveals centered resume controls on a first gesture without authenticating, and physical
+monitor placement remains privacy-fenced.
+No schema/grant changes; see
 [ADR-040](../../docs/Architecture/Decisions/ADR-040-branch-approved-screensaver-gallery.md)
 and [verification/configuration](../../docs/Deployment/Next-Iteration-Phase-5.md).
 

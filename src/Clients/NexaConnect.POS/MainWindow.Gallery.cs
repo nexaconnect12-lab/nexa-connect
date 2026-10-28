@@ -73,10 +73,13 @@ public partial class MainWindow
     {
       try {
         var now=DateTimeOffset.UtcNow;
+        if(IsLoaded)displays?.StaffScreensaver(reauthenticationRequired&&!displaySafetyBlocked);
         var staff=reauthenticationRequired&&!displaySafetyBlocked?PosGalleryPolicy.Slide(galleryBundle,false,now):null;
         StaffGalleryImage.Source=staff is not null&&galleryImages.TryGetValue(staff.AssetId,out var image)?image:null;
         StaffGalleryTitle.Text=staff?.Title??"";StaffGalleryCaption.Text=staff?.Caption??"";
-        StaffGalleryColumn.Width=StaffGalleryImage.Source is null?new GridLength(0):new GridLength(1,GridUnitType.Star);
+        StaffGalleryTitle.Visibility=string.IsNullOrWhiteSpace(staff?.Title)?Visibility.Collapsed:Visibility.Visible;
+        StaffGalleryCaption.Visibility=string.IsNullOrWhiteSpace(staff?.Caption)?Visibility.Collapsed:Visibility.Visible;
+        RenderLockPrompt();
         var customer=reauthenticationRequired&&!displaySafetyBlocked?PosGalleryPolicy.Slide(galleryBundle,true,now):null;
         displays?.Screensaver(customer is not null&&galleryImages.TryGetValue(customer.AssetId,out var picture)?picture:null,customer?.Title??"",customer?.Caption??"",reauthenticationRequired&&!displaySafetyBlocked);
       }catch{ /* Media presentation cannot block lock/resume or financial recovery. */ }

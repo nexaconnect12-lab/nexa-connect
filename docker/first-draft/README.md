@@ -1,5 +1,12 @@
 # Local first-draft infrastructure
 
+`-EnableMedia` selects the separate `media.compose.yaml` overlay and persists Media startup/inventory. Storage/scanner stay on generated loopback ports with project-owned volumes, exact staff-origin CORS and separate bucket-scoped application keys. Default topology is unchanged. See [setup and acceptance](../../docs/Deployment/First-Draft-Media.md).
+
+Build-enabled Start publishes that profile's generated Media URL as POS `Services:MediaApi`
+in both saved and published client settings. Default/off profiles keep it empty. Generated
+inventory validation rejects a missing enabled endpoint or non-loopback URL. Install the
+matching refreshed POS package; Compose startup alone does not update an installed client.
+
 QR-profile publication also sets local-only `Pos:UseIsolatedLocalPilotStorage=true` for the
 Windows client. Its scope-derived current-user recovery/token directory is separate from
 the earlier terminal's default data. This is a client setting; Compose ports, databases,
@@ -11,6 +18,10 @@ The [Slice 6 restore drill](../../docs/Deployment/First-Draft-Release.md) quiesc
 
 Compose binds generated retained loopback ports from NEXACONNECT_DRAFT_POSTGRES_PORT,
 NEXACONNECT_DRAFT_KEYCLOAK_PORT, NEXACONNECT_DRAFT_RABBITMQ_PORT and NEXACONNECT_DRAFT_REDIS_PORT.
+The optional overlay additionally receives NEXACONNECT_DRAFT_MINIO_PORT,
+NEXACONNECT_DRAFT_CLAMAV_PORT and the exact NEXACONNECT_DRAFT_MEDIA_ORIGIN. Its
+NEXACONNECT_JOINED_MEDIA_* provisioning/application credentials are generated and retained
+through current-user DPAPI, not configured in a repository environment file.
 The lifecycle supplies these transient variables from its private state; do not put them
 in the repository .env. Explicit bindings prevent Docker Desktop stop/start from changing
 ephemeral addresses behind connected services. All application/infrastructure ports are

@@ -1,5 +1,7 @@
 # NexaConnect Customer Portal
 
+Use [the optional local Media profile](../../../../docs/Deployment/First-Draft-Media.md) to test the existing product-image upload form through real storage/scanning/processing. Uploads do not yet add QR menu photos. The local test runner records bounded results without browser traces or signed URLs.
+
 QR8 adds friendly request/collection labels and 15-second mounted, visible/focused read refresh with serialization, cancellation and 20-second timeouts. Guest unknown outcomes retain the original in-memory submission identity for explicit retry; no automatic acceptance/payment or browser persistence. See [QR8](../../../../docs/Deployment/QR8-Usability.md).
 
 QR6 uses patched Zod4.6.7 and GUID-compatible financial response validation. No portal route, permission or financial command changes. The QR, preparation/cutoff/seal and settlement-reporting browser suites feed a new local candidate; actual phones remain separately pending. See [QR6](../../../../docs/Deployment/QR6-Integration.md).

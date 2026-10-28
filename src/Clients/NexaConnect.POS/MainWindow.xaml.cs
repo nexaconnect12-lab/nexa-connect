@@ -106,6 +106,7 @@ public partial class MainWindow : Window
             BankReferenceTextBox.Text = savedSettlement.BankReference ?? string.Empty;
             ReceiptConfirmedCheckBox.IsChecked = savedSettlement.ReceiptConfirmed;
         }
+        InitializeTouchInput();
         viewInitialized = true;
         MenuList.ItemsSource = menu;
         System.Windows.Data.CollectionViewSource.GetDefaultView(menu).Filter = value => value is PosMenuItem item && CashierPresentation.MatchesMenu(item.Name, item.PreparationStation, MenuSearchTextBox.Text, StationComboBox.SelectedItem as string);
@@ -145,6 +146,7 @@ public partial class MainWindow : Window
 
     private async void SignIn_Click(object sender, RoutedEventArgs e)
     {
+        HideTouchInput();
         CardTokenBox.Clear();
         cardTokenRequired = false;
         if (signInCancellation is not null)
@@ -162,6 +164,7 @@ public partial class MainWindow : Window
         try
         {
             StatusText.Text = "Opening secure sign-in…";
+            OpenWindowsKeyboard();
             await _authentication.SignInAsync(reauthenticationRequired, cancellation.Token);
             reauthenticationRequired = false;
             sessionLockMessage = null;
@@ -1329,6 +1332,7 @@ public partial class MainWindow : Window
 
     private void SetBusy(string message)
     {
+        HideTouchInput();
         busy = true;
         ResumeButton.IsEnabled = false;
         LockedSignOutButton.IsEnabled = false;
@@ -1465,6 +1469,7 @@ public partial class MainWindow : Window
 
     private void RenderSessionLock()
     {
+        if (reauthenticationRequired || displaySafetyBlocked || !IsSignedIn()) HideTouchInput();
         OperationalSurface.Visibility = reauthenticationRequired || displaySafetyBlocked ? Visibility.Hidden : Visibility.Visible;
         OperationalSurface.IsEnabled = !reauthenticationRequired;
         SessionLockOverlay.Visibility = reauthenticationRequired && !displaySafetyBlocked ? Visibility.Visible : Visibility.Collapsed;
@@ -1475,6 +1480,7 @@ public partial class MainWindow : Window
         ResumeButton.Content = signInCancellation is null ? "Resume / Authenticate" : "Cancel authentication";
         ResumeButton.IsEnabled = !busy || signInCancellation is not null;
         LockedSignOutButton.IsEnabled = !busy && !HasRetainedWork();
+        RenderLockPrompt();
     }
 
     private bool IsSignedIn()
@@ -1553,6 +1559,7 @@ public partial class MainWindow : Window
 
     private void LockSession(string message)
     {
+        HideTouchInput();
         // Hide and disable immediately, even while an already-started command is completing.
         // That command retains its original recovery identity and is never replayed by locking.
         reauthenticationRequired = true;
@@ -1589,19 +1596,29 @@ public partial class MainWindow : Window
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
-        if (!RecordOperatorActivity()) e.Handled = true;
+        bool activity=RecordOperatorActivity();
+        if (HandleLockPromptKey(e)||!activity) e.Handled = true;
         base.OnPreviewKeyDown(e);
+    }
+
+    protected override void OnPreviewKeyUp(KeyEventArgs e)
+    {
+        Key key=e.Key==Key.System?e.SystemKey:e.Key;
+        if(lockPrompt.KeyUp((int)key))e.Handled=true;
+        base.OnPreviewKeyUp(e);
     }
 
     protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
     {
-        if (!RecordOperatorActivity()) e.Handled = true;
+        bool activity=RecordOperatorActivity();
+        if (RevealLockPrompt()||!activity) e.Handled = true;
         base.OnPreviewMouseDown(e);
     }
 
     protected override void OnPreviewTouchDown(TouchEventArgs e)
     {
-        if (!RecordOperatorActivity()) e.Handled = true;
+        bool activity=RecordOperatorActivity();
+        if (RevealLockPrompt()||!activity) e.Handled = true;
         base.OnPreviewTouchDown(e);
     }
 

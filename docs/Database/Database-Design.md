@@ -1,5 +1,7 @@
 # NexaConnect Database Design
 
+The optional first-draft Media profile adds its existing Media1–4 schema in a separate run-owned database with the Media runtime login. Validated additive initialization preserves existing business databases. Two local-manager Media permission overrides are provisioned under Authorization ownership without overwriting denies/revocations. See [local persistence and lifecycle](../Deployment/First-Draft-Media.md).
+
 QR5 Order22 adds immutable original cashier/terminal/store/shift/settlement custody and atomic generic audit outbox, protected by owning Order locks. Current full catalog209; current manual-settlement binaries require22 even if QR flags are off. Existing financial/receipt/cash/reporting schemas and contracts remain unchanged. See [QR5](QR-Collection.md).
 
 QR4 Order21 adds immutable acceptance provenance and request review/consent state. Current

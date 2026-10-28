@@ -1,5 +1,12 @@
 # First-draft local test stack
 
+Optional local image-upload dependencies are now selected explicitly with `-EnableMedia`; base drafts remain unchanged. See [Media activation, lifecycle and real-browser verification](First-Draft-Media.md).
+
+Build-enabled publication also sets POS `Services:MediaApi` from the enabled profile's
+validated generated loopback inventory. Base/off profiles keep it empty. Refresh and install
+the matching POS package to use approved screensaver galleries; prior installed settings
+with an empty Media endpoint do not initialize gallery refresh.
+
 QR7 adds optional `-QrPilotOrigin https://<confirmed-lan-host>:8443` at fresh draft creation only. It enables the explicit local QR profile, pins that origin across rebuild/restart and verifies source/published server inventories before Restart/NoBuild. It cannot convert a retained normal draft. Host/API/identity/database listeners remain loopback; phones use the separate closed [QR7 HTTPS edge](QR7-Pilot.md). Normal QR defaults remain disabled. Runtime Data Protection keys are retained separately from executable inventory.
 
 For final user testing, retain the provisioned environment across Singapore midnight and follow the [Slice 7 UAT/handover guide](First-Draft-UAT.md). Disposable release-gate environments are Reset after verification and cannot serve as the retained user installation.
@@ -17,9 +24,14 @@ Startup also validates Order's API audience, exact `azp` and service-account use
 claim for manual-tender admission. Existing persisted realms require a reviewed Order
 access-token username mapper update and fresh workload token; see [realm lifecycle](../../docker/keycloak/README.md).
 
-Each new run allocates fifteen distinct ports: eleven application listeners and four
+Each new base run allocates fifteen distinct ports: eleven application listeners and four
 infrastructure bindings (PostgreSQL, Keycloak, RabbitMQ and Redis). The helper supplies
 the four `NEXACONNECT_DRAFT_*_PORT` values transiently from retained metadata.
+
+The optional Media profile adds one application listener and two loopback infrastructure
+bindings (MinIO and ClamAV), for eighteen distinct retained ports. It starts seven owned
+infrastructure containers instead of the base five; the bucket initializer is a separate
+one-shot profile. No storage console or scanner port is published to the LAN.
 Docker Desktop can reassign an ephemeral host port on container stop/start; retained
 bindings keep recovery clients on the original address. Existing retained runs with
 populated infrastructure metadata can Stop/Start with the new Compose definition while

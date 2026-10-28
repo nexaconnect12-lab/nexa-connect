@@ -18,7 +18,7 @@ try {
  if($env:DOCKER_HOST -or (& docker context inspect --format '{{.Endpoints.docker.Host}}') -notmatch '^npipe://'){throw 'Local Docker Desktop required.'}
  $compose=Get-DraftComposeArguments $root $RunId
  $containers=@(& docker @compose ps -q)
- if($LASTEXITCODE -ne 0 -or $containers.Count -ne 5){throw 'All five owned draft containers must be running.'}
+ if($LASTEXITCODE -ne 0 -or $containers.Count -ne $(if($state.Contains('mediaEnabled') -and $state.mediaEnabled){7}else{5})){throw 'All five owned draft containers must be running.'}
  foreach($id in $containers) {
   if((& docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' $id) -ne $state.project){throw 'Draft container ownership mismatch.'}
  }
@@ -59,6 +59,7 @@ try {
  if(-not $NoBuild){& dotnet build (Join-Path $root 'src/Tools/NexaConnect.FirstDraftProvisioning') -c Release --output $artifact --verbosity quiet -m:1;if($LASTEXITCODE -ne 0){throw 'Draft provisioner build failed.'}}
  & dotnet (Join-Path $artifact 'NexaConnect.FirstDraftProvisioning.dll') --confirm
  if($LASTEXITCODE -ne 0){throw 'Draft reference provisioning failed; inspect protected journal.'}
+ if($state.Contains('mediaEnabled') -and $state.mediaEnabled){& dotnet (Join-Path $artifact 'NexaConnect.FirstDraftProvisioning.dll') --media-access;if($LASTEXITCODE -ne 0){throw 'Draft Media permission provisioning failed.'}}
  $reference=Get-Content $referencePath -Raw | ConvertFrom-Json
  if(-not $reference.completed){throw 'Draft reference incomplete.'}
  $pos=Get-Content (Join-Path $run 'pos-configuration.json') -Raw | ConvertFrom-Json

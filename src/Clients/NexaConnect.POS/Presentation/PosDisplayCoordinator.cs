@@ -16,6 +16,9 @@ internal sealed class PosDisplayCoordinator : IDisposable
     private CustomerDisplayWindow? customer;
     private bool placing;
     private bool closing;
+    private StaffFullscreen? staffFullscreen;
+    private sealed record StaffFullscreen(ScreensaverPlacement Placement,DisplayBounds Bounds,WindowStyle Style,
+        ResizeMode Resize,WindowState State,double MinWidth,double MinHeight);
     private CustomerDisplaySnapshot snapshot = CustomerDisplaySnapshot.Welcome;
 
     public PosDisplayCoordinator(Window staff, Action blocked, IPosDisplayPlatform platform)
@@ -26,6 +29,42 @@ internal sealed class PosDisplayCoordinator : IDisposable
         Microsoft.Win32.SystemEvents.DisplaySettingsChanging += Changing;
     }
     public bool Active => topology.Active;
+    public void StaffScreensaver(bool locked)
+    {
+        if(locked)
+        {
+            if(staffFullscreen is not null||topology.Blocked||staff.WindowState==WindowState.Minimized)return;
+            var monitors=platform.Read();
+            if(Active&&!topology.IsCurrent(monitors)){Trip();return;}
+            var bounds=platform.WindowBounds(source.Handle);
+            var placement=ScreensaverPlacement.Create(monitors,bounds,Active?topology.Staff!.Device:null);
+            if(placement is null)return; // Ambiguous/overlapping monitors never enlarge staff content.
+            staffFullscreen=new(placement,bounds,staff.WindowStyle,staff.ResizeMode,staff.WindowState,staff.MinWidth,staff.MinHeight);
+            placing=true;
+            try
+            {
+                staff.WindowState=WindowState.Normal;staff.MinWidth=0;staff.MinHeight=0;
+                staff.ResizeMode=ResizeMode.NoResize;staff.WindowStyle=WindowStyle.None;
+                platform.Place(source.Handle,placement.Monitor.Bounds);
+                if(!placement.Allows(platform.WindowBounds(source.Handle),platform.Read()))Trip();
+            }
+            catch{Trip();}
+            finally{placing=false;}
+        }
+        else if(staffFullscreen is { } saved)
+        {
+            staffFullscreen=null;placing=true;
+            try
+            {
+                staff.WindowState=WindowState.Normal;staff.WindowStyle=saved.Style;staff.ResizeMode=saved.Resize;
+                if(!topology.Blocked&&saved.Placement.IsCurrent(platform.Read()))
+                {platform.Place(source.Handle,saved.Bounds);staff.WindowState=saved.State;}
+                staff.MinWidth=saved.MinWidth;staff.MinHeight=saved.MinHeight;
+            }
+            catch{Trip();}
+            finally{placing=false;}
+        }
+    }
     public bool Apply(string staffDevice, string customerDevice)
     {
         if (topology.Blocked) return false;
@@ -83,7 +122,7 @@ internal sealed class PosDisplayCoordinator : IDisposable
         finally { customer = null; closing = false; }
     }
     private void CustomerClosed(object? sender, EventArgs e) { if (!closing) { customer = null; Trip(); } }
-    private void Changing(object? sender, EventArgs e) => staff.Dispatcher.Invoke(() => { if (Active) Trip(); });
+    private void Changing(object? sender, EventArgs e) => staff.Dispatcher.Invoke(() => { if (Active||staffFullscreen is not null) Trip(); });
     private void Trip()
     {
         if (topology.Blocked) return;
@@ -99,7 +138,7 @@ internal sealed class PosDisplayCoordinator : IDisposable
     }
     private nint WindowMessage(nint handle, int message, nint wParam, nint lParam, ref bool handled)
     {
-        if (!Active || topology.Blocked || placing) return 0;
+        if ((!Active&&staffFullscreen is null) || topology.Blocked || placing) return 0;
         try
         {
             if (message is 0x007E or 0x02E0) { Trip(); return 0; } // topology / DPI
@@ -111,7 +150,8 @@ internal sealed class PosDisplayCoordinator : IDisposable
                 int y = (position.Flags & 0x0002) != 0 ? old.Top : position.Y;
                 int width = (position.Flags & 0x0001) != 0 ? old.Width : position.Width;
                 int height = (position.Flags & 0x0001) != 0 ? old.Height : position.Height;
-                if (!topology.AllowsStaff(new(x, y, x + width, y + height), platform.Read()))
+                var proposed=new DisplayBounds(x,y,x+width,y+height);var monitors=platform.Read();
+                if (!(Active?topology.AllowsStaff(proposed,monitors):staffFullscreen?.Placement.Allows(proposed,monitors)==true))
                 {
                     position.Flags |= 0x0001 | 0x0002; // Reject unsafe move/resize before it occurs.
                     Marshal.StructureToPtr(position, lParam, false);

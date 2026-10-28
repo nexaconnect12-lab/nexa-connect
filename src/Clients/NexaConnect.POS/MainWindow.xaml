@@ -6,8 +6,10 @@
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Window.Resources>
-  <Grid>
-  <Grid x:Name="OperationalSurface" Margin="24">
+  <Grid xmlns:pos="clr-namespace:NexaConnect.POS">
+    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <ScrollViewer x:Name="InputViewport" Margin="24" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly">
+  <Grid x:Name="OperationalSurface" MinHeight="600" Height="{Binding ViewportHeight, ElementName=InputViewport}">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
@@ -24,6 +26,7 @@
         <TextBlock x:Name="SessionText" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,6,0,0" />
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+        <Button Content="Windows keyboard" Click="WindowsKeyboard_Click" AutomationProperties.Name="Open Windows on-screen keyboard" />
         <Button x:Name="SignInButton" Content="Sign in" Click="SignIn_Click" Style="{StaticResource Primary}" />
         <Button x:Name="SignOutButton" Content="Sign out" Click="SignOut_Click" ToolTipService.ShowOnDisabled="True" />
       </StackPanel>
@@ -145,6 +148,10 @@
               <Button x:Name="PaidButton" Content="Confirm payment received" Click="Paid_Click" Style="{StaticResource Primary}" />
               <TextBlock Text="Cancellation reason" Margin="0,16,0,0" />
               <TextBox x:Name="CancellationReasonTextBox" MaxLength="200" AutomationProperties.Name="Cancellation reason" />
+              <WrapPanel>
+                <Button Content="Customer request" Click="CancellationPreset_Click" IsEnabled="{Binding IsEnabled, ElementName=CancellationReasonTextBox}" />
+                <Button Content="Item unavailable" Click="CancellationPreset_Click" IsEnabled="{Binding IsEnabled, ElementName=CancellationReasonTextBox}" />
+              </WrapPanel>
               <Button x:Name="CancelOrderButton" Content="Cancel unpaid order" Click="CancelOrder_Click" ToolTipService.ShowOnDisabled="True" />
             </StackPanel>
           </Border>
@@ -422,27 +429,40 @@
       </ScrollViewer>
     </Border>
   </Grid>
-    <Border x:Name="SessionLockOverlay" Visibility="Collapsed" Background="#F4F6F3" Padding="48"
-            Panel.ZIndex="100" AutomationProperties.Name="POS locked">
-      <Grid MaxWidth="1100" VerticalAlignment="Center" HorizontalAlignment="Center">
-        <Grid.ColumnDefinitions><ColumnDefinition x:Name="StaffGalleryColumn" Width="0"/><ColumnDefinition Width="560"/></Grid.ColumnDefinitions>
-        <StackPanel Margin="0,0,24,0" VerticalAlignment="Center">
-          <Image x:Name="StaffGalleryImage" MaxHeight="280" Stretch="Uniform"/>
-          <TextBlock x:Name="StaffGalleryTitle" TextWrapping="Wrap" FontSize="22" FontWeight="SemiBold" Margin="0,12,0,8"/>
-          <TextBlock x:Name="StaffGalleryCaption" TextWrapping="Wrap" FontSize="16"/>
-        </StackPanel>
-        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-        <TextBlock Text="NexaConnect" FontSize="24" Foreground="#14532D" FontWeight="SemiBold" />
-        <TextBlock Text="Workspace locked" FontSize="36" FontWeight="SemiBold" Margin="0,20,0,12" />
-        <TextBlock Text="Your shift and saved work are retained. Authenticate as the original cashier to resume."
-                   FontSize="18" TextWrapping="Wrap" Margin="0,0,0,20" />
-        <TextBlock x:Name="LockStatusText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,24" />
-        <Button x:Name="ResumeButton" Content="Resume / Authenticate" Click="SignIn_Click" Style="{StaticResource Primary}" />
-        <Button x:Name="LockedSignOutButton" Content="Sign out" Click="SignOut_Click" />
-        </StackPanel>
+  </ScrollViewer>
+    <pos:TouchKeyboard x:Name="InputKeyboard" Grid.Row="1" Visibility="Collapsed" />
+    <Border x:Name="SessionLockOverlay" Visibility="Collapsed" Background="#13251B"
+            Grid.RowSpan="2" Panel.ZIndex="100" Focusable="True" KeyboardNavigation.TabNavigation="Cycle"
+            AutomationProperties.Name="POS locked" AutomationProperties.HelpText="Tap or press a key to show authentication controls. Your workspace remains locked.">
+      <Grid ClipToBounds="True">
+        <Image x:Name="StaffGalleryImage" Stretch="UniformToFill" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+        <TextBlock x:Name="StaffFallbackBrand" Text="NexaConnect" FontSize="40" Foreground="White" Opacity="0.65"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+        <Border x:Name="StaffLockScrim" Background="#66000000" Visibility="Collapsed" IsHitTestVisible="False" />
+        <Border x:Name="LockAuthenticationPanel" Background="#ED10251A" CornerRadius="12" Padding="24" Margin="24"
+                Visibility="Collapsed" Focusable="True" KeyboardNavigation.TabNavigation="Cycle"
+                AutomationProperties.Name="Authenticate to resume"
+                MaxWidth="480" MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}"
+                HorizontalAlignment="Center" VerticalAlignment="Center" TextElement.Foreground="White">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+              <TextBlock Text="NexaConnect" FontSize="16" FontWeight="SemiBold" />
+              <TextBlock x:Name="StaffGalleryTitle" TextWrapping="Wrap" FontSize="24" FontWeight="SemiBold" Margin="0,8,0,0"/>
+              <TextBlock x:Name="StaffGalleryCaption" TextWrapping="Wrap" FontSize="16" Margin="0,4,0,0"/>
+              <TextBlock Text="Workspace locked" FontSize="22" FontWeight="SemiBold" Margin="0,16,0,8" />
+              <TextBlock Text="Your shift and saved work are retained. Authenticate as the original cashier to resume."
+                         FontSize="14" TextWrapping="Wrap" Margin="0,0,0,8" />
+              <TextBlock x:Name="LockStatusText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,12" />
+              <Button x:Name="ResumeButton" Content="Resume / Authenticate" Click="SignIn_Click" Style="{StaticResource Primary}" />
+              <Button Content="Windows keyboard" Click="WindowsKeyboard_Click" />
+              <Button x:Name="LockedSignOutButton" Content="Sign out" Click="SignOut_Click" />
+              <Button x:Name="BackToScreensaverButton" Content="Back to screensaver" Click="BackToScreensaver_Click" />
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
       </Grid>
     </Border>
-    <Border x:Name="DisplaySafetyOverlay" Visibility="Collapsed" Background="#F4F6F3" Padding="40" Panel.ZIndex="200">
+    <Border x:Name="DisplaySafetyOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#F4F6F3" Padding="40" Panel.ZIndex="200">
       <StackPanel MaxWidth="600" HorizontalAlignment="Center" VerticalAlignment="Center">
         <TextBlock Text="NexaConnect" FontSize="28" FontWeight="SemiBold" Foreground="#14532D" />
         <TextBlock Text="Display setup changed" FontSize="36" FontWeight="Bold" TextWrapping="Wrap" Margin="0,24,0,16" />

@@ -32,6 +32,16 @@ Scope is role-specific: `tenant-admin` requires organization scope (`restaurantI
 
 The current customer Branch list and Media list APIs authorize at organization scope because their requests do not carry a restaurant filter. Use an organization-scoped `tenant-admin` assignment for those organization-wide pages. A restaurant-scoped `store-manager` assignment covers restaurant-bound operations but does not implicitly satisfy an organization-wide list decision; restaurant-filtered list contracts remain follow-up work.
 
+The Media asset controller also admits the existing `customer-user` realm role, alongside
+`customer-owner`, `customer-admin`, `customer-manager` and `customer-viewer`. Every asset
+read/download still requires live organization membership and `media.asset.read`; upload,
+completion and deletion require `media.asset.manage`. Admitting a realm role grants no
+Media permission by itself. Routes, request/response bodies, version checks and limits
+are unchanged. The optional local draft is a narrowly scoped provisioning exception:
+its active store-manager subject receives only explicit organization-level Media read/manage
+overrides, preserving existing denies/revocations, rather than an organization-wide
+administrator role. See [local setup and retirement](../Deployment/First-Draft-Media.md).
+
 Example request:
 
 ```json

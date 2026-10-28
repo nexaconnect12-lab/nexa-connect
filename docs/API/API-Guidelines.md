@@ -12,6 +12,14 @@ Order, POS and Reporting expose anonymous `GET /health/live` returning only `{ "
 
 ## Dedicated-server pilot edge
 
+Staff portal responses can include one additional `connect-src` origin for direct signed
+Media uploads, configured as `Bff:MediaUploadOrigin`. Startup accepts only a canonical
+HTTPS origin, or loopback HTTP in Development/Test/Testing, without a path, query,
+fragment, credentials or wildcard. Empty configuration retains `connect-src 'self'`.
+The guest `/order` response remains self-only regardless of this setting. This header
+does not grant Media authorization or replace storage-side CORS/TLS; see
+[local Media configuration](../Deployment/First-Draft-Media.md).
+
 The [Phase 6 artifact tool](../../docker/pilot/README.md) generates separate HTTPS
 Customer/Product Owner portal origins and POS, Order, Catalog, Payment and Media API
 origins. Portal hosts forward their same-origin BFF/static routes. API hosts forward

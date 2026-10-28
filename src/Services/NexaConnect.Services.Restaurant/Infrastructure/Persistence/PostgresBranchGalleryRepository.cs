@@ -10,6 +10,12 @@ namespace NexaConnect.Services.Restaurant.Infrastructure.Persistence;
 
 public sealed class PostgresBranchGalleryRepository(NpgsqlDataSource source) : IBranchGalleryRepository
 {
+    public async Task<Guid?> RestaurantAsync(Guid org, Guid branch, CancellationToken ct)
+    {
+        await using var command = source.CreateCommand("SELECT r.id FROM branches b JOIN restaurants r ON r.id=b.restaurant_id WHERE r.organization_id=$1 AND r.status='active' AND b.id=$2 AND b.status='active';");
+        command.Parameters.AddWithValue(org); command.Parameters.AddWithValue(branch);
+        return await command.ExecuteScalarAsync(ct) is Guid restaurant ? restaurant : null;
+    }
     public async Task<BranchGallery?> GetAsync(Guid org, Guid branch, CancellationToken ct)
     {
         await using var command = source.CreateCommand("SELECT b.concurrency_version,b.business_configuration->'ScreensaverGallery' FROM branches b JOIN restaurants r ON r.id=b.restaurant_id WHERE r.organization_id=$1 AND r.status='active' AND b.id=$2 AND b.status='active';");

@@ -33,6 +33,23 @@ public sealed class GalleryDeliveryTests
         using var huge=new SKBitmap(1281,1);using var largeImage=SKImage.FromBitmap(huge);using var large=largeImage.Encode(SKEncodedImageFormat.Png,100);
         Assert.Throws<InvalidDataException>(()=>encoder.ToPng(large.ToArray()));
     }
+    [Theory]
+    [InlineData(1280,1280)][InlineData(1280,853)][InlineData(853,1280)]
+    public void Detailed_processed_photos_are_reduced_to_fit_the_existing_png_delivery_limit(int width,int height)
+    {
+        using var bitmap=new SKBitmap(width,height);
+        var random=new Random(173);var pixels=new SKColor[width*height];
+        for(int i=0;i<pixels.Length;i++)pixels[i]=new SKColor((byte)random.Next(256),(byte)random.Next(256),(byte)random.Next(256));
+        bitmap.Pixels=pixels;using var source=SKImage.FromBitmap(bitmap);using var display=source.Encode(SKEncodedImageFormat.Jpeg,80);
+        Assert.InRange(display.Size,1,2_097_152);
+        using var decoded=SKBitmap.Decode(display.ToArray());using var decodedImage=SKImage.FromBitmap(decoded);using var full=decodedImage.Encode(SKEncodedImageFormat.Png,100);
+        Assert.True(full.Size>2_097_152); // Reproduces expansion of a valid processed photo.
+        byte[] png=new GalleryImageEncoder().ToPng(display.ToArray());
+        Assert.InRange(png.Length,24,2_097_152);Assert.Equal(new byte[]{137,80,78,71,13,10,26,10},png[..8]);
+        using var result=SKBitmap.Decode(png);Assert.NotNull(result);
+        Assert.InRange(result.Width,1,width-1);Assert.InRange(result.Height,1,height-1);
+        Assert.InRange(Math.Abs((double)result.Width/result.Height-(double)width/height),0,0.01);
+    }
     private sealed class Ports:IBranchGallerySelectionPort,IMediaManagementRepository,IMediaObjectStorage,IGalleryImageEncoder
     {
         public Guid Org=Guid.NewGuid(),Branch=Guid.NewGuid(),Allowed=Guid.NewGuid(),Deleted=Guid.NewGuid();public bool Ready=true,Denied;public int Reads;

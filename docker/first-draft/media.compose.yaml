@@ -1,0 +1,45 @@
+# Opt-in local Media dependencies. Never expose storage or scanning to the LAN.
+services:
+  postgres:
+    volumes:
+      - ./media-init.sh:/opt/nexa-draft-media-init.sh:ro
+  minio:
+    image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${NEXACONNECT_JOINED_MEDIA_ROOT_USER:?Use the draft launcher}
+      MINIO_ROOT_PASSWORD: ${NEXACONNECT_JOINED_MEDIA_ROOT_PASSWORD:?Use the draft launcher}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${NEXACONNECT_DRAFT_MEDIA_ORIGIN:?Use the draft launcher}
+    ports: ["127.0.0.1:${NEXACONNECT_DRAFT_MINIO_PORT:?Use the draft launcher}:9000"]
+    volumes: [media-objects:/data]
+    healthcheck:
+      test: [CMD, mc, ready, local]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  clamav:
+    image: clamav/clamav:1.4.3
+    ports: ["127.0.0.1:${NEXACONNECT_DRAFT_CLAMAV_PORT:?Use the draft launcher}:3310"]
+    volumes: [media-signatures:/var/lib/clamav]
+    healthcheck:
+      test: [CMD, /usr/local/bin/clamdcheck.sh]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+  minio-init:
+    profiles: [media-init]
+    image: minio/mc:RELEASE.2025-07-21T05-28-08Z
+    depends_on:
+      minio: {condition: service_healthy}
+    entrypoint: [/bin/sh, /opt/media-storage-init.sh]
+    environment:
+      MINIO_ROOT_USER: ${NEXACONNECT_JOINED_MEDIA_ROOT_USER:?Use the draft launcher}
+      MINIO_ROOT_PASSWORD: ${NEXACONNECT_JOINED_MEDIA_ROOT_PASSWORD:?Use the draft launcher}
+      MEDIA_ACCESS_KEY: ${NEXACONNECT_JOINED_MEDIA_ACCESS_KEY:?Use the draft launcher}
+      MEDIA_SECRET_KEY: ${NEXACONNECT_JOINED_MEDIA_SECRET_KEY:?Use the draft launcher}
+    volumes:
+      - ./media-storage-init.sh:/opt/media-storage-init.sh:ro
+      - ./media-policy.json:/opt/media-policy.json:ro
+volumes:
+  media-objects:
+  media-signatures:

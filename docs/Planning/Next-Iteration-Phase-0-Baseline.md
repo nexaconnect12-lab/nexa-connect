@@ -8,9 +8,10 @@ not a new release, runtime change or server deployment. The
 
 The core scope is bounded and ready for phase 1 implementation. Server and POS hardware
 discovery remain prerequisites for the affected later phases, not assumed facts.
-The user explicitly deferred confirming server specifications and has not purchased the
-planned Windows POS or confirmed screen sizes/resolutions/touch support. They intend
-to consult before purchase. Do not infer that this development PC is the dedicated server.
+The user explicitly deferred confirming server specifications. At the original assessment,
+POS purchase and display specifications were pending; the 28 October 2026 purchase update
+below supersedes that equipment status. Do not infer that the POS or development PC is
+the dedicated server.
 
 The first draft is sufficient for the user to proceed; its detailed pending UAT results
 remain pending. Preserve the frozen first-draft artifacts and recovery rather than
@@ -81,8 +82,8 @@ These findings identify review targets; they are not a complete security certifi
 | E02 | Singapore test context | Server location, routing/upload speed, internet reliability and power arrangements unknown | Phase 6 capacity/connectivity |
 | E03 | Separate portal origins intended | Domain/DNS ownership, certificate method, identity origin and administrative access method unconfirmed | Phase 6 external access |
 | E04 | Off-server recovery required | Backup destination, retention, recovery time/data-loss objectives, alert recipient and maintenance owner unconfirmed | Phase 6 restore and phase 8 readiness |
-| E05 | Windows POS with staff and customer displays agreed | POS purchase, OS/edition, CPU/runtime capacity, ports, GPU/display topology, resolution, touch and mounting undecided; consult user before buying | Phases 4, 7 hardware verification; phase 9 |
-| E06 | Microsoft Print to PDF is current test target | Physical receipt printer/drawer/scanner are outside this release unless separately scoped | Phase 9 PDF acceptance |
+| E05 | Purchased S200D confirmed 28 October 2026: Windows 11, Intel Core i5 5th generation, 8 GB RAM, 128 GB SSD; 15.6-inch main staff screen and 11.6-inch extended customer screen; advertised touch dual-screen, Wi-Fi and Bluetooth | Confirm exact CPU, OS edition/architecture, resolutions/DPI, touch support per screen, ports, GPU/display topology and mounting; verify actual runtime and display operation | Phases 4, 7 hardware verification; phase 9 |
+| E06 | Purchased bundle includes cash drawer, 80 mm roll-paper POS printer and barcode scanner; Microsoft Print to PDF remains the verified test target | Confirm peripheral models, connection interfaces, printer driver/protocol, drawer connection and scanner input mode. Physical integration remains separately scoped and unverified | Phase 9 PDF acceptance; separately scoped peripheral acceptance |
 | D01 | Idle screen lock, authenticated resume, no work discard | Prefer existing Keycloak interactive flow as the implementation starting point; mechanism/UX reviewed in phase 1. No new PIN, bypass or shared unlock credential approved | Phase 1 |
 | D02 | Gallery selection by authorized staff, approved product/menu assets | Select owning context and permission, playlist schema/version, refresh/capacity/withdrawal rules and fallback branding in phase 5 | Phase 5 |
 | D03 | Professional consistent UI | No logo/style reference confirmed. Provisional reuse: existing green `#14532d`, semantic colours, neutral surfaces, existing typography/frameworks; no claim of user-approved final visual design | Phase 2 rendered review |

@@ -38,6 +38,13 @@ Gallery configuration/asset events cover dependency/authorization boundaries. Se
 [persistence](../../../docs/Database/Branch-Gallery.md) and
 [deployment](../../../docs/Deployment/Next-Iteration-Phase-5.md).
 
+Gallery reads and saves first resolve the active owning restaurant for the requested
+organization/branch through Restaurant persistence. Authorization receives all three scope
+IDs, preserving restaurant-scoped manager access and live denials. Missing, inactive and
+foreign hierarchies fail closed; no role or permission grant changes. The parameterized
+lookup adds no schema change. Diagnose `Gallery configuration authorization denied` under
+`nexaconnect-restaurant` with the validated correlation ID.
+
 [Operational branch discovery](../../../docs/API/Operational-Branches.md) admits customer realm users/viewers and filters active organization branches by live exact-scope workflow permission and directory access. The admin branch-management contract is unchanged. nexaconnect-restaurant logs bounded discovery availability/empty-result events with existing correlation propagation.
 
 Cash-close discovery accepts `capability=cash-close` and evaluates existing `pos.cash-review.read` for each exact branch scope. It does not require `pos.day-close.read` or grant store access; Reporting/POS independently authorize the selected store. Existing customer entry roles, no-store/error behavior and telemetry apply; no schema or new grant is added.

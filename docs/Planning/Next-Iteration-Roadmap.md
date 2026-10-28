@@ -1,5 +1,15 @@
 # Next iteration: phases, checklist and implementation prompts
 
+28 October 2026: the user confirmed purchase of an **S200D dual-screen Windows POS**:
+Windows 11, Intel Core i5 (5th generation), 8 GB RAM, 128 GB SSD, 15.6-inch main
+staff screen and 11.6-inch extended customer screen. The unit is described as a
+touch dual-screen machine with Wi-Fi and Bluetooth, including a cash drawer,
+80 mm roll-paper POS printer and barcode scanner. See the updated
+[equipment prerequisites E05–E06](Next-Iteration-Phase-0-Baseline.md#environment-prerequisites-and-decision-register).
+Screen resolutions/DPI, which screens support touch, OS edition/architecture and
+peripheral models/interfaces/drivers still require confirmation. Purchase does not
+establish physical display or peripheral integration acceptance.
+
 26 October 2026: the user confirmed purchase of **`usenexaconnect.com` at Cloudflare
 Registrar**. This is the domain for upcoming dedicated-server/QR10 planning and later
 cloud migration. DNS/subdomain assignments and trusted HTTPS are not yet configured or
@@ -119,6 +129,93 @@ offline synchronization are proposed backlog, not silently included in this rele
 If selected, give each its own contracts, invariants and acceptance plan; do not disguise
 a new financial workflow as a UI task. Cached screensaver images are not offline checkout.
 
+## Long-term POS product design principles
+
+The first bounded implementation is [POS UX1 — touch-first input foundation](../Deployment/POS-UX1-Touch-Input.md):
+docked text/numeric keyboards, reason shortcuts and Windows keyboard launch for browser
+sign-in. This supplies source behavior; physical touch/scanner/OIDC acceptance and the
+broader card-first/design principles below remain pending.
+
+Recorded 28 October 2026 at the user's request. These principles guide future POS
+UI/UX decisions and feature development. They do not mark capabilities as implemented,
+expand the current release scope or authorize immediate implementation of every item.
+Apply them when selecting and designing future slices, alongside the existing security,
+ownership and release gates. Retain existing roadmap items and their acceptance status.
+
+### Keyboard-less, touch-first operation
+
+Design normal POS operation to work without a physical keyboard or mouse. Minimize
+manual typing: prefer touch-friendly buttons, dropdowns, searchable lists and predefined
+options over free-text fields. Use compatible barcode scanners, card readers and other
+supported peripherals where appropriate to reduce entry effort.
+
+Provide an on-screen keyboard whenever text entry is required, including necessary
+sign-in and recovery flows. Show it when needed, keep the focused field and important
+controls visible, and avoid obstructing totals, validation feedback or confirmation
+actions. Optimize touch targets, focus, scrolling and dismissal for touchscreen use.
+Preserve keyboard accessibility and supported scanner input without making a physical
+keyboard necessary for normal cashier workflows.
+
+### Windows 11-inspired visual direction
+
+Use Windows 11 as a design reference for a clean, modern and consistent POS interface:
+clear typography, appropriate spacing, rounded corners and intuitive visual hierarchy.
+Keep colors, icons, buttons, dialogs and navigation patterns consistent throughout the
+application. Retain a distinct POS-focused interface optimized for retail operations,
+readability, usability and fast cashier workflows.
+
+Layouts must remain responsive across touchscreen sizes, resolutions and DPI settings.
+Use the purchased 15.6-inch staff and 11.6-inch customer displays as physical acceptance
+targets once their resolutions and touch capabilities are confirmed. This direction
+refines the provisional Phase 2 styling; framework, component-library and visual-token
+choices require a scoped design review before implementation.
+
+### Card-based cashier sign-in
+
+Plan compatible identification-card authentication so cashiers can sign in by presenting
+a card instead of relying primarily on username/password entry. Identify the cashier
+through a validated authentication flow and provide clear success/failure feedback.
+Handle invalid or unregistered cards, repeated scans and reader failures gracefully,
+with an appropriate fallback authentication method when a card cannot be used.
+
+Apply the security, access-control and retained-work ownership requirements in
+[optional add-on D](#d--optional-add-on-cashier-card-reader-access). Card presentation
+must not bypass authorization, original-cashier resume restrictions or separate manager
+approvals. Card-based staff access is distinct from payment-card processing. The add-on's
+commercial scope, reader selection and delivery timing remain undecided.
+
+### Principles for every future POS feature
+
+1. **Minimal typing:** reduce manual text entry wherever possible.
+2. **Touch-first operation:** support touchscreen workflows without dependence on a
+   physical keyboard or mouse.
+3. **Fast cashier workflows:** minimize steps in common tasks while retaining necessary
+   financial confirmations and authorization.
+4. **Consistent UI:** follow the Windows 11-inspired direction across POS screens.
+5. **Secure authentication:** make sign-in quick while preserving appropriate security.
+6. **Reliability:** handle peripheral failures and exceptional cases with clear recovery
+   and fallback paths that preserve orders, shifts and payments; unavailable authentication
+   or peripherals must never silently bypass required controls.
+
+### Decisions and acceptance planning before implementation
+
+| Area | Open question or technical decision |
+| --- | --- |
+| On-screen keyboard | Choose Windows touch-keyboard integration or an application keyboard; verify numeric/text entry, required languages/layouts, invocation/dismissal and behavior in external identity-provider windows. Keep authentication entry on the staff display and avoid recording sensitive input. |
+| Display and accessibility | Confirm resolution, DPI and touch support per purchased screen; agree touch-target sizing, contrast, scaling and keyboard-occlusion acceptance cases. |
+| Visual system | Review a representative cashier workflow and agree typography, spacing, colors, icons, dialogs and reusable components before applying the direction broadly. |
+| Workflow efficiency | Identify frequent tasks and baseline their steps and typing; include cashier usability checks for improvements without removing necessary safeguards. |
+| Card and reader | Select card technology, reader/interface and Windows driver support; assess clone/replay resistance and whether a PIN or stronger authenticator is required. A card identifier alone is not proof of authority. |
+| Identity lifecycle | Decide enrolment, cashier-to-card binding, replacement/revocation, failed-attempt limits, repeated-scan handling, safe audit events and identity-provider integration. |
+| Fallback and outages | Select an authorized fallback usable without a physical keyboard; define lost-card, reader disconnect/reconnect, identity outage and offline behavior without bypassing authentication or changing retained ownership. |
+| Peripheral acceptance | Confirm printer, drawer and scanner models/interfaces; test scanner input versus text entry, repeated scans and device failures on the actual Windows POS. Card reader purchase/support remains unconfirmed. |
+
+Future selected implementation slices should include relevant touch-only end-to-end
+checks, on-screen-keyboard visibility/occlusion checks, actual-device usability and
+peripheral failure/recovery cases. Card sign-in additionally requires authorization,
+invalid/unregistered/revoked-card, repeated-scan and fallback tests. Keep unexecuted
+hardware and user observations pending rather than inferring acceptance from source tests.
+
 ## Common instructions for every implementation prompt
 
 Copy this block with the chosen phase prompt. Each phase authorizes only its defined
@@ -131,6 +228,8 @@ and the affected component/API/database/identity/deployment docs before changing
 Inspect git status and preserve other edits and existing terminal recovery.
 
 Use docs/Planning/Next-Iteration-Roadmap.md as the plan, not proof of delivered behavior.
+Apply its long-term POS product design principles to relevant future POS work; implement
+only the selected slice, with explicit scope and acceptance for any new capability.
 Trace the current implementation first, reuse correct existing behavior, then make the
 smallest coherent change. Preserve API/Application/Domain/Infrastructure boundaries,
 service-owned persistence and versioned integration contracts. For state/financial work,
@@ -388,6 +487,24 @@ Do not copy protected Windows terminal recovery between devices/accounts.
 Prepare artifacts and a reviewable cutover plan; execute purchases/live migration only
 with explicit session authorization. Run separate post-migration user acceptance.
 ```
+
+### D — Optional add-on: cashier card-reader access
+
+Recorded 26 October 2026 at the user's request as an **optional add-on service**, outside
+the current QR9/QR10 scope. No implementation or hardware purchase is authorized by this record.
+
+- Staff-card sign-in and authenticated resume of the Windows POS lock screen.
+- Evaluate NFC/RFID badge plus personal PIN or a compatible FIDO2 card/authenticator;
+  reader/card selection and the authentication design remain unconfirmed.
+- Preserve the original cashier's shift, drawer and pending-payment ownership, existing
+  branch permissions and separate manager approvals. A card number alone grants no authority.
+- Include card enrolment, lost-card revocation, failed-attempt limits, audit records and
+  actual Windows reader/card acceptance testing when this add-on is selected.
+- Pricing, delivery timing and offline behavior remain undecided.
+- The 28 October [long-term POS principles](#long-term-pos-product-design-principles)
+  establish the desired card-first cashier experience, clear success/failure feedback,
+  invalid/unregistered-card and repeated-scan handling, reader-failure recovery and an
+  appropriate keyboard-less fallback. They guide this add-on without marking it delivered.
 
 ## Documentation and maintenance
 

@@ -55,7 +55,7 @@ The owning fixture is independently reusable:
 ./scripts/test-qr-entry-persistence.ps1 -ConfirmDisposableInfrastructure
 ```
 
-It now requires six cases and creates only uniquely named local PostgreSQL/RabbitMQ
+It now requires seven cases and creates only uniquely named local PostgreSQL/RabbitMQ
 containers with random credentials and loopback ports. Both are removed on completion or
 failure; receipt success requires cleanup. The joined journey applies full owning
 Restaurant/Catalog/Order/Inventory/Kitchen/POS/Reporting schemas. Actual table entry/session,
@@ -65,9 +65,18 @@ visitors/tables, quote guessing, entry revocation, concurrent retries, committed
 response loss, original paid receipt, and event-derived cash/reporting deduplication.
 The sixth case verifies branch order-history keyset paging, exact tenant/restaurant/branch
 isolation and parameterized filters; the joined journey checks original QR readiness before
-claim and read-only claimed/Paid history. Current minima are 1,043 unit and 27 QR/history
-HTTP tests, including the order-list authorization/transport boundary. Historical dated
+claim and read-only claimed/Paid history. The seventh case creates an isolated local
+Authorization database and verifies that the optional Media grants are limited to the
+intended manager/organization, idempotent, non-financial and preserve explicit denies
+and revoked overrides. Current minima are 1,052 unit and 31 QR/history/Media
+HTTP tests, including the order-list and Media authorization boundaries. The gate also
+requires 22 candidate guards and the optional-profile guard runner. See
+[local Media verification](First-Draft-Media.md). Historical dated
 counts below remain evidence for their original inputs.
+
+The unit minimum includes nine staff Media storage-origin/CSP cases: unsafe or
+non-canonical origins fail startup, loopback HTTP is restricted to local test/development,
+and only the staff policy gains the configured origin. Guest `/order` stays self-only.
 
 Publication failure is injected through an unavailable loopback connection endpoint;
 the real outbox retains its original financial events and retries after its real30second

@@ -32,6 +32,16 @@ public sealed class BranchGalleryPersistenceTests
                 seed.Parameters.AddWithValue(branch);seed.Parameters.AddWithValue(restaurant);await seed.ExecuteNonQueryAsync();
             }
             var repo=new Repo(source);var update=new UpdateBranchGallery(1,[new(Guid.NewGuid(),"Meal","")],[]);
+            Assert.Equal(restaurant,await repo.RestaurantAsync(org,branch,default));
+            Assert.Null(await repo.RestaurantAsync(Guid.NewGuid(),branch,default));
+            Assert.Null(await repo.RestaurantAsync(org,Guid.NewGuid(),default));
+            foreach(string table in new[]{"branches","restaurants"}){
+                // Identifiers are the two fixed fixture-owned tables; runtime values remain parameters.
+                await using var status=source.CreateCommand($"UPDATE {table} SET status=$1 WHERE id=$2;");
+                status.Parameters.AddWithValue("suspended");status.Parameters.AddWithValue(table=="branches"?branch:restaurant);
+                await status.ExecuteNonQueryAsync();Assert.Null(await repo.RestaurantAsync(org,branch,default));
+                status.Parameters[0].Value="active";await status.ExecuteNonQueryAsync();
+            }
             Assert.Null(await repo.GetAsync(Guid.NewGuid(),branch,default));
             Assert.Null(await repo.SaveAsync(Guid.NewGuid(),branch,update,"fixture",default));
             var first=await repo.SaveAsync(org,branch,update,"fixture",default);Assert.Equal(2,first!.Version);

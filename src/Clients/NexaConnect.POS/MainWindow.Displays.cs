@@ -22,6 +22,7 @@ public partial class MainWindow
         }, displayPlatform);
         RefreshDisplays_Click(this, new RoutedEventArgs());
         InitializeGallery();
+        Loaded+=(_,_)=>{RenderGallery();RenderLockPrompt(true);};
     }
 
     private void RefreshDisplays_Click(object sender, RoutedEventArgs e)

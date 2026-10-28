@@ -14,6 +14,8 @@ using NexaConnect.Infrastructure.Authentication;
 using NexaConnect.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
+var mediaUploadOrigin = MediaConnectionPolicy.ValidateOrigin(builder.Configuration["Bff:MediaUploadOrigin"],
+    builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Test") || builder.Environment.IsEnvironment("Testing"));
 builder.Services.AddOptions<NexaConnect.CustomerBff.Controllers.QrGuestOptions>().Bind(builder.Configuration.GetSection("QrGuest"))
     .Validate(o => !o.Enabled || NexaConnect.CustomerBff.Controllers.QrGuestOptions.ValidOrigin(o.PublicOrigin), "QrGuest:PublicOrigin must be an exact HTTPS origin.").ValidateOnStart();
 builder.Services.AddSingleton(new NexaConnect.Infrastructure.Http.BoundedRequestGate(TimeProvider.System));
@@ -181,9 +183,8 @@ app.Use(async (context, next) =>
 {
     if ((context.Request.Path.StartsWithSegments("/bff/customer/late-cash-corrections", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-late-work", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-settlements", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-finalization-preparations", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-approvals", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-seals", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-cutoffs", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/day-close-preparations", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/reports/financial-completeness", StringComparison.OrdinalIgnoreCase) || context.Request.Path.StartsWithSegments("/bff/customer/reports/end-of-day", StringComparison.OrdinalIgnoreCase)))
         context.Response.Headers.CacheControl = "no-store";
-    context.Response.Headers.ContentSecurityPolicy = context.Request.Path.Value is "/order" or "/order/"
-        ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'"
-        : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+    context.Response.Headers.ContentSecurityPolicy = MediaConnectionPolicy.ContentSecurityPolicy(
+        context.Request.Path.Value is "/order" or "/order/", mediaUploadOrigin);
     context.Response.Headers.XContentTypeOptions = "nosniff";
     context.Response.Headers["Referrer-Policy"] = "no-referrer";
     await next();

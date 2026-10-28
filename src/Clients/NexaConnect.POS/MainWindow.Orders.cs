@@ -29,6 +29,7 @@ public partial class MainWindow
     private async void WorkspaceTab_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (!viewInitialized || !ReferenceEquals(e.Source, WorkspaceTabs)) return;
+        HideTouchInput();
         if (OrdersTab.IsSelected) await LoadOrdersAsync(null);
         else ClearOrderList();
     }

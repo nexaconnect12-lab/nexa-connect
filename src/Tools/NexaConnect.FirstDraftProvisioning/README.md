@@ -1,5 +1,7 @@
 # First-draft provisioning
 
+Optional Media provisioning invokes `--media-access` after completed reference setup: only two explicit organization Media permissions for the active retained local manager, through Authorization Infrastructure. Existing denies/revocations are preserved; no cashier, role or financial grant is added. See [local Media profile](../../../docs/Deployment/First-Draft-Media.md).
+
 Reference-only Development CLI for the owned Windows draft stack. Invoke through
 [`provision-first-draft.ps1`](../../../scripts/provision-first-draft.ps1), never against
 production or another acceptance stack. The wrapper supplies DPAPI secrets as transient

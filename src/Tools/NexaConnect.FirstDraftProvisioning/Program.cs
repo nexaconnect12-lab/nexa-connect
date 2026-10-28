@@ -16,7 +16,7 @@ try
 {
     string run = Environment.GetEnvironmentVariable("NEXACONNECT_DRAFT_RUN") ?? "";
     string path = Environment.GetEnvironmentVariable("NEXACONNECT_DRAFT_REFERENCE") ?? "";
-    if (args.Length != 1 || args[0] != "--confirm" || !System.Text.RegularExpressions.Regex.IsMatch(run,"^[a-f0-9]{32}$") ||
+    if (args.Length != 1 || args[0] is not ("--confirm" or "--media-access") || !System.Text.RegularExpressions.Regex.IsMatch(run,"^[a-f0-9]{32}$") ||
         Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") != "Development" ||
         !Path.GetFullPath(path).EndsWith(Path.Combine(".runstate", "first-draft", run, "reference.json"), StringComparison.OrdinalIgnoreCase))
         throw new InvalidOperationException();
@@ -31,6 +31,13 @@ try
         if (builder.Host != "127.0.0.1" || builder.Database != $"nexa_review_it_{run}_{suffix}" || builder.Username != user)
             throw new InvalidOperationException();
         return NpgsqlDataSource.Create(builder.ConnectionString);
+    }
+    if (args[0] == "--media-access")
+    {
+        if (!state.Completed || !state.Subjects.TryGetValue("store-manager", out var manager)) throw new InvalidOperationException();
+        await using var authorization = Source("authorization");
+        await new DraftMediaAccessProvisioner(authorization).EnsureAsync(state.OrganizationId, manager, CancellationToken.None);
+        Console.WriteLine("Local manager Media access prepared; existing denials/revocations preserved."); return 0;
     }
     // Completed runs are deliberately a no-op: never replenish sold stock, reactivate access, or overwrite edited reference data.
     if (state.Completed) { Console.WriteLine("Draft reference already provisioned; no data changed."); return 0; }

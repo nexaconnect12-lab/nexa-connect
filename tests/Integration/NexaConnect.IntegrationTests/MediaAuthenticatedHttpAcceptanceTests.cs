@@ -26,19 +26,23 @@ namespace NexaConnect.IntegrationTests;
 
 public sealed class MediaAuthenticatedHttpAcceptanceTests
 {
-    [Fact]
-    public async Task Authenticated_media_read_uses_route_organization_and_authorization_boundary()
+    [Theory]
+    [InlineData("customer-admin",true,200)]
+    [InlineData("customer-user",true,200)]
+    [InlineData("customer-user",false,403)]
+    [InlineData("unrelated",true,403)]
+    public async Task Authenticated_media_read_uses_route_organization_and_authorization_boundary(string role,bool granted,int expected)
     {
-        Guid organizationId = Guid.NewGuid(); var repository = new CapturingAssets(); var authorizer = new CapturingAuthorizer();
+        Guid organizationId = Guid.NewGuid(); var repository = new CapturingAssets(); var authorizer = new CapturingAuthorizer(granted);
         WebApplicationBuilder builder = WebApplication.CreateBuilder(); builder.WebHost.UseTestServer();
         builder.Services.AddAuthentication(options => { options.DefaultAuthenticateScheme = MediaAuthenticationHandler.Scheme; options.DefaultChallengeScheme = MediaAuthenticationHandler.Scheme; }).AddScheme<AuthenticationSchemeOptions,MediaAuthenticationHandler>(MediaAuthenticationHandler.Scheme,_=>{});
         builder.Services.AddAuthorization(); builder.Services.AddControllers().AddApplicationPart(typeof(CustomerMediaController).Assembly);
         builder.Services.AddSingleton<IMediaAssetRepository>(repository); builder.Services.AddScoped<MediaAssetQueries>(); builder.Services.AddSingleton<IMediaCustomerAuthorizer>(authorizer);
         builder.Services.AddSingleton<MediaManagement>(provider => new MediaManagement(null!,null!,null!,null!,new MediaQuota(1,1)));
         await using WebApplication app = builder.Build(); app.UseAuthentication(); app.UseAuthorization(); app.MapControllers(); await app.StartAsync();
-        using HttpClient client = app.GetTestClient(); client.DefaultRequestHeaders.Authorization = new("Bearer","customer-token");
+        using HttpClient client = app.GetTestClient(); client.DefaultRequestHeaders.Authorization = new("Bearer","customer-token");client.DefaultRequestHeaders.Add("X-Test-Role",role);
         using HttpResponseMessage response = await client.GetAsync($"/api/media/v1/customer/organizations/{organizationId:D}/assets");
-        Assert.Equal(HttpStatusCode.OK,response.StatusCode); Assert.Equal(organizationId,repository.OrganizationId); Assert.Equal(organizationId,authorizer.OrganizationId);
+        Assert.Equal(expected,(int)response.StatusCode);if(expected==200){Assert.Equal(organizationId,repository.OrganizationId);Assert.Equal(organizationId,authorizer.OrganizationId);}else Assert.Equal(Guid.Empty,repository.OrganizationId);
     }
 
     private sealed class CapturingAssets : IMediaAssetRepository
@@ -47,10 +51,10 @@ public sealed class MediaAuthenticatedHttpAcceptanceTests
         public Task<IReadOnlyCollection<MediaAssetSummary>> ListAsync(Guid organizationId,CancellationToken cancellationToken){OrganizationId=organizationId;return Task.FromResult<IReadOnlyCollection<MediaAssetSummary>>([]);}
         public Task<IReadOnlyCollection<MediaVariantSummary>> ListVariantsAsync(Guid organizationId,Guid assetId,CancellationToken cancellationToken){OrganizationId=organizationId;return Task.FromResult<IReadOnlyCollection<MediaVariantSummary>>([]);}
     }
-    private sealed class CapturingAuthorizer : IMediaCustomerAuthorizer
+    private sealed class CapturingAuthorizer(bool granted) : IMediaCustomerAuthorizer
     {
         public Guid OrganizationId { get; private set; }
-        public Task<bool> IsGrantedAsync(Guid organizationId,string permission,string authorizationHeader,CancellationToken cancellationToken){OrganizationId=organizationId;return Task.FromResult(true);}
+        public Task<bool> IsGrantedAsync(Guid organizationId,string permission,string authorizationHeader,CancellationToken cancellationToken){OrganizationId=organizationId;return Task.FromResult(granted);}
     }
 }
 
@@ -59,7 +63,7 @@ internal sealed class MediaAuthenticationHandler(IOptionsMonitor<AuthenticationS
     public new const string Scheme="MediaAcceptance";
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        Claim[] claims=[new("sub","media-acceptance-user"),new(ClaimTypes.Role,"customer-admin")];
+        Claim[] claims=[new("sub","media-acceptance-user"),new(ClaimTypes.Role,Request.Headers["X-Test-Role"].ToString())];
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims,Scheme)),Scheme)));
     }
 }

@@ -1,5 +1,14 @@
 # NexaConnect Project Architecture
 
+POS UX1 keeps touch draft editing inside the staff presentation layer: a docked keyboard
+reserves workspace space and clears its field target across privacy/busy transitions.
+Existing command validators remain authoritative. The system-directory Windows keyboard
+supports external-browser credential entry without POS capture or synthetic input; PKCE,
+original-cashier authentication, customer projections and recovery ownership are unchanged.
+No service/API/schema change. See [behavior and device gates](../Deployment/POS-UX1-Touch-Input.md).
+
+Local first-draft hosting optionally includes Media plus private MinIO/ClamAV, with persisted opt-in inventory/ports and source-bound QR publication coverage. Existing Media organization membership/permissions remain authoritative; local reference provisioning adds only explicit manager Media read/manage overrides and preserves denies/revocations. No new schema/event/guest financial boundary. See [local Media profile](../Deployment/First-Draft-Media.md).
+
 QR9 extends local operational tooling with exact live-leaf/default-OS TLS diagnostics and immutable bounded checklist evidence linked to existing QR7 observations. Candidate freshness, activation scope and explicit operator confirmation remain required; no service/schema/financial authority changes. See [QR9](../Deployment/QR9-Acceptance.md).
 
 QR8 refreshes existing scoped read projections in active clients only; it adds no worker, command, schema or cross-service contract. Native pages clear on deactivation/tab exit/lock; browser unmount aborts reads and guest retry retains the original submission identity. See [QR8 behavior and limits](../Deployment/QR8-Usability.md).
@@ -102,7 +111,12 @@ Phase 5 stores the versioned approved staff/customer playlists in Restaurant-own
 JSON, preserving pricing. Restaurant validates selected Media readiness; Media separately
 reads Restaurant's live branch-authorized selection and supplies only ready selected public
 product variants as bounded PNGs. POS uses a scoped current-user protected cache with a
-maximum five-minute lease and independent lock-screen rendering. No client credential, new
+maximum five-minute lease and independent lock-screen rendering. Fullscreen images fill
+each assigned display with aspect-preserving cropping; staff authentication controls start
+hidden and a first gesture reveals a centered original-operator resume/sign-out panel
+without authenticating. The customer view has no controls. Physical monitor
+leases and existing topology/DPI/movement fencing protect placement, restoring prior staff
+geometry/chrome on resume. No client credential, new
 business command, table, permission or offline selling capability is added. See
 [ADR-040](Decisions/ADR-040-branch-approved-screensaver-gallery.md),
 [API](../API/Screensaver-Gallery.md) and [operations/evidence](../Deployment/Next-Iteration-Phase-5.md).

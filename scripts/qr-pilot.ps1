@@ -92,7 +92,7 @@ try{
  $state=Get-Content -LiteralPath (Join-Path $stack 'state.json') -Raw|ConvertFrom-Json -AsHashtable
  if($state.runId -cne $plan.stackRunId -or $state.project -cne "nexa-draft-$($plan.stackRunId)" -or $state.status -ne 'Ready' -or -not $state.provisionedBranch -or -not $state.Contains('qrPilotOrigin') -or $state.qrPilotOrigin -cne $plan.publicOrigin){throw 'Use only the planned fresh Ready, provisioned QR profile; retained drafts cannot be adopted.'}
  Assert-DraftUrls $state.urls
- $expectedNames=@((Get-DraftServiceCatalog $root).Keys)+@('Bff')
+ $expectedNames=@((Get-DraftServiceCatalog $root -IncludeMedia:($state.Contains('mediaEnabled') -and $state.mediaEnabled)).Keys)+@('Bff')
  if($state.processes.Count -ne $expectedNames.Count -or $state.urls.Count -ne $expectedNames.Count){throw 'Planned stack inventory is incomplete.'}
  foreach($name in $expectedNames){
   if(-not $state.processes.Contains($name) -or -not $state.urls.Contains($name)){throw 'Planned stack service is missing.'}

@@ -31,15 +31,16 @@ try{
     $sourceJson=& node scripts/release/source.mjs;if($LASTEXITCODE -ne 0){throw 'QR6 source inventory failed.'};$source=$sourceJson|ConvertFrom-Json
     $schemaJson=& node scripts/release/qr6.mjs catalog;if($LASTEXITCODE -ne 0){throw 'QR6 schema inventory failed.'};$schemas=$schemaJson|ConvertFrom-Json
     $env:NEXACONNECT_ENVIRONMENT='Testing';$env:NEXACONNECT_POS_DPAPI_ACCEPTANCE='1'
-    Trx unit 'tests/Unit/NexaConnect.UnitTests' '' 1043
+    Trx unit 'tests/Unit/NexaConnect.UnitTests' '' 1052
     Trx architecture 'tests/Architecture/NexaConnect.ArchitectureTests' '' 6
-    Trx http 'tests/Integration/NexaConnect.IntegrationTests' 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests|FullyQualifiedName~OrderListBoundaryTests' 27
+    Trx http 'tests/Integration/NexaConnect.IntegrationTests' 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests|FullyQualifiedName~OrderListBoundaryTests|FullyQualifiedName~MediaAuthenticatedHttpAcceptanceTests' 31
     Native hosting node @('--test','--test-reporter=tap','docker/pilot/hosting.test.mjs')
     $checks.hosting.count=CountResult tap (Join-Path $run 'hosting.private.log') 47
     Native candidate-guards node @('--test','--test-reporter=tap','scripts/release/qr6.test.mjs')
-    $checks['candidate-guards'].count=CountResult tap (Join-Path $run 'candidate-guards.private.log') 21
+    $checks['candidate-guards'].count=CountResult tap (Join-Path $run 'candidate-guards.private.log') 22
     Native acceptance-guards node @('--test','--test-reporter=tap','scripts/release/qr9.test.mjs')
     $checks['acceptance-guards'].count=CountResult tap (Join-Path $run 'acceptance-guards.private.log') 39
+    Native media-profile-guards pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-first-draft-media-guards.ps1'))
     Native pos-build dotnet @('build','src/Clients/NexaConnect.POS','--no-restore','--verbosity','quiet')
     $npm=Join-Path (Split-Path (Get-Command node).Source -Parent) 'node_modules/npm/bin/npm-cli.js'
     Push-Location (Join-Path $repoRoot 'src/Frontend')
@@ -60,7 +61,7 @@ try{
     if($match.Count -ne 1){throw 'QR6 owning receipt was not uniquely identified.'}
     $receiptPath=[IO.Path]::GetFullPath($match[0]);$receipt=Get-Content -LiteralPath $receiptPath -Raw|ConvertFrom-Json
     $expected=Join-Path $repoRoot ".runstate/qr-entry/$($receipt.runId)/verification.json"
-    if($receipt.runId -cnotmatch '^[a-f0-9]{32}$' -or $receiptPath -cne [IO.Path]::GetFullPath($expected) -or $receipt.passed -ne $true -or $receipt.cleanupVerified -ne $true -or $receipt.brokerRecoveryVerified -ne $true -or $receipt.caseCount -lt 6 -or $receipt.productionVerified -ne $false){throw 'QR6 owning evidence is incomplete.'}
+    if($receipt.runId -cnotmatch '^[a-f0-9]{32}$' -or $receiptPath -cne [IO.Path]::GetFullPath($expected) -or $receipt.passed -ne $true -or $receipt.cleanupVerified -ne $true -or $receipt.brokerRecoveryVerified -ne $true -or $receipt.caseCount -lt 7 -or $receipt.productionVerified -ne $false){throw 'QR6 owning evidence is incomplete.'}
     Copy-Item -LiteralPath $receiptPath -Destination (Join-Path $run 'owning.json')
     $checks.owning=@{passed=$true;count=[int]$receipt.caseCount;cleanupVerified=$true;brokerRecoveryVerified=$true;evidenceSha256=(Get-FileHash -LiteralPath (Join-Path $run 'owning.json') -Algorithm SHA256).Hash.ToLowerInvariant()}
     $outputJson=& node scripts/release/qr6.mjs artifacts;if($LASTEXITCODE -ne 0){throw 'QR6 compiled artifact inventory failed.'};$outputs=$outputJson|ConvertFrom-Json

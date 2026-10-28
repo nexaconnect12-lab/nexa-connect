@@ -43,15 +43,15 @@
       <TextBlock x:Name="CustomerTenderText" Text="{Binding Tender}" Margin="0,12,0,0" TextWrapping="Wrap" />
     </StackPanel>
   </Grid>
-  <Border x:Name="SaverView" Visibility="Collapsed" Background="#F4F6F3" Padding="32">
-    <Grid>
-      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-      <TextBlock Text="NexaConnect" FontSize="28" Foreground="#14532D" FontWeight="SemiBold" Margin="0,0,0,16"/>
-      <Image x:Name="SaverImage" Grid.Row="1" Stretch="Uniform"/>
-      <StackPanel Grid.Row="2" Margin="0,16,0,0">
-        <TextBlock x:Name="SaverTitle" FontSize="28" FontWeight="Bold" TextWrapping="Wrap"/>
-        <TextBlock x:Name="SaverCaption" FontSize="20" TextWrapping="Wrap"/>
-      </StackPanel>
+  <Border x:Name="SaverView" Visibility="Collapsed" Background="#13251B">
+    <Grid ClipToBounds="True">
+      <Image x:Name="SaverImage" Stretch="UniformToFill" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+      <Border x:Name="SaverTextPanel" Background="#D910251A" Padding="24" Margin="24" VerticalAlignment="Bottom">
+        <StackPanel TextElement.Foreground="White">
+          <TextBlock x:Name="SaverTitle" FontSize="28" FontWeight="Bold" TextWrapping="Wrap"/>
+          <TextBlock x:Name="SaverCaption" FontSize="20" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Border>
     </Grid>
   </Border>
   </Grid>

@@ -6,6 +6,7 @@ namespace NexaConnect.Services.Restaurant.Application.Configuration;
 
 public interface IBranchGalleryRepository
 {
+    Task<Guid?> RestaurantAsync(Guid org, Guid branch, CancellationToken ct);
     Task<BranchGallery?> GetAsync(Guid org, Guid branch, CancellationToken ct);
     Task<BranchGallery?> SaveAsync(Guid org, Guid branch, UpdateBranchGallery update, string actor, CancellationToken ct);
 }
@@ -44,7 +45,10 @@ public sealed class BranchGalleryService(IBranchGalleryRepository repository, IB
     }
     private async Task Require(Guid org, Guid branch, string permission, string bearer, CancellationToken ct)
     {
-        if (org == Guid.Empty || branch == Guid.Empty || !await authorizer.IsGrantedAsync(org, null, branch, permission, bearer, ct))
+        if (org == Guid.Empty || branch == Guid.Empty) throw new UnauthorizedAccessException();
+        var restaurant = await repository.RestaurantAsync(org, branch, ct);
+        if (restaurant is null || restaurant == Guid.Empty
+            || !await authorizer.IsGrantedAsync(org, restaurant, branch, permission, bearer, ct))
             throw new UnauthorizedAccessException();
     }
 }

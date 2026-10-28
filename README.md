@@ -1,5 +1,11 @@
 # NexaConnect
 
+Windows POS adds a touch-first input foundation with docked text/numeric keyboards and
+Windows keyboard launch for browser sign-in. [POS UX1](docs/Deployment/POS-UX1-Touch-Input.md)
+records source verification and pending physical POS/scanner/authentication acceptance.
+
+Local drafts can opt into Media uploads with `-EnableMedia`: private storage/scanning, current-role authorization and a real-browser upload lifecycle test. See [local image uploads](docs/Deployment/First-Draft-Media.md). QR menu photos remain separate.
+
 QR9 adds TLS/guest-edge diagnostics and structured, retry-safe real-device acceptance checklists. Actual phone/cashier/PDF acceptance stays pending until observed; see [QR9](docs/Deployment/QR9-Acceptance.md).
 
 QR8 adds friendly QR statuses, active-screen read refresh and specific cashier collection/retry guidance. See [QR8 usage](docs/Deployment/QR8-Usability.md). Actual device acceptance remains pending.

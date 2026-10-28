@@ -1,5 +1,15 @@
 # Keycloak Client Matrix
 
+The local Media client now has an explicit API-audience mapper; opt-in startup repairs only a missing exact mapper in the owned local realm and verifies fresh tokens. Staff storage CSP is an exact configured origin; guest policy is unchanged. See [local setup](../Deployment/First-Draft-Media.md).
+
+Media asset reads and mutations admit the existing `customer-user` role while retaining live organization membership plus Media read/manage decisions. The explicit local fixture grants those two organization permissions only to its store-manager subject; no new Keycloak role/client/secret or financial authority. See [scope and revocation limits](../Deployment/First-Draft-Media.md).
+
+The existing Media workload client must issue access tokens with audience
+`nexaconnect-api`; Catalog also checks its exact `azp=nexaconnect-media-service`.
+The development realm includes that audience mapper explicitly. An opt-in local draft
+repairs only the missing named mapper in its validated owned loopback realm, preserving
+existing user roles and secrets and rejecting a conflicting mapper configuration.
+
 Native POS branch history reuses the public `nexaconnect-pos` customer bearer and live
 branch `order.read`; tenant/application and stable `sub` remain required. A separate live
 `order.manual-payment.confirm` decision plus enabled collection controls only the QR

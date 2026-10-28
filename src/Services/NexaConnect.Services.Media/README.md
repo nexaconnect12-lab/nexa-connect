@@ -1,5 +1,7 @@
 # Media service
 
+Current `customer-user` identities can enter the upload/read controller but still require live organization Media permissions. Local drafts can explicitly enable the complete storage/scanner/worker profile; cashier permissions remain unchanged. Safe dependency failures omit provider exception text. See [local testing](../../../docs/Deployment/First-Draft-Media.md).
+
 Phase 5 adds metadata readiness and branch-authorized gallery bundle delivery. Set
 `Services__Restaurant`; Media asks Restaurant for the caller's live menu-readable branch
 selection, then revalidates ready, non-deleted Catalog product display variants. It converts
@@ -7,6 +9,14 @@ only those images to bounded PNGs and issues a maximum five-minute lease; no unr
 Media read grant is given to cashiers. All new HTTP clients use shared correlation and safe
 structured Gallery boundary events. See [contract](../../../docs/API/Screensaver-Gallery.md)
 and [limits/configuration/verification](../../../docs/Deployment/Next-Iteration-Phase-5.md).
+
+Gallery PNG conversion retains the existing 1280-pixel decoded-side, 2 MiB per-image and
+16 MiB aggregate bounds. If a compressed display photo expands beyond the PNG cap, it
+tries at most three encodings: full dimensions, then two reductions to three-quarter
+dimensions using linear sampling. Only the delivery copy changes; original/variant objects
+are untouched and the bundle hashes the resulting PNG. Encoding that still exceeds the
+bound fails closed. `GalleryDeliveryTests` covers detailed square, landscape and portrait
+photos that reproduce compressed-to-PNG expansion, plus existing readiness/scope boundaries.
 
 Media owns tenant-scoped metadata and the S3-compatible object lifecycle. Apply migrations 1 through 4 and configure `ConnectionStrings__Media`, Platform Directory, Authorization, Catalog, object storage, safety, and quota settings.
 

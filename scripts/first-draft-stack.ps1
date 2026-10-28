@@ -6,15 +6,16 @@ param(
     [ValidateSet('cash_manual','promptpay_manual')][string]$PaymentMethod='cash_manual',
     [string]$QrImagePath,
     [string]$QrPilotOrigin,
-    [ValidateSet('PlatformDirectory','Authorization','Restaurant','Catalog','Inventory','Kitchen','Payment','POS','Reporting','Order','Bff')][string]$Service='Kitchen',
+    [ValidateSet('PlatformDirectory','Authorization','Restaurant','Catalog','Inventory','Kitchen','Payment','POS','Reporting','Order','Media','Bff')][string]$Service='Kitchen',
     [switch]$ConfirmTestResources,
+    [switch]$EnableMedia,
     [switch]$NoBuild
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
 . (Join-Path $PSScriptRoot 'payment-review-joined-helpers.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$catalog=Get-DraftServiceCatalog $root
+$catalog=Get-DraftServiceCatalog $root -IncludeMedia:$EnableMedia
 $compatibility=($catalog.Values | Sort-Object { [version]$_.minimumApplicationVersion })[-1].minimumApplicationVersion
 if ($Action -eq 'Validate') {
     Assert-DraftPayment $PaymentMethod $QrImagePath
@@ -50,7 +51,7 @@ function Assert-ContainerOwnership {
         $owner=& docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' $id
         if ($LASTEXITCODE -ne 0 -or $owner -ne $project) { throw 'Draft container owner mismatch.' }
     }
-    foreach($name in @('application-data','identity-data','broker-data','session-data')) {
+    foreach($name in @('application-data','identity-data','broker-data','session-data','media-objects','media-signatures')) {
         $volume="${project}_$name"
         $existing=@(& docker volume ls -q --filter "name=^$([regex]::Escape($volume))$")
         if($LASTEXITCODE -ne 0){throw 'Draft volume lookup failed.'}
@@ -130,7 +131,7 @@ function Set-Configurations {
     foreach ($name in @($catalog.Keys)+@('Bff')) {
         $config=@{ASPNETCORE_ENVIRONMENT='Development';DOTNET_ENVIRONMENT='Development';Authentication__Authority=$authority;Authentication__Audience='nexaconnect-api';Authentication__RequireHttpsMetadata='false';Persistence__Provider='PostgreSQL';Observability__OtlpEnabled='false';CardCheckout__EnableOmiseTestCheckout='false';PaymentProvider__Adapter='Disabled';OmiseWebhooks__Enabled='false';Outbox__Enabled='false';Outbox__BatchSize='0'}
         foreach ($dependency in $catalog.Keys) { $config['Services__'+$dependency]=$script:state.urls[$dependency] }
-        $config.Services__Media='https://media.example.invalid/'
+        $config.Services__Media=if($script:state.Contains('mediaEnabled') -and $script:state.mediaEnabled){$script:state.urls.Media}else{'https://media.example.invalid/'}
         if($name -ne 'Bff'){$config['ConnectionStrings__'+$name]=New-Connection $name}
         $config.WorkloadIdentity__Authority=$authority
         $config.WorkloadIdentity__ClientId='nexaconnect-'+$name.ToLowerInvariant()+'-service'
@@ -157,7 +158,14 @@ function Set-Configurations {
             }
         }
         if($name -eq 'Payment'){$config.PaymentProvider__RecoveryEnabled='false';$config.PaymentProvider__RefundRecoveryEnabled='false'}
+        if($name -eq 'Media'){
+            $config.Outbox__Enabled='true';$config.Outbox__BatchSize='100'
+            $config.MediaStorage__ServiceUrl="http://127.0.0.1:$($script:state.infrastructure.minio)";$config.MediaStorage__Bucket='nexa-draft-media'
+            $config.MediaStorage__AccessKey=$script:secrets.MEDIA_ACCESS_KEY;$config.MediaStorage__SecretKey=$script:secrets.MEDIA_SECRET_KEY
+            $config.MediaSafety__MalwareScanEnabled='true';$config.MediaSafety__ClamAvHost='127.0.0.1';$config.MediaSafety__ClamAvPort=[string]$script:state.infrastructure.clamav
+        }
         if($name -eq 'Bff') {
+            if($script:state.Contains('mediaEnabled') -and $script:state.mediaEnabled){$config.Bff__MediaUploadOrigin="http://127.0.0.1:$($script:state.infrastructure.minio)"}
             $config.Bff__Authority=$authority;$config.Bff__RequireHttpsMetadata='false';$config.Bff__ClientId='nexaconnect-web-bff';$config.Bff__ClientSecret=$script:secrets.CLIENT_SECRET
             $config.Kestrel__Certificates__Default__Path=Join-Path $run 'local.pfx';$config.Kestrel__Certificates__Default__Password=$script:secrets.CERT_PASSWORD
             $config.ConnectionStrings__BffSessionCache="127.0.0.1:$($script:state.infrastructure.redis),password=$($script:secrets.REDIS_PASSWORD),abortConnect=false"
@@ -213,10 +221,14 @@ if($newRun) {
     $secrets=@{}
     foreach($name in @('ADMIN_PASSWORD','MIGRATION_PASSWORD','RUNTIME_PASSWORD','KEYCLOAK_DB_PASSWORD','KEYCLOAK_ADMIN_PASSWORD','CLIENT_SECRET','READER_PASSWORD','RESOLVER_PASSWORD','SECONDMANAGER_PASSWORD','ACCOUNTANT_PASSWORD','RABBITMQ_PASSWORD','REDIS_PASSWORD','CERT_PASSWORD')){$secrets[$name]='Aa1!'+[Guid]::NewGuid().ToString('N')+[Guid]::NewGuid().ToString('N')}
     Save-DraftSecrets $secretPath $secrets
-    $free=@(Get-ReviewJoinedFreePorts 15);$urls=[ordered]@{};$index=0
+    if($EnableMedia){$catalog=Get-DraftServiceCatalog $root -IncludeMedia}
+    $free=@(Get-ReviewJoinedFreePorts ($catalog.Count+5))
+    if($EnableMedia){do{$mediaPorts=@(Get-ReviewJoinedFreePorts 2)}while(@($mediaPorts|Where-Object {$_ -in $free}).Count);$free+=$mediaPorts}
+    $urls=[ordered]@{};$index=0
     foreach($name in $catalog.Keys){$urls[$name]="http://127.0.0.1:$($free[$index])/";$index++}
-    $urls.Bff="https://127.0.0.1:$($free[10])/"
-    $state=@{runId=$RunId;project=$project;status='Starting';paymentMethod=$PaymentMethod;realm="nexa-review-it-$RunId";urls=$urls;processes=@{};infrastructure=@{postgres=$free[11];keycloak=$free[12];rabbitmq=$free[13];redis=$free[14]};authority='';applicationCompatibility=$compatibility;schemaTargets=$catalog;provisionedBranch=$false}
+    $urls.Bff="https://127.0.0.1:$($free[$catalog.Count])/"
+    $state=@{runId=$RunId;project=$project;status='Starting';paymentMethod=$PaymentMethod;realm="nexa-review-it-$RunId";urls=$urls;processes=@{};infrastructure=@{postgres=$free[$catalog.Count+1];keycloak=$free[$catalog.Count+2];rabbitmq=$free[$catalog.Count+3];redis=$free[$catalog.Count+4]};authority='';applicationCompatibility=$compatibility;schemaTargets=$catalog;provisionedBranch=$false}
+    if($EnableMedia){$state.mediaEnabled=$true;$state.infrastructure.minio=$free[$catalog.Count+5];$state.infrastructure.clamav=$free[$catalog.Count+6]}
     if($QrPilotOrigin){$state.qrPilotOrigin=$QrPilotOrigin}
     Save-State
 } else {
@@ -224,6 +236,24 @@ if($newRun) {
     if($state.runId -ne $RunId -or $state.project -ne $project -or $state.status -eq 'Reset'){throw 'Invalid or reset draft state.'}
     if($QrPilotOrigin -and (-not $state.Contains('qrPilotOrigin') -or $state.qrPilotOrigin -cne $QrPilotOrigin)){throw 'QR pilot origin cannot be added to or changed on a retained draft. Create a fresh isolated QR pilot run.'}
     $secrets=Read-DraftSecrets $secretPath
+}
+if($state.Contains('mediaEnabled') -and $state.mediaEnabled -isnot [bool]){throw 'Media profile selection must be a JSON boolean.'}
+if($EnableMedia -and (-not $state.Contains('mediaEnabled') -or -not $state.mediaEnabled)){
+    if($Action -ne 'Start' -or $state.processes.Count -or $NoBuild){throw 'Media activation requires a stopped draft and a build-enabled Start.'}
+    $excluded=@($state.urls.Values|ForEach-Object{([uri]$_).Port})+@($state.infrastructure.Values)
+    do{$extra=@(Get-ReviewJoinedFreePorts 3)}while(@($extra|Where-Object {$_ -in $excluded}).Count)
+    $state.mediaEnabled=$true;$state.urls.Media="http://127.0.0.1:$($extra[0])/";$state.infrastructure.minio=$extra[1];$state.infrastructure.clamav=$extra[2]
+}
+if($state.Contains('mediaEnabled') -and $state.mediaEnabled){
+    $catalog=Get-DraftServiceCatalog $root -IncludeMedia
+    if($Action -eq 'Start'){
+        foreach($key in @('MEDIA_ROOT_PASSWORD','MEDIA_SECRET_KEY')){if(-not $secrets.Contains($key)){$secrets[$key]='Aa1!'+[guid]::NewGuid().ToString('N')+[guid]::NewGuid().ToString('N')}}
+        if(-not $secrets.Contains('MEDIA_ROOT_USER')){$secrets.MEDIA_ROOT_USER='root'+$RunId.Substring(0,16);$secrets.MEDIA_ACCESS_KEY='media'+$RunId.Substring(0,15)}
+        Save-DraftSecrets $secretPath $secrets
+        $state.schemaTargets=$catalog;Save-State
+    }
+    foreach($key in @('MEDIA_ROOT_USER','MEDIA_ROOT_PASSWORD','MEDIA_ACCESS_KEY','MEDIA_SECRET_KEY')){if(-not $secrets.Contains($key) -or -not $secrets[$key]){throw 'Media credentials are missing; restore the protected credentials or use build-enabled Start.'}}
+    $compose=Get-DraftComposeArguments $root $RunId
 }
 Assert-DraftUrls $state.urls
 if($state.infrastructure.Count){
@@ -306,15 +336,20 @@ try {
         & dotnet dev-certs https --export-path (Join-Path $run 'local.pfx') --password $secrets.CERT_PASSWORD | Out-Null
         if($LASTEXITCODE -ne 0){throw 'Local draft certificate export failed.'}
     }
-    Invoke-OwnedCompose @('up','-d','--wait','--wait-timeout','180')
-    foreach($entry in @{postgres=5432;keycloak=8080;rabbitmq=5672;redis=6379}.GetEnumerator()){
+    Invoke-OwnedCompose @('up','-d','--wait','--wait-timeout',$(if($state.Contains('mediaEnabled') -and $state.mediaEnabled){'900'}else{'180'}))
+    if($state.Contains('mediaEnabled') -and $state.mediaEnabled){
+        & docker @compose exec -T postgres bash /opt/nexa-draft-media-init.sh *> (Join-Path $run 'media-database-init.private.log');if($LASTEXITCODE -ne 0){throw 'Owned Media database initialization failed.'}
+        & docker @compose run --rm -T minio-init *> (Join-Path $run 'media-storage-init.private.log');if($LASTEXITCODE -ne 0){throw 'Owned private Media bucket initialization failed.'}
+    }
+    foreach($entry in (@{postgres=5432;keycloak=8080;rabbitmq=5672;redis=6379}+$(if($state.Contains('mediaEnabled') -and $state.mediaEnabled){@{minio=9000;clamav=3310}}else{@{}})).GetEnumerator()){
         $published=& docker @compose port $entry.Key $entry.Value
         if($LASTEXITCODE -ne 0){throw 'Infrastructure port lookup failed.'}
         if($state.infrastructure[$entry.Key] -ne (ConvertFrom-ReviewJoinedPort $published)){throw 'Owned infrastructure listener differs from its retained generated port.'}
     }
     $state.authority="http://127.0.0.1:$($state.infrastructure.keycloak)/realms/$($state.realm)";Save-State
     Wait-DraftHttp ($state.authority+'/.well-known/openid-configuration')
-    foreach($name in @('Catalog','Inventory','Kitchen','Order','POS','Payment','Reporting')) {
+    if($state.Contains('mediaEnabled') -and $state.mediaEnabled){Ensure-DraftMediaAudience $state $secrets}
+    foreach($name in (@('Catalog','Inventory','Kitchen','Order','POS','Payment','Reporting')+$(if($state.Contains('mediaEnabled') -and $state.mediaEnabled){@('Media')}else{@()}))) {
         $token=Invoke-RestMethod ($state.authority+'/protocol/openid-connect/token') -Method Post -Body @{grant_type='client_credentials';client_id=('nexaconnect-'+$name.ToLowerInvariant()+'-service');client_secret=$secrets.CLIENT_SECRET}
         $payload=$token.access_token.Split('.')[1].Replace('-','+').Replace('_','/')
         $payload=$payload.PadRight($payload.Length+(4-$payload.Length%4)%4,'=')
@@ -345,6 +380,7 @@ try {
     foreach($name in @('PlatformDirectory','Restaurant','Catalog','Inventory','Kitchen','Payment','POS','Order')) {
         Stop-DraftApp $name;$configurations[$name].Outbox__Enabled='true';$configurations[$name].Outbox__BatchSize='100';Start-DraftApp $name
     }
+    if($state.Contains('mediaEnabled') -and $state.mediaEnabled){Start-DraftApp 'Media'}
     Start-DraftApp 'Bff'
     # Identity-only login smoke subject; product membership/roles are slice 2.
     $admin=Invoke-RestMethod "http://127.0.0.1:$($state.infrastructure.keycloak)/realms/master/protocol/openid-connect/token" -Method Post -Body @{grant_type='password';client_id='admin-cli';username='acceptance-admin';password=$secrets.KEYCLOAK_ADMIN_PASSWORD}
@@ -375,7 +411,7 @@ try {
             $asset=Join-Path $run ('pos/promptpay-test'+[IO.Path]::GetExtension($QrImagePath));Copy-Item -LiteralPath $QrImagePath -Destination $asset
             $pos.Pos.PromptPayQrImagePath=$asset
         }
-        $pos.Services.PosApi=$state.urls.POS;$pos.Services.OrderApi=$state.urls.Order;$pos.Services.PaymentApi=$state.urls.Payment;$pos.Services.CatalogApi=$state.urls.Catalog
+        Set-DraftPosServiceUrls $pos $state
         $pos | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $run 'pos/appsettings.json')
         $pos | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $savedPosPath
     }

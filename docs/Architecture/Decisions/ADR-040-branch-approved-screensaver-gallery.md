@@ -36,10 +36,25 @@ While authenticated and active POS refreshes once a minute, independently of cas
 Lock stops authenticated refresh but may use its remaining approved lease. Expired/invalid
 content falls back to neutral branding. Explicit denial and sign-out clear cached approval.
 
-One existing lock drives both screens. Staff shows its slideshow beside original-operator
+One existing lock drives both screens. Staff shows its slideshow with original-operator
 Resume/Authenticate. Customer shows only its separate approved slideshow/public text, with
 no transaction or authentication controls. Media failure/latency must never block lock/resume
 or enter the financial pipeline. Cached promotion is not offline authorization or sales support.
+
+On 27 October 2026, presentation expands approved images across each assigned monitor,
+preserving aspect ratio and cropping edges to fill. A compact staff overlay keeps resume
+and sign-out available; the customer view retains no controls. Staff fullscreen uses physical
+monitor bounds and restores prior window geometry/chrome on resume. A monitor lease rejects
+ambiguous/overlapping layouts and changed topology; existing privacy fencing remains active.
+This trades complete edge visibility for full-display imagery without changing approval,
+authentication, lease or financial authority. It does not establish OS kiosk restrictions.
+
+A subsequent 27 October refinement initially hides the staff authentication panel. A first
+tap/click/keypress reveals it centered without starting authentication; Resume is a separate
+action. Escape/Back returns to the slideshow while locked. Held wake-key events cannot
+activate Resume, and active authentication keeps cancellation visible. Customer presentation
+remains free of controls. This preserves unobstructed imagery without weakening the original
+operator identity check or exposing operational content.
 
 Alternatives: a new Media-owned branch configuration table would duplicate Restaurant scope
 ownership; unrestricted signed URLs/indefinite cache would weaken withdrawal and least privilege;
