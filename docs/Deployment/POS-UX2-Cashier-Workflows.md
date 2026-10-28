@@ -1,5 +1,10 @@
 # POS UX2 — cashier workflows and UI refinement
 
+The [optional input-mode setting](POS-Input-Mode.md) now defaults to keyboard/mouse
+operation. Enable touch-first explicitly for automatic keyboards; the pinned UX2 dock
+and financial/recovery behavior apply in both modes. Historical UX2 evidence below
+does not establish acceptance of this subsequent setting change.
+
 This slice implements the next bounded step in the
 [long-term POS principles](../Planning/Next-Iteration-Roadmap.md#long-term-pos-product-design-principles),
 building on [UX1 touch input](POS-UX1-Touch-Input.md). Source implementation does not by

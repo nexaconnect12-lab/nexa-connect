@@ -1,5 +1,10 @@
 # NexaConnect Project Architecture
 
+POS input mode defaults to keyboard/mouse. An optional touch-first setting persists
+per Windows user/terminal as non-secret presentation preferences outside release and
+financial storage. It gates automatic keyboards only; authority/recovery remain unchanged.
+See [input modes](../../docs/Deployment/POS-Input-Mode.md).
+
 POS UX2 adds a staff-only pinned workflow dock with existing financial actions, explicit
 estimate/server-total provenance and guarded navigation. Pure client presentation leaves
 owning-service validation, customer disclosure and original recovery unchanged. See

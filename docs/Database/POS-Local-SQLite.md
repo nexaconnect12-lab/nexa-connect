@@ -1,5 +1,12 @@
 # POS local SQLite
 
+Input mode is stored separately as non-secret presentation preferences under
+`%LOCALAPPDATA%\NexaConnect\Preferences\<scope-hash>\input.json`, not in SQLite,
+outbox or protected token/recovery files. Its scope key includes restaurant as well as
+organization/branch/store/terminal and is distinct from the local-pilot recovery key.
+See [input-mode ownership and defaults](../Deployment/POS-Input-Mode.md). No SQLite schema
+or recovery format changes are introduced.
+
 ## Local QR pilot storage selection
 
 Default clients continue using `%LOCALAPPDATA%\NexaConnect\POS`. The explicit local-only

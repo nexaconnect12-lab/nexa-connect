@@ -1,5 +1,9 @@
 # NexaConnect POS
 
+**Terminal & sync → Input settings → Enable touch-first POS** is optional and off by
+default. It controls automatic application/Windows keyboards; manual Windows keyboard
+access and UX2 workflows remain available in either mode. See [saved input mode](../../../docs/Deployment/POS-Input-Mode.md).
+
 POS UX2 adds a pinned staff workflow/amount/action dock, direct next-step navigation,
 menu filter reset and touch-control refinements. Existing financial handlers and original
 recovery remain authoritative. See [UX2](../../../docs/Deployment/POS-UX2-Cashier-Workflows.md).

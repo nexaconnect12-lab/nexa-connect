@@ -149,12 +149,18 @@ ownership and release gates. Retain existing roadmap items and their acceptance 
 
 ### Keyboard-less, touch-first operation
 
-Design normal POS operation to work without a physical keyboard or mouse. Minimize
+28 October 2026 clarification: touch-first operation is **optional**, not mandatory.
+Default POS operation uses keyboard and mouse. **Terminal & sync → Input settings**
+offers a saved touch-first opt-in; see [input modes](../Deployment/POS-Input-Mode.md).
+Keyboard-less requirements below apply to the selected touch mode. Preserve effective
+keyboard/mouse/scanner operation in both modes and do not require every customer to use touch.
+
+Design the optional touch mode to work without a physical keyboard or mouse. Minimize
 manual typing: prefer touch-friendly buttons, dropdowns, searchable lists and predefined
 options over free-text fields. Use compatible barcode scanners, card readers and other
 supported peripherals where appropriate to reduce entry effort.
 
-Provide an on-screen keyboard whenever text entry is required, including necessary
+In touch mode, provide an on-screen keyboard whenever text entry is required, including necessary
 sign-in and recovery flows. Show it when needed, keep the focused field and important
 controls visible, and avoid obstructing totals, validation feedback or confirmation
 actions. Optimize touch targets, focus, scrolling and dismissal for touchscreen use.
@@ -192,8 +198,8 @@ commercial scope, reader selection and delivery timing remain undecided.
 ### Principles for every future POS feature
 
 1. **Minimal typing:** reduce manual text entry wherever possible.
-2. **Touch-first operation:** support touchscreen workflows without dependence on a
-   physical keyboard or mouse.
+2. **Optional touch-first operation:** default to keyboard/mouse operation and offer
+   configured touchscreen workflows without dependence on a physical keyboard or mouse.
 3. **Fast cashier workflows:** minimize steps in common tasks while retaining necessary
    financial confirmations and authorization.
 4. **Consistent UI:** follow the Windows 11-inspired direction across POS screens.

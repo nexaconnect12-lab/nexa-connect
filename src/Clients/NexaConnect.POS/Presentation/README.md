@@ -1,5 +1,10 @@
 # POS presentation
 
+`PosUiPreferences` stores only a versioned touch-first boolean per current Windows user
+and exact terminal scope, outside release and financial storage. Missing/invalid data
+defaults off. `MainWindow.TouchInput.cs` gates automatic keyboards and applies saved
+changes immediately with failed-save rollback. See [input modes](../../../../docs/Deployment/POS-Input-Mode.md).
+
 `CashierWorkflow` projects client state into guidance and explicitly labeled estimate or
 original unpaid server totals. `MainWindow.Workflow.cs` pins the original buttons and maps
 guarded shortcuts to existing tabs; it invokes no financial commands. See

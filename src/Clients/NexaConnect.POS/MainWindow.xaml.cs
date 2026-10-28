@@ -58,7 +58,8 @@ public partial class MainWindow : Window
         PosApiClient api,
         LocalPosStore localStore,
         LocalOutboxStore outboxStore,
-        PosClientConfiguration configuration)
+        PosClientConfiguration configuration,
+        PosUiPreferences? uiPreferences = null)
     {
         InitializeComponent();
 
@@ -68,6 +69,7 @@ public partial class MainWindow : Window
         _localStore = localStore;
         outbox = outboxStore;
         _configuration = configuration;
+        inputPreferences = uiPreferences ?? PosUiPreferences.ForTerminal(configuration);
         try { ReceiptOrderIdTextBox.Text = _localStore.LoadLastReceipt()?.OrderId.ToString("D") ?? ""; }
         catch (Exception) { ReceiptStatusText.Text = "Last receipt reference unavailable; enter the paid order ID."; }
         pendingRefund = _localStore.LoadPendingRefund();
@@ -164,7 +166,7 @@ public partial class MainWindow : Window
         try
         {
             StatusText.Text = "Opening secure sign-in…";
-            OpenWindowsKeyboard();
+            if (touchFirst) OpenWindowsKeyboard();
             await _authentication.SignInAsync(reauthenticationRequired, cancellation.Token);
             reauthenticationRequired = false;
             sessionLockMessage = null;
@@ -1361,6 +1363,7 @@ public partial class MainWindow : Window
         busy = false;
         WorkspaceTabs.IsEnabled = !reauthenticationRequired;
         bool signedIn = IsSignedIn();
+        TouchFirstCheckBox.IsEnabled = signedIn && !displaySafetyBlocked;
         UpdateOrderListControls();
         ApplyDisplaysButton.IsEnabled = DisableCustomerDisplayButton.IsEnabled = signedIn && !displaySafetyBlocked;
         StaffDisplayPicker.IsEnabled = CustomerDisplayPicker.IsEnabled = signedIn && !displaySafetyBlocked;

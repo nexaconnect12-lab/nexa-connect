@@ -1,5 +1,10 @@
 # NexaConnect Project Architecture
 
+POS has an optional default-off touch-first input mode. A small current-user, exact-scope
+presentation file outside immutable releases controls automatic keyboards, with bounded
+reads and atomic writes. Financial storage, authentication and customer disclosure are
+unchanged; UX2 actions work in both modes. See [storage/behavior](../Deployment/POS-Input-Mode.md).
+
 POS UX2 projects current cashier state into a pinned staff dock outside the scrolling
 workspace: original checkout/payment buttons, explicitly labeled estimate/server totals,
 busy/status feedback and navigation-only next steps. Lock/display safety masks the dock;

@@ -1,5 +1,10 @@
 # POS UX1 — touch-first input foundation
 
+Current behavior: [touch-first is an optional saved setting](POS-Input-Mode.md), **off by
+default**. Automatic keyboard behavior described below applies when enabled. Manual
+Windows keyboard access remains available in both modes. This supersedes UX1's original
+unconditional automatic keyboard behavior without changing its historical verification.
+
 Implemented in source on 28 October 2026. This slice follows the
 [long-term product principles](../Planning/Next-Iteration-Roadmap.md#long-term-pos-product-design-principles).
 It does not establish physical S200D acceptance or update an installed release automatically.

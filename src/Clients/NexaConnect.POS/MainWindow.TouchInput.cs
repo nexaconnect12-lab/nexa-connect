@@ -9,11 +9,17 @@ namespace NexaConnect.POS;
 public partial class MainWindow
 {
     private TextBox? touchTarget;
+    private readonly PosUiPreferences inputPreferences;
+    private bool touchFirst;
+    private bool updatingInputMode;
     private static readonly HashSet<string> AmountFields =
         ["OpeningCashTextBox", "ClosingCashTextBox", "MovementAmountTextBox", "RefundAmountTextBox"];
 
     private void InitializeTouchInput()
     {
+        touchFirst = inputPreferences.LoadTouchFirst();
+        TouchFirstCheckBox.IsChecked = touchFirst;
+        RenderInputModeStatus();
         OperationalSurface.AddHandler(Keyboard.GotKeyboardFocusEvent,
             new KeyboardFocusChangedEventHandler((_, e) => {
                 if (e.NewFocus is TextBox box) ShowTouchInput(box);
@@ -26,7 +32,7 @@ public partial class MainWindow
                     node = node is FrameworkContentElement content ? content.Parent
                         : node is Visual ? VisualTreeHelper.GetParent(node) : null;
                 if (node is TextBox box) ShowTouchInput(box);
-                else if (node is PasswordBox && !busy && IsSignedIn()) OpenWindowsKeyboard();
+                else if (node is PasswordBox && touchFirst && !busy && IsSignedIn()) OpenWindowsKeyboard();
             }), true);
         InputKeyboard.KeyPressed += EditTouchInput;
         InputKeyboard.Dismissed += HideTouchInput;
@@ -35,7 +41,7 @@ public partial class MainWindow
 
     private void ShowTouchInput(TextBox box)
     {
-        if (!viewInitialized || busy || !IsSignedIn() || displaySafetyBlocked || box.IsReadOnly || !box.IsEnabled || !box.IsVisible) return;
+        if (!touchFirst || !viewInitialized || busy || !IsSignedIn() || displaySafetyBlocked || box.IsReadOnly || !box.IsEnabled || !box.IsVisible) return;
         if (touchTarget == box && InputKeyboard.Visibility == Visibility.Visible) return;
         touchTarget = box;
         string label = System.Windows.Automation.AutomationProperties.GetName(box);
@@ -55,7 +61,7 @@ public partial class MainWindow
     private void EditTouchInput(string key)
     {
         var box = touchTarget;
-        if (box is null || busy || !IsSignedIn() || displaySafetyBlocked || !IsActive || !box.IsVisible || !box.IsEnabled || box.IsReadOnly)
+        if (!touchFirst || box is null || busy || !IsSignedIn() || displaySafetyBlocked || !IsActive || !box.IsVisible || !box.IsEnabled || box.IsReadOnly)
         { HideTouchInput(); return; }
         int start = box.SelectionStart, length = box.SelectionLength;
         if (key == "Clear") { start = 0; length = box.Text.Length; key = ""; }
@@ -75,6 +81,35 @@ public partial class MainWindow
     }
 
     private void WindowsKeyboard_Click(object sender, RoutedEventArgs e) => OpenWindowsKeyboard();
+
+    private void TouchFirst_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!viewInitialized || updatingInputMode) return;
+        bool requested = TouchFirstCheckBox.IsChecked == true;
+        bool allowed = !busy && IsSignedIn() && !reauthenticationRequired && !displaySafetyBlocked;
+        try
+        {
+            if (!allowed) return;
+            inputPreferences.SaveTouchFirst(requested);
+            touchFirst = requested;
+            if (!touchFirst) HideTouchInput();
+            RenderInputModeStatus();
+        }
+        catch (Exception error) when (error is System.IO.IOException or System.IO.InvalidDataException or UnauthorizedAccessException)
+        {
+            InputModeStatusText.Text = "Input setting could not be saved. The previous mode is still active. Check local folder access and retry.";
+        }
+        finally
+        {
+            updatingInputMode = true;
+            try { TouchFirstCheckBox.IsChecked = touchFirst; }
+            finally { updatingInputMode = false; }
+        }
+    }
+
+    private void RenderInputModeStatus() => InputModeStatusText.Text = touchFirst
+        ? "Touch-first is on. Text fields open an on-screen keyboard; sign-in opens the Windows keyboard."
+        : "Touch-first is off (default). Use your keyboard, mouse or scanner. Windows keyboard is available manually.";
 
     private void CancellationPreset_Click(object sender, RoutedEventArgs e)
     {

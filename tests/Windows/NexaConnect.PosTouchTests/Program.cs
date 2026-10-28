@@ -41,7 +41,8 @@ internal static class Program
             [config, new HttpClientHandler(), tokenStore, (Action<string>)(_ => throw new InvalidOperationException("Fixture must not launch sign-in"))], null)!;
         using var api = new PosApiClient(config);
         var scope = LocalPosScope.From(config);
-        var window = new MainWindow(auth, api, new LocalPosStore(scope, root), new LocalOutboxStore(scope, root), config)
+        var preferences = new PosUiPreferences(Path.Combine(root, "preferences"));
+        var window = new MainWindow(auth, api, new LocalPosStore(scope, root), new LocalOutboxStore(scope, root), config, preferences)
             { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
         try
         {
@@ -52,6 +53,18 @@ internal static class Program
             Invoke(window, "UpdateOperationalState");
             window.Show(); Pump(window);
             var tabs = (TabControl)window.FindName("WorkspaceTabs");
+            var inputMode = (CheckBox)window.FindName("TouchFirstCheckBox");
+            Require(inputMode.IsChecked == false, "touch-first defaults off");
+            Invoke(window, "ShowTouchInput", (TextBox)window.FindName("MenuSearchTextBox")); Pump(window);
+            Require(((TouchKeyboard)window.FindName("InputKeyboard")).Visibility == Visibility.Collapsed, "default focus does not open keyboard");
+            inputMode.IsChecked = true;
+            Require(preferences.LoadTouchFirst(), "explicit touch preference persisted");
+            using (var lockedPreference = new FileStream(Path.Combine(root, "preferences", "input.json"), FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                inputMode.IsChecked = false;
+                Require(inputMode.IsChecked == true, "failed save restores the previously selected mode");
+                Require(((TextBlock)window.FindName("InputModeStatusText")).Text.Contains("previous mode"), "failed save has visible guidance");
+            }
             tabs.SelectedIndex = 4; Pump(window); // Shift & cash, no network use case.
             var field = (TextBox)window.FindName("MovementAmountTextBox");
             foreach (var size in new[] { new Size(1000, 680), new Size(1280, 850), new Size(1536, 864) })
@@ -100,6 +113,12 @@ internal static class Program
             var searchField = (TextBox)window.FindName("MenuSearchTextBox"); searchField.Text = "fixture filter";
             Invoke(window, "ClearMenuSearch_Click", window, new RoutedEventArgs());
             Require(searchField.Text.Length == 0, "clear filters requires no typing");
+            Invoke(window, "ShowTouchInput", searchField); Pump(window);
+            inputMode.IsChecked = false;
+            Require(((TouchKeyboard)window.FindName("InputKeyboard")).Visibility == Visibility.Collapsed && !preferences.LoadTouchFirst(), "disabling touch mode closes keyboard and persists off");
+            Invoke(window, "ShowTouchInput", searchField);
+            Require(((TouchKeyboard)window.FindName("InputKeyboard")).Visibility == Visibility.Collapsed, "off mode suppresses subsequent automatic keyboard");
+            inputMode.IsChecked = true;
             typeof(MainWindow).GetField("pendingOrder", Private)!.SetValue(window,
                 new PosOrderResult(Guid.NewGuid(), PosOrderStatus.KitchenAccepted, 123.45m, "THB"));
             ((TabItem)window.FindName("PaymentTab")).IsSelected = true; Pump(window);
@@ -117,6 +136,8 @@ internal static class Program
             tabs.SelectedIndex = 0; Pump(window);
             Invoke(window, "ShowTouchInput", field);
             Invoke(window, "SetBusy", "Fixture busy");
+            inputMode.IsChecked = false;
+            Require(inputMode.IsChecked == true && preferences.LoadTouchFirst(), "busy input setting change rejected");
             Require(((TouchKeyboard)window.FindName("InputKeyboard")).Visibility == Visibility.Collapsed, "busy clears input target");
             Require(!((Button)window.FindName("PlaceOrderButton")).IsEnabled && !((Button)window.FindName("PaidButton")).IsEnabled, "pinned financial actions disabled while busy");
             Require(((ProgressBar)window.FindName("BusyProgress")).Visibility == Visibility.Visible, "busy progress visible");
