@@ -1,5 +1,11 @@
 # NexaConnect Project Architecture
 
+POS UX5 adds client-owned printer preferences, Standard/80 mm WPF receipt layout and a
+read-only print workflow with live owning-service reload before/after the Windows dialog.
+Separate bounded local preferences do not change input, recovery or backend schemas.
+Synthetic Windows rendering joins the candidate gate; actual PDF/printer acceptance remains
+pending. See [UX5](../../docs/Deployment/POS-UX5-Receipt-Printing.md).
+
 [ADR-051](../../docs/Architecture/Decisions/ADR-051-locked-gallery-readers.md) adds Media-issued
 24-hour gallery-only readers for locked POS refresh. Restaurant rechecks the original subject's
 live Directory membership and fixed Authorization menu-read permission through Media-only

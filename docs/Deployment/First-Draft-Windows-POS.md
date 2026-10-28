@@ -1,5 +1,10 @@
 # Windows first-draft terminal (slice 4)
 
+Current UX5 clients optionally save a Windows printer and 80 mm layout under Terminal & sync.
+Standard layout and Ask each time remain defaults. Use the labelled non-financial test
+receipt before printing a paid receipt; driver/PDF/output acceptance is separate. See
+[printer setup and custody](POS-UX5-Receipt-Printing.md).
+
 Current POS builds include [Orders history and QR row selection](POS-Order-List.md).
 Use matching Order/POS versions and the existing immutable package/source/scope checks.
 Viewing is available with branch read access; collecting still requires the original

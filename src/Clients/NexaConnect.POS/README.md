@@ -1,5 +1,12 @@
 # NexaConnect POS
 
+**Terminal & sync → Receipt printer** saves a Windows queue and Standard (default)/80 mm
+layout separately from input preferences. Preview or explicitly print a labelled synthetic
+test; Windows confirms each job. Sales/refund reprints reload live authorized original
+receipts before/after the dialog and reject stale sessions/changed content. Printer errors
+never collect or refund again. See [UX5 setup, failures and pending PDF/hardware acceptance](../../../docs/Deployment/POS-UX5-Receipt-Printing.md)
+and [printing responsibilities](Printing/README.md).
+
 **Terminal & sync → Input settings → Display density** offers Standard (default) or
 Touch controls independently of automatic keyboards. Small-window cash panels stack and
 the pinned workflow dock remains accessible. See [UX3](../../../docs/Deployment/POS-UX3-Display-Density.md).
@@ -107,7 +114,7 @@ The Receipts workspace includes manager-authorized refunds for captured provider
 
 The Payment tab can cancel the current manual pre-payment Order with a required printable reason and explicit confirmation. Before send it persists the reason and pending status alongside the DPAPI-protected settlement idempotency UUID, so restart or response loss offers only verification of the same server command. Completed cancellation clears checkout recovery; pending disables payment and review disables both payment and another cancellation. Provider-payment, offline, and post-capture refund cancellation are outside this control. See the [Order cancellation contract](../../../docs/API/Order-Cancellation.md).
 
-The Receipts tab automatically previews a newly Paid Order and retrieves prior receipts by Order ID. It validates the server snapshot before rendering, stores only a protected last-Order reference, clears receipt contents on session lock/sign-out, and reloads with live `order.read` authorization before every standard Windows print/reprint. Receipt or printer failure never changes Paid; keep the Order ID and retry retrieval without collecting again. Device-specific printers and fiscal tax invoices remain planned. See [paid-order receipt contract](../../../docs/API/Paid-Order-Receipts.md).
+The Receipts tab automatically previews a newly Paid Order and retrieves prior receipts by Order ID. It validates the server snapshot before rendering, stores only a protected last-Order reference, clears receipt contents on session lock/sign-out, and reloads with live `order.read` authorization before/after every Windows print dialog. Receipt or printer failure never changes Paid; keep the Order ID and retry retrieval without collecting again. UX5 adds ordinary Windows driver selection and 80 mm layout; vendor protocols/device certification and fiscal tax invoices remain planned. See [paid-order receipt contract](../../../docs/API/Paid-Order-Receipts.md).
 
 New orders require a server pricing preview and explicit bill confirmation. Confirmed fingerprints persist before send; pricing changes retain the original checkout identity and require another confirmation. Accepted breakdowns persist with pending settlement and are displayed after restart. This requires the pricing-capable Order API and migration 8; hardware/live OIDC acceptance remains separate. See [pricing contract and rollout](../../../docs/API/Order-Pricing.md).
 

@@ -42,7 +42,9 @@ internal static class Program
         using var api = new PosApiClient(config, new NoNetworkHandler(config), new NoNetworkHandler(config), new NoNetworkHandler(config), new NoNetworkHandler(config));
         var scope = LocalPosScope.From(config);
         var preferences = new PosUiPreferences(Path.Combine(root, "preferences"));
-        var window = new MainWindow(auth, api, new LocalPosStore(scope, root), new LocalOutboxStore(scope, root), config, preferences)
+        var printers = new ReceiptPrinterPreferences(Path.Combine(root, "printers"));
+        var printDriver = new CancelPrintDriver();
+        var window = new MainWindow(auth, api, new LocalPosStore(scope, root), new LocalOutboxStore(scope, root), config, preferences, printers, printDriver, () => Task.FromResult(new[] { "Fixture PDF" }))
             { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
         try
         {
@@ -135,6 +137,7 @@ internal static class Program
             typeof(MainWindow).GetField("cancellationStatus", Private)!.SetValue(window, null);
             tabs.SelectedIndex = 0; Pump(window);
             VerifyDensity(window, preferences, args);
+            VerifyPrinterSettings(window, printers, printDriver, root);
             tabs.SelectedIndex = 0; Pump(window);
             Invoke(window, "ShowTouchInput", field);
             Invoke(window, "SetBusy", "Fixture busy");
@@ -161,6 +164,36 @@ internal static class Program
         finally { window.Close(); }
     }
     private static void Pump(Window window) { window.UpdateLayout(); window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, () => { }); window.UpdateLayout(); }
+    private static void VerifyPrinterSettings(MainWindow window, ReceiptPrinterPreferences preferences, CancelPrintDriver driver, string root)
+    {
+        ((TabItem)window.FindName("TerminalTab")).IsSelected = true; Pump(window);
+        Invoke(window, "RefreshPrinters_Click", window, new RoutedEventArgs()); Pump(window);
+        var printer = (ComboBox)window.FindName("ReceiptPrinterPicker"); var paper = (ComboBox)window.FindName("ReceiptPaperPicker");
+        Require(printer.Items.Count == 2 && paper.SelectedIndex == 0, "default Windows dialog and standard layout");
+        printer.SelectedIndex = 1; paper.SelectedIndex = 1;
+        Invoke(window, "SavePrinterSettings_Click", window, new RoutedEventArgs());
+        Require(preferences.Load() == new ReceiptPrintOptions("Fixture PDF", ReceiptPaper.Roll80), "printer and 80 mm layout saved");
+        using (File.Open(Path.Combine(root, "printers", "printing.json"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            paper.SelectedIndex = 0; Invoke(window, "SavePrinterSettings_Click", window, new RoutedEventArgs());
+            Require(paper.SelectedIndex == 1, "failed printer save restores selection");
+        }
+        Invoke(window, "PreviewTestReceipt_Click", window, new RoutedEventArgs()); Pump(window);
+        var preview = (FlowDocumentScrollViewer)window.FindName("TestReceiptPreview");
+        Require(preview.Document is not null && Math.Abs(preview.Document.PageWidth - 80 * ReceiptPrintLayout.Millimetre) < 0.01, "test preview uses 80 mm page");
+        Invoke(window, "PrintTestReceipt_Click", window, new RoutedEventArgs()); Pump(window);
+        Require(driver.Prepared == 1 && ((TextBlock)window.FindName("PrinterSetupStatus")).Text.Contains("cancelled"), "test print cancellation stays non-financial");
+        typeof(MainWindow).GetField("busy", Private)!.SetValue(window, true);
+        paper.SelectedIndex = 0; Invoke(window, "SavePrinterSettings_Click", window, new RoutedEventArgs());
+        Require(preferences.Load().Paper == ReceiptPaper.Roll80, "busy state prevents changing printer preference");
+        typeof(MainWindow).GetField("busy", Private)!.SetValue(window, false); paper.SelectedIndex = 1;
+        Invoke(window, "ClearReceiptView"); Require(preview.Document is null, "privacy transition clears test preview too");
+    }
+    private sealed class CancelPrintDriver : IReceiptPrintDriver
+    {
+        public int Prepared;
+        public IReceiptPrintJob? Prepare(ReceiptPrintOptions options) { Prepared++; return null; }
+    }
     private static void VerifyDensity(MainWindow window, PosUiPreferences preferences, string[] args)
     {
         var picker = (ComboBox)window.FindName("DensityPicker"); var input = (CheckBox)window.FindName("TouchFirstCheckBox");

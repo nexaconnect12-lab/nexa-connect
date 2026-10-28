@@ -1,5 +1,12 @@
 # Payment refunds
 
+POS UX5 prints completed provider-refund receipts through saved Windows queues and the
+shared Standard/80 mm layout. It reloads with existing live `payment.refund.read` before
+and after the dialog, checks the exact requested refund UUID, immutable content and original
+session, and never reissues a refund to fix printing. Delayed refund results cannot restore
+a preview after a privacy transition. No Payment contract or schema changes. See
+[UX5 setup and failure/acceptance limits](../Deployment/POS-UX5-Receipt-Printing.md).
+
 Payment 10/application 0.23.0 now retains original refund completion events atomically and supports bounded attributed replay; missing pre-ledger originals remain gaps. See [financial completeness contract](Financial-Reporting-Completeness.md) and [recovery runbook](../Deployment/Financial-Reporting-Recovery.md).
 
 Payment owns post-capture refunds. The customer API requires `X-Nexa-Organization-Id`, `X-Nexa-Application-Code: nexa_connect`, a bearer token, exact Order/branch ownership, and a live product authorization decision. `payment.refund.create` is granted only to `tenant-admin` and `store-manager`; `payment.refund.read` also permits cashiers and accountants to retrieve receipts. Create sends amount and currency to Authorization. Permission alone is insufficient: an active approval limit for the subject or matching role, restaurant, `payment.refund.create` action, and currency must cover the amount. The evaluated decision ID is stored with the refund but is not returned by the customer API.

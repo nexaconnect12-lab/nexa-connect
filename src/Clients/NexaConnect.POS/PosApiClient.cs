@@ -182,6 +182,7 @@ public sealed class PosApiClient : IDisposable
         await EnsureSuccessAsync(response, "Refund receipt could not be loaded.");
         PosPaymentRefund refund = await response.Content.ReadFromJsonAsync<PosPaymentRefund>(cancellationToken)
             ?? throw new InvalidDataException("Payment returned an empty refund response.");
+        if (refund.Id != refundId) throw new InvalidDataException("Refund response differs from the requested refund.");
         ValidateRefund(refund, paymentIntentId, refund.OperationId); return refund;
     }
 

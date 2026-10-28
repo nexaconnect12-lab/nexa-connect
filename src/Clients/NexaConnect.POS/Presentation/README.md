@@ -1,5 +1,10 @@
 # POS presentation
 
+UX5 receipt pages live in the adjacent [Printing component](../Printing/README.md), with
+Standard/80 mm formatting independent of staff density. Staff preview/test/settings clear
+or hide at privacy transitions and never enter customer projection or financial commands.
+See [setup/verification](../../../../docs/Deployment/POS-UX5-Receipt-Printing.md).
+
 `PosUiPreferences` stores versioned touch-first and independent density choices per current Windows user
 and exact terminal scope, outside release and financial storage. Missing/invalid data
 defaults to off/Standard. `MainWindow.TouchInput.cs` gates automatic keyboards and applies saved

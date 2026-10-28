@@ -42,6 +42,7 @@ try{
     $checks['acceptance-guards'].count=CountResult tap (Join-Path $run 'acceptance-guards.private.log') 39
     Native media-profile-guards pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-first-draft-media-guards.ps1'))
     Native pos-build dotnet @('build','src/Clients/NexaConnect.POS','--no-restore','--verbosity','quiet')
+    Native pos-print-layout dotnet @('run','--project','tests/Windows/NexaConnect.PosPrintingTests','--verbosity','quiet')
     $npm=Join-Path (Split-Path (Get-Command node).Source -Parent) 'node_modules/npm/bin/npm-cli.js'
     Push-Location (Join-Path $repoRoot 'src/Frontend')
     try{

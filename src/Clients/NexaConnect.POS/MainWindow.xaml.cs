@@ -59,7 +59,10 @@ public partial class MainWindow : Window
         LocalPosStore localStore,
         LocalOutboxStore outboxStore,
         PosClientConfiguration configuration,
-        PosUiPreferences? uiPreferences = null)
+        PosUiPreferences? uiPreferences = null,
+        ReceiptPrinterPreferences? receiptPrinterPreferences = null,
+        IReceiptPrintDriver? printDriver = null,
+        Func<Task<string[]>>? discoverPrinters = null)
     {
         InitializeComponent();
 
@@ -70,6 +73,10 @@ public partial class MainWindow : Window
         outbox = outboxStore;
         _configuration = configuration;
         inputPreferences = uiPreferences ?? PosUiPreferences.ForTerminal(configuration);
+        printerPreferences = receiptPrinterPreferences ?? ReceiptPrinterPreferences.ForTerminal(configuration);
+        receiptPrintDriver = printDriver ?? new WindowsReceiptPrintDriver();
+        printerDiscovery = discoverPrinters ?? (() => Task.Run(WindowsReceiptPrintDriver.Printers));
+        InitializePrinting();
         try { ReceiptOrderIdTextBox.Text = _localStore.LoadLastReceipt()?.OrderId.ToString("D") ?? ""; }
         catch (Exception) { ReceiptStatusText.Text = "Last receipt reference unavailable; enter the paid order ID."; }
         pendingRefund = _localStore.LoadPendingRefund();
@@ -1160,17 +1167,9 @@ public partial class MainWindow : Window
         PrintReceiptButton.IsEnabled = false;
         displayedRefundReceipt = null;
         PrintRefundButton.IsEnabled = false;
+        displayedPrintContent = null;
+        TestReceiptPreview.Document = null;
     }
-
-    private static System.Windows.Documents.FlowDocument ReceiptDocument(PosReceipt receipt) =>
-        new(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(receipt.Render())))
-        { FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 12,
-          PagePadding = new Thickness(24), ColumnWidth = double.PositiveInfinity };
-
-    private static System.Windows.Documents.FlowDocument RefundDocument(PosRefundReceipt receipt) =>
-        new(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(receipt.Render())))
-        { FontFamily = new System.Windows.Media.FontFamily("Consolas"), FontSize = 12,
-          PagePadding = new Thickness(24), ColumnWidth = double.PositiveInfinity };
 
     private async void Refund_Click(object sender, RoutedEventArgs e)
     {
@@ -1183,12 +1182,13 @@ public partial class MainWindow : Window
         { RefundStatusText.Text = "Enter a valid payment intent, positive THB amount, and reason."; return; }
         pendingRefund = new(intentId, Guid.NewGuid(), amount, _configuration.Currency, reason);
         _localStore.SavePendingRefund(pendingRefund);
+        int generation = receiptSessionGeneration;
         SetBusy("Issuing refund…");
         try
         {
             PosPaymentRefund result = await _api.CreateRefundAsync(token, intentId, pendingRefund.OperationId, amount, reason);
             pendingRefund = pendingRefund with { RefundId = result.Id }; _localStore.SavePendingRefund(pendingRefund);
-            ShowRefund(result);
+            if (PrintSessionCurrent(generation, token.Subject)) ShowRefund(result);
         }
         catch (Exception) { RefundStatusText.Text = "Refund result is uncertain. Verify this pending operation; do not issue another refund."; }
         finally { UpdateOperationalState(); }
@@ -1200,8 +1200,9 @@ public partial class MainWindow : Window
         LocalRefundReference? reference = pendingRefund is { } pending
             ? new(pending.PaymentIntentId, pending.OperationId) : lastRefund;
         if (reference is null) { RefundStatusText.Text = "No saved refund operation is available."; return; }
+        int generation = receiptSessionGeneration;
         SetBusy("Verifying refund…");
-        try { ShowRefund(await _api.GetRefundByOperationAsync(token, reference.PaymentIntentId, reference.OperationId)); }
+        try { var result = await _api.GetRefundByOperationAsync(token, reference.PaymentIntentId, reference.OperationId); if (PrintSessionCurrent(generation, token.Subject)) ShowRefund(result); }
         catch (Exception) { RefundStatusText.Text = "Refund is not yet verifiable. Do not issue another refund."; }
         finally { UpdateOperationalState(); }
     }
@@ -1214,15 +1215,27 @@ public partial class MainWindow : Window
             _localStore.ClearPendingRefund(); pendingRefund = null;
             if (refund.Status == "completed") { _localStore.SaveLastRefund(refund.PaymentIntentId, refund.OperationId); lastRefund = new(refund.PaymentIntentId, refund.OperationId); }
         }
-        if (refund.Receipt is { } receipt) { displayedRefundReceipt = receipt; ReceiptPreview.Document = RefundDocument(receipt); PrintRefundButton.IsEnabled = true; }
+        if (refund.Receipt is { } receipt) { displayedRefundReceipt = receipt; displayedReceiptOrderId = null; PrintReceiptButton.IsEnabled = false; ShowPrintPreview(new("Refund receipt", receipt.Render())); PrintRefundButton.IsEnabled = true; }
     }
 
-    private void PrintRefund_Click(object sender, RoutedEventArgs e)
+    private async void PrintRefund_Click(object sender, RoutedEventArgs e)
     {
-        if (!IsSignedIn() || displayedRefundReceipt is not { } receipt) return;
-        var dialog = new PrintDialog(); if (dialog.ShowDialog() != true) return;
-        var document = RefundDocument(receipt); document.PageWidth = dialog.PrintableAreaWidth; document.PageHeight = dialog.PrintableAreaHeight;
-        dialog.PrintDocument(((System.Windows.Documents.IDocumentPaginatorSource)document).DocumentPaginator, "Refund receipt");
+        if (!IsSignedIn() || busy || displayedRefundReceipt is not { } receipt) return;
+        int generation = receiptSessionGeneration; string? subject = _authentication.CurrentToken?.Subject;
+        SetBusy("Checking refund receipt access…");
+        try
+        {
+            var result = await ReceiptPrintWorkflow.RunAsync(async () => {
+                if (!PrintSessionCurrent(generation, subject)) throw new InvalidOperationException();
+                var fresh = await _api.GetRefundAsync(_authentication.CurrentToken!, receipt.PaymentIntentId, receipt.RefundId, windowCancellation.Token);
+                if (fresh.Status != "completed" || fresh.Receipt is not { } verified) throw new InvalidDataException();
+                return new("Refund receipt", verified.Render());
+            }, receiptPrintOptions, receiptPrintDriver, () => PrintSessionCurrent(generation, subject), ShowPrintPreview, true);
+            if (!PrintSessionCurrent(generation, subject)) return;
+            if (result == ReceiptPrintResult.Failed) ClearReceiptView();
+            RefundStatusText.Text = PrintResultMessage(result);
+        }
+        finally { UpdateOperationalState(); }
     }
 
     private async Task PreviewPaidReceiptAsync(Guid orderId)
@@ -1258,27 +1271,17 @@ public partial class MainWindow : Window
         int generation = receiptSessionGeneration;
         try
         {
-            if (!IsSignedIn() || _authentication.CurrentToken is not { } token) return;
-            var receipt = await _api.GetReceiptAsync(token, orderId);
-            if (generation != receiptSessionGeneration || !IsSignedIn()) return;
-            ReceiptPreview.Document = ReceiptDocument(receipt);
-            displayedReceiptOrderId = orderId;
-            ReceiptStatusText.Text = "Paid receipt loaded. Reprints use the same receipt number and amounts.";
-            PrintReceiptButton.IsEnabled = true;
-            if (print)
-            {
-                var dialog = new PrintDialog();
-                if (dialog.ShowDialog() == true && generation == receiptSessionGeneration && IsSignedIn())
-                {
-                    var document = ReceiptDocument(receipt);
-                    document.PageWidth = dialog.PrintableAreaWidth;
-                    document.PageHeight = dialog.PrintableAreaHeight;
-                    dialog.PrintDocument(((System.Windows.Documents.IDocumentPaginatorSource)document).DocumentPaginator, "Sales receipt");
-                    ReceiptStatusText.Text = "Receipt submitted to Windows printing. Verify the saved PDF or printer output. Payment is unchanged; reprint this same receipt if needed.";
-                }
-                else if (generation == receiptSessionGeneration && IsSignedIn())
-                    ReceiptStatusText.Text = "Printing cancelled. Payment is unchanged. Print / reprint uses the same paid receipt; do not collect again.";
-            }
+            string? subject = _authentication.CurrentToken?.Subject;
+            var result = await ReceiptPrintWorkflow.RunAsync(async () => {
+                if (!PrintSessionCurrent(generation, subject)) throw new InvalidOperationException();
+                var receipt = await _api.GetReceiptAsync(_authentication.CurrentToken!, orderId, windowCancellation.Token);
+                return new("Sales receipt", receipt.Render());
+            }, receiptPrintOptions, receiptPrintDriver, () => PrintSessionCurrent(generation, subject), content => {
+                ShowPrintPreview(content); displayedReceiptOrderId = orderId; PrintReceiptButton.IsEnabled = true;
+            }, print);
+            if (!PrintSessionCurrent(generation, subject)) return;
+            if (result == ReceiptPrintResult.Failed) ClearReceiptView();
+            ReceiptStatusText.Text = PrintResultMessage(result);
         }
         catch (Exception)
         {
@@ -1365,6 +1368,7 @@ public partial class MainWindow : Window
         bool signedIn = IsSignedIn();
         TouchFirstCheckBox.IsEnabled = signedIn && !displaySafetyBlocked;
         DensityPicker.IsEnabled = signedIn && !displaySafetyBlocked;
+        PrinterSetupControls.IsEnabled = signedIn && !displaySafetyBlocked;
         UpdateOrderListControls();
         ApplyDisplaysButton.IsEnabled = DisableCustomerDisplayButton.IsEnabled = signedIn && !displaySafetyBlocked;
         StaffDisplayPicker.IsEnabled = CustomerDisplayPicker.IsEnabled = signedIn && !displaySafetyBlocked;

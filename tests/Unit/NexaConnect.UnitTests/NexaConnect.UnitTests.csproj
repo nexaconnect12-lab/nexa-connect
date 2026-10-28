@@ -72,6 +72,9 @@
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosDisplayDensity.cs" Link="POS\PosDisplayDensity.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\CashierWorkflow.cs" Link="POS\CashierWorkflow.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosGalleryPolicy.cs" Link="POS\PosGalleryPolicy.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Printing\ReceiptPrintOptions.cs" Link="POS\ReceiptPrintOptions.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Printing\ReceiptPrintLayout.cs" Link="POS\ReceiptPrintLayout.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Printing\ReceiptPrintWorkflow.cs" Link="POS\ReceiptPrintWorkflow.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosGalleryCache.cs" Link="POS\PosGalleryCache.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosGalleryReaderCache.cs" Link="POS\PosGalleryReaderCache.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\LocalPosStore.cs" Link="POS\LocalPosStore.cs" />

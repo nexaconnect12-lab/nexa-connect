@@ -138,6 +138,12 @@ a new financial workflow as a UI task. Cached screensaver images are not offline
 
 ## Long-term POS product design principles
 
+[POS UX5 — printer setup and 80 mm receipts](../Deployment/POS-UX5-Receipt-Printing.md)
+adds saved Windows queues, optional roll layout and labelled synthetic test output.
+Read-only sales/refund reprints retain live authorization and payment custody. Actual PDF
+inspection and purchased-printer model/driver/paper acceptance remain explicit pending
+checks; drawer/scanner and card-reader integration remain separate future work.
+
 [POS UX4 — continuous locked screensaver playback](../Deployment/POS-UX4-Locked-Gallery.md)
 adds a separate expiring gallery-only reader with live delegated authorization. It preserves
 five-minute image withdrawal and cashier lock/resume protection. Implementation and automated

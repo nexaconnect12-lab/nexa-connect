@@ -1,5 +1,11 @@
 # POS local SQLite
 
+UX5 adds only separate non-secret `printing.json` in the existing full-scope current-user
+Preferences directory. Version 1 stores optional Windows queue name and Standard/80 mm
+layout, with 4096-byte bounded reads/writes and atomic replacement. It does not modify
+`input.json`, SQLite, tokens, outbox or recovery schemas. See
+[defaults, custody and failures](../Deployment/POS-UX5-Receipt-Printing.md).
+
 UX4 adds no SQLite schema/state change. Its gallery-only credential uses a separate scoped
 DPAPI file under `NexaConnect\GalleryReaders`, bound to original operator and full terminal
 scope; it is not financial recovery or a cashier token. See

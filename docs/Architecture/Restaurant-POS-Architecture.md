@@ -1,5 +1,11 @@
 # NexaConnect Restaurant POS Architecture
 
+POS UX5 refines ordinary receipt presentation with saved Windows queue selection and an
+optional 80 mm layout. Order/Payment remain authoritative: reprints use existing live reads
+before and after the print dialog and cannot create sales, refunds or drawer movements.
+Preferences are client-local and separate from recovery; actual vendor/printer certification
+remains pending. See [UX5](../Deployment/POS-UX5-Receipt-Printing.md).
+
 Native POS can read all persisted Orders in its configured branch and filter QR history,
 then select an eligible original QR Order for collection. Guest requests join this history
 only after acceptance creates their original Order. This is a read projection, not a table

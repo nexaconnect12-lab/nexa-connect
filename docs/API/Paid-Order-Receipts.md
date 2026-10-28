@@ -1,5 +1,11 @@
 # Paid order receipts
 
+POS UX5 adds saved Windows queue selection and Standard/80 mm layouts without changing
+this API/snapshot. Print/reprint reloads and validates the original receipt before and
+after the Windows dialog, checks unchanged content and current session, and submits once.
+Test printing is synthetic and makes no Order/Payment request. See
+[printer setup, cancellation, spool uncertainty and device gates](../Deployment/POS-UX5-Receipt-Printing.md).
+
 QR5 reuses this original immutable paid receipt for accepted QR Orders. Staff lookup and
 printing retain the live order.read permission below. The original live guest visitor can
 read a separate allow-listed projection through private QR request status; it omits internal
@@ -14,7 +20,7 @@ Every production application path that changes an Order to Paid issues the snaps
 
 `GET /api/order/v1/orders/{orderId}/receipt?branchId={branchId}` requires an authenticated customer token, `X-Organization-ID`, `X-Application-Code: nexa_connect`, and live branch-scoped `order.read`. Service-workload bypass is deliberately unavailable. A caller outside the stored organization or branch receives no receipt. Responses use `Cache-Control: no-store`; unpaid and pre-migration Paid Orders return `404`, authorization denial returns `403`, and authorization dependency failure returns `503`. Logs never contain receipt contents.
 
-The WPF POS automatically attempts a preview after Paid and supports retrieval by Order ID. It validates version, stable number, terminal scope, line arithmetic, currency and bill totals before rendering. It stores only a protected last-Order reference; receipt contents stay server-authoritative and are cleared on session lock or sign-out. Print / reprint first reloads and reauthorizes the receipt, then opens the standard Windows print dialog. Preview, retrieval, local-reference and print failures do not change payment state and instruct the cashier not to collect again.
+The WPF POS automatically attempts a preview after Paid and supports retrieval by Order ID. It validates version, stable number, terminal scope, line arithmetic, currency and bill totals before rendering. It stores only a protected last-Order reference; receipt contents stay server-authoritative and are cleared on session lock or sign-out. Print / reprint reloads and reauthorizes before the standard Windows dialog and again after it closes, rejecting changed content or session before submission. Preview, retrieval, local-reference and print failures do not change payment state and instruct the cashier not to collect again.
 
 Apply Order migration **9** with application version **0.18.0** before deploying this Order binary. It adds the receipt column and immutability/scope/amount trigger. It does not backfill historical Paid Orders. Downgrade to 8 refuses once receipt history exists; roll forward instead.
 

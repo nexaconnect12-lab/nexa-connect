@@ -1,5 +1,18 @@
 # NexaConnect Project Architecture
 
+## Receipt printing (POS UX5)
+
+The native client's Printing component owns queue preferences, imageable-page layout and
+WPF Windows-spool integration behind a testable driver/job seam. Staff settings and test
+preview remain client presentation. Full-scope current-user `printing.json` is separate
+from input and protected financial state. Standard/dialog defaults remain; 80 mm is optional.
+Sales and refund prints reload through existing authorized Order/Payment reads before and
+after the dialog, fence session changes and require unchanged receipt content before one
+explicit submission. No new API, database, business command or shared service rule is added.
+The byte-oriented hardware facade, drawer/scanner and vendor protocols remain separate.
+See [component](../../src/Clients/NexaConnect.POS/Printing/README.md) and
+[rollout, verification and remaining hardware gates](../Deployment/POS-UX5-Receipt-Printing.md).
+
 ## Locked gallery refresh (POS UX4)
 
 Media issues purpose-protected 24-hour gallery readers after live caller branch authorization.

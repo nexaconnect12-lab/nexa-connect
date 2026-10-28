@@ -377,7 +377,10 @@
               <TextBlock x:Name="RefundStatusText" Text="No refund pending." TextWrapping="Wrap" />
             </StackPanel>
           </Border>
-          <TextBlock Grid.Row="3" Text="Receipt preview" FontWeight="SemiBold" Margin="0,8" />
+          <StackPanel Grid.Row="3" Margin="0,8">
+            <TextBlock Text="Receipt preview" FontWeight="SemiBold" />
+            <TextBlock x:Name="ReceiptLayoutText" TextWrapping="Wrap" Foreground="#52655A" />
+          </StackPanel>
           <FlowDocumentScrollViewer Grid.Row="4" x:Name="ReceiptPreview" IsToolBarVisible="False" />
         </Grid>
       </TabItem>
@@ -394,6 +397,23 @@
                 <ComboBoxItem Content="Standard (default)"/><ComboBoxItem Content="Touch · larger controls"/>
               </ComboBox>
               <TextBlock x:Name="DensityStatusText" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,24" />
+              <StackPanel x:Name="PrinterSetupControls" Margin="0,0,0,24">
+                <TextBlock Text="Receipt printer" Style="{StaticResource Heading}" />
+                <TextBlock Text="Printer" />
+                <ComboBox x:Name="ReceiptPrinterPicker" DisplayMemberPath="Label" MaxWidth="520" HorizontalAlignment="Stretch" AutomationProperties.Name="Receipt printer" />
+                <TextBlock Text="Receipt layout" />
+                <ComboBox x:Name="ReceiptPaperPicker" MaxWidth="520" HorizontalAlignment="Stretch" AutomationProperties.Name="Receipt paper layout">
+                  <ComboBoxItem Content="Standard page (default)" /><ComboBoxItem Content="80 mm roll" />
+                </ComboBox>
+                <WrapPanel>
+                  <Button Content="Refresh printers" Click="RefreshPrinters_Click" />
+                  <Button Content="Save printer settings" Click="SavePrinterSettings_Click" />
+                  <Button Content="Preview test receipt" Click="PreviewTestReceipt_Click" />
+                  <Button Content="Print test receipt" Click="PrintTestReceipt_Click" />
+                </WrapPanel>
+                <TextBlock x:Name="PrinterSetupStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                <FlowDocumentScrollViewer x:Name="TestReceiptPreview" IsToolBarVisible="False" Height="220" Margin="0,8,0,0" AutomationProperties.Name="Test receipt preview" />
+              </StackPanel>
               <TextBlock Text="Staff and customer displays" Style="{StaticResource Heading}" />
               <TextBlock Text="Use Windows extended desktop. Select roles on each startup; customer view contains no input or unlock controls." TextWrapping="Wrap" Margin="0,0,0,12" />
               <TextBlock Text="Staff display" />

@@ -1,5 +1,10 @@
 # NexaConnect
 
+[POS UX5](docs/Deployment/POS-UX5-Receipt-Printing.md) adds saved Windows receipt-printer
+selection, optional 80 mm layout and synthetic preview/test printing. Sales/refund reprints
+recheck live access around the Windows dialog; print errors preserve payment/recovery.
+Saved PDF and physical printer acceptance remain separate from automated verification.
+
 [POS UX4](docs/Deployment/POS-UX4-Locked-Gallery.md) adds gallery-only, expiring readers
 for continuous approved screensaver refresh while locked. Cashier authentication and the
 five-minute image lease remain separate; compatible backend/POS deployment and human
