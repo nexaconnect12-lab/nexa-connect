@@ -1,5 +1,9 @@
 # NexaConnect
 
+[POS UX8 preparation](docs/Deployment/POS-UX8-Cash-Drawer.md) adds a disabled drawer setup
+panel and isolated workflow/intent-store tests. Physical opening, live authorization/audit
+and payment integration remain pending the exact device/interface; UX8 is not complete.
+
 [POS UX7](docs/Deployment/POS-UX7-Terminal-Setup.md) adds a staff setup overview,
 explicit anonymous reachability/device checks, navigation to existing tests and a
 sanitized support-report export. Detection remains separate from hardware/UAT acceptance.

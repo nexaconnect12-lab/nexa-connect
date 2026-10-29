@@ -398,6 +398,12 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
           <Border Style="{StaticResource Card}" Margin="0,16,0,0">
             <StackPanel>
+              <StackPanel x:Name="DrawerSetupControls" Margin="0,0,0,24" xmlns:drawer="clr-namespace:NexaConnect.POS.Hardware.Drawers">
+                <TextBlock Text="Cash drawer" Style="{StaticResource Heading}" />
+                <TextBlock x:Name="DrawerAvailabilityText" Text="{x:Static drawer:DrawerAvailability.Status}" TextWrapping="Wrap" Margin="0,8,0,8" />
+                <TextBlock Text="{x:Static drawer:DrawerAvailability.Requirements}" TextWrapping="Wrap" />
+                <TextBlock Text="Automatic cash-sale opening: Off. Manual opening: Unavailable. Payments and reconciliation continue independently of physical drawer opening." TextWrapping="Wrap" Margin="0,8,0,0" />
+              </StackPanel>
               <StackPanel x:Name="TerminalSetupControls" Margin="0,0,0,24">
                 <TextBlock Text="Terminal setup overview" Style="{StaticResource Heading}" />
                 <TextBlock Text="Configured is a setting; Detected is a last-check response. Untested and Unavailable require follow-up. Peripheral detection does not certify actual output or safe hardware use." TextWrapping="Wrap" Margin="0,0,0,8" />

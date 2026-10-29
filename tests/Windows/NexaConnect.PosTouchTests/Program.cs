@@ -173,6 +173,8 @@ internal static class Program
     private static void VerifyTerminalSetup(MainWindow window,ReachabilityHandler handler)
     {
         ((TabItem)window.FindName("TerminalTab")).IsSelected=true;Invoke(window,"UpdateOperationalState");Pump(window);
+        Require(((TextBlock)window.FindName("DrawerAvailabilityText")).Text.Contains("Disabled"),"drawer preparation must not imply an enabled physical driver");
+        Require(window.FindName("DrawerOpenButton") is null,"no ungated manual opening action is exposed");
         var list=(ItemsControl)window.FindName("TerminalSetupList");
         Require(list.Items.Count==15,"setup overview includes settings and six logical service checks");
         var rows=list.Items.Cast<TerminalSetupRow>().ToArray();

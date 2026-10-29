@@ -1,5 +1,18 @@
 # Next iteration: phases, checklist and implementation prompts
 
+29 October 2026: [POS UX8 drawer preparation](../Deployment/POS-UX8-Cash-Drawer.md) is
+implemented in source with a disabled staff panel, isolated workflow and local intent-store
+tests. **UX8 remains incomplete**: no physical driver, production payment hook or server
+opening authorization/audit is enabled. The user reports equipment available and printer
+information PAISHUO / USB / 80 mm / 200 DPI; the exact model and drawer connection/command
+are unconfirmed (not connected or unknown). Complete the documented hardware and security
+gates before activation. This supersedes the earlier not-yet-delivered equipment status;
+actual resolution, touch and peripheral acceptance remain unverified.
+
+Additional drawer listing supplied 29 October: **PAISHUO 4141P**. The drawer model is now
+recorded; exact printer model, drawer connector/electrical protocol and supported opening
+command remain pending. See [UX8 equipment facts](../Deployment/POS-UX8-Cash-Drawer.md#equipment-facts-and-prerequisites).
+
 28 October 2026: the user confirmed purchase of an **S200D dual-screen Windows POS**:
 Windows 11, Intel Core i5 (5th generation), 8 GB RAM, 128 GB SSD, 15.6-inch main
 staff screen and 11.6-inch extended customer screen. The unit is described as a

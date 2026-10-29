@@ -1,5 +1,18 @@
 # Next iteration phase 0 — baseline and execution assessment
 
+29 October 2026 equipment update: the user reports the purchased POS equipment is now
+available. Printer information supplied: PAISHUO, USB, 80 mm, 200 DPI. Exact model/Windows
+driver and drawer connection/protocol are unconfirmed; the drawer is not connected or its
+connection is unknown. This updates E05/E06's earlier delivery status without establishing
+physical acceptance, display resolution/touch mapping or a supported drawer driver. See
+[UX8 prerequisites](../Deployment/POS-UX8-Cash-Drawer.md).
+
+29 October 2026 drawer detail: user-supplied model **PAISHUO 4141P**, advertised for PC/Tablet;
+OS field “no”; 0.8 mm SPCC cold-rolled steel sheet/ABS; warranty unavailable; Guangdong, China.
+This identifies the drawer only. Its connection, electrical/pulse specifications and the
+exact printer model remain unconfirmed. See the UX8 prerequisites above; no hardware pass
+or direct USB compatibility is inferred from the listing.
+
 Subsequent [POS UX4](../Deployment/POS-UX4-Locked-Gallery.md) implements expiring gallery-only
 readers for locked playback; automated verification, local activation and physical/human
 acceptance remain distinct. Purchased screen resolution/scaling/touch mapping remain

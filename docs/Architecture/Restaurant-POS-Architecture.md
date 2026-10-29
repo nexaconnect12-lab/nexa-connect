@@ -1,5 +1,10 @@
 # NexaConnect Restaurant POS Architecture
 
+UX8 drawer preparation is disabled and disconnected from production payment/cash commands.
+Local attempt evidence cannot authorize opening, certify physical state, post a cash movement
+or replace server audit. Existing money, cashier custody and recovery invariants are unchanged.
+See [remaining integration gates](../Deployment/POS-UX8-Cash-Drawer.md).
+
 POS UX7's staff setup overview and support export are observational client functions.
 Anonymous HTTP/device detection cannot certify branch authorization, schema, physical
 hardware or financial readiness. Existing order/payment/shift/recovery ownership and

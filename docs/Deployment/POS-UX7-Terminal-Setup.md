@@ -1,7 +1,7 @@
 # POS UX7 — terminal setup and peripheral diagnostics
 
-Implemented in source on 29 October 2026. Local activation and actual operator/hardware
-acceptance are separate and must be recorded when observed.
+Implemented and activated in the retained local pilot on 29 October 2026. Actual operator
+and hardware acceptance remain separate and pending.
 
 ## Use the overview
 
@@ -71,6 +71,39 @@ enum, optional HTTP code and correlation ID. Filter logs by that category/event/
 correlation; never attach bodies, endpoint strings, headers or exceptions containing secrets.
 
 ## Verification and remaining acceptance
+
+The complete committed-source gate passed for candidate
+`a990304b-d294-4611-98ab-d4d61a00a96a` at revision `ca050419e9e6e99a9054ea5ebd22089f635122fb`:
+1,206 unit, six architecture, 55 HTTP, 47 hosting, 24 candidate-guard, 39 acceptance-guard,
+90 frontend, 57 QR browser, 45 financial browser and eight owning integration checks,
+plus required Windows build/print/input fixtures, media-profile guards and frontend
+build/audits. Owning fixture cleanup and broker recovery passed. Independent documentation
+review cleared the source implementation. Earlier dirty-source candidate evidence remains
+historical; it was not relabelled after the source commit.
+
+Installed release `d1840b9d3c284cb7b8041a4066d8b02e` uses retained stack
+`c30b628ab23141f389119daa565f894f` and fresh QR pilot
+`673db616cd9d4241b21ad5d6e2388917`. All 12 services returned Ready. The existing certificate
+files were copied byte-for-byte; local Windows-trusted HTTPS returned guest page 200 and
+staff denial 404. No phone acceptance was carried forward as a fresh pass.
+
+The eight protected local files matched their pre-refresh hashes after installation;
+terminal scope, reference data and service addresses were unchanged. POS reopened from the
+installed release with a responsive native window. The installed diagnostic adapter detected
+all six configured endpoints anonymously. A programmatic report saved successfully with
+synthetic unknown peripheral facts and excluded configured URLs and identifiers. This probe
+did not use the native Save dialog, authenticate a cashier, submit financial commands or
+establish hardware readiness. Local receipts are retained under `.runstate/pos-ux7-*`;
+these generated files are not committed release evidence or production acceptance.
+
+At the UX7 post-activation guide update, only Markdown changed. The installed candidate was
+guard-verified against the committed source before launch; its revision and executable
+input hash were unchanged by that update. The checkout then became documentation-dirty,
+whereas the immutable candidate records `sourceDirty=false`, so strict current-candidate
+freshness no longer matched. Subsequent implementation work, including UX8 preparation,
+has its own changed source and verification status. This historical installation evidence must not be relabelled
+or reused to bypass the required current-source guard for a future activation. The guide
+update does not change the installed binaries or require their reinstallation.
 
 `TerminalDiagnosticsTests` covers no-credential/header-only requests, no response-body read,
 HTTP/TLS/cancellation outcomes, settings versus detection/acceptance labels, strict report

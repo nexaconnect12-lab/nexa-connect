@@ -1,5 +1,11 @@
 # NexaConnect Project Architecture
 
+POS UX8 preparation adds a disabled staff drawer panel and isolated client orchestration
+ports/SQLite intent adapter. No production drawer driver, payment hook, server authorization,
+grant, migration or journal construction is enabled. Hardware model/connection, authoritative
+intent/audit integration and physical acceptance remain required to complete UX8. See
+[status and gates](../../docs/Deployment/POS-UX8-Cash-Drawer.md).
+
 POS UX7 projects client settings and explicit Windows/HTTP observations into a staff-only
 setup overview. An independent credential-free, redirect-disabled header-only client checks
 reachability without business reads/commands. Explicit bounded support export allow-lists

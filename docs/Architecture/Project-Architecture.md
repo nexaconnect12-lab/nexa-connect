@@ -1,5 +1,19 @@
 # NexaConnect Project Architecture
 
+## Gated cash-drawer preparation (POS UX8)
+
+The native staff panel reports drawer opening unavailable. An isolated client workflow
+depends on explicit live authorization, driver and intent-store ports, checks session state
+around authorization/reservation and submits at most once per retained scoped intent. A
+separate SQLite Infrastructure adapter parameterizes values and reserves transactionally;
+it is not constructed in production and is not an authoritative server audit. Unknown device
+outcomes and audit failures cannot trigger a payment or automatic retry. No raw Windows
+adapter, payment hook, permission, server endpoint, persistence migration or enabled setting
+is introduced. Backend authority, device profile, lifecycle and actual hardware acceptance
+remain completion prerequisites; this is preparation, not delivered physical operation.
+See [UX8](../Deployment/POS-UX8-Cash-Drawer.md) and
+[intent format](../Database/POS-Drawer-Intents.md).
+
 ## Native setup diagnostics (POS UX7)
 
 The POS Diagnostics component separates typed setting/detection projection from actual

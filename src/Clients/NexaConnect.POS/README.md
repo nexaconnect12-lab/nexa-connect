@@ -1,5 +1,12 @@
 # NexaConnect POS
 
+UX8 preparation adds a disabled **Terminal & sync → Cash drawer** panel. It does not offer
+opening/enabling controls or alter payment. The isolated workflow/intent adapter is tested
+with fake authorization/hardware and is not constructed in production. Exact PAISHUO model,
+drawer connection/protocol, live server authority/audit and device acceptance remain pending.
+See [UX8 status](../../../docs/Deployment/POS-UX8-Cash-Drawer.md) and
+[component boundaries](Hardware/Drawers/README.md).
+
 **Terminal & sync → Terminal setup overview** projects configured/detected/untested/
 unavailable states, explicit bounded reachability and Windows metadata checks, navigation
 to existing receipt/barcode/input/display controls and sanitized JSON export. It does not
