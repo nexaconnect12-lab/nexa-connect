@@ -1,5 +1,11 @@
 # First-draft local test stack
 
+Optional `-EnableOmiseTestCheckout` on a stopped, build-enabled Start adds sandbox card
+capability beside the manual default; defaults remain off. It retains the test credential
+in existing current-user DPAPI secrets and publishes only the capability flag to POS.
+Enabled profiles inherit it on restart; no key is copied to client settings. See
+[setup, key handling and acceptance gates](POS-Mixed-Omise-Sandbox.md).
+
 Optional local image-upload dependencies are now selected explicitly with `-EnableMedia`; base drafts remain unchanged. See [Media activation, lifecycle and real-browser verification](First-Draft-Media.md).
 
 Build-enabled publication also sets POS `Services:MediaApi` from the enabled profile's
@@ -77,7 +83,7 @@ Start prints a generated RunId and the portal URL. Preserve that RunId for subse
 ./scripts/first-draft-stack.ps1 -Action Start -RunId <run-id> -NoBuild
 ```
 
-Start builds owned service/portal/migration/POS artifacts unless `-NoBuild` is selected; that option requires an already completed publication and is only appropriate while those binaries match the source/schema being tested. Start previews and applies current catalog migrations to the generated databases, validates workload API audiences, restricts history grants and enables all financial consumers before dispatchers. Active queue consumers and exact financial bindings must be observed before producer release. POS cash-close publication, settlement recovery and Order workflow recovery remain enabled; provider/card checkout and webhooks are disabled.
+Start builds owned service/portal/migration/POS artifacts unless `-NoBuild` is selected; that option requires an already completed publication and is only appropriate while those binaries match the source/schema being tested. Start previews and applies current catalog migrations to the generated databases, validates workload API audiences, restricts history grants and enables all financial consumers before dispatchers. Active queue consumers and exact financial bindings must be observed before producer release. POS cash-close publication, settlement recovery and Order workflow recovery remain enabled; provider/card checkout defaults disabled and is enabled only by the explicit retained Omise sandbox profile described above. Webhooks remain disabled.
 
 Status reports process identity/liveness and container state; it is read-only and does not repair anything. Stop verifies each recorded PID/start time/executable before stopping it, stops only the named project's containers and retains data. Restart handles one owned service, then rechecks bindings. A failed Start/Restart stops owned applications, marks the run Failed and retains its private logs/data for diagnosis; it does not discard financial history. Stop before retrying a run with recorded processes. Port races or unavailable dependencies fail startup rather than adopting another listener.
 

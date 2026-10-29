@@ -100,6 +100,7 @@ public partial class MainWindow : Window
         cashSessionId = _localStore.LoadCashSession()?.CashSessionId;
         pendingCheckout = _localStore.LoadPendingCheckout();
         pendingCheckout?.Validate(configuration);
+        InitializeCheckoutPayments();
         pendingCashReviewAttempt = _localStore.LoadPendingCashReview(configuration);
         _authentication.SetRetainedWorkGuard(HasRetainedWork);
         ConfigureTenderControls();
@@ -552,7 +553,7 @@ public partial class MainWindow : Window
             return;
         }
         cardTokenRequired = false;
-        if (pendingCheckout is null && _configuration.PaymentMethod == "cash_manual" && cashSessionId is null)
+        if (pendingCheckout is null && CheckoutMethod == "cash_manual" && cashSessionId is null)
         {
             ShiftCashTab.IsSelected = true;
             StatusText.Text = "Open a THB cash session before sending this cash order.";
@@ -564,7 +565,7 @@ public partial class MainWindow : Window
             if (pendingCheckout is null)
             {
                 var created = PendingCheckout.Create(_configuration,
-                    cart.Select(line => new CheckoutLine(line.ProductId, line.Quantity)).ToArray());
+                    cart.Select(line => new CheckoutLine(line.ProductId, line.Quantity)).ToArray(), CheckoutMethod);
                 var quote = await _api.QuoteAsync(_authentication.CurrentToken, created);
                 customerState.Quote(quote, _configuration.Currency); PublishCustomerDisplay();
                 PricingBreakdownText.Text = quote.Pricing.Summary;
@@ -590,7 +591,7 @@ public partial class MainWindow : Window
             cardTokenRequired = result.CardTokenRequired;
             PricingBreakdownText.Text = result.Pricing?.Summary ?? "Legacy order: use its original total.";
             bool clearCart = false;
-            if (_configuration.PaymentMethod == "card_omise_test" && result.Status is PosOrderStatus.KitchenAccepted or PosOrderStatus.PaymentPending)
+            if (pendingCheckout.PaymentMethod == "card_omise_test" && result.Status is PosOrderStatus.KitchenAccepted or PosOrderStatus.PaymentPending)
             {
                 StatusText.Text = result.CardTokenRequired
                     ? "Original card order is waiting for a token. Generate a fresh unused test token and authorize this original order."
@@ -829,7 +830,7 @@ public partial class MainWindow : Window
         }
 
         UpdateTenderControls();
-        customerState.Tender(_configuration.PaymentMethod == "card_omise_test" ? "card_omise_test" : SelectedTenderMethod());
+        customerState.Tender(CardCheckout ? "card_omise_test" : SelectedTenderMethod());
         PublishCustomerDisplay();
         UpdateOperationalState();
     }
@@ -1404,11 +1405,12 @@ public partial class MainWindow : Window
         PlaceOrderButton.IsEnabled = CashierPresentation.CanAttemptOrder(
             signedIn, hasActiveShift, pendingOrder is not null, pendingCheckout is not null, cart.Count);
         PlaceOrderButton.Content = pendingCheckout is null ? "Send order · Continue to payment" : "Verify original order";
-        OmiseTestCardPanel.Visibility = _configuration.PaymentMethod == "card_omise_test" ? Visibility.Visible : Visibility.Collapsed;
-        CardTokenBox.IsEnabled = signedIn && hasActiveShift && !busy && _configuration.PaymentMethod == "card_omise_test"
+        RenderCheckoutPayments();
+        OmiseTestCardPanel.Visibility = CardCheckout ? Visibility.Visible : Visibility.Collapsed;
+        CardTokenBox.IsEnabled = signedIn && hasActiveShift && !busy && CardCheckout
             && (pendingCheckout is null || cardTokenRequired);
         if (pendingCheckout is not null && CardTokenBox.Password.Length > 0) PlaceOrderButton.Content = "Authorize original test card order";
-        PlaceOrderButton.ToolTip = pendingCheckout is null && _configuration.PaymentMethod == "cash_manual" && cashSessionId is null
+        PlaceOrderButton.ToolTip = pendingCheckout is null && CheckoutMethod == "cash_manual" && cashSessionId is null
             ? "Open a THB cash session before sending. Selecting Send order will take you to Shift & cash."
             : "Send the current order and continue to payment.";
         OpenCashButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is null;
@@ -1445,7 +1447,7 @@ public partial class MainWindow : Window
         ContextText.Text = $"Branch {_configuration.BranchId.ToString("N")[..8]} · Terminal {_configuration.TerminalId.ToString("N")[..8]} · {_configuration.Currency} · Connectivity checked per action";
         string method = SelectedTenderMethod();
         PaidButton.Content = settlementUncertain ? "Verify payment" : "Confirm payment received";
-        PaidButton.IsEnabled = _configuration.PaymentMethod != "card_omise_test" && signedIn && hasActiveShift && pendingOrder is not null && !settlementInFlight
+        PaidButton.IsEnabled = !CardCheckout && signedIn && hasActiveShift && pendingOrder is not null && !settlementInFlight
             && cancellationStatus is null
             && (method != "cash" || cashSessionId is not null)
             && (method != "promptpay_manual" || PromptPayQrImage.Source is not null);

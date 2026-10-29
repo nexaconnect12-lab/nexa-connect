@@ -1,5 +1,11 @@
 # Omise POS card-token handoff
 
+29 October 2026: the [additive local POS sandbox profile](POS-Mixed-Omise-Sandbox.md) allows
+test-card selection alongside a manual default and QR collection. The Omise-only development
+procedure below remains supported; do not apply its terminal-default change to the retained
+cash/QR pilot. The additive lifecycle securely configures the matching backend and package.
+Historical provider evidence below does not certify fresh mixed-mode activation/acceptance.
+
 The operator-attested local POS verifier [passed on 2026-09-18](../Architecture/Evidence/Omise-POS-Card-Acceptance.md). It confirms actual local Order/Payment/closed-shift and SQLite cleanup checks, while UI/OIDC steps remain operator attestations. It does not certify remote charge state, an Order-shift link or the opt-in fifth hosted boundary.
 
 If the launcher reports **Order exited**, inspect the restricted Order startup logs locally. A startup exception saying `Cannot consume scoped service PaymentReconciliationApplicationService from singleton IHostedService` indicates the older consumer lifetime bug. The corrected consumer resolves the handler inside a scope for each claimed message. Stop the existing launcher with Ctrl+C and restart the updated launcher with `-EnableOmiseTestCheckout`; it rebuilds Order. Restarting does not require a replacement token unless an authoritative verification response requests one. Retain any pending checkout and verify its original Order after the stack is healthy.

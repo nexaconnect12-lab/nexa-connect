@@ -1,5 +1,10 @@
 # NexaConnect
 
+[Additive Omise sandbox checkout](docs/Deployment/POS-Mixed-Omise-Sandbox.md) lets an
+explicitly enabled local POS choose test card checkout alongside its manual default and
+QR collection. Original-method recovery stays pinned; keys remain server-side. Default
+and hosted profiles remain manual-only. Fresh mixed-mode provider acceptance is pending.
+
 [POS UX8 preparation](docs/Deployment/POS-UX8-Cash-Drawer.md) adds a disabled drawer setup
 panel and isolated workflow/intent-store tests. Physical opening, live authorization/audit
 and payment integration remain pending the exact device/interface; UX8 is not complete.

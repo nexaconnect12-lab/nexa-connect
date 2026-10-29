@@ -138,6 +138,7 @@ function Set-DraftComposeEnvironment($Secrets,[string]$RunId,[int]$BffPort,$Infr
         [Environment]::SetEnvironmentVariable($name,"https://127.0.0.1:$BffPort",'Process')
     }
     foreach ($entry in $Secrets.GetEnumerator()) {
+        if($entry.Key -ceq 'OMISE_TEST_SECRET'){continue} # Never export provider credentials to infrastructure/build children.
         $name = 'NEXACONNECT_JOINED_' + $entry.Key
         $previous[$name] = [Environment]::GetEnvironmentVariable($name,'Process')
         [Environment]::SetEnvironmentVariable($name,[string]$entry.Value,'Process')

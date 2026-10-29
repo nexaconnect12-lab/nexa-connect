@@ -42,8 +42,9 @@ public sealed record PosClientConfiguration(
             throw new InvalidDataException("Configure valid organization, restaurant, branch, store and terminal identifiers.");
         if (Currency != "THB" || PaymentMethod is not ("cash_manual" or "promptpay_manual" or "card_omise_test"))
             throw new InvalidDataException("Cashier checkout requires a supported THB payment method.");
-        if (PaymentMethod == "card_omise_test" && (!EnableOmiseTestCheckout
-            || new[] { PosApi, OrderApi, CatalogApi }.Any(value => !new Uri(value).IsLoopback)))
+        if (PaymentMethod == "card_omise_test" && !EnableOmiseTestCheckout
+            || EnableOmiseTestCheckout && new[] { Authority, PosApi, OrderApi, CatalogApi, PaymentApi }
+                .Where(value=>!string.IsNullOrWhiteSpace(value)).Any(value => !new Uri(value).IsLoopback))
             throw new InvalidDataException("Omise test checkout requires explicit enablement and loopback service APIs.");
         if (SessionIdleTimeoutMinutes is < 1 or > 60)
             throw new InvalidDataException("Session:IdleTimeoutMinutes must be between 1 and 60.");
@@ -51,14 +52,16 @@ public sealed record PosClientConfiguration(
             throw new InvalidDataException("Session:AbsoluteTimeoutHours must be between 1 and 24.");
         if (TokenRefreshLeadSeconds is < 15 or > 240)
             throw new InvalidDataException("Session:TokenRefreshLeadSeconds must be between 15 and 240.");
-        if (UseIsolatedLocalPilotStorage && (EnableOmiseTestCheckout
-            || PaymentMethod is not ("cash_manual" or "promptpay_manual")
+        if (UseIsolatedLocalPilotStorage && (PaymentMethod is not ("cash_manual" or "promptpay_manual")
             || !System.Text.RegularExpressions.Regex.IsMatch(new Uri(Authority).AbsolutePath,
                 "\\A/realms/nexa-review-it-[a-f0-9]{32}\\z")
             || new[] { Authority, PosApi, OrderApi, CatalogApi, PaymentApi, MediaApi }
                 .Where(value => !string.IsNullOrWhiteSpace(value)).Any(value => !new Uri(value).IsLoopback)))
             throw new InvalidDataException("Isolated pilot storage requires an owned loopback draft realm and manual tender.");
     }
+
+    public bool AllowsCheckoutMethod(string method) => method == PaymentMethod
+        || EnableOmiseTestCheckout && (PaymentMethod is "cash_manual" or "promptpay_manual") && method == "card_omise_test";
 
     internal string GetStorageDirectory(string? localApplicationData = null)
     {

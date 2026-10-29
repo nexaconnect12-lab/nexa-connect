@@ -1,5 +1,11 @@
 # Next iteration: phases, checklist and implementation prompts
 
+29 October 2026 selection: add [Omise sandbox alongside existing POS methods](../Deployment/POS-Mixed-Omise-Sandbox.md).
+Source supports an optional test-card picker with original-method recovery, manual-only QR
+collection and protected backend opt-in. Local activation, matching test credentials and
+fresh provider/OIDC/operator acceptance remain pending; production card payment and card
+readers remain separate. UX8 drawer gates are unchanged.
+
 29 October 2026: [POS UX8 drawer preparation](../Deployment/POS-UX8-Cash-Drawer.md) is
 implemented in source with a disabled staff panel, isolated workflow and local intent-store
 tests. **UX8 remains incomplete**: no physical driver, production payment hook or server

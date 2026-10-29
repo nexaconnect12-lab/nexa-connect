@@ -16,7 +16,7 @@ public partial class MainWindow
         WorkflowDock.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         if (!visible) { nextDestination = CashierDestination.None; return; }
         var hint = CashierWorkflow.Resolve(new(IsSignedIn(), _activeShift is not null, cashSessionId is not null,
-            _configuration.PaymentMethod == "cash_manual", pendingCheckout is not null, pendingOrder is not null,
+            CheckoutMethod == "cash_manual", pendingCheckout is not null, pendingOrder is not null,
             settlementUncertain, workflowMovementsPending, pendingCashReviewAttempt is not null, pendingRefund is not null, cancellationStatus));
         nextDestination = hint.Destination;
         WorkflowTitle.Text = busy ? "Working…" : hint.Title;

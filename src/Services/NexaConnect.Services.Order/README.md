@@ -1,5 +1,11 @@
 # Order Service
 
+The [additive local POS sandbox profile](../../../docs/Deployment/POS-Mixed-Omise-Sandbox.md)
+can enable existing `CardCheckout:EnableOmiseTestCheckout` alongside manual checkout/QR.
+No route, grant, migration or workflow primitive changes. Existing live authorization,
+original Order identity, quote validation, payment uncertainty and recovery still apply.
+Client capability alone does not enable this server gate or permit card QR collection.
+
 The [branch order-list API](../../../docs/API/Branch-Order-List.md) returns no-store,
 exact-scope, keyset-paged staff history for Windows POS. Live `order.read` permits viewing;
 enabled QR collection plus live `order.manual-payment.confirm` contributes only a readiness

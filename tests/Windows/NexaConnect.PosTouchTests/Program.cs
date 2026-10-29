@@ -34,7 +34,7 @@ internal static class Program
         Directory.CreateDirectory(root);
         var config = new PosClientConfiguration("http://127.0.0.1:49199/realms/fixture", "nexaconnect-pos",
             "nexaconnect-pos://oauth/callback", "openid", "http://127.0.0.1:49199/", "http://127.0.0.1:49199/",
-            Guid.NewGuid(), Guid.NewGuid(), "THB", "cash_manual", null, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CatalogApi: "http://127.0.0.1:49199/");
+            Guid.NewGuid(), Guid.NewGuid(), "THB", "cash_manual", null, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CatalogApi: "http://127.0.0.1:49199/", EnableOmiseTestCheckout:true);
         var tokenStore = Activator.CreateInstance(typeof(MainWindow).Assembly.GetType("NexaConnect.POS.WindowsTokenStore")!,
             Private | BindingFlags.Public, null, [root], null)!;
         using var auth = (PosAuthentication)Activator.CreateInstance(typeof(PosAuthentication), Private, null,
@@ -57,6 +57,7 @@ internal static class Program
             Invoke(window, "UpdateOperationalState");
             window.Show(); Pump(window);
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
+            VerifyMixedPayments(window,config);
             var tabs = (TabControl)window.FindName("WorkspaceTabs");
             var inputMode = (CheckBox)window.FindName("TouchFirstCheckBox");
             Require(inputMode.IsChecked == false, "touch-first defaults off");
@@ -170,6 +171,29 @@ internal static class Program
         finally { window.Close(); }
     }
     private static void Pump(Window window) { window.UpdateLayout(); window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, () => { }); window.UpdateLayout(); }
+    private static void VerifyMixedPayments(MainWindow window,PosClientConfiguration config)
+    {
+        var picker=(ComboBox)window.FindName("CheckoutPaymentPicker");var token=(PasswordBox)window.FindName("CardTokenBox");
+        Require(picker.Items.Count==2&&picker.SelectedIndex==0,"sandbox capability is additive, manual stays default");
+        picker.SelectedIndex=1;Pump(window);
+        Require(((StackPanel)window.FindName("OmiseTestCardPanel")).Visibility==Visibility.Visible,"card selection exposes only test token UI");
+        token.Password="tokn_test_aaaaaaaaaaaa";picker.SelectedIndex=0;Pump(window);
+        Require(token.Password.Length==0,"changing methods clears ephemeral test token");
+        var checkout=PendingCheckout.Create(config,[new(Guid.NewGuid(),1)],"card_omise_test");
+        typeof(MainWindow).GetField("pendingCheckout",Private)!.SetValue(window,checkout);
+        Invoke(window,"UpdateOperationalState");Pump(window);
+        Require(picker.SelectedIndex==1&&!picker.IsEnabled,"retained card checkout pins its original method");
+        picker.SelectedIndex=0;Require(picker.SelectedIndex==1,"programmatic method change cannot replace recovery method");
+        Require(!((Button)window.FindName("PaidButton")).IsEnabled,"card cannot invoke manual paid action");
+        token.Password="tokn_test_aaaaaaaaaaaa";
+        var qr=PendingCheckout.ForQr(config,Guid.NewGuid().ToString(),Guid.NewGuid(),"fixture");
+        typeof(MainWindow).GetField("pendingCheckout",Private)!.SetValue(window,qr);
+        Invoke(window,"UpdateOperationalState");Pump(window);
+        Require(picker.SelectedIndex==0&&token.Password.Length==0,"QR collection pins manual tender and clears card token");
+        Require(((StackPanel)window.FindName("OmiseTestCardPanel")).Visibility==Visibility.Collapsed,"QR does not offer card collection");
+        typeof(MainWindow).GetField("pendingCheckout",Private)!.SetValue(window,null);
+        Invoke(window,"UpdateOperationalState");Pump(window);
+    }
     private static void VerifyTerminalSetup(MainWindow window,ReachabilityHandler handler)
     {
         ((TabItem)window.FindName("TerminalTab")).IsSelected=true;Invoke(window,"UpdateOperationalState");Pump(window);

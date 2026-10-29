@@ -1,5 +1,10 @@
 # QR6 — integrated verification and phone-test candidate
 
+The candidate gate additionally requires isolated `omise-profile-guards` for additive local
+sandbox capability. These validate lifecycle, credential isolation and packaging without
+provider traffic. Existing evidence is not relabelled; prepare a fresh candidate for changed
+source. Actual Omise mixed-mode/operator acceptance is separate from this synthetic gate.
+
 QR6 adds a repeatable local source/security/financial/QR verification gate and prepares a
 fresh diagnostic candidate. It does not deploy, install, sign, push, freeze or accept a
 release. Dedicated-server, installer, dual-display, real-phone and original-user acceptance

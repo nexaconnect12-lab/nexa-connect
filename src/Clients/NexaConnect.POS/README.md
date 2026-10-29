@@ -1,5 +1,13 @@
 # NexaConnect POS
 
+**Checkout → Checkout payment** supports an optional **Omise sandbox card — test only**
+choice alongside the configured manual default. It appears only in explicitly enabled
+loopback profiles. Pending checkout pins its original method; method changes/manual/QR
+recovery clear transient card tokens. QR collection remains cash/manual PromptPay. No keys
+or enable switch are exposed to cashiers; backend setup and actual sandbox acceptance are
+separate. Existing isolated storage and hosted manual-only policy are retained. See
+[activation and operator workflow](../../../docs/Deployment/POS-Mixed-Omise-Sandbox.md).
+
 UX8 preparation adds a disabled **Terminal & sync → Cash drawer** panel. It does not offer
 opening/enabling controls or alter payment. The isolated workflow/intent adapter is tested
 with fake authorization/hardware and is not constructed in production. Exact PAISHUO model,

@@ -84,7 +84,7 @@ public partial class MainWindow
     }
     private void CustomerOrderReceived(PosOrderResult result)
     {
-        customerState.Order(result, _configuration.PaymentMethod == "card_omise_test" ? "card_omise_test" : SelectedTenderMethod());
+        customerState.Order(result, CardCheckout ? "card_omise_test" : SelectedTenderMethod());
         PublishCustomerDisplay();
     }
     private void CloseForDisplaySafety_Click(object sender, RoutedEventArgs e) => Close();

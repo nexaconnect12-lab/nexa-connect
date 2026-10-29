@@ -9,18 +9,24 @@ param(
     [ValidateSet('PlatformDirectory','Authorization','Restaurant','Catalog','Inventory','Kitchen','Payment','POS','Reporting','Order','Media','Bff')][string]$Service='Kitchen',
     [switch]$ConfirmTestResources,
     [switch]$EnableMedia,
+    [switch]$EnableOmiseTestCheckout,
     [switch]$NoBuild
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
+. (Join-Path $PSScriptRoot 'first-draft-omise-helpers.ps1')
 . (Join-Path $PSScriptRoot 'payment-review-joined-helpers.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $catalog=Get-DraftServiceCatalog $root -IncludeMedia:$EnableMedia
 $compatibility=($catalog.Values | Sort-Object { [version]$_.minimumApplicationVersion })[-1].minimumApplicationVersion
+if($EnableOmiseTestCheckout){
+    if($Action -notin @('Start','Validate')){throw 'Explicit Omise activation requires Start or Validate.'}
+    Assert-DraftOmiseTestKey $env:NEXACONNECT_OMISE_TEST_SECRET_KEY
+}
 if ($Action -eq 'Validate') {
     Assert-DraftPayment $PaymentMethod $QrImagePath
     if($QrPilotOrigin){Assert-DraftQrPilotOrigin $QrPilotOrigin}
-    [pscustomobject]@{paymentMethod=$PaymentMethod;currency='THB';timeZone='Asia/Singapore';applicationCompatibility=$compatibility;schemaTargets=$catalog;providerCheckoutEnabled=$false}
+    [pscustomobject]@{paymentMethod=$PaymentMethod;currency='THB';timeZone='Asia/Singapore';applicationCompatibility=$compatibility;schemaTargets=$catalog;providerCheckoutEnabled=[bool]$EnableOmiseTestCheckout}
     return
 }
 if (-not $IsWindows) { throw 'Use the local Windows PC for this draft lifecycle.' }
@@ -174,6 +180,7 @@ function Set-Configurations {
         if($script:state.Contains('qrPilotOrigin') -and $script:state.qrPilotOrigin){
             foreach($entry in (Get-DraftQrPilotSettings $name $script:state.qrPilotOrigin).GetEnumerator()){$config[$entry.Key]=$entry.Value}
         }
+        foreach($entry in (Get-DraftOmiseServiceSettings $name $script:state $script:secrets).GetEnumerator()){$config[$entry.Key]=$entry.Value}
         $script:configurations[$name]=$config
     }
 }
@@ -237,6 +244,12 @@ if($newRun) {
     if($QrPilotOrigin -and (-not $state.Contains('qrPilotOrigin') -or $state.qrPilotOrigin -cne $QrPilotOrigin)){throw 'QR pilot origin cannot be added to or changed on a retained draft. Create a fresh isolated QR pilot run.'}
     $secrets=Read-DraftSecrets $secretPath
 }
+[void](Test-DraftOmiseEnabled $state)
+if($EnableOmiseTestCheckout){
+    Enable-DraftOmiseProfile $state $secrets $Action ([bool]$NoBuild) $env:NEXACONNECT_OMISE_TEST_SECRET_KEY
+    Save-DraftSecrets $secretPath $secrets
+    Save-State
+}
 if($state.Contains('mediaEnabled') -and $state.mediaEnabled -isnot [bool]){throw 'Media profile selection must be a JSON boolean.'}
 if($EnableMedia -and (-not $state.Contains('mediaEnabled') -or -not $state.mediaEnabled)){
     if($Action -ne 'Start' -or $state.processes.Count -or $NoBuild){throw 'Media activation requires a stopped draft and a build-enabled Start.'}
@@ -261,6 +274,7 @@ if($state.infrastructure.Count){
     if(($allPorts|Sort-Object -Unique).Count -ne $allPorts.Count){throw 'Application and infrastructure ports must be distinct.'}
 }
 $previous=Set-DraftComposeEnvironment $secrets $RunId ([uri]$state.urls.Bff).Port $state.infrastructure
+foreach($entry in (Remove-DraftOmiseInputEnvironment).GetEnumerator()){$previous[$entry.Key]=$entry.Value}
 try {
     Assert-LocalDocker
     Assert-ContainerOwnership
@@ -403,7 +417,7 @@ try {
         & dotnet publish (Join-Path $root 'src/Clients/NexaConnect.POS') -c Release --output (Join-Path $run 'pos') --verbosity quiet -m:1
         if($LASTEXITCODE -ne 0){throw 'POS publication failed.'}
         $pos=if($existingPos){$existingPos}else{Get-Content (Join-Path $run 'pos/appsettings.json') -Raw | ConvertFrom-Json}
-        $pos.Identity.Authority=$state.authority;$pos.Pos.PaymentMethod=$state.paymentMethod;$pos.Pos.EnableOmiseTestCheckout=$false;$pos.Pos.Currency='THB'
+        $pos.Identity.Authority=$state.authority;$pos.Pos.PaymentMethod=$state.paymentMethod;$pos.Pos.EnableOmiseTestCheckout=[bool](Test-DraftOmiseEnabled $state);$pos.Pos.Currency='THB'
         if($state.Contains('qrPilotOrigin')){$pos.Pos | Add-Member -NotePropertyName UseIsolatedLocalPilotStorage -NotePropertyValue $true -Force}
         if(-not $existingPos){foreach($name in @('OrganizationId','RestaurantId','BranchId','StoreId','TerminalId')){$pos.Pos.$name=[Guid]::NewGuid().ToString()};$pos.Pos.PromptPayQrImagePath=''}
         if($state.paymentMethod -eq 'promptpay_manual' -and -not $existingPos) {

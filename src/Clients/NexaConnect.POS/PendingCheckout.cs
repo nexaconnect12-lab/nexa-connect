@@ -26,12 +26,12 @@ public sealed record PendingCheckout(Guid OrderId, Guid SettlementKey, Guid Orga
             configuration.Currency,configuration.PaymentMethod,[],QrShiftId:shiftId,QrCashier:actor);
         checkout.Validate(configuration); return checkout;
     }
-    public static PendingCheckout Create(PosClientConfiguration configuration, CheckoutLine[] lines)
+    public static PendingCheckout Create(PosClientConfiguration configuration, CheckoutLine[] lines, string? paymentMethod = null)
     {
         configuration.ValidateCheckout();
         var result = new PendingCheckout(Guid.NewGuid(), Guid.NewGuid(), configuration.OrganizationId,
             configuration.RestaurantId, configuration.BranchId, configuration.StoreId, configuration.TerminalId,
-            configuration.Currency, configuration.PaymentMethod, lines.ToArray());
+            configuration.Currency, paymentMethod ?? configuration.PaymentMethod, lines.ToArray());
         result.Validate(configuration);
         return result;
     }
@@ -44,7 +44,8 @@ public sealed record PendingCheckout(Guid OrderId, Guid SettlementKey, Guid Orga
             Lines.Any(line => line is null || line.ProductId == Guid.Empty || line.Quantity <= 0) ||
             OrganizationId != configuration.OrganizationId || RestaurantId != configuration.RestaurantId ||
             BranchId != configuration.BranchId || StoreId != configuration.StoreId || TerminalId != configuration.TerminalId ||
-            Currency != configuration.Currency || PaymentMethod != configuration.PaymentMethod)
+            Currency != configuration.Currency || !configuration.AllowsCheckoutMethod(PaymentMethod)
+            || IsQrCollection && (PaymentMethod != configuration.PaymentMethod || PaymentMethod == "card_omise_test"))
             throw new InvalidDataException("Pending checkout differs from terminal configuration or is invalid. Restore the original configuration and reconcile; do not submit another order.");
     }
 }

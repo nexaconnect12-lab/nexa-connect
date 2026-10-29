@@ -127,6 +127,9 @@
               <StackPanel Grid.Row="2">
                 <TextBlock Text="Cart estimate" Foreground="#52655A" />
                 <TextBlock x:Name="TotalText" Foreground="#14532D" FontSize="32" FontWeight="Bold" Margin="0,4,0,16" />
+                <TextBlock Text="Checkout payment" FontWeight="SemiBold" />
+                <ComboBox x:Name="CheckoutPaymentPicker" DisplayMemberPath="Label" SelectionChanged="CheckoutPayment_Changed" AutomationProperties.Name="Checkout payment method" Margin="0,8,0,8" />
+                <TextBlock x:Name="CheckoutPaymentStatus" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,8" />
                 <StackPanel x:Name="OmiseTestCardPanel" Visibility="Collapsed">
                   <TextBlock Text="Omise test checkout" FontWeight="SemiBold" />
                   <TextBlock Text="Paste a fresh token from the local HTTPS test helper. Leave blank to verify the original order. Do not enter card details or keys." TextWrapping="Wrap" Margin="0,8" />

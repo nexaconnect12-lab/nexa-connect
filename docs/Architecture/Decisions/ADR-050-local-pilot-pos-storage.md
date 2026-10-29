@@ -2,6 +2,11 @@
 
 Status: accepted, 25 October 2026.
 
+29 October amendment: [ADR-053](ADR-053-additive-local-omise-sandbox.md) permits an explicit
+local sandbox capability beside the retained manual default. Scope/path isolation and
+hosted manual-only policy remain unchanged; the original manual-only capability restriction
+below describes the initial rollout.
+
 ## Context
 
 A newly provisioned QR pilot has a different terminal scope from an earlier draft. The

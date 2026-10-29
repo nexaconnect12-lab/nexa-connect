@@ -1,5 +1,22 @@
 # NexaConnect Project Architecture
 
+## Additive local Omise sandbox checkout
+
+[ADR-053](Decisions/ADR-053-additive-local-omise-sandbox.md) keeps the manual terminal default
+while adding an opt-in test-card choice per new walk-up checkout. Original method/scope and
+quote persist before sending; pending/restarted checkout pins the selection. QR collection
+and manual Paid remain separate from card. The existing correlated Order/Payment interfaces,
+transient-token boundary and provider recovery/idempotency are reused without new routes,
+grants, schemas or events. Frontend capability cannot grant server permission.
+
+The owned loopback draft lifecycle can explicitly enable this capability on stopped services
+with build-enabled Start. It stores only a Boolean in state/client profiles and retains the
+test credential in existing current-user DPAPI secrets. Only Payment receives the key and
+official provider configuration; only Order receives test-workflow enablement. Existing
+binding-first outbox/reconciliation startup is retained. Restart inherits the profile; key
+replacement/downgrade are not implicit maintenance actions. Hosted profiles stay manual-only.
+See [setup, verification and acceptance exclusions](../Deployment/POS-Mixed-Omise-Sandbox.md).
+
 ## Gated cash-drawer preparation (POS UX8)
 
 The native staff panel reports drawer opening unavailable. An isolated client workflow

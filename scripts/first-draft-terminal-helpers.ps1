@@ -23,12 +23,17 @@ function Get-TerminalScope($Configuration) {
         if(-not [Guid]::TryParse([string]$pos.$name,[ref]$id) -or $id -eq [Guid]::Empty){throw 'Provision the complete terminal scope before packaging.'}
         $scope[$name]=$id.ToString('D')
     }
-    if($pos.Currency -cne 'THB' -or $pos.PaymentMethod -cnotin @('cash_manual','promptpay_manual') -or $pos.EnableOmiseTestCheckout){throw 'Draft terminal requires THB manual payment with card checkout disabled.'}
+    if($pos.Currency -cne 'THB' -or $pos.PaymentMethod -cnotin @('cash_manual','promptpay_manual') -or $pos.EnableOmiseTestCheckout -isnot [bool]){throw 'Draft terminal requires a THB manual default and explicit Boolean sandbox capability.'}
     foreach($value in @($identity.Authority,$Configuration.Services.PosApi,$Configuration.Services.OrderApi,$Configuration.Services.CatalogApi)){
         $uri=$null
         if(-not [uri]::TryCreate([string]$value,[UriKind]::Absolute,[ref]$uri) -or -not $uri.IsLoopback -or $uri.Scheme -notin @('http','https') -or $uri.UserInfo -or $uri.Query -or $uri.Fragment){throw 'This package supports only the owned loopback draft.'}
     }
     $scope.Authority=[string]$identity.Authority;$scope.ClientId=[string]$identity.ClientId
+    if($pos.EnableOmiseTestCheckout){
+        if($identity.Authority -cnotmatch '/realms/nexa-review-it-[a-f0-9]{32}$'){throw 'Sandbox capability requires the owned draft realm.'}
+        $payment=$null
+        if(-not [uri]::TryCreate([string]$Configuration.Services.PaymentApi,[UriKind]::Absolute,[ref]$payment) -or -not $payment.IsLoopback -or $payment.Scheme -notin @('http','https') -or $payment.UserInfo -or $payment.Query -or $payment.Fragment){throw 'Sandbox capability requires the local Payment service.'}
+    }
     $scope.Currency=[string]$pos.Currency;$scope.PaymentMethod=[string]$pos.PaymentMethod
     $hasPilotSetting=if($pos -is [System.Collections.IDictionary]){$pos.Contains('UseIsolatedLocalPilotStorage')}else{$null -ne $pos.PSObject.Properties['UseIsolatedLocalPilotStorage']}
     if($hasPilotSetting){

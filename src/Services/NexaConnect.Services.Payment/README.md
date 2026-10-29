@@ -1,5 +1,12 @@
 # Payment Service
 
+The [additive local POS sandbox profile](../../../docs/Deployment/POS-Mixed-Omise-Sandbox.md)
+selects the existing Omise adapter at official HTTPS with a protected test credential passed
+only to Payment. Existing authorization/capture/refund recovery, correlated telemetry and
+binding-first outbox startup remain in force. No new provider primitive, HTTP contract,
+grant or migration. Webhooks remain disabled unless separately configured; this does not
+certify fresh mixed-mode sandbox or production acceptance.
+
 Correction-aware combined day-close now uses POS protocol 3 and requires correction delivery proof; Payment retains schema 18 and protocol-two owning source manifests/seals. Deploy matching coordinated binaries as in [current contract](../../../docs/API/Correction-Day-Evidence.md) and [rollout](../../../docs/Deployment/Correction-Day-Evidence.md).
 
 Payment now owns customer late-work list/detail/review routes and its append-only review aggregate. Review requires live source financial read, pos.day-close.read and pos.day-close.late-work.review (granted to managers by default); exact retries reauthorize. Safe metadata omits provider/broker IDs, payloads, amounts and subjects. Permanent custody and receipts remain unchanged. Query service.name=nexaconnect-payment and validated CorrelationId for Late-work authorization/conflict/unavailable events. See [contract](../../../docs/API/Late-Work-Reviews.md) and [migration/privileges](../../../docs/Deployment/Late-Work-Reviews.md).

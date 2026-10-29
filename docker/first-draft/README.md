@@ -1,5 +1,10 @@
 # Local first-draft infrastructure
 
+Optional local Omise sandbox selection reuses these owned databases/broker and adds no
+container/port or public provider endpoint. The lifecycle passes the DPAPI-retained test
+credential only to Payment and enables Order's existing card gate while keeping the POS
+manual default. Defaults and webhooks remain disabled. See [activation and tests](../../docs/Deployment/POS-Mixed-Omise-Sandbox.md).
+
 `-EnableMedia` selects the separate `media.compose.yaml` overlay and persists Media startup/inventory. Storage/scanner stay on generated loopback ports with project-owned volumes, exact staff-origin CORS and separate bucket-scoped application keys. Default topology is unchanged. See [setup and acceptance](../../docs/Deployment/First-Draft-Media.md).
 
 Build-enabled Start publishes that profile's generated Media URL as POS `Services:MediaApi`

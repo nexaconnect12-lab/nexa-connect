@@ -1,5 +1,13 @@
 # NexaConnect Project Architecture
 
+[ADR-053](../../docs/Architecture/Decisions/ADR-053-additive-local-omise-sandbox.md) adds an
+optional local Omise sandbox capability alongside a manual POS default. The cashier chooses
+before placement; the original pending method is pinned through recovery. QR stays manual.
+Owned draft activation retains its test key in existing current-user DPAPI credentials and
+exposes it only to Payment; Order enables the existing test workflow. No new schema, grant,
+HTTP contract or production card activation. Hosted installation remains manual-only. See
+[setup and pending acceptance](../../docs/Deployment/POS-Mixed-Omise-Sandbox.md).
+
 POS UX8 preparation adds a disabled staff drawer panel and isolated client orchestration
 ports/SQLite intent adapter. No production drawer driver, payment hook, server authorization,
 grant, migration or journal construction is enabled. Hardware model/connection, authoritative

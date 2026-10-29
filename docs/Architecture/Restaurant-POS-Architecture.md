@@ -1,5 +1,12 @@
 # NexaConnect Restaurant POS Architecture
 
+Optional local Omise sandbox selection keeps each checkout's original payment method
+through recovery and leaves QR collection/manual settlement unchanged. It adds no financial
+authority, schema or card Order-to-shift association. Existing permissions, original Order/
+Payment identities, idempotency and provider uncertainty handling remain authoritative.
+See [ADR-053](Decisions/ADR-053-additive-local-omise-sandbox.md) and
+[mixed-mode setup/acceptance](../Deployment/POS-Mixed-Omise-Sandbox.md).
+
 UX8 drawer preparation is disabled and disconnected from production payment/cash commands.
 Local attempt evidence cannot authorize opening, certify physical state, post a cash movement
 or replace server audit. Existing money, cashier custody and recovery invariants are unchanged.

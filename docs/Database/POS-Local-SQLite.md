@@ -1,5 +1,10 @@
 # POS local SQLite
 
+Additive local Omise sandbox capability changes no table, encryption or storage path.
+The existing protected pending checkout retains its original payment method. Enabling
+capability alongside a manual default does not relocate isolated recovery or store card
+tokens/keys in SQLite. See [ADR-053](../Architecture/Decisions/ADR-053-additive-local-omise-sandbox.md).
+
 UX5 adds only separate non-secret `printing.json` in the existing full-scope current-user
 Preferences directory. Version 1 stores optional Windows queue name and Standard/80 mm
 layout, with 4096-byte bounded reads/writes and atomic replacement. It does not modify
