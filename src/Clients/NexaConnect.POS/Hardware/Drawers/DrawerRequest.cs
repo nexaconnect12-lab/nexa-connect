@@ -30,6 +30,6 @@ public sealed record DrawerRequest(Guid OrganizationId, Guid RestaurantId, Guid 
 
 public static class DrawerAvailability
 {
-    public const string Status="Disabled — hardware and authorization integration pending.";
+    public const string Status="Disabled — software authority integration prepared; verified hardware required.";
     public const string Requirements="Confirm the printer model, drawer connection and vendor opening command. Physical opening is unavailable in this build; receipt-printer selection does not enable it.";
 }

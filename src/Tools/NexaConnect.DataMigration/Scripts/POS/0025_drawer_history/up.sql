@@ -1,0 +1,2 @@
+CREATE INDEX ix_drawer_intents_actor_terminal_history ON drawer_intents
+ (organization_id,actor_subject_id,restaurant_id,branch_id,store_id,terminal_id,reserved_at_utc DESC,operation_id DESC);

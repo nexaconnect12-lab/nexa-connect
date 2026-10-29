@@ -1,5 +1,9 @@
 # NexaConnect Project Architecture
 
+## Read-only drawer history (UX8C)
+
+[ADR-057](Decisions/ADR-057-drawer-history-review.md) adds scoped own-actor list/selected review to POS with pre/post hierarchy, permission and terminal-relationship checks. POS25 indexes actor/terminal/time/operation without new server tables or grants. Bounded keyset windows/cursors are context, never credentials. Native row selection replaces UUID entry; future local reservations add current-user DPAPI lookup context atomically, while reads neither create nor backfill state. Server authorization precedes local loading, with no offline denial/outage fallback. Scope/session/privacy fences clear late responses. Local/server observations are distinct; no opening/reset/renewal/outcome/payment write. Hardware/pilot activation stays deferred. See [flow and limits](../Deployment/POS-UX8C-Drawer-History.md).
+
 ## Branch-approved manual PromptPay QR
 
 [ADR-054](Decisions/ADR-054-branch-promptpay-qr.md) separates Restaurant configuration/audit ownership from Media original PNG storage/safety. Protected BFF routes recheck workspace membership and CSRF; branch configuration authority controls management and menu-read controls cashier delivery. Correlated adapters use existing service addresses and the exact Media workload owner policy. Native POS opts in with a 60-second in-memory lease, 30-second refresh and fresh-read prerequisite for new confirmations. Original uncertain requests retain saved amounts/method/proof/keys and do not require another QR transfer. No schema or grant change. See [API](../API/Branch-PromptPay-QR.md) and [operations](../Deployment/POS-Branch-PromptPay-QR.md).
@@ -33,10 +37,21 @@ Only the first response grants a fixed 60-second submission window; replay/read/
 renew it. Client outcomes are evidence only. External authority is check-time, not a distributed
 lock; there is no HTTP transaction span or financial mutation.
 
-Native driver/payment-hook composition, manual controls and journal activation remain UX8B.
-The existing isolated native workflow/SQLite adapter is not constructed in production or
-authoritative server audit. Opening remains disabled; no guessed command or historical-sale
-replay. See [ADR-055](Decisions/ADR-055-drawer-authority.md),
+UX8B software preparation composes the native coordinator with a typed UX8A HTTP adapter,
+lazy journal in existing scoped current-user POS storage, disabled manual controls and a
+cash-only post-confirmation hook. Local consumption precedes network authority; matching
+unexpired first grant and current cashier/generation/shift/cash custody fence one device call.
+HTTP denies redirects/cookies, bounds complete operations and response size, and propagates
+original operation correlation through safe shared client logging. Outcome reports are bounded
+independently and never retry the device; loss/audit failure preserves consumed uncertainty.
+Financial success/cleanup precedes the hook and is not reversed by drawer failure. Recovery,
+replay, PromptPay, card and reprints cannot trigger automatic submission. Only DisabledDrawerDriver
+is constructed in production; default startup/opening workflows perform no journal I/O,
+and no opening switch or vendor command is activated. UX8C explicitly authorized history
+can read existing storage without writing or resolving an intent. Verified driver/device
+acceptance and investigation/resolution controls beyond read-only review remain follow-ups.
+See [ADR-056](Decisions/ADR-056-native-drawer-coordination.md),
+[native preparation](../Deployment/POS-UX8B-Native-Drawer.md), [ADR-055](Decisions/ADR-055-drawer-authority.md),
 [UX8A rollout](../Deployment/POS-UX8A-Drawer-Authority.md) and
 [server persistence](../Database/Drawer-Intents.md).
 

@@ -408,6 +408,33 @@
                 <TextBlock x:Name="DrawerAvailabilityText" Text="{x:Static drawer:DrawerAvailability.Status}" TextWrapping="Wrap" Margin="0,8,0,8" />
                 <TextBlock Text="{x:Static drawer:DrawerAvailability.Requirements}" TextWrapping="Wrap" />
                 <TextBlock Text="Automatic cash-sale opening: Off. Manual opening: Unavailable. Payments and reconciliation continue independently of physical drawer opening." TextWrapping="Wrap" Margin="0,8,0,0" />
+                <TextBlock Text="Manual opening reason" Margin="0,8,0,4" />
+                <ComboBox x:Name="DrawerReasonPicker" IsEnabled="False" SelectedIndex="0" AutomationProperties.Name="Manual drawer reason">
+                  <ComboBoxItem Content="Change required" />
+                  <ComboBoxItem Content="Cash check" />
+                  <ComboBoxItem Content="Supervisor access" />
+                </ComboBox>
+                <Button x:Name="DrawerOpenButton" Content="Request manual drawer opening" IsEnabled="False" Click="DrawerOpen_Click" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                <TextBlock x:Name="DrawerOutcomeText" Text="No drawer action attempted. Verified hardware remains unavailable." TextWrapping="Wrap" Margin="0,8,0,0" />
+                <TextBlock Text="Drawer attempt history — read only" Style="{StaticResource Heading}" Margin="0,16,0,8" />
+                <WrapPanel>
+                  <ComboBox x:Name="DrawerHistoryPeriodPicker" SelectedIndex="1" SelectionChanged="DrawerHistoryPeriod_Changed" AutomationProperties.Name="Drawer history period" MinWidth="170">
+                    <ComboBoxItem Content="Last 24 hours" /><ComboBoxItem Content="Last 7 days" /><ComboBoxItem Content="Last 30 days" />
+                  </ComboBox>
+                  <Button x:Name="DrawerHistoryRefreshButton" Content="Load / refresh history" Click="DrawerHistoryRefresh_Click" />
+                  <Button x:Name="DrawerHistoryMoreButton" Content="Load more" Click="DrawerHistoryMore_Click" IsEnabled="False" />
+                  <Button x:Name="DrawerHistoryCheckButton" Content="Check selected original record" Click="DrawerHistoryCheck_Click" IsEnabled="False" />
+                </WrapPanel>
+                <TextBlock x:Name="DrawerHistoryStatusText" Text="Load your authorized history for this terminal. Viewing cannot open a drawer or change payment." TextWrapping="Wrap" Margin="0,8" />
+                <DataGrid x:Name="DrawerHistoryList" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" SelectionChanged="DrawerHistorySelection_Changed" MaxHeight="280" MinHeight="100" AutomationProperties.Name="Drawer attempt history">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Time (UTC)" Binding="{Binding TimeLabel}" Width="180" />
+                    <DataGridTextColumn Header="Attempt" Binding="{Binding CauseLabel}" Width="*" />
+                    <DataGridTextColumn Header="Local observation" Binding="{Binding LocalLabel}" Width="150" />
+                    <DataGridTextColumn Header="Server observation" Binding="{Binding ServerLabel}" Width="150" />
+                  </DataGrid.Columns>
+                </DataGrid>
+                <TextBlock x:Name="DrawerHistoryGuidanceText" Text="Submitted means a command was reported, not proof of physical opening. Uncertain intents must not be reset or retried." TextWrapping="Wrap" Margin="0,8" />
               </StackPanel>
               <StackPanel x:Name="TerminalSetupControls" Margin="0,0,0,24">
                 <TextBlock Text="Terminal setup overview" Style="{StaticResource Heading}" />

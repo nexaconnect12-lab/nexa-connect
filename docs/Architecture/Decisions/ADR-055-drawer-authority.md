@@ -2,6 +2,10 @@
 
 Status: Accepted
 
+Subsequent [ADR-056](ADR-056-native-drawer-coordination.md) implements native software
+coordination with a disabled driver and lazy journal. Statements below about no native hook
+describe the UX8A server slice; physical integration and activation remain gated.
+
 ## Context
 
 POS owns cashier custody and immutable manual-cash settlement projection. Local SQLite

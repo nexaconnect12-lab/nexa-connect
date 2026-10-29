@@ -49,6 +49,8 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<NexaConnect.Services.POS.Controllers.DrawerIntentOptions>(builder.Configuration.GetSection("DrawerIntents"));
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.Drawers.DrawerIntents>();
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.Drawers.IDrawerIntentRepository,NexaConnect.Services.POS.Infrastructure.Persistence.PostgresDrawerIntentRepository>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.Drawers.IDrawerHistoryRepository,NexaConnect.Services.POS.Infrastructure.Persistence.PostgresDrawerIntentRepository>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.Drawers.DrawerHistoryReader>();
 builder.Services.AddOrderSettlementConsumer(builder.Configuration);
 
 builder.Services.AddScoped<ICashClosePublicationStore, PostgresCashClosePublicationStore>();

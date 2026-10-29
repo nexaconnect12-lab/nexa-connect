@@ -1,5 +1,9 @@
 # Identity Claims Contract
 
+UX8C uses existing live pos.drawer.read and authenticated original subject for terminal-scoped history/review; managers receive no delegation to read other cashiers. Scope/permission/terminal relationship are rechecked before/after DB I/O, even when review finds no row. Native history uses current issuer/session identity and clears on privacy changes; local DPAPI metadata is never an authority/capability. No realm client/role/credential/grant added. See [history](../Deployment/POS-UX8C-Drawer-History.md).
+
+UX8B native authority calls require the still-current original token subject/issuer, unlocked/unexpired session and configured terminal scope. Tokens are never stored in the drawer journal, retained for locked refresh or forwarded through guest routes. The server remains the live permission/custody authority; a native flag or reason does not authorize another cashier. See [native integration](../Deployment/POS-UX8B-Native-Drawer.md).
+
 UX8A derives the original actor from authenticated bearer sub and rechecks branch permission for every drawer request/retry/read/report. Authorization16 separates pos.drawer.manual-open (manager defaults), pos.drawer.cash-sale-open and pos.drawer.read (cashier/manager defaults). Read/report is restricted to the original actor. No new realm role, token claim or workload client; existing POS Restaurant/Authorization adapters are reused. See [contract](../API/Drawer-Intents.md).
 
 UX4's dedicated internal gallery routes require authenticated `azp=nexaconnect-media-service`
@@ -12,7 +16,7 @@ owning services. General workload authorization remains unchanged. See
 
 Settlement original-event replay is now provided by [ADR-035](../Architecture/Decisions/ADR-035-audited-settlement-replay.md) and [the administrative runbook](../Deployment/Settlement-Replay.md). POS 23 adds two immutable audit tables; Reporting stays 22 and compatibility is 0.38.0 (201 tables, POS 52 / Reporting 19). Customer routes/permissions remain read-only; unknown original publication fields fail closed.
 
-Reporting 22 adds two owned immutable settlement projection/hash tables; current catalog 201 tables (Reporting 19/POS 52). Settlement reporting reuses reporting.sales.read and pos.day-close.read with customer membership/scope revalidation; it adds no grant. Current cutoff acceptance uses Reporting 22/POS 23 and compatibility 0.38.0 with both settlement event bindings. New POS publication is V2; original V1 history stays unchanged. See [settlement reporting](../API/Settlement-Reporting.md) and [operations](../Deployment/Settlement-Reporting.md).
+Reporting 22 adds two owned immutable settlement projection/hash tables; the current catalog contains 215 tables (Reporting 19/POS 55). Settlement reporting reuses reporting.sales.read and pos.day-close.read with customer membership/scope revalidation; it adds no grant. Cutoff settlement event bindings were introduced at Reporting 22/POS 23 and compatibility 0.38.0; the current catalog requires compatibility 0.40.0 for POS 25. New POS publication is V2; original V1 history stays unchanged. See [settlement reporting](../API/Settlement-Reporting.md) and [operations](../Deployment/Settlement-Reporting.md).
 
 Correction-aware retained checks add no permission or workload identity. Reporting sales read plus live owning financial reads cover exact manifests/seals; POS coordination keeps read/prepare/approve/finalize and configured amount posting limits separate. Customer bearer/correlation propagate through the existing adapters. See [contract](../API/Correction-Day-Evidence.md) and [operations](../Deployment/Correction-Day-Evidence.md).
 

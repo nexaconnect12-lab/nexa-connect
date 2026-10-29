@@ -79,6 +79,12 @@
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Payments\ManualTenderReadiness.cs" Link="POS\ManualTenderReadiness.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Hardware\Drawers\DrawerRequest.cs" Link="POS\DrawerRequest.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Hardware\Drawers\DrawerWorkflow.cs" Link="POS\DrawerWorkflow.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Hardware\Drawers\HttpDrawerAuthority.cs" Link="POS\HttpDrawerAuthority.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Hardware\Drawers\DrawerCoordinator.cs" Link="POS\DrawerCoordinator.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Hardware\Drawers\DrawerLocalHistory.cs" Link="POS\DrawerLocalHistory.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Hardware\Drawers\SqliteDrawerHistory.cs" Link="POS\SqliteDrawerHistory.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Hardware\Drawers\DrawerHistoryReader.cs" Link="POS\DrawerHistoryReader.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Hardware\Drawers\HttpDrawerHistory.cs" Link="POS\HttpDrawerHistory.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Hardware\Drawers\SqliteDrawerIntentStore.cs" Link="POS\SqliteDrawerIntentStore.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Diagnostics\TerminalSetup.cs" Link="POS\TerminalSetup.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Diagnostics\TerminalSupportReport.cs" Link="POS\TerminalSupportReport.cs" />

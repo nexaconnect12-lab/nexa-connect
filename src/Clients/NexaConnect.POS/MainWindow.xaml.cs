@@ -63,7 +63,9 @@ public partial class MainWindow : Window
         ReceiptPrinterPreferences? receiptPrinterPreferences = null,
         IReceiptPrintDriver? printDriver = null,
         Func<Task<string[]>>? discoverPrinters = null,
-        PosTerminalDiagnostics? diagnostics = null)
+        PosTerminalDiagnostics? diagnostics = null,
+        NexaConnect.POS.Hardware.Drawers.DrawerCoordinator? drawer = null,
+        NexaConnect.POS.Hardware.Drawers.DrawerHistoryReader? history = null)
     {
         InitializeComponent();
 
@@ -73,6 +75,9 @@ public partial class MainWindow : Window
         _localStore = localStore;
         outbox = outboxStore;
         _configuration = configuration;
+        drawerCoordinator = drawer ?? NexaConnect.POS.Hardware.Drawers.DrawerCoordinator.Disabled(configuration,()=>_authentication.CurrentToken);
+        drawerHistory = history ?? NexaConnect.POS.Hardware.Drawers.DrawerHistoryReader.ForTerminal(configuration,()=>_authentication.CurrentToken);
+        DrawerHistoryList.ItemsSource=drawerHistoryRows;
         inputPreferences = uiPreferences ?? PosUiPreferences.ForTerminal(configuration);
         printerPreferences = receiptPrinterPreferences ?? ReceiptPrinterPreferences.ForTerminal(configuration);
         receiptPrintDriver = printDriver ?? new WindowsReceiptPrintDriver();
@@ -682,6 +687,8 @@ public partial class MainWindow : Window
         int paymentGeneration=receiptSessionGeneration;string? paymentSubject=_authentication.CurrentToken.Subject;Guid? paymentShift=_activeShift?.ShiftId;
         LocalPendingSettlementState? savedSettlement = _localStore.LoadPendingSettlement();
         string method = savedSettlement?.Method ?? SelectedTenderMethod();
+        bool originalPaymentRecovery=settlementUncertain||savedSettlement?.Method is not null;
+        Guid? paymentCash=cashSessionId;
         if(method=="promptpay_manual"&&savedSettlement?.Method is null&&_configuration.UseBranchPromptPayQr)
         {
             settlementInFlight=true;SetBusy("Checking the current approved branch QR…");
@@ -741,6 +748,7 @@ public partial class MainWindow : Window
             StatusText.Text = result.Replayed
                 ? $"Order {result.OrderId:D} was already Paid; the original settlement was verified."
                 : $"Order {result.OrderId:D} is Paid.";
+            await HandleCashDrawerAfterPaymentAsync(result,attempt,originalPaymentRecovery,paymentGeneration,paymentSubject,paymentShift,paymentCash);
             await PreviewPaidReceiptAsync(result.OrderId);
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException
@@ -1189,6 +1197,7 @@ public partial class MainWindow : Window
         QrReferenceTextBox.Clear();
         receiptSessionGeneration++;
         ClearBranchPromptPayQr();
+        ClearDrawerHistory();
         displayedReceiptOrderId = null;
         ReceiptPreview.Document = null;
         PrintReceiptButton.IsEnabled = false;
@@ -1464,6 +1473,8 @@ public partial class MainWindow : Window
         ContextText.Text = $"Branch {_configuration.BranchId.ToString("N")[..8]} · Terminal {_configuration.TerminalId.ToString("N")[..8]} · {_configuration.Currency} · Connectivity checked per action";
         PaidButton.Content = settlementUncertain ? "Verify payment" : "Confirm payment received";
         RenderManualPaymentReadiness();
+        RenderDrawerControls();
+        RenderDrawerHistoryControls();
         CancelOrderButton.Content = cancellationStatus == "pending" ? "Verify cancellation" : "Cancel unpaid order";
         CancelOrderButton.IsEnabled = signedIn && hasActiveShift && pendingOrder is not null
             && settlementIdempotencyKey is not null && !settlementInFlight && !settlementUncertain
@@ -1734,6 +1745,8 @@ public partial class MainWindow : Window
         _authentication.StatusChanged -= OnStatusChanged;
         _api.Dispose();
         terminalDiagnostics.Dispose();
+        drawerCoordinator.Dispose();
+        ClearDrawerHistory();drawerHistory.Dispose();
         displays?.Dispose();
         base.OnClosed(e);
     }

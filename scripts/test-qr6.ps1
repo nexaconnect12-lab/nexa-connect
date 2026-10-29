@@ -31,9 +31,9 @@ try{
     $sourceJson=& node scripts/release/source.mjs;if($LASTEXITCODE -ne 0){throw 'QR6 source inventory failed.'};$source=$sourceJson|ConvertFrom-Json
     $schemaJson=& node scripts/release/qr6.mjs catalog;if($LASTEXITCODE -ne 0){throw 'QR6 schema inventory failed.'};$schemas=$schemaJson|ConvertFrom-Json
     $env:NEXACONNECT_ENVIRONMENT='Testing';$env:NEXACONNECT_POS_DPAPI_ACCEPTANCE='1'
-    Trx unit 'tests/Unit/NexaConnect.UnitTests' '' 1287
+    Trx unit 'tests/Unit/NexaConnect.UnitTests' '' 1332
     Trx architecture 'tests/Architecture/NexaConnect.ArchitectureTests' '' 6
-    Trx http 'tests/Integration/NexaConnect.IntegrationTests' 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests|FullyQualifiedName~OrderListBoundaryTests|FullyQualifiedName~MediaAuthenticatedHttpAcceptanceTests|FullyQualifiedName~GalleryReaderBoundaryTests|FullyQualifiedName~BarcodeBoundaryTests|FullyQualifiedName~PromptPayQrBoundaryTests|FullyQualifiedName~CustomerPromptPayQrBoundaryTests|FullyQualifiedName~DrawerIntentBoundaryTests' 84
+    Trx http 'tests/Integration/NexaConnect.IntegrationTests' 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests|FullyQualifiedName~OrderListBoundaryTests|FullyQualifiedName~MediaAuthenticatedHttpAcceptanceTests|FullyQualifiedName~GalleryReaderBoundaryTests|FullyQualifiedName~BarcodeBoundaryTests|FullyQualifiedName~PromptPayQrBoundaryTests|FullyQualifiedName~CustomerPromptPayQrBoundaryTests|FullyQualifiedName~DrawerIntentBoundaryTests' 90
     Native hosting node @('--test','--test-reporter=tap','docker/pilot/hosting.test.mjs')
     $checks.hosting.count=CountResult tap (Join-Path $run 'hosting.private.log') 47
     Native candidate-guards node @('--test','--test-reporter=tap','scripts/release/qr6.test.mjs')
@@ -72,7 +72,7 @@ try{
     $drawerMatch=@(Get-Content (Join-Path $run 'drawer-authority-owning.private.log')|ForEach-Object {if($_ -match '^Drawer authority owning gate passed with cleanup: (.+/verification\.json)$'){$Matches[1]}})
     if($drawerMatch.Count -ne 1){throw 'Drawer owning receipt was not uniquely identified.'}
     $drawerReceipt=Get-Content -LiteralPath $drawerMatch[0] -Raw|ConvertFrom-Json
-    if($drawerReceipt.runId -cnotmatch '^[a-f0-9]{32}$' -or [IO.Path]::GetFullPath($drawerMatch[0]) -cne [IO.Path]::GetFullPath((Join-Path $repoRoot ".runstate/drawer-authority/$($drawerReceipt.runId)/verification.json")) -or -not $drawerReceipt.passed -or -not $drawerReceipt.cleanupVerified -or $drawerReceipt.caseCount -lt 3 -or $drawerReceipt.productionVerified -ne $false){throw 'Drawer owning evidence is incomplete.'}
+    if($drawerReceipt.runId -cnotmatch '^[a-f0-9]{32}$' -or [IO.Path]::GetFullPath($drawerMatch[0]) -cne [IO.Path]::GetFullPath((Join-Path $repoRoot ".runstate/drawer-authority/$($drawerReceipt.runId)/verification.json")) -or -not $drawerReceipt.passed -or -not $drawerReceipt.cleanupVerified -or $drawerReceipt.caseCount -lt 4 -or $drawerReceipt.productionVerified -ne $false){throw 'Drawer owning evidence is incomplete.'}
     Copy-Item -LiteralPath $drawerMatch[0] -Destination (Join-Path $run 'drawer-owning.json')
     $checks['drawer-authority-owning']=@{passed=$true;count=[int]$drawerReceipt.caseCount;cleanupVerified=$true;evidenceSha256=(Get-FileHash (Join-Path $run 'drawer-owning.json')).Hash.ToLowerInvariant()}
     $outputJson=& node scripts/release/qr6.mjs artifacts;if($LASTEXITCODE -ne 0){throw 'QR6 compiled artifact inventory failed.'};$outputs=$outputJson|ConvertFrom-Json

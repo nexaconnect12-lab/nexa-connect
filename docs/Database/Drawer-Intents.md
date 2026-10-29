@@ -1,8 +1,13 @@
 # Authoritative drawer intents (POS 24)
 
+POS25 adds ix_drawer_intents_actor_terminal_history over organization/actor/restaurant/branch/store/terminal and descending reserved-time/operation. No new server table, ledger/revision write or grant; full catalog remains215. Minimum compatibility0.40.0. Index-only downgrade/reapply preserves retained intent/outcome/audit. Live-authorized, exact-own-actor read queries support closed custody without changing original records. See [UX8C](../Deployment/POS-UX8C-Drawer-History.md).
+
 POS owns three new append-only tables. Authorization 16 adds permission backfill, not tables.
 Full catalog count becomes 215. Minimum application compatibility is 0.39.0; the native
-preparatory SQLite journal remains separate and unconstructed in production.
+SQLite journal remains separate. UX8B constructs its adapter lazily with a disabled driver,
+so default startup and opening workflows perform no journal I/O or physical submission.
+UX8C can explicitly inspect an existing journal read-only after live server authorization,
+even with the driver disabled.
 
 | Table | Ownership and invariants |
 | --- | --- |

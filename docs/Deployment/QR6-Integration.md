@@ -1,5 +1,9 @@
 # QR6 — integrated verification and phone-test candidate
 
+UX8C raises required coverage to1332unit/90HTTP and four drawer-owning cases, including history scope/pagination/read-only behavior and index downgrade/reapply. Windows checks include selection without UUID, unchanged journal/device state and stale-result clearing. POS25 is in the schema inventory. Fresh candidate evidence is required; physical/pilot acceptance is not implied. See [UX8C](POS-UX8C-Drawer-History.md).
+
+UX8B software preparation raises the unit minimum to1312 and extends the Windows fixture to default-disabled drawer controls, guarded cash-only coordination, replay/session fences and device failure without financial recovery changes. Existing HTTP/schema/owning gates remain required. Native tests use fake hardware only; physical UX8B and pilot activation remain separate. See [scope](POS-UX8B-Native-Drawer.md).
+
 UX8A raises mandatory coverage to1287unit/84HTTP cases and adds a three-case drawer-authority-owning gate with a separately hashed receipt and verified fixture cleanup. POS24 / Authorization16 are in the new candidate schema inventory. Existing candidate/phone proofs stay historical; no physical drawer opening or retained-pilot deployment is implied. See [UX8A](POS-UX8A-Drawer-Authority.md).
 
 The gate additionally requires promptpay-profile-guards, 66 QR browser cases (including nine synthetic PromptPay setup cases), new PromptPay HTTP/policy coverage and nine owning PostgreSQL cases including selection CAS/audit rollback. This does not certify a bank image or receipt. Use a fresh source-bound candidate and keep actual upload/payment UAT pending until performed. See [PromptPay](POS-Branch-PromptPay-QR.md).

@@ -46,7 +46,11 @@ internal static class Program
         var printDriver = new CancelPrintDriver();
         var diagnosticsHandler = new ReachabilityHandler();
         var diagnostics = new PosTerminalDiagnostics(config, diagnosticsHandler);
-        var window = new MainWindow(auth, api, new LocalPosStore(scope, root), new LocalOutboxStore(scope, root), config, preferences, printers, printDriver, () => Task.FromResult(new[] { "Fixture PDF" }), diagnostics)
+        var drawerDriver=new DrawerFixtureDriver();var drawerAuthority=new DrawerFixtureAuthority();
+        var drawer=new NexaConnect.POS.Hardware.Drawers.DrawerCoordinator(new(drawerDriver,drawerAuthority,new NexaConnect.POS.Hardware.Drawers.SqliteDrawerIntentStore(Path.Combine(root,"drawer-intents.db"))));
+        var historyPort=new DrawerHistoryFixturePort(config);
+        var history=new NexaConnect.POS.Hardware.Drawers.DrawerHistoryReader(config,historyPort,new NexaConnect.POS.Hardware.Drawers.SqliteDrawerIntentStore(Path.Combine(root,"drawer-intents.db"),config.Authority));
+        var window = new MainWindow(auth, api, new LocalPosStore(scope, root), new LocalOutboxStore(scope, root), config, preferences, printers, printDriver, () => Task.FromResult(new[] { "Fixture PDF" }), diagnostics,drawer,history)
             { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
         try
         {
@@ -59,6 +63,8 @@ internal static class Program
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
             VerifyMixedPayments(window,config);
             VerifyPromptPayProof(window,config);
+            VerifyDrawerIntegration(window,drawerDriver,drawerAuthority,root);
+            VerifyDrawerHistory(window,historyPort,drawerDriver,root);
             var tabs = (TabControl)window.FindName("WorkspaceTabs");
             var inputMode = (CheckBox)window.FindName("TouchFirstCheckBox");
             Require(inputMode.IsChecked == false, "touch-first defaults off");
@@ -167,7 +173,7 @@ internal static class Program
             Require(((TouchKeyboard)window.FindName("InputKeyboard")).Visibility == Visibility.Collapsed, "locked field rejected");
             Invoke(window, "ReportWindowsKeyboardFailure");
             Require(((TextBlock)window.FindName("LockStatusText")).Text.Contains("Accessibility"), "keyboard failure guidance visible during lock");
-            Console.WriteLine("PASS: independent density/keyboard combinations at four sizes, responsive cash panels, Orders rows, exact payment totals, preference rollback and existing input/workflow/lock guards. Physical touch/scanner/OIDC acceptance remains pending.");
+            Console.WriteLine("PASS: independent density/keyboard combinations at four sizes, responsive cash panels, Orders rows, exact payment totals, preference rollback guarded drawer hook/payment isolation and existing input/workflow/lock guards. Physical touch/scanner/OIDC/drawer acceptance remains pending.");
         }
         finally { window.Close(); }
     }
@@ -199,7 +205,8 @@ internal static class Program
     {
         ((TabItem)window.FindName("TerminalTab")).IsSelected=true;Invoke(window,"UpdateOperationalState");Pump(window);
         Require(((TextBlock)window.FindName("DrawerAvailabilityText")).Text.Contains("Disabled"),"drawer preparation must not imply an enabled physical driver");
-        Require(window.FindName("DrawerOpenButton") is null,"no ungated manual opening action is exposed");
+        Require(!((Button)window.FindName("DrawerOpenButton")).IsEnabled,"manual opening remains disabled without verified hardware");
+        Require(!((ComboBox)window.FindName("DrawerReasonPicker")).IsEnabled,"drawer reason cannot enable hardware");
         var list=(ItemsControl)window.FindName("TerminalSetupList");
         Require(list.Items.Count==15,"setup overview includes settings and six logical service checks");
         var rows=list.Items.Cast<TerminalSetupRow>().ToArray();
@@ -246,6 +253,67 @@ internal static class Program
         store.ClearCheckoutAndSettlement();typeof(MainWindow).GetField("pendingOrder",Private)!.SetValue(window,null);
         typeof(MainWindow).GetField("settlementIdempotencyKey",Private)!.SetValue(window,null);typeof(MainWindow).GetField("settlementUncertain",Private)!.SetValue(window,false);
         typeof(MainWindow).GetField("_activeShift",Private)!.SetValue(window,null);tender.SelectedIndex=0;Invoke(window,"UpdateOperationalState");
+    }
+    private static void VerifyDrawerIntegration(MainWindow window,DrawerFixtureDriver driver,DrawerFixtureAuthority authority,string root)
+    {
+        Require(!File.Exists(Path.Combine(root,"drawer-intents.db")),"unconfigured drawer creates no journal");
+        var auth=(PosAuthentication)typeof(MainWindow).GetField("_authentication",Private)!.GetValue(window)!;
+        var store=(LocalPosStore)typeof(MainWindow).GetField("_localStore",Private)!.GetValue(window)!;
+        string subject=auth.CurrentToken!.Subject!;Guid shift=Guid.NewGuid(),cash=Guid.NewGuid(),order=Guid.NewGuid(),key=Guid.NewGuid();
+        typeof(MainWindow).GetField("_activeShift",Private)!.SetValue(window,new LocalShiftState(shift,"drawer-fixture",DateTimeOffset.UtcNow));
+        typeof(MainWindow).GetField("cashSessionId",Private)!.SetValue(window,cash);
+        driver.Enabled=true;Invoke(window,"UpdateOperationalState");
+        Require(((Button)window.FindName("DrawerOpenButton")).IsEnabled,"manual action requires configured fake hardware and current custody");
+        var attempt=new LocalPendingSettlementState(order,10,"THB",key,"cash");
+        var paid=new ManualTenderResult(Guid.NewGuid(),order,"Paid","cash",10,"THB",DateTimeOffset.UtcNow.AddSeconds(-1),false);
+        int generation=(int)typeof(MainWindow).GetField("receiptSessionGeneration",Private)!.GetValue(window)!;
+        void Complete(ManualTenderResult result,bool recovery,int capturedGeneration){
+            var task=(Task)typeof(MainWindow).GetMethod("HandleCashDrawerAfterPaymentAsync",Private)!.Invoke(window,[result,attempt,recovery,capturedGeneration,subject,(Guid?)shift,(Guid?)cash])!;
+            for(int i=0;i<200&&!task.IsCompleted;i++){Pump(window);Thread.Sleep(5);}Require(task.IsCompletedSuccessfully,"drawer hook completes without throwing into payment handling");
+        }
+        Complete(paid,true,generation);Complete(paid with{Replayed=true},false,generation);Complete(paid with{Method="promptpay_manual"},false,generation);Complete(paid,false,generation-1);
+        Require(driver.Calls==0&&authority.Calls==0,"recovery, replay, noncash and stale sessions cannot request a drawer");
+        var status=(TextBlock)window.FindName("StatusText");status.Text="Fixture payment remains confirmed";driver.Fail=true;Complete(paid,false,generation);
+        Require(driver.Calls==1&&authority.Reported==NexaConnect.POS.Hardware.Drawers.DrawerOutcome.Unknown,"driver failure reports uncertainty once");
+        Require(status.Text=="Fixture payment remains confirmed"&&store.LoadPendingSettlement() is null,"drawer failure cannot recreate payment recovery");
+        Complete(paid,false,generation);Require(driver.Calls==1,"same original cash completion cannot repeat device submission");
+        driver.Enabled=false;typeof(MainWindow).GetField("_activeShift",Private)!.SetValue(window,null);typeof(MainWindow).GetField("cashSessionId",Private)!.SetValue(window,null);Invoke(window,"UpdateOperationalState");
+        Require(!((Button)window.FindName("DrawerOpenButton")).IsEnabled,"missing verified hardware disables manual action again");
+    }
+    private static void VerifyDrawerHistory(MainWindow window,DrawerHistoryFixturePort port,DrawerFixtureDriver driver,string root)
+    {
+        ((TabItem)window.FindName("TerminalTab")).IsSelected=true;Invoke(window,"UpdateOperationalState");Pump(window);
+        var list=(DataGrid)window.FindName("DrawerHistoryList");var check=(Button)window.FindName("DrawerHistoryCheckButton");var status=(TextBlock)window.FindName("DrawerHistoryStatusText");int calls=driver.Calls;
+        var before=File.ReadAllBytes(Path.Combine(root,"drawer-intents.db"));
+        void Wait(){for(int i=0;i<200&&(bool)typeof(MainWindow).GetField("drawerHistoryReading",Private)!.GetValue(window)!;i++){Pump(window);Thread.Sleep(5);}Pump(window);}
+        Invoke(window,"DrawerHistoryRefresh_Click",window,new RoutedEventArgs());Wait();Require(list.Items.Count==1,"own terminal history loads without an open shift or physical driver");
+        list.SelectedIndex=0;Pump(window);Require(check.IsEnabled,"history row selection replaces UUID entry");Invoke(window,"DrawerHistoryCheck_Click",window,new RoutedEventArgs());Wait();
+        Require(((TextBlock)window.FindName("DrawerHistoryGuidanceText")).Text.Contains("uncertain"),"unknown server outcome has safe guidance");Require(before.SequenceEqual(File.ReadAllBytes(Path.Combine(root,"drawer-intents.db")))&&driver.Calls==calls,"review cannot mutate journal or submit hardware");
+        port.Denied=true;Invoke(window,"DrawerHistoryRefresh_Click",window,new RoutedEventArgs());Wait();Require(list.Items.Count==0&&!check.IsEnabled&&status.Text.Contains("access denied"),"permission denial clears cached observations");
+        port.Denied=false;port.Hold=true;Invoke(window,"DrawerHistoryRefresh_Click",window,new RoutedEventArgs());Pump(window);Invoke(window,"ClearReceiptView");port.Release();Wait();Require(list.Items.Count==0,"late history cannot restore rows after privacy-generation change");
+        var auth=(PosAuthentication)typeof(MainWindow).GetField("_authentication",Private)!.GetValue(window)!;var original=auth.CurrentToken!;
+        port.Hold=true;Invoke(window,"DrawerHistoryRefresh_Click",window,new RoutedEventArgs());Pump(window);typeof(PosAuthentication).GetProperty("CurrentToken")!.SetValue(auth,original with{Subject="different-history-user"});port.Release();Wait();Require(list.Items.Count==0,"late history cannot cross a cashier change");
+        typeof(PosAuthentication).GetProperty("CurrentToken")!.SetValue(auth,original);Invoke(window,"ClearDrawerHistory");Invoke(window,"UpdateOperationalState");
+    }
+    private sealed class DrawerHistoryFixturePort(PosClientConfiguration c):NexaConnect.POS.Hardware.Drawers.IDrawerHistoryPort
+    {
+        public bool Denied,Hold;private TaskCompletionSource<NexaConnect.Contracts.POS.DrawerHistoryPageV1>? pending;private NexaConnect.Contracts.POS.DrawerHistoryPageV1? saved;
+        private readonly NexaConnect.Contracts.POS.DrawerHistoryItemV1 row=Make();
+        private static NexaConnect.Contracts.POS.DrawerHistoryItemV1 Make(){var at=DateTimeOffset.UtcNow.AddMinutes(-2);return new(Guid.NewGuid(),"manual","cash_check",null,Guid.NewGuid(),Guid.NewGuid(),"reserved",at,at.AddSeconds(60),null);}
+        public Task<NexaConnect.Contracts.POS.DrawerHistoryPageV1> ListAsync(string subject,DateTimeOffset from,DateTimeOffset to,string? cursor,CancellationToken ct){if(Denied)throw new UnauthorizedAccessException();saved=new(c.OrganizationId,c.RestaurantId,c.BranchId,c.StoreId,c.TerminalId,from,to,[row],null);if(!Hold)return Task.FromResult(saved);pending=new(TaskCreationOptions.RunContinuationsAsynchronously);return pending.Task;}
+        public Task<NexaConnect.Contracts.POS.DrawerHistoryItemV1?> ReviewAsync(string subject,Guid operation,CancellationToken ct)=>Task.FromResult<NexaConnect.Contracts.POS.DrawerHistoryItemV1?>(row with{Status="unknown",ReportedAtUtc=DateTimeOffset.UtcNow});
+        public void Release(){Hold=false;pending?.TrySetResult(saved!);pending=null;}
+    }
+    private sealed class DrawerFixtureDriver:NexaConnect.POS.Hardware.Drawers.IDrawerDriver
+    {
+        public bool Enabled,Fail;public int Calls;public bool Configured=>Enabled;
+        public Task SubmitOpenAsync(CancellationToken ct){Calls++;if(Fail)throw new IOException("synthetic drawer failure");return Task.CompletedTask;}
+    }
+    private sealed class DrawerFixtureAuthority:NexaConnect.POS.Hardware.Drawers.IDrawerAuthorization
+    {
+        public int Calls;public NexaConnect.POS.Hardware.Drawers.DrawerOutcome? Reported;
+        public Task<NexaConnect.POS.Hardware.Drawers.DrawerPermit> AuthorizeAsync(NexaConnect.POS.Hardware.Drawers.DrawerRequest r,CancellationToken ct){Calls++;return Task.FromResult(new NexaConnect.POS.Hardware.Drawers.DrawerPermit(NexaConnect.POS.Hardware.Drawers.DrawerPermitStatus.Granted,DateTimeOffset.UtcNow.AddSeconds(60)));}
+        public Task ReportAsync(NexaConnect.POS.Hardware.Drawers.DrawerRequest r,NexaConnect.POS.Hardware.Drawers.DrawerOutcome outcome,CancellationToken ct){Reported=outcome;return Task.CompletedTask;}
     }
     private sealed class ReachabilityHandler:HttpMessageHandler
     {

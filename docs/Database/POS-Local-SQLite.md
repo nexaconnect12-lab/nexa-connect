@@ -1,5 +1,9 @@
 # POS local SQLite
 
+UX8C adds optional protected lookup metadata inside the separate drawer journal for future attempts; financial pos-state.db schema/encryption/recovery are unchanged. Reads create no files/tables or backfill and cannot reset consumed attempts. Windows-current-user DPAPI plus application issuer/scope/subject filters protect lookup context; this is not server authority or tamper-proof against the Windows user. See [drawer storage](POS-Drawer-Intents.md).
+
+UX8B software preparation adds a lazy separate drawer-intents.db path within existing configured POS storage. It contains hashed attempt facts and fixed outcomes; default startup/opening workflows do not open or create the journal while the production driver is disabled. UX8C explicitly requested, server-authorized history may open an existing journal read-only. Financial pos-state.db schema, encryption, pending payment recovery and storage scope are unchanged. Preserve future journal files with recovery backups. See [drawer intent lifecycle](POS-Drawer-Intents.md).
+
 Additive local Omise sandbox capability changes no table, encryption or storage path.
 The existing protected pending checkout retains its original payment method. Enabling
 capability alongside a manual default does not relocate isolated recovery or store card

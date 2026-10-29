@@ -6,7 +6,7 @@ Settlement reporting now uses Reporting 22 / POS 23 with matching binaries at co
 
 POS 22 adds correction protocol guard and epoch ownership metadata on source_day_cutoffs; no table count change at introduction (197 total, POS 50, Reporting 17; current catalog has 201 total and Reporting 19). Compatibility is 0.36.0; retained protocol-three evidence requires forward recovery. See [contract](../../../../docs/API/Correction-Day-Evidence.md) and [operations](../../../../docs/Deployment/Correction-Day-Evidence.md).
 
-POS 21 adds immutable correction replay audit; Reporting 21 adds separate correction facts/receipt hashes. Those migrations were introduced at compatibility 0.35.0; current latest compatibility is 0.38.0. Retained source replay audit blocks downgrade; controlled Reporting projection rebuild requires retained original POS events. See [contract](../../../../docs/API/Cash-Correction-Reporting.md) and [operations](../../../../docs/Deployment/Cash-Correction-Reporting.md).
+POS 21 adds immutable correction replay audit; Reporting 21 adds separate correction facts/receipt hashes. Those migrations were introduced at compatibility 0.35.0; current latest compatibility is 0.40.0. Retained source replay audit blocks downgrade; controlled Reporting projection rebuild requires retained original POS events. See [contract](../../../../docs/API/Cash-Correction-Reporting.md) and [operations](../../../../docs/Deployment/Cash-Correction-Reporting.md).
 
 POS 20 adds verified late-cash correction ledger/audit and posting-time journal guards; Authorization 15 grants posting permission. Application compatibility is 0.34.0. Empty rollback drops corrections before reviews/barriers; retained history requires forward recovery. See [rollout](../../../../docs/Deployment/Late-Cash-Corrections.md).
 
@@ -40,11 +40,13 @@ Create one directory per owning service and one subdirectory per sequential migr
 | Customer | 2 | 6 |
 | Payment | 18 | 21 |
 | Notification | 3 | 5 |
-| POS | 24 | 55 |
+| POS | 25 | 55 |
 | Media | 4 | 6 |
 | Reporting | 22 | 19 |
 
 The current 13-service catalog contains 215 tables. Counts include service-owned technical tables such as outboxes, inboxes, idempotency records, audit history, and projection checkpoints. Index counts should be generated from the packaged migration catalog when needed rather than maintained manually here.
+
+POS 25 adds the actor/terminal drawer-history index at compatibility 0.40.0, without adding tables or permissions. Authorization remains 16; the launcher default remains 0.38.0, so explicitly select 0.40.0 for this catalog. See [history rollout](../../../../docs/Deployment/POS-UX8C-Drawer-History.md).
 
 Versions must be linear, sortable, immutable, independently owned by one service, and transactional. Non-transactional migrations are not supported because schema mutation and migration-history recording must remain atomic.
 

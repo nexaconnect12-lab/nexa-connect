@@ -8,6 +8,22 @@ namespace NexaConnect.IntegrationTests;
 public sealed class DrawerIntentPersistenceTests
 {
  [ConfiguredEnvironmentFact("NEXACONNECT_DRAWER_INTEGRATION_DB")]
+ public async Task History_is_scoped_keyset_paged_and_read_only_after_custody_closes()
+ {
+  await using var f=await Fixture.Create();var repo=new PostgresDrawerIntentRepository(f.Source);var s=f.Command.Scope;var scope=new DrawerHistoryScope(s.OrganizationId,s.RestaurantId,s.BranchId,s.StoreId,s.TerminalId);
+  for(int i=0;i<6;i++){var command=f.Command with{OperationId=Guid.NewGuid()};var decision=Guid.NewGuid();await repo.ReserveAsync(command,"cashier",decision,(custody,now)=>DrawerIntent.Reserve(command,"cashier",decision,custody,now),default);}
+  // Adversarial retained actor metadata must not escape the fixed owner filter.
+  await f.Sql("INSERT INTO drawer_intents SELECT organization_id,$1,restaurant_id,branch_id,store_id,terminal_id,shift_id,cash_session_id,'other',cause,order_id,reason,authorization_decision_id,reserved_at_utc,expires_at_utc FROM drawer_intents LIMIT 1",Guid.NewGuid());
+  var intents=await f.Count("drawer_intents");var audit=await f.Count("drawer_intent_audit");var outbox=await f.Count("outbox_messages");
+  await f.Sql("UPDATE cash_sessions SET status='counting';UPDATE shifts SET status='closing'");
+  var to=DateTimeOffset.UtcNow;string? cursor=null;var seen=new HashSet<Guid>();
+  do{var query=DrawerHistoryQuery.Create(scope,"cashier",to.AddDays(-1),to,2,cursor,DateTimeOffset.UtcNow);var rows=await repo.ReadAsync(query,default);foreach(var row in rows.Take(2)){Assert.Equal("cashier",row.Actor);Assert.True(seen.Add(row.Command.OperationId));Assert.NotNull(await repo.FindHistoryAsync(scope,"cashier",row.Command.OperationId,default));Assert.Null(await repo.FindHistoryAsync(scope,"different",row.Command.OperationId,default));}cursor=rows.Count>2?query.Cursor(rows[1]):null;}while(cursor is not null);
+  Assert.Equal(6,seen.Count);Assert.Empty(await repo.ReadAsync(DrawerHistoryQuery.Create(scope with{OrganizationId=Guid.NewGuid()},"cashier",to.AddDays(-1),to,25,null,DateTimeOffset.UtcNow),default));
+  Assert.False(await repo.MatchesAsync(scope with{TerminalId=Guid.NewGuid()},default));
+  await f.Script("POS","0025_drawer_history","down.sql");await f.Script("POS","0025_drawer_history","up.sql");
+  Assert.Equal(intents,await f.Count("drawer_intents"));Assert.Equal(audit,await f.Count("drawer_intent_audit"));Assert.Equal(outbox,await f.Count("outbox_messages"));Assert.Equal(0,await f.Count("cash_movements"));
+ }
+ [ConfiguredEnvironmentFact("NEXACONNECT_DRAWER_INTEGRATION_DB")]
  public async Task Durable_concurrent_reservations_reports_and_history_never_repeat_or_change_money()
  {
   await using var f=await Fixture.Create();var request=f.Command;var repo=new PostgresDrawerIntentRepository(f.Source);
@@ -72,7 +88,7 @@ public sealed class DrawerIntentPersistenceTests
   private readonly NpgsqlConnection admin;private readonly string schema;
   public NpgsqlDataSource Source{get;}public DrawerCommand Command{get;}
   private Fixture(NpgsqlConnection admin,string schema,NpgsqlDataSource source){this.admin=admin;this.schema=schema;Source=source;Command=new(new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid()),Guid.NewGuid(),"manual",null,"cash_check");}
-  public static async Task<Fixture> Create(string service="POS",int maximum=24)
+  public static async Task<Fixture> Create(string service="POS",int maximum=25)
   {
    var settings=new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("NEXACONNECT_DRAWER_INTEGRATION_DB"));Assert.Equal("127.0.0.1",settings.Host);Assert.Matches("^nexa_drawer_it_[a-f0-9]{32}$",settings.Database!);
    var admin=new NpgsqlConnection(settings.ConnectionString);await admin.OpenAsync();string schema="drawer_"+Guid.NewGuid().ToString("N");await using(var create=new NpgsqlCommand($"CREATE SCHEMA \"{schema}\"",admin))await create.ExecuteNonQueryAsync();
@@ -80,7 +96,7 @@ public sealed class DrawerIntentPersistenceTests
    try{
     var root=Path.Combine(Root,service);foreach(var dir in Directory.GetDirectories(root).Order().Where(d=>int.Parse(Path.GetFileName(d)[..4])<=maximum)){await using var sql=fixture.Source.CreateCommand(await File.ReadAllTextAsync(Path.Combine(dir,"up.sql")));await sql.ExecuteNonQueryAsync();}
     if(service=="POS"){
-     await fixture.Script("POS","0024_drawer_intents","down.sql");await fixture.Script("POS","0024_drawer_intents","up.sql");
+     await fixture.Script("POS","0025_drawer_history","down.sql");await fixture.Script("POS","0024_drawer_intents","down.sql");await fixture.Script("POS","0024_drawer_intents","up.sql");await fixture.Script("POS","0025_drawer_history","up.sql");
      var s=fixture.Command.Scope;
      await fixture.Sql("INSERT INTO stores(id,restaurant_id,branch_id,code,name,operational_status,created_at_utc,created_by,updated_at_utc,updated_by) VALUES($1,$2,$3,'fixture','Fixture','active',now(),'fixture',now(),'fixture')",s.StoreId,s.RestaurantId,s.BranchId);
      await fixture.Sql("INSERT INTO terminals(id,restaurant_id,store_id,code,device_type,registration_status,registered_at_utc,created_at_utc,updated_at_utc) VALUES($1,$2,$3,'fixture','pos','active',now(),now(),now())",s.TerminalId,s.RestaurantId,s.StoreId);

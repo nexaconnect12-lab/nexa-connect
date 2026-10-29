@@ -1,5 +1,7 @@
 # NexaConnect Restaurant POS Architecture
 
+UX8C adds authorized original-cashier terminal history/read-only review across closed custody. POS25 is index-only (compatibility0.40.0); no money, cash movement or original intent/outcome is changed. Native lookup metadata is DPAPI protected and legacy rows remain consumed without invented IDs. Viewing cannot grant/open/reset/retry a drawer. See [ADR-057](Decisions/ADR-057-drawer-history-review.md) and [review](../Deployment/POS-UX8C-Drawer-History.md).
+
 Restaurant owns the branch-approved manual PromptPay asset selection through versioned configuration and transactional audit/outbox; Media owns safe static PNG bytes. No payment authority moves into image delivery. POS proof belongs to the original cashier/order/shift; uncertain settlement reuses its entire saved intent. Approval shares branch concurrency_version with other configuration and can invalidate quotes. See [ADR-054](Decisions/ADR-054-branch-promptpay-qr.md).
 
 Optional local Omise sandbox selection keeps each checkout's original payment method
@@ -12,8 +14,12 @@ See [ADR-053](Decisions/ADR-053-additive-local-omise-sandbox.md) and
 UX8A adds default-off POS-owned consumed drawer intents, live branch permissions and
 locked original-cashier custody validation. A sale requires recent immutable confirmed cash
 projection; intent/audit/outbox are atomic and never post cash movements. Replay/read cannot
-renew the 60-second grant. Client outcomes never certify physical state. Native driver/payment
-hooks remain disabled pending UX8B. See [ADR-055](Decisions/ADR-055-drawer-authority.md)
+renew the 60-second grant. Client outcomes never certify physical state. UX8B software now
+adds a guarded original-cash-only native post-payment hook, scoped lazy consumed journal,
+bounded server authority/reporting and disabled manual controls. Device/audit failures never
+recreate payment recovery. Production driver remains disabled; physical UX8B is pending.
+See [ADR-056](Decisions/ADR-056-native-drawer-coordination.md),
+[native preparation](../Deployment/POS-UX8B-Native-Drawer.md) and [ADR-055](Decisions/ADR-055-drawer-authority.md)
 and [equipment gates](../Deployment/POS-UX8-Cash-Drawer.md).
 
 POS UX7's staff setup overview and support export are observational client functions.

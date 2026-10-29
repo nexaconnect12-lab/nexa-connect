@@ -6,7 +6,7 @@ using Npgsql;
 using NpgsqlTypes;
 namespace NexaConnect.Services.POS.Infrastructure.Persistence;
 
-public sealed class PostgresDrawerIntentRepository(NpgsqlDataSource source):IDrawerIntentRepository
+public sealed partial class PostgresDrawerIntentRepository(NpgsqlDataSource source):IDrawerIntentRepository,IDrawerHistoryRepository
 {
     private const string Projection="""
         SELECT d.organization_id,d.restaurant_id,d.branch_id,d.store_id,d.terminal_id,d.shift_id,d.cash_session_id,

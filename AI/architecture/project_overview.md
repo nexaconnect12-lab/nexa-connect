@@ -1,5 +1,7 @@
 # NexaConnect Project Architecture
 
+[UX8C](../../docs/Deployment/POS-UX8C-Drawer-History.md) adds bounded own-actor/terminal history and scoped selected review, with repeated live read authorization. POS25 adds one index, no server table/grant (compatibility0.40.0). Native future reservations atomically capture DPAPI-protected lookup context; existing/legacy journal reads are non-creating and read-only. History separates observations, suppresses late results on privacy changes and never opens/resets/reports/changes payment. Current pilot and physical activation remain unchanged. See [ADR-057](../../docs/Architecture/Decisions/ADR-057-drawer-history-review.md).
+
 [ADR-054](../../docs/Architecture/Decisions/ADR-054-branch-promptpay-qr.md) adds Restaurant-owned branch PromptPay selection, Media-owned bounded static PNG delivery and protected Customer BFF management. Managers use live configuration.manage; cashiers read via menu.read without broad Media grants. POS opts in, keeps images in memory for at most 60 seconds and preserves original uncertain financial intents. No migration, new grant or automated receipt validation. See [setup](../../docs/Deployment/POS-Branch-PromptPay-QR.md).
 
 [ADR-053](../../docs/Architecture/Decisions/ADR-053-additive-local-omise-sandbox.md) adds an
@@ -13,8 +15,13 @@ HTTP contract or production card activation. Hosted installation remains manual-
 POS UX8A adds default-off POS-owned live drawer authority, consumed intent/audit/outbox and
 exact open cashier custody checks. POS24 / Authorization16 (compatibility0.39.0) separate
 manual permission from fresh confirmed-cash-sale authority; replay/read never renew a grant.
-Native workflow/SQLite journal stays isolated and physical opening disabled. Driver/payment
-hooks and equipment acceptance remain UX8B. See
+UX8B software preparation composes a bounded native HTTP authority adapter, lazy separate
+scoped journal, original-cash-only post-payment hook and disabled manual controls. Local
+reservation precedes HTTP; lost responses and audit failures remain consumed. Only
+DisabledDrawerDriver is constructed in production, so physical opening and default opening-workflow
+journal I/O remain disabled; UX8C explicitly authorized history may read existing storage.
+No new backend schema/grant or financial mutation. Verified driver/equipment
+acceptance remains required. See [native preparation](../../docs/Deployment/POS-UX8B-Native-Drawer.md),
 [ADR-055](../../docs/Architecture/Decisions/ADR-055-drawer-authority.md) and
 [UX8A](../../docs/Deployment/POS-UX8A-Drawer-Authority.md).
 

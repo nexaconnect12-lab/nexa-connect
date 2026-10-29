@@ -4,14 +4,14 @@ using Microsoft.Data.Sqlite;
 namespace NexaConnect.POS.Hardware.Drawers;
 
 // Infrastructure: separate local intent evidence, not a financial ledger/server audit.
-// No production construction or file creation occurs while UX8 is hardware gated.
-public sealed class SqliteDrawerIntentStore(string file) : IDrawerIntentStore
+// Construction is lazy: no file creation occurs while the driver is hardware gated.
+public sealed partial class SqliteDrawerIntentStore(string file,string? authority=null,IDrawerHistoryProtector? protector=null) : IDrawerIntentStore,ILocalDrawerHistory
 {
     private SqliteConnection Open()
     {
         string path=Path.GetFullPath(file);PosInstallationPolicy.AssertNoLinks(path);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var connection=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=path,Pooling=false,DefaultTimeout=5}.ToString());
+        var connection=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=path,Pooling=false,DefaultTimeout=5,ForeignKeys=true}.ToString());
         connection.Open();
         try
         {
@@ -29,8 +29,8 @@ public sealed class SqliteDrawerIntentStore(string file) : IDrawerIntentStore
         insert.CommandText="INSERT INTO drawer_intents(intent_key,fingerprint,cause,reason,outcome,reserved_utc) VALUES($key,$fingerprint,$cause,$reason,'Reserved',$utc) ON CONFLICT(intent_key) DO NOTHING;";
         insert.Parameters.AddWithValue("$key",request.Key);insert.Parameters.AddWithValue("$fingerprint",request.Fingerprint);
         insert.Parameters.AddWithValue("$cause",request.Cause.ToString());insert.Parameters.AddWithValue("$reason",request.Reason is { } r?r.ToString():DBNull.Value);
-        insert.Parameters.AddWithValue("$utc",DateTimeOffset.UtcNow.ToString("O"));
-        if(insert.ExecuteNonQuery()==1){transaction.Commit();return DrawerReservation.Created;}
+        var reservedAt=DateTimeOffset.UtcNow;insert.Parameters.AddWithValue("$utc",reservedAt.ToString("O"));
+        if(insert.ExecuteNonQuery()==1){SaveContext(connection,transaction,request,reservedAt);transaction.Commit();return DrawerReservation.Created;}
         using var read=connection.CreateCommand();read.Transaction=transaction;
         read.CommandText="SELECT fingerprint FROM drawer_intents WHERE intent_key=$key;";read.Parameters.AddWithValue("$key",request.Key);
         bool same=read.ExecuteScalar() as string==request.Fingerprint;transaction.Commit();

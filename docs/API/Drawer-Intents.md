@@ -11,6 +11,8 @@ Live Restaurant hierarchy and Authorization decisions remain authoritative.
 | POST | root | organizationId, restaurantId, branchId, storeId, terminalId, shiftId, cashSessionId, operationId, cause, nullable orderId/reason; returns DrawerIntentV1 |
 | GET | `/{operationId}` | Original actor and live `pos.drawer.read`; returns retained original operation/status with maySubmit=false |
 | POST | `/{operationId}/outcome` | organizationId, outcome; original actor and current original-cause permission; reports submitted/unknown/cancelled, never grants another submission |
+| GET | root | UX8C: restaurantId/branchId/storeId/terminalId, fromUtc/toUtc, limit1–50(default25), optional cursor; own-actor DrawerHistoryPageV1 |
+| GET | `/{operationId}/review` | UX8C: same terminal scope query; original own-actor DrawerHistoryItemV1 or404 after live authorization |
 
 Writes cap at 4096 bytes and each use case has a linked 15-second deadline. Scope/identity
 validation, fixed causes/reasons, original facts, custody and state transitions belong to
@@ -28,7 +30,8 @@ Response fields: operationId, status, maySubmit, reservedAtUtc, expiresAtUtc, re
 New successful reservation returns 200, status reserved and maySubmit=true. Successful retry/read/report
 responses have maySubmit=false; an eligible sale retry with another operation ID returns the original
 operation. New request/lease duration uses database clock and is fixed at 60 seconds. A lost
-successful response consumes the intent. No refresh, reset, renew, delete or listing endpoint.
+successful response consumes the intent. No reset, renew or delete endpoint. UX8C adds
+read-only history listing/review, never a submission grant.
 
 Reservation retries repeat live authorization and current custody/cash-sale freshness checks
 before resolving an existing intent. Closure or a cash projection older than 60 seconds can
@@ -48,3 +51,31 @@ actor, 404 absent scoped operation, 409 `drawer_intent_conflict`, 503
 suppressed; bodies/tokens/subjects are not logged. Never automatically retry physical action.
 
 See [setup, verification and debugging](../Deployment/POS-UX8A-Drawer-Authority.md).
+
+## UX8C history contracts
+
+POS25/matching service/native binaries add an index-only history surface under existing
+`pos.drawer.read` and DrawerIntents enablement. List requires exact terminal relationship,
+own authenticated actor and a half-open UTC reserved-at window of at most31days. Limit1–50,
+native25; optional opaque keyset cursor is bound to actor/scope/window but is not a credential.
+Every list/review checks live hierarchy/permission/relationship before and after database I/O.
+Closed custody does not block a read. Wrong actor or absent original is404 after authorization;
+invalid scope/permission is403; invalid cursor/window/limit400. No existence read bypasses live
+authority. Reads are check-time observations, not distributed atomic revocation.
+
+DrawerHistoryPageV1 echoes organization/restaurant/branch/store/terminal, fromUtc/toUtc, items
+and nextCursor. DrawerHistoryItemV1 contains operationId, fixed cause/reason, optional orderId,
+original shiftId/cashSessionId, status and reserved/expiry/report times. It contains no grant,
+actor identity, Authorization decision, amount or payment-provider data. Selected review
+returns that item or404. Native list/selected bodies cap at64KiB/4KiB and complete operations
+at10seconds; server use case deadline15seconds. The same correlation foundation and safe
+Drawer history events apply, without bodies/cursors/headers/subjects.
+
+See [native workflow, legacy/context limitations and rollout](../Deployment/POS-UX8C-Drawer-History.md).
+
+UX8B's prepared native consumer maps fixed causes/reasons and validates original operation,
+status/lease, current subject/issuer/lock and configured scope. Cookie-free, redirect-disabled
+HTTP bounds successful JSON to4096bytes and complete operations to10seconds; outcome reporting
+has an independent5-second caller deadline. Local intent consumption precedes HTTP. Only a
+fresh original-cash completion can reach that prepared hook; no default hardware or new API
+contract is enabled. See [native behavior and limits](../Deployment/POS-UX8B-Native-Drawer.md).

@@ -20,6 +20,36 @@ namespace NexaConnect.IntegrationTests;
 public sealed class DrawerIntentBoundaryTests
 {
  [Theory][InlineData(null,false,401)][InlineData("cashier",false,503)][InlineData("cashier",true,200)]
+ public async Task History_list_is_authenticated_default_off_and_read_only(string? subject,bool enabled,int expected)
+ {
+  var p=new Ports();await using var app=await Host(p,enabled);using var client=app.GetTestClient();Identify(client,subject);
+  using var response=await client.GetAsync(HistoryPath(p));Assert.Equal(expected,(int)response.StatusCode);Assert.Equal(0,p.Reservations);
+  if(expected==200){Assert.True(response.Headers.CacheControl?.NoStore);Assert.Empty((await response.Content.ReadFromJsonAsync<DrawerHistoryPageV1>())!.Items);}
+ }
+ [Fact]public async Task History_lists_only_original_actor_and_review_never_grants_or_writes()
+ {
+  var p=new Ports();await using var app=await Host(p,true);using var client=app.GetTestClient();Identify(client,"cashier");
+  using var create=await client.PostAsJsonAsync(Path(p),p.Input);Assert.Equal(HttpStatusCode.OK,create.StatusCode);
+  using var page=await client.GetAsync(HistoryPath(p));var history=await page.Content.ReadFromJsonAsync<DrawerHistoryPageV1>();Assert.Single(history!.Items);
+  using var review=await client.GetAsync(ReviewPath(p));Assert.Equal(HttpStatusCode.OK,review.StatusCode);Assert.DoesNotContain("maySubmit",await review.Content.ReadAsStringAsync());Assert.Equal(1,p.Reservations);
+  client.DefaultRequestHeaders.Remove("X-Test-Subject");client.DefaultRequestHeaders.Add("X-Test-Subject","other");
+  using var other=await client.GetAsync(HistoryPath(p));Assert.Empty((await other.Content.ReadFromJsonAsync<DrawerHistoryPageV1>())!.Items);
+  using var otherReview=await client.GetAsync(ReviewPath(p));Assert.Equal(HttpStatusCode.NotFound,otherReview.StatusCode);
+ }
+ [Fact]public async Task Revocation_during_history_io_and_wrong_terminal_deny_without_payload()
+ {
+  var p=new Ports{RevokeHistory=true};await using var app=await Host(p,true);using var client=app.GetTestClient();Identify(client,"cashier");
+  using var response=await client.GetAsync(HistoryPath(p));Assert.Equal(HttpStatusCode.Forbidden,response.StatusCode);
+  p.Granted=true;p.RevokeHistory=false;using var wrong=await client.GetAsync(HistoryPath(p).Replace(p.Input.TerminalId.ToString(),Guid.NewGuid().ToString()));Assert.Equal(HttpStatusCode.Forbidden,wrong.StatusCode);Assert.Equal(0,p.Reservations);
+ }
+ [Fact]public async Task History_window_and_cursor_validation_reject_unbounded_reads()
+ {
+  var p=new Ports();await using var app=await Host(p,true);using var client=app.GetTestClient();Identify(client,"cashier");
+  foreach(string suffix in new[]{"&limit=51","&cursor=not-a-cursor"}){using var response=await client.GetAsync(HistoryPath(p)+suffix);Assert.Equal(HttpStatusCode.BadRequest,response.StatusCode);}Assert.Equal(0,p.Reservations);
+ }
+ private static string HistoryPath(Ports p)=>Path(p)+$"?restaurantId={p.Input.RestaurantId}&branchId={p.Input.BranchId}&storeId={p.Input.StoreId}&terminalId={p.Input.TerminalId}&fromUtc={Uri.EscapeDataString(DateTimeOffset.UtcNow.AddDays(-1).ToString("O"))}&toUtc={Uri.EscapeDataString(DateTimeOffset.UtcNow.ToString("O"))}";
+ private static string ReviewPath(Ports p)=>Path(p)+$"/{p.Input.OperationId}/review?restaurantId={p.Input.RestaurantId}&branchId={p.Input.BranchId}&storeId={p.Input.StoreId}&terminalId={p.Input.TerminalId}";
+ [Theory][InlineData(null,false,401)][InlineData("cashier",false,503)][InlineData("cashier",true,200)]
  public async Task Authority_is_authenticated_and_explicitly_enabled(string? subject,bool enabled,int expected)
  {
   var p=new Ports();await using var app=await Host(p,enabled);using var client=app.GetTestClient();Identify(client,subject);
@@ -55,15 +85,19 @@ public sealed class DrawerIntentBoundaryTests
   var b=WebApplication.CreateBuilder();b.WebHost.UseTestServer();b.Services.AddLogging(l=>l.ClearProviders());b.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions,Identity>("Test",_=>{});b.Services.AddAuthorization();
   b.Services.AddControllers().AddApplicationPart(typeof(DrawerIntentsController).Assembly);b.Services.Configure<DrawerIntentOptions>(o=>o.Enabled=enabled);
   b.Services.AddSingleton<IDrawerIntentRepository>(p);b.Services.AddSingleton<IRestaurantScopeReader>(p);b.Services.AddSingleton<IAuthorizationDecisionClient>(p);b.Services.AddScoped<DrawerIntents>();
+  b.Services.AddSingleton<IDrawerHistoryRepository>(p);b.Services.AddSingleton(TimeProvider.System);b.Services.AddScoped<DrawerHistoryReader>();
   var app=b.Build();app.UseAuthentication();app.UseAuthorization();app.MapControllers();await app.StartAsync();return app;
  }
  private sealed class Identity(IOptionsMonitor<AuthenticationSchemeOptions> o,ILoggerFactory l,UrlEncoder e):AuthenticationHandler<AuthenticationSchemeOptions>(o,l,e)
  {
   protected override Task<AuthenticateResult> HandleAuthenticateAsync()=>Task.FromResult(Request.Headers.ContainsKey("X-Test-Subject")?AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub",Request.Headers["X-Test-Subject"].ToString()),new Claim(ClaimTypes.Role,"customer-user")],Scheme.Name)),Scheme.Name)):AuthenticateResult.NoResult());
  }
- private sealed class Ports:IDrawerIntentRepository,IRestaurantScopeReader,IAuthorizationDecisionClient
+ private sealed class Ports:IDrawerIntentRepository,IDrawerHistoryRepository,IRestaurantScopeReader,IAuthorizationDecisionClient
  {
-  public readonly DrawerIntentRequestV1 Input=new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"manual",null,"cash_check");public bool Granted=true,Unavailable;public int Reservations;private DrawerIntent? saved;
+  public readonly DrawerIntentRequestV1 Input=new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"manual",null,"cash_check");public bool Granted=true,Unavailable,RevokeHistory;public int Reservations;private DrawerIntent? saved;
+  public Task<bool> MatchesAsync(DrawerHistoryScope s,CancellationToken ct)=>Task.FromResult(s==new DrawerHistoryScope(Input.OrganizationId,Input.RestaurantId,Input.BranchId,Input.StoreId,Input.TerminalId));
+  public Task<IReadOnlyList<DrawerIntent>> ReadAsync(DrawerHistoryQuery q,CancellationToken ct){if(RevokeHistory)Granted=false;return Task.FromResult<IReadOnlyList<DrawerIntent>>(saved is {} row&&row.Actor==q.Actor?[row]:[]);}
+  public Task<DrawerIntent?> FindHistoryAsync(DrawerHistoryScope s,string actor,Guid op,CancellationToken ct){if(RevokeHistory)Granted=false;return Task.FromResult(saved is {} row&&row.Actor==actor&&row.Command.OperationId==op?saved:null);}
   public Task<(DrawerIntent,bool)> ReserveAsync(DrawerCommand c,string actor,Guid decision,Func<DrawerCustody?,DateTimeOffset,DrawerIntent> create,CancellationToken ct){Reservations++;bool first=saved is null;saved??=create(new("active","active","open","open","THB","cashier",DateTimeOffset.UtcNow.AddMinutes(-1),false,DateTimeOffset.UtcNow.AddMinutes(-1),false,false,null),DateTimeOffset.UtcNow);saved.RequireSame(c,actor);return Task.FromResult((saved,first));}
   public Task<DrawerIntent?> FindAsync(Guid org,Guid op,CancellationToken ct)=>Task.FromResult(saved is {} s&&s.Command.Scope.OrganizationId==org&&s.Command.OperationId==op?saved:null);
   public Task<DrawerIntent> ReportAsync(DrawerIntent original,string outcome,Guid decision,CancellationToken ct){saved=original.Report(outcome,DateTimeOffset.UtcNow);return Task.FromResult(saved);}

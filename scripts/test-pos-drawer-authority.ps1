@@ -20,7 +20,7 @@ try{
  $env:NEXACONNECT_DRAWER_INTEGRATION_DB="Host=127.0.0.1;Port=$port;Database=$database;Username=postgres;Password=$password"
  & dotnet test (Join-Path $repoRoot 'tests/Integration/NexaConnect.IntegrationTests') --no-restore -m:1 --filter 'FullyQualifiedName~DrawerIntentPersistenceTests' --verbosity quiet --logger 'trx;LogFileName=drawer.trx' --results-directory $run *> (Join-Path $run 'persistence.private.log')
  if($LASTEXITCODE){throw 'Drawer owning tests failed; inspect private diagnostics.'}
- $count=Read-DraftTestCounts (Join-Path $run 'drawer.trx') 3;$passed=$true
+ $count=Read-DraftTestCounts (Join-Path $run 'drawer.trx') 4;$passed=$true
 }finally{
  $env:NEXACONNECT_DRAWER_INTEGRATION_DB=$prior;$cleanup=$true
  if($created){if($container -cnotmatch '^nexa-drawer-it-[a-f0-9]{32}$'){$cleanup=$false}else{& docker rm -f -v $container|Out-Null;if($LASTEXITCODE){$cleanup=$false}}}

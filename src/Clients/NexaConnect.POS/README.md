@@ -1,5 +1,7 @@
 # NexaConnect POS
 
+UX8C adds Terminal & sync → Cash drawer → read-only attempt history with recent periods, bounded paging and row-based original lookup. Authorized server reads precede matching protected local context; lock/cashier/period changes and denials clear observations and suppress late responses. Future local reservations capture DPAPI lookup context atomically; existing journal reads create nothing. No device/financial/report/reset call is issued by review. See [use and limits](../../../docs/Deployment/POS-UX8C-Drawer-History.md).
+
 Optional Pos:UseBranchPromptPayQr (default false) reads approved branch PNG through Services:MediaApi. Payment offers Refresh branch QR, 30-second refresh and 60-second in-memory expiry, with no locked/offline image fallback. New receipt proof resets with image/order/tender changes and updates button readiness immediately. Original uncertain manual payment retains its saved request and can verify without an image. See [operator setup](../../../docs/Deployment/POS-Branch-PromptPay-QR.md) and [payment policy](Payments/README.md).
 
 **Checkout → Checkout payment** supports an optional **Omise sandbox card — test only**
@@ -10,10 +12,12 @@ or enable switch are exposed to cashiers; backend setup and actual sandbox accep
 separate. Existing isolated storage and hosted manual-only policy are retained. See
 [activation and operator workflow](../../../docs/Deployment/POS-Mixed-Omise-Sandbox.md).
 
-UX8 preparation adds a disabled **Terminal & sync → Cash drawer** panel. It does not offer
-opening/enabling controls or alter payment. The isolated workflow/intent adapter is tested
-with fake authorization/hardware and is not constructed in production. Exact PAISHUO model,
-drawer connection/protocol, live server authority/audit and device acceptance remain pending.
+UX8B software preparation adds a disabled **Terminal & sync → Cash drawer** reason/action,
+bounded UX8A HTTP authority/reporting, a lazy separate scoped journal and an original-cash-only
+post-confirmation hook. Only DisabledDrawerDriver is composed in production; no journal file,
+server call or command is emitted by default. No enable setting or guessed protocol. Exact
+PAISHUO printer model, connection/command, verified adapter and physical acceptance remain pending.
+See [UX8B software/limits](../../../docs/Deployment/POS-UX8B-Native-Drawer.md).
 See [UX8 status](../../../docs/Deployment/POS-UX8-Cash-Drawer.md) and
 [component boundaries](Hardware/Drawers/README.md).
 

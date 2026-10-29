@@ -1,0 +1,1 @@
+DROP INDEX ix_drawer_intents_actor_terminal_history;

@@ -11,6 +11,10 @@ or installed for UX8A; its existing payments and approved QR configuration are u
 
 ## Implemented boundaries
 
+Follow-up: [UX8B software preparation](POS-UX8B-Native-Drawer.md) now adds native consumption
+of these unchanged contracts with disabled hardware. The source implementation/status above
+describes UX8A's own delivery; no physical opening or retained-pilot activation is implied.
+
 - Reservation derives the actor from authenticated bearer identity. Restaurant hierarchy
   and live Authorization decisions must match the requested organization/restaurant/branch.
 - POS locks and validates exact active store/terminal, original cashier's open shift and

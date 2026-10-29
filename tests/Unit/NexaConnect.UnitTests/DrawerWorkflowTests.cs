@@ -15,23 +15,23 @@ public sealed class DrawerWorkflowTests : IDisposable
         Assert.Equal(DrawerOutcome.Disabled,await workflow.OpenAsync(Sale(),()=>true,default));
         Assert.Equal(0,auth.Calls);Assert.False(Directory.Exists(directory));
     }
-    [Fact] public async Task Denied_authority_never_reserves_or_opens()
+    [Fact] public async Task Denied_authority_consumes_local_intent_without_opening()
     {
         var driver=new Driver();var auth=new Authority{Allowed=false};
         Assert.Equal(DrawerOutcome.Denied,await new DrawerWorkflow(driver,auth,Store()).OpenAsync(Sale(),()=>true,default));
-        Assert.Equal(0,driver.Calls);Assert.False(Directory.Exists(directory));
+        Assert.Equal(0,driver.Calls);Assert.True(Directory.Exists(directory));
     }
     [Fact] public async Task Authority_failure_fails_closed()
     {
         var driver=new Driver();
-        Assert.Equal(DrawerOutcome.Denied,await new DrawerWorkflow(driver,new Authority{Throw=true},Store()).OpenAsync(Sale(),()=>true,default));
+        Assert.Equal(DrawerOutcome.AuditUnavailable,await new DrawerWorkflow(driver,new Authority{Throw=true},Store()).OpenAsync(Sale(),()=>true,default));
         Assert.Equal(0,driver.Calls);
     }
-    [Fact] public async Task Lock_during_authorization_cancels_before_reservation()
+    [Fact] public async Task Lock_during_authorization_consumes_intent_without_opening()
     {
         bool current=true;var driver=new Driver();var auth=new Authority{After=()=>current=false};
         Assert.Equal(DrawerOutcome.Cancelled,await new DrawerWorkflow(driver,auth,Store()).OpenAsync(Sale(),()=>current,default));
-        Assert.Equal(0,driver.Calls);Assert.False(Directory.Exists(directory));
+        Assert.Equal(0,driver.Calls);Assert.True(Directory.Exists(directory));
     }
     [Fact] public async Task Cancelled_before_authorization_has_no_side_effects()
     {
@@ -129,7 +129,8 @@ public sealed class DrawerWorkflowTests : IDisposable
     private sealed class Authority:IDrawerAuthorization
     {
         public bool Allowed=true,Throw;public int Calls;public Action? After;public DrawerRequest? Last;
-        public Task<bool> AuthorizeAsync(DrawerRequest request,CancellationToken ct){Calls++;Last=request;After?.Invoke();if(Throw)throw new IOException();return Task.FromResult(Allowed);}
+        public Task<DrawerPermit> AuthorizeAsync(DrawerRequest request,CancellationToken ct){Calls++;Last=request;After?.Invoke();if(Throw)throw new IOException();return Task.FromResult(new DrawerPermit(Allowed?DrawerPermitStatus.Granted:DrawerPermitStatus.Denied,DateTimeOffset.UtcNow.AddSeconds(60)));}
+        public Task ReportAsync(DrawerRequest request,DrawerOutcome outcome,CancellationToken ct)=>Task.CompletedTask;
     }
     private sealed class BrokenStore:IDrawerIntentStore
     {
