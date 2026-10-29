@@ -16,6 +16,13 @@ builder.Services.AddControllers();builder.Services.AddOpenApi();builder.Services
 builder.Services.AddMemoryCache();builder.Services.AddHttpClient<IServiceWorkloadTokenProvider,ServiceWorkloadTokenProvider>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<BranchGalleryDelivery>();
+builder.Services.AddScoped<PromptPayQrDelivery>();
+builder.Services.AddScoped<PromptPayQrUploads>();
+builder.Services.AddSingleton<IPromptPayPngEncoder,PromptPayPngEncoder>();
+builder.Services.AddHttpClient<IBranchPromptPayQrSelectionPort,HttpBranchPromptPayQrSelection>(client=>{client.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]??"https://restaurant.invalid/");client.Timeout=TimeSpan.FromSeconds(15);})
+    .ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient("PromptPayRestaurant",client=>{client.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]??"https://restaurant.invalid/");client.Timeout=TimeSpan.FromSeconds(15);})
+    .ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<GalleryReaders>();
 builder.Services.AddSingleton<IGalleryReaderProtector,GalleryReaderProtector>();
 builder.Services.AddSingleton(new NexaConnect.Infrastructure.Http.BoundedRequestGate(TimeProvider.System));
@@ -26,7 +33,8 @@ builder.Services.AddHttpClient<IBranchGallerySelectionPort,HttpBranchGallerySele
 builder.Services.AddSingleton(_=>NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("Media")??throw new InvalidOperationException("ConnectionStrings:Media is required.")));
 builder.Services.AddScoped<MediaAssetQueries>();builder.Services.AddScoped<IMediaAssetRepository,PostgresMediaAssetRepository>();
 var mediaQuota=new MediaQuota(builder.Configuration.GetValue<long>("MediaQuota:MaximumStoredBytes",1_073_741_824),builder.Configuration.GetValue<int>("MediaQuota:MaximumPendingUploads",20));if(mediaQuota.MaximumStoredBytes<10_485_760||mediaQuota.MaximumPendingUploads is <1 or >1000)throw new InvalidOperationException("MediaQuota values are invalid.");builder.Services.AddSingleton(mediaQuota);builder.Services.AddScoped<MediaManagement>();builder.Services.AddScoped<IMediaManagementRepository,PostgresMediaManagementRepository>();builder.Services.AddSingleton<IAmazonS3>(_=>{string accessKey=builder.Configuration["MediaStorage:AccessKey"]??throw new InvalidOperationException("MediaStorage:AccessKey is required.");string secretKey=builder.Configuration["MediaStorage:SecretKey"]??throw new InvalidOperationException("MediaStorage:SecretKey is required.");return new AmazonS3Client(new BasicAWSCredentials(accessKey,secretKey),new AmazonS3Config{ServiceURL=builder.Configuration["MediaStorage:ServiceUrl"]??throw new InvalidOperationException("MediaStorage:ServiceUrl is required."),ForcePathStyle=true});});builder.Services.AddSingleton<IMediaObjectStorage,S3MediaObjectStorage>();
-builder.Services.AddHttpClient<IMediaOwnerValidator,HttpMediaOwnerValidator>(client=>client.BaseAddress=new Uri(builder.Configuration["Services:Catalog"]??throw new InvalidOperationException("Services:Catalog is required."))).AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient<HttpMediaOwnerValidator>(client=>client.BaseAddress=new Uri(builder.Configuration["Services:Catalog"]??throw new InvalidOperationException("Services:Catalog is required."))).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<IMediaOwnerValidator,PromptPayMediaOwnerValidator>();
 builder.Services.AddSingleton<IMediaContentSafety,ClamAvMediaContentSafety>();
 builder.Services.AddHostedService<MediaObjectDeletionWorker>();
 builder.Services.AddHostedService<MediaMaintenanceWorker>();

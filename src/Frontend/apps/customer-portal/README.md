@@ -1,5 +1,7 @@
 # NexaConnect Customer Portal
 
+Configuration → PromptPay QR — manually verified provides branch-scoped PNG preview/upload, separate explicit approval and removal. Live configuration.manage is enforced by owning services; branch discovery uses promptpay-qr. Context change discards the draft, writes require BFF CSRF and uncertain writes require reload without automatic retry. PNG safety does not verify bank/payee; managers approve independently. See [operator guide](../../../../docs/Deployment/POS-Branch-PromptPay-QR.md).
+
 UX6 adds **Configuration → Product barcodes**: select an authorized branch/menu product,
 load binding/version and explicitly save or clear. Existing menu.read/write applies;
 context changes discard editable proof and uncertain/rejected saves require reload, without

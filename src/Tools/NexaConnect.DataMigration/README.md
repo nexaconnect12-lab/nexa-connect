@@ -1,6 +1,8 @@
 # NexaConnect Data Migration
 
-Catalog 5 adds three barcode registry/binding/immutable-audit tables (current full catalog
+POS24 adds three append-only drawer intent/outcome/audit tables; Authorization16 backfills separate manager/manual and cashier/cash-sale/read permissions. Compatibility0.39.0 is required explicitly for these targets. The full catalog now has215tables. Empty POS24 downgrade/reapply is supported; retained intent history blocks downgrade. Disable endpoints before rollback and retain original history. See [storage](../../../docs/Database/Drawer-Intents.md) and [rollout](../../../docs/Deployment/POS-UX8A-Drawer-Authority.md).
+
+Catalog 5 adds three barcode registry/binding/immutable-audit tables (full catalog at UX6 introduction
 212), compatibility 0.38.0. Apply before barcode use; empty 5→4→5 is supported, history
 blocks downgrade. Owning tests cover concurrency, audit and outbox rollback. See
 [storage/grants](../../../docs/Database/Product-Barcodes.md) and

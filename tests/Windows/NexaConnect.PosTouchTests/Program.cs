@@ -58,6 +58,7 @@ internal static class Program
             window.Show(); Pump(window);
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
             VerifyMixedPayments(window,config);
+            VerifyPromptPayProof(window,config);
             var tabs = (TabControl)window.FindName("WorkspaceTabs");
             var inputMode = (CheckBox)window.FindName("TouchFirstCheckBox");
             Require(inputMode.IsChecked == false, "touch-first defaults off");
@@ -217,6 +218,34 @@ internal static class Program
         for(int i=0;i<60&&(bool)typeof(MainWindow).GetField("busy",Private)!.GetValue(window)!;i++){Pump(window);Thread.Sleep(5);}
         Pump(window);
         Require(list.Items.Cast<TerminalSetupRow>().Where(r=>r.Area.StartsWith("Service:")).All(r=>r.Status==TerminalReadiness.Untested),"late diagnostic responses cannot restore cleared results");
+    }
+    private static void VerifyPromptPayProof(MainWindow window,PosClientConfiguration config)
+    {
+        var store=(LocalPosStore)typeof(MainWindow).GetField("_localStore",Private)!.GetValue(window)!;
+        var tender=(ComboBox)window.FindName("TenderMethodComboBox");var reference=(TextBox)window.FindName("BankReferenceTextBox");
+        var receipt=(CheckBox)window.FindName("ReceiptConfirmedCheckBox");var image=(Image)window.FindName("PromptPayQrImage");var paid=(Button)window.FindName("PaidButton");
+        var id=Guid.NewGuid();var key=Guid.NewGuid();
+        typeof(MainWindow).GetField("_activeShift",Private)!.SetValue(window,new LocalShiftState(Guid.NewGuid(),"Fixture",DateTimeOffset.UtcNow));
+        typeof(MainWindow).GetField("pendingOrder",Private)!.SetValue(window,new PosOrderResult(id,PosOrderStatus.KitchenAccepted,50,"THB"));
+        typeof(MainWindow).GetField("settlementIdempotencyKey",Private)!.SetValue(window,key);
+        store.SavePendingSettlement(new(id,50,"THB",key));tender.SelectedIndex=1;Invoke(window,"UpdateOperationalState");Pump(window);
+        reference.Text="fixture-reference";receipt.IsChecked=true;
+        Require(!paid.IsEnabled,"missing QR cannot be bypassed by checking receipt proof");
+        image.Source=BitmapSource.Create(64,64,96,96,System.Windows.Media.PixelFormats.Bgra32,null,new byte[64*64*4],64*4);
+        Invoke(window,"UpdateOperationalState");Require(paid.IsEnabled,"configured image plus explicit proof enables confirmation");
+        receipt.IsChecked=false;Require(!paid.IsEnabled,"receipt checkbox updates readiness immediately");receipt.IsChecked=true;
+        reference.Clear();Require(!paid.IsEnabled,"empty reference updates readiness immediately");reference.Text="fixture-reference";Require(paid.IsEnabled,"valid reference updates readiness immediately");
+        store.ClearCheckoutAndSettlement();var next=Guid.NewGuid();
+        typeof(MainWindow).GetField("pendingOrder",Private)!.SetValue(window,new PosOrderResult(next,PosOrderStatus.KitchenAccepted,50,"THB"));
+        store.SavePendingSettlement(new(next,50,"THB",key));Invoke(window,"UpdateOperationalState");
+        Require(reference.Text.Length==0&&receipt.IsChecked==false&&!paid.IsEnabled,"new order cannot inherit another receipt/reference");
+        store.SavePendingSettlement(new(next,50,"THB",key,"promptpay_manual",true,"original-reference",true));
+        typeof(MainWindow).GetField("settlementUncertain",Private)!.SetValue(window,true);image.Source=null;Invoke(window,"UpdateOperationalState");
+        Require(paid.IsEnabled&&!reference.IsEnabled&&!receipt.IsEnabled,"original uncertain payment can be verified without QR using immutable saved proof");
+        Require(((TextBlock)window.FindName("PaymentReadinessText")).Text.Contains("original",StringComparison.OrdinalIgnoreCase),"verification gives original-payment guidance");
+        store.ClearCheckoutAndSettlement();typeof(MainWindow).GetField("pendingOrder",Private)!.SetValue(window,null);
+        typeof(MainWindow).GetField("settlementIdempotencyKey",Private)!.SetValue(window,null);typeof(MainWindow).GetField("settlementUncertain",Private)!.SetValue(window,false);
+        typeof(MainWindow).GetField("_activeShift",Private)!.SetValue(window,null);tender.SelectedIndex=0;Invoke(window,"UpdateOperationalState");
     }
     private sealed class ReachabilityHandler:HttpMessageHandler
     {

@@ -1,5 +1,7 @@
 # Keycloak Client Matrix
 
+Branch PromptPay reuses the exact nexaconnect-media-service workload policy for active THB owner validation in Restaurant. No new identity client, role, secret or broad ServiceWorkload grant. Managers use live restaurant.configuration.manage; cashiers read approved delivery through catalog.menu.read. Gallery reader capabilities and guest sessions are not accepted. See [contract](../API/Branch-PromptPay-QR.md).
+
 UX4 reuses `nexaconnect-media-service` for dedicated internal gallery delegation in Restaurant,
 Directory and Authorization, with exact `azp` and existing API audience/issuer checks. It does
 not broaden general ServiceWorkload policy or add clients/roles/secrets. Native POS receives

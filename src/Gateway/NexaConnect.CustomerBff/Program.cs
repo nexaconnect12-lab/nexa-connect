@@ -53,6 +53,11 @@ builder.Services.AddHttpClient("PlatformDirectory", client =>
 builder.Services.AddHttpClient("Restaurant",client=>client.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]??throw new InvalidOperationException("Services:Restaurant is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient("Reporting",client=>client.BaseAddress=new Uri(builder.Configuration["Services:Reporting"]??throw new InvalidOperationException("Services:Reporting is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient("Media",client=>client.BaseAddress=new Uri(builder.Configuration["Services:Media"]??throw new InvalidOperationException("Services:Media is required."))).AddNexaConnectCorrelationPropagation();
+foreach(var pair in new[]{("PromptPayDirectory","PlatformDirectory"),("PromptPayRestaurant","Restaurant"),("PromptPayMedia","Media")})
+    builder.Services.AddHttpClient(pair.Item1,client=>{client.BaseAddress=new Uri(builder.Configuration[$"Services:{pair.Item2}"]??throw new InvalidOperationException("PromptPay dependency is required."));client.Timeout=TimeSpan.FromSeconds(15);})
+        .ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.PromptPay.ICustomerPromptPayQrPort,NexaConnect.CustomerBff.Infrastructure.PromptPay.HttpCustomerPromptPayQrPort>();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.PromptPay.CustomerPromptPayQrService>();
 builder.Services.AddHttpClient("Notification",client=>client.BaseAddress=new Uri(builder.Configuration["Services:Notification"]??throw new InvalidOperationException("Services:Notification is required."))).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<ICustomerCatalogPort, HttpCustomerCatalogPort>(client =>
 {

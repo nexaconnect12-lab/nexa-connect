@@ -43,17 +43,22 @@ public sealed class MediaManagement(IMediaManagementRepository repository, IMedi
 {
     private static readonly HashSet<string> Types = ["image/jpeg", "image/png", "image/webp"];
 
-    public async Task<UploadSession> StartAsync(Guid organizationId, StartMediaUploadCommand command, string actor, CancellationToken cancellationToken)
+    public Task<UploadSession> StartAsync(Guid organizationId,StartMediaUploadCommand command,string actor,CancellationToken ct)=>StartCore(organizationId,command,actor,ct,false);
+    internal Task<UploadSession> StartPromptPayAsync(Guid org,Guid branch,NexaConnect.Contracts.Media.StartPromptPayQrUploadV1 input,string actor,CancellationToken ct)=>
+        StartCore(org,new("restaurant","promptpay_qr",branch,input.FileName,input.ContentType,input.SizeBytes,input.ChecksumSha256),actor,ct,true);
+    private async Task<UploadSession> StartCore(Guid organizationId, StartMediaUploadCommand command, string actor, CancellationToken cancellationToken,bool branchAuthorized)
     {
         string owner = command.OwnerService?.Trim().ToLowerInvariant() ?? "";
         string kind = command.OwnerType?.Trim().ToLowerInvariant() ?? "";
         string name = Path.GetFileName(command.FileName?.Trim() ?? "");
         string type = command.ContentType?.Trim().ToLowerInvariant() ?? "";
         string hash = command.ChecksumSha256?.Trim().ToLowerInvariant() ?? "";
-        if (organizationId == Guid.Empty || command.OwnerId == Guid.Empty || string.IsNullOrWhiteSpace(actor) || owner != "catalog" || kind != "product")
-            throw new ArgumentException("Organization, Catalog product owner, and actor are required.");
+        bool promptPay=owner=="restaurant"&&kind=="promptpay_qr";
+        if (organizationId == Guid.Empty || command.OwnerId == Guid.Empty || string.IsNullOrWhiteSpace(actor) || !(owner == "catalog" && kind == "product" || promptPay&&branchAuthorized))
+            throw new ArgumentException("Organization, supported owner, and actor are required. Payment QR uses its branch workflow.");
         if (name.Length is < 1 or > 200 || name.Any(char.IsControl) || !Types.Contains(type) || command.SizeBytes is < 1 or > 10_485_760 || !System.Text.RegularExpressions.Regex.IsMatch(hash, "^[0-9a-f]{64}$"))
             throw new ArgumentException("File name, type, size, or checksum is invalid.");
+        if(promptPay&&(type!="image/png"||command.SizeBytes>2_097_152))throw new ArgumentException("PromptPay requires a PNG no larger than 2 MiB.");
         if (!await owners.ExistsAsync(organizationId, owner, kind, command.OwnerId, cancellationToken))
             throw new KeyNotFoundException("Catalog product owner was not found in the active organization.");
 
@@ -65,10 +70,13 @@ public sealed class MediaManagement(IMediaManagementRepository repository, IMedi
         return new(asset, await storage.CreateUploadUrlAsync(key, type, command.SizeBytes, hash, TimeSpan.FromMinutes(10), cancellationToken), expires);
     }
 
-    public async Task<MediaAssetSummary> CompleteAsync(Guid organizationId, Guid id, long version, string actor, CancellationToken cancellationToken)
+    public Task<MediaAssetSummary> CompleteAsync(Guid organizationId,Guid id,long version,string actor,CancellationToken ct)=>CompleteCore(organizationId,id,version,actor,ct,false);
+    internal Task<MediaAssetSummary> CompletePromptPayAsync(Guid org,Guid id,long version,string actor,CancellationToken ct)=>CompleteCore(org,id,version,actor,ct,true);
+    private async Task<MediaAssetSummary> CompleteCore(Guid organizationId, Guid id, long version, string actor, CancellationToken cancellationToken,bool branchAuthorized)
     {
         if (version <= 0) throw new ArgumentException("Expected version must be positive.");
         var found = await repository.FindAsync(organizationId, id, cancellationToken) ?? throw new KeyNotFoundException();
+        if(found.Asset.OwnerService=="restaurant"&&found.Asset.OwnerType=="promptpay_qr"&&!branchAuthorized)throw new ArgumentException("Payment QR completion requires the branch workflow.");
         StoredObjectInfo info;
         byte[] content;
         MediaSafetyResult result;

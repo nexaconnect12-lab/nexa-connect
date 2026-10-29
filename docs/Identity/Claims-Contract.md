@@ -1,5 +1,7 @@
 # Identity Claims Contract
 
+UX8A derives the original actor from authenticated bearer sub and rechecks branch permission for every drawer request/retry/read/report. Authorization16 separates pos.drawer.manual-open (manager defaults), pos.drawer.cash-sale-open and pos.drawer.read (cashier/manager defaults). Read/report is restricted to the original actor. No new realm role, token claim or workload client; existing POS Restaurant/Authorization adapters are reused. See [contract](../API/Drawer-Intents.md).
+
 UX4's dedicated internal gallery routes require authenticated `azp=nexaconnect-media-service`
 with the existing validated issuer/API audience. They never accept native gallery capabilities
 as Bearer tokens. Only the Media gallery-reader GET accepts its purpose-protected header

@@ -4,6 +4,7 @@ import { CashCloseReportPanel } from "./CashCloseReportPanel";
 import { KitchenQueuePanel } from "./KitchenQueuePanel";
 import { KitchenDisplay } from "./KitchenDisplay";
 import { BranchGalleryPanel } from "./BranchGalleryPanel";
+import { PromptPayQrPanel } from "./PromptPayQrPanel";
 import { ProductBarcodePanel } from "./ProductBarcodePanel";
 import { QrEntryPanel } from "./QrEntryPanel";
 import { QrReviewPanel } from "./QrReviewPanel";
@@ -401,7 +402,7 @@ function App() {
       </>
     );
   else if (section === "users") panel = <MembershipsPanel />;
-  else if (section === "configuration") panel = <React.Fragment key={`${tenant.organizationId}|${tenant.applicationCode}`}><ConfigurationPanel/>{tenant.applicationCode==="nexa_connect"&&<><ProductBarcodePanel/><QrEntryPanel/></>}</React.Fragment>;
+  else if (section === "configuration") panel = <React.Fragment key={`${tenant.organizationId}|${tenant.applicationCode}`}><ConfigurationPanel/>{tenant.applicationCode==="nexa_connect"&&<><PromptPayQrPanel/><ProductBarcodePanel/><QrEntryPanel/></>}</React.Fragment>;
   else if (section === "qr-requests") panel = tenant.applicationCode==="nexa_connect"?<QrReviewPanel key={`${tenant.organizationId}|${tenant.applicationCode}`}/>:<Alert message="QR requests require the NexaConnect workspace."/>;
   else if (section === "branches") panel = <BranchesPanel />;
   else if (section === "dashboards") panel = <DashboardPanel />;

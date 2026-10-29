@@ -1,5 +1,7 @@
 # Preparatory POS drawer intent storage
 
+UX8A adds a separate [authoritative server intent/audit contract](Drawer-Intents.md) in POS24. This document continues to describe the isolated, unactivated native SQLite preparation. Native adapter/composition and vendor driver remain UX8B; local rows cannot replace server authority.
+
 UX8 provides a testable SQLite adapter, not an activated production schema or financial
 migration. It has no default runtime path; no POS code constructs it in production.
 See [scope and completion gates](../Deployment/POS-UX8-Cash-Drawer.md).

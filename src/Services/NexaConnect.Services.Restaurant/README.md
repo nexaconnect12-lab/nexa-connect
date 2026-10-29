@@ -1,5 +1,7 @@
 # Restaurant Service
 
+Branch PromptPay adds configuration.manage selection/approval/removal, menu-readable metadata and an exact-Media-workload active-THB owner check. Application policy and parameterized Infrastructure persistence update existing JSON/version with audit/outbox atomically; no migration. The Media ready validator uses existing Services:Media, bearer propagation, no redirects and shared correlation. Service nexaconnect-restaurant emits safe PromptPay denial/dependency events. See [API](../../../docs/API/Branch-PromptPay-QR.md) and [persistence](../../../docs/Database/Branch-PromptPay-QR.md).
+
 UX4 adds a Media-workload-only internal gallery selection use case. It resolves active
 owning hierarchy through existing persistence, then rechecks original-subject Directory
 membership and fixed Authorization menu-read via dedicated bounded, redirect-disabled

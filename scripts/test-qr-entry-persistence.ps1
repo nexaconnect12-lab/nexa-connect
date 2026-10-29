@@ -10,7 +10,7 @@ $repoRoot=Split-Path $PSScriptRoot -Parent
 $run=Join-Path $repoRoot ".runstate/qr-entry/$id";New-Item -ItemType Directory -Path $run -Force|Out-Null
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
 if($IsWindows){Protect-DraftDirectory $run}else{& chmod 700 $run;if($LASTEXITCODE -ne 0){throw 'Unable to restrict QR fixture diagnostics.'}}
-$prior=$env:NEXACONNECT_QR_INTEGRATION_DB;$priorBroker=$env:NEXACONNECT_QR_INTEGRATION_BROKER;$created=$false;$brokerCreated=$false;$passed=$false;$cleanup=$false
+$prior=$env:NEXACONNECT_QR_INTEGRATION_DB;$priorBroker=$env:NEXACONNECT_QR_INTEGRATION_BROKER;$created=$false;$brokerCreated=$false;$passed=$false;$caseCount=0;$cleanup=$false
 try{
     & docker run --pull never -d --name $container -e "POSTGRES_PASSWORD=$password" -e "POSTGRES_DB=$database" -p '127.0.0.1::5432' postgres:17-alpine | Out-Null
     if($LASTEXITCODE -ne 0){throw 'QR fixture startup failed.'};$created=$true
@@ -24,10 +24,10 @@ try{
     if(-not $brokerReady){& docker logs $brokerContainer *> (Join-Path $run 'broker-startup.private.log');throw 'QR broker fixture was not ready.'}
     $env:NEXACONNECT_QR_INTEGRATION_DB="Host=127.0.0.1;Port=$port;Database=$database;Username=postgres;Password=$password"
     $env:NEXACONNECT_QR_INTEGRATION_BROKER="amqp://${brokerUser}:${brokerPassword}@127.0.0.1:$brokerPort"
-    & dotnet test (Join-Path $repoRoot 'tests/Integration/NexaConnect.IntegrationTests') --no-restore --filter 'FullyQualifiedName~QrEntryPersistenceTests|FullyQualifiedName~QrMenuPersistenceTests|FullyQualifiedName~QrRequestPersistenceTests|FullyQualifiedName~QrAcceptancePersistenceTests|FullyQualifiedName~QrJourneyPersistenceTests|FullyQualifiedName~OrderListPersistenceTests|FullyQualifiedName~DraftMediaAccessPersistenceTests|FullyQualifiedName~BarcodePersistenceTests' --verbosity quiet --logger 'trx;LogFileName=qr.trx' --results-directory $run *> (Join-Path $run 'persistence.private.log')
+    & dotnet test (Join-Path $repoRoot 'tests/Integration/NexaConnect.IntegrationTests') --no-restore --filter 'FullyQualifiedName~QrEntryPersistenceTests|FullyQualifiedName~QrMenuPersistenceTests|FullyQualifiedName~QrRequestPersistenceTests|FullyQualifiedName~QrAcceptancePersistenceTests|FullyQualifiedName~QrJourneyPersistenceTests|FullyQualifiedName~OrderListPersistenceTests|FullyQualifiedName~DraftMediaAccessPersistenceTests|FullyQualifiedName~BarcodePersistenceTests|FullyQualifiedName~PromptPayQrPersistenceTests' --verbosity quiet --logger 'trx;LogFileName=qr.trx' --results-directory $run *> (Join-Path $run 'persistence.private.log')
     if($LASTEXITCODE -ne 0){throw 'QR persistence test failed; private diagnostics retained.'}
     . (Join-Path $PSScriptRoot 'first-draft-release-helpers.ps1')
-    [void](Read-DraftTestCounts (Join-Path $run 'qr.trx') 8);$passed=$true
+    $caseCount=Read-DraftTestCounts (Join-Path $run 'qr.trx') 9;$passed=$true
 }finally{
     $env:NEXACONNECT_QR_INTEGRATION_DB=$prior
     $env:NEXACONNECT_QR_INTEGRATION_BROKER=$priorBroker
@@ -39,7 +39,7 @@ try{
             if($LASTEXITCODE -ne 0){$cleanup=$false}
         }
     }
-    @{runId=$id;passed=($passed -and $cleanup);cleanupVerified=$cleanup;caseCount=8;brokerRecoveryVerified=($passed -and $cleanup);productionVerified=$false}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $run 'verification.json')
+    @{runId=$id;passed=($passed -and $cleanup);cleanupVerified=$cleanup;caseCount=$caseCount;brokerRecoveryVerified=($passed -and $cleanup);productionVerified=$false}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $run 'verification.json')
     if(-not $cleanup){throw 'QR fixture cleanup failed.'}
 }
 Write-Output "QR persistence gate passed with cleanup: $run/verification.json"

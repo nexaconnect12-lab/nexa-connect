@@ -1,5 +1,7 @@
 # NexaConnect Restaurant POS Architecture
 
+Restaurant owns the branch-approved manual PromptPay asset selection through versioned configuration and transactional audit/outbox; Media owns safe static PNG bytes. No payment authority moves into image delivery. POS proof belongs to the original cashier/order/shift; uncertain settlement reuses its entire saved intent. Approval shares branch concurrency_version with other configuration and can invalidate quotes. See [ADR-054](Decisions/ADR-054-branch-promptpay-qr.md).
+
 Optional local Omise sandbox selection keeps each checkout's original payment method
 through recovery and leaves QR collection/manual settlement unchanged. It adds no financial
 authority, schema or card Order-to-shift association. Existing permissions, original Order/
@@ -7,10 +9,12 @@ Payment identities, idempotency and provider uncertainty handling remain authori
 See [ADR-053](Decisions/ADR-053-additive-local-omise-sandbox.md) and
 [mixed-mode setup/acceptance](../Deployment/POS-Mixed-Omise-Sandbox.md).
 
-UX8 drawer preparation is disabled and disconnected from production payment/cash commands.
-Local attempt evidence cannot authorize opening, certify physical state, post a cash movement
-or replace server audit. Existing money, cashier custody and recovery invariants are unchanged.
-See [remaining integration gates](../Deployment/POS-UX8-Cash-Drawer.md).
+UX8A adds default-off POS-owned consumed drawer intents, live branch permissions and
+locked original-cashier custody validation. A sale requires recent immutable confirmed cash
+projection; intent/audit/outbox are atomic and never post cash movements. Replay/read cannot
+renew the 60-second grant. Client outcomes never certify physical state. Native driver/payment
+hooks remain disabled pending UX8B. See [ADR-055](Decisions/ADR-055-drawer-authority.md)
+and [equipment gates](../Deployment/POS-UX8-Cash-Drawer.md).
 
 POS UX7's staff setup overview and support export are observational client functions.
 Anonymous HTTP/device detection cannot certify branch authorization, schema, physical

@@ -1,5 +1,7 @@
 # NexaConnect Project Architecture
 
+[ADR-054](../../docs/Architecture/Decisions/ADR-054-branch-promptpay-qr.md) adds Restaurant-owned branch PromptPay selection, Media-owned bounded static PNG delivery and protected Customer BFF management. Managers use live configuration.manage; cashiers read via menu.read without broad Media grants. POS opts in, keeps images in memory for at most 60 seconds and preserves original uncertain financial intents. No migration, new grant or automated receipt validation. See [setup](../../docs/Deployment/POS-Branch-PromptPay-QR.md).
+
 [ADR-053](../../docs/Architecture/Decisions/ADR-053-additive-local-omise-sandbox.md) adds an
 optional local Omise sandbox capability alongside a manual POS default. The cashier chooses
 before placement; the original pending method is pinned through recovery. QR stays manual.
@@ -8,11 +10,13 @@ exposes it only to Payment; Order enables the existing test workflow. No new sch
 HTTP contract or production card activation. Hosted installation remains manual-only. See
 [setup and pending acceptance](../../docs/Deployment/POS-Mixed-Omise-Sandbox.md).
 
-POS UX8 preparation adds a disabled staff drawer panel and isolated client orchestration
-ports/SQLite intent adapter. No production drawer driver, payment hook, server authorization,
-grant, migration or journal construction is enabled. Hardware model/connection, authoritative
-intent/audit integration and physical acceptance remain required to complete UX8. See
-[status and gates](../../docs/Deployment/POS-UX8-Cash-Drawer.md).
+POS UX8A adds default-off POS-owned live drawer authority, consumed intent/audit/outbox and
+exact open cashier custody checks. POS24 / Authorization16 (compatibility0.39.0) separate
+manual permission from fresh confirmed-cash-sale authority; replay/read never renew a grant.
+Native workflow/SQLite journal stays isolated and physical opening disabled. Driver/payment
+hooks and equipment acceptance remain UX8B. See
+[ADR-055](../../docs/Architecture/Decisions/ADR-055-drawer-authority.md) and
+[UX8A](../../docs/Deployment/POS-UX8A-Drawer-Authority.md).
 
 POS UX7 projects client settings and explicit Windows/HTTP observations into a staff-only
 setup overview. An independent credential-free, redirect-disabled header-only client checks
@@ -650,7 +654,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned migrations exist for all 13 service databases and currently define 212 tables with service-owned indexes and constraints. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. Customer version 2 adds append-only audit that excludes profile fields while its version-1 outbox remains authoritative. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned migrations exist for all 13 service databases and currently define 215 tables with service-owned indexes and constraints. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. Customer version 2 adds append-only audit that excludes profile fields while its version-1 outbox remains authoritative. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Rules:
 

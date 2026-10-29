@@ -679,8 +679,18 @@ public partial class MainWindow : Window
             || _authentication.CurrentToken.Subject != pendingCheckout.QrCashier))
         { StatusText.Text="Resume the original collecting cashier and shift before confirming or verifying payment."; return; }
         Guid currentIdempotencyKey = settlementIdempotencyKey.Value;
+        int paymentGeneration=receiptSessionGeneration;string? paymentSubject=_authentication.CurrentToken.Subject;Guid? paymentShift=_activeShift?.ShiftId;
         LocalPendingSettlementState? savedSettlement = _localStore.LoadPendingSettlement();
         string method = savedSettlement?.Method ?? SelectedTenderMethod();
+        if(method=="promptpay_manual"&&savedSettlement?.Method is null&&_configuration.UseBranchPromptPayQr)
+        {
+            settlementInFlight=true;SetBusy("Checking the current approved branch QR…");
+            bool available;
+            try{available=await RefreshBranchPromptPayQrAsync();}
+            finally{settlementInFlight=false;UpdateOperationalState();}
+            if(!available||!PrintSessionCurrent(paymentGeneration,paymentSubject)||_activeShift?.ShiftId!=paymentShift||pendingOrder?.OrderId!=currentOrder.OrderId||settlementIdempotencyKey!=currentIdempotencyKey)
+            {StatusText.Text="Branch QR or original payment context changed. Refresh and verify the original payment; no confirmation was sent.";return;}
+        }
         if (method == "cash" && cashSessionId is null)
         {
             StatusText.Text = "Open a THB cash session before confirming a cash payment.";
@@ -689,16 +699,25 @@ public partial class MainWindow : Window
         string? bankReference = savedSettlement?.BankReference ?? (string.IsNullOrWhiteSpace(BankReferenceTextBox.Text)
             ? null
             : BankReferenceTextBox.Text.Trim());
-        if (method == "promptpay_manual" && (!ReceiptConfirmedCheckBox.IsChecked.GetValueOrDefault()
+        if (method == "promptpay_manual" && (!(savedSettlement?.Method is not null?savedSettlement.ReceiptConfirmed:ReceiptConfirmedCheckBox.IsChecked.GetValueOrDefault())
             || bankReference is null))
         {
             StatusText.Text = "Verify the PromptPay receipt and enter its reference before marking the order Paid.";
             return;
         }
+        LocalPendingSettlementState attempt;
+        try{attempt=ManualTenderIntent.Prepare(savedSettlement,currentOrder,currentIdempotencyKey,method,
+            savedSettlement?.Method is not null?savedSettlement.ReceiptConfirmed:ReceiptConfirmedCheckBox.IsChecked.GetValueOrDefault(),bankReference);}
+        catch(InvalidDataException){StatusText.Text="Original payment recovery differs from this order. Preserve recovery and reconcile; no confirmation was sent.";return;}
         if (!ConfirmStaffAction(
-                settlementUncertain ? "Verify the previous payment attempt? Do not collect payment again."
+                settlementUncertain||savedSettlement?.Method is not null ? "Verify the previous payment attempt? Do not collect payment again."
                 : $"Confirm {currentOrder.Currency} {currentOrder.TotalAmount:N2} received by {(method == "cash" ? "cash" : "PromptPay")}?",
                 "Confirm payment")) return;
+        if(!PrintSessionCurrent(paymentGeneration,paymentSubject)||_activeShift?.ShiftId!=paymentShift||pendingOrder?.OrderId!=currentOrder.OrderId||settlementIdempotencyKey!=currentIdempotencyKey)
+        {StatusText.Text="Session or original order changed. Resume and verify the original payment; no confirmation was sent.";return;}
+        var readiness=ManualTenderReadiness.Evaluate(method,cashSessionId is not null,PromptPayQrAvailable,
+            savedSettlement?.Method is not null?savedSettlement.ReceiptConfirmed:ReceiptConfirmedCheckBox.IsChecked.GetValueOrDefault(),bankReference,savedSettlement?.Method is not null);
+        if(!readiness.Allowed){StatusText.Text=readiness.Guidance;return;}
 
         settlementInFlight = true;
         SetBusy(settlementUncertain ? "Verifying the previous payment attempt…" : "Confirming payment…");
@@ -706,15 +725,11 @@ public partial class MainWindow : Window
         {
             // Persist uncertainty before sending: a process exit after the server commits
             // must reopen in verification mode with the exact original tender fields.
-            var attempt = new LocalPendingSettlementState(currentOrder.OrderId, currentOrder.TotalAmount,
-                currentOrder.Currency, currentIdempotencyKey, method,
-                method == "promptpay_manual", method == "promptpay_manual" ? bankReference : null, true, currentOrder.Pricing);
             ManualTenderResult result = await SettlementAttempt.ExecuteAsync(attempt,
                 state => { _localStore.SavePendingSettlement(state); settlementUncertain = true; customerState.Unconfirmed(); PublishCustomerDisplay(); },
                 () => _api.ConfirmManualSettlementAsync(
-                    _authentication.CurrentToken, currentOrder.OrderId, currentIdempotencyKey, method,
-                    currentOrder.TotalAmount, currentOrder.Currency, method == "promptpay_manual",
-                    method == "promptpay_manual" ? bankReference : null),
+                    _authentication.CurrentToken, attempt.OrderId, attempt.IdempotencyKey, attempt.Method!,
+                    attempt.Amount, attempt.Currency, attempt.ReceiptConfirmed, attempt.BankReference),
                 () => _localStore.ClearCheckoutAndSettlement());
             pendingCheckout = null;
             pendingOrder = null;
@@ -829,6 +844,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        if(_localStore.LoadPendingSettlement()?.Method is null){BankReferenceTextBox.Clear();ReceiptConfirmedCheckBox.IsChecked=false;}
         UpdateTenderControls();
         customerState.Tender(CardCheckout ? "card_omise_test" : SelectedTenderMethod());
         PublishCustomerDisplay();
@@ -1172,6 +1188,7 @@ public partial class MainWindow : Window
         QrCollectionDetailsText.Text = "";
         QrReferenceTextBox.Clear();
         receiptSessionGeneration++;
+        ClearBranchPromptPayQr();
         displayedReceiptOrderId = null;
         ReceiptPreview.Document = null;
         PrintReceiptButton.IsEnabled = false;
@@ -1445,12 +1462,8 @@ public partial class MainWindow : Window
         UpdateTenderControls();
         RefreshMenuFilter();
         ContextText.Text = $"Branch {_configuration.BranchId.ToString("N")[..8]} · Terminal {_configuration.TerminalId.ToString("N")[..8]} · {_configuration.Currency} · Connectivity checked per action";
-        string method = SelectedTenderMethod();
         PaidButton.Content = settlementUncertain ? "Verify payment" : "Confirm payment received";
-        PaidButton.IsEnabled = !CardCheckout && signedIn && hasActiveShift && pendingOrder is not null && !settlementInFlight
-            && cancellationStatus is null
-            && (method != "cash" || cashSessionId is not null)
-            && (method != "promptpay_manual" || PromptPayQrImage.Source is not null);
+        RenderManualPaymentReadiness();
         CancelOrderButton.Content = cancellationStatus == "pending" ? "Verify cancellation" : "Cancel unpaid order";
         CancelOrderButton.IsEnabled = signedIn && hasActiveShift && pendingOrder is not null
             && settlementIdempotencyKey is not null && !settlementInFlight && !settlementUncertain
@@ -1670,7 +1683,7 @@ public partial class MainWindow : Window
     {
         TenderMethodComboBox.SelectedIndex = _configuration.PaymentMethod == "promptpay_manual" ? 1 : 0;
         string? configuredPath = _configuration.PromptPayQrImagePath;
-        if (!string.IsNullOrWhiteSpace(configuredPath))
+        if (!_configuration.UseBranchPromptPayQr&&!string.IsNullOrWhiteSpace(configuredPath))
         {
             string path = Path.IsPathRooted(configuredPath)
                 ? configuredPath
@@ -1687,6 +1700,7 @@ public partial class MainWindow : Window
                 PromptPayQrImage.Source = bitmap;
             }
         }
+        InitializePromptPayQr();
         UpdateTenderControls();
     }
 
@@ -1698,14 +1712,18 @@ public partial class MainWindow : Window
         PromptPayQrPanel.Visibility = promptPay ? Visibility.Visible : Visibility.Collapsed;
         ReceiptConfirmedCheckBox.IsEnabled = promptPay && editable;
         BankReferenceTextBox.IsEnabled = promptPay && editable;
-        PromptPayQrText.Text = PromptPayQrImage.Source is null
-            ? "PromptPay QR is not configured. Do not confirm payment until the restaurant QR image is installed."
+        PromptPayQrImage.Visibility=promptPay&&!editable?Visibility.Collapsed:Visibility.Visible;
+        PromptPayQrText.Text = !editable
+            ? "Verify the original payment with its saved receipt and reference. Do not request another transfer."
+            : !PromptPayQrAvailable
+            ? "No current approved QR. Configure it in Customer Portal → Configuration → PromptPay QR, then refresh."
             : "Ask the customer to scan this restaurant PromptPay QR, then verify the receipt.";
     }
 
     protected override void OnClosed(EventArgs e)
     {
         windowCancellation.Cancel();
+        promptPayQrTimer.Stop();promptPayQrTimer.Tick-=PromptPayQrTick;
         signInCancellation?.Cancel();
         sessionTimer.Stop();
         orderListTimer.Stop();

@@ -1,5 +1,7 @@
 # NexaConnect Customer BFF
 
+PromptPay management under /bff/customer/promptpay-qr derives selected workspace/stable subject, rechecks Directory membership and protects writes with CSRF/4096-byte limits. Dedicated bounded Restaurant/Media adapters propagate correlation without redirects or downstream body logging; existing Services addresses and Bff:MediaUploadOrigin are reused. Service nexaconnect-customer-bff emits safe PromptPay status/denial events. Guest routes and bank verification remain separate. See [contract](../../../docs/API/Branch-PromptPay-QR.md).
+
 UX6 adds protected barcode binding GET/PUT and CSRF routes under `/bff/customer/barcodes`.
 Selected workspace/stable subject are derived server-side, current membership rechecked,
 and owning Catalog authority retained. Responses cap at 4096 bytes; downstream bodies

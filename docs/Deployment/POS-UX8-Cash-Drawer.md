@@ -1,7 +1,8 @@
 # POS UX8 — cash-drawer preparation and remaining integration
 
-29 October 2026: **preparation implemented in source; UX8 is not complete or installed**.
-Live automatic/manual opening remains unavailable. Existing POS/payment behavior is unchanged.
+29 October 2026: **UX8A server authority/audit is implemented in source; full UX8 is incomplete**.
+[UX8A](POS-UX8A-Drawer-Authority.md) adds default-off contracts and owning migrations.
+Native automatic/manual opening remains unavailable; no physical/payment hook is activated.
 
 ## Equipment facts and prerequisites
 
@@ -29,8 +30,9 @@ action. Receipt queue selection does not enable a drawer. Customer display conte
 
 The isolated [Drawers component](../../src/Clients/NexaConnect.POS/Hardware/Drawers/README.md)
 adds request validation, a testable authorization/driver/intent workflow and a separate SQLite
-intent-store adapter. No production payment hook, file creation, preference, server route,
-permission/grant, service dependency, raw Windows command or migration is added. The existing
+intent-store adapter. This native preparation adds no production payment hook, file creation,
+preference, raw Windows command or activated journal. UX8A separately adds server contracts,
+permissions and migrations; native adapter/composition remains UX8B. The existing
 `Hardware.ICashDrawer` remains unconfigured; the new `IDrawerDriver` distinguishes configured
 status and submission rather than treating the existing throwing port as a working driver.
 
@@ -46,11 +48,12 @@ See [intent storage](../Database/POS-Drawer-Intents.md).
 
 1. Verify the model/interface/driver and implement only its vendor-supported adapter/profile.
    Keep default off, require explicit verified setup and never fall back to another queue.
-2. Implement POS-owned live scoped authorization and durable server audit/intent contracts.
+2. UX8A supplies POS-owned live scoped authorization and durable server audit/intent contracts
+   in source. Deploy its matched migrations/binaries and integrate the native adapter in UX8B.
    Manual opening needs a separate permission and reason; cashier sign-in alone is insufficient.
    Validate current organization/restaurant/branch/store/terminal, cashier/shift and open cash
-   custody; bind authorizations to their original intent. Add correlated safe boundary telemetry,
-   migrations/permissions and owning integration tests with the HTTP implementation.
+   custody; bind authorizations to their original intent. Reuse UX8A's correlated boundary,
+   migration/permission and owning-test contracts, and add native integration/recovery coverage.
 3. For automatic opening, verify the original confirmed cash settlement through owning-service
    authority. Trigger only the original eligible completion, not QR submission/acceptance,
    receipt reprint, card/PromptPay payment or generic recovery. No historical-sale bulk replay.

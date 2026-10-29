@@ -1,10 +1,18 @@
 # Next iteration: phases, checklist and implementation prompts
 
+29 October 2026: **UX8A — cash-drawer authorization and audit** is implemented in source with default-off POS authority, consumed intents and transactional append-only audit/outbox (POS24 / Authorization16). No physical opening, native payment hook or manual-open control is enabled. UX8B must integrate the vendor-verified printer/drawer and native lifecycle after the exact model/connection/command are confirmed. Earlier UX8 preparation notes below describe the original stage; full UX8 remains incomplete. See [implementation and prerequisites](../Deployment/POS-UX8A-Drawer-Authority.md).
+
+Branch-approved manual PromptPay PNG upload/approval and opt-in POS delivery are implemented for verification. Actual merchant-image upload, independent payee/currency checks and original-payment UAT remain pending operator acceptance. No automatic bank verification or hosted rollout is implied. See [setup and acceptance](../Deployment/POS-Branch-PromptPay-QR.md).
+
 29 October 2026 selection: add [Omise sandbox alongside existing POS methods](../Deployment/POS-Mixed-Omise-Sandbox.md).
 Source supports an optional test-card picker with original-method recovery, manual-only QR
-collection and protected backend opt-in. Local activation, matching test credentials and
-fresh provider/OIDC/operator acceptance remain pending; production card payment and card
-readers remain separate. UX8 drawer gates are unchanged.
+collection and protected backend opt-in. The retained local backend and matching POS update
+were activated on 29 October with a protected test credential present and manual default
+preserved. The user subsequently reported the fresh-token sandbox flow working on 29 October.
+This is a usability report; captured/paid state, account matching, receipts and live interruption/
+duplicate protection were not separately verified. Full provider/OIDC/operator acceptance
+remains pending; production card payment and card readers remain separate.
+See the linked activation record. UX8 drawer gates are unchanged.
 
 29 October 2026: [POS UX8 drawer preparation](../Deployment/POS-UX8-Cash-Drawer.md) is
 implemented in source with a disabled staff panel, isolated workflow and local intent-store

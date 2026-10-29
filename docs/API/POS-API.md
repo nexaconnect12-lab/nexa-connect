@@ -1,5 +1,7 @@
 # POS API
 
+[Drawer intent API](Drawer-Intents.md) adds default-off POS-owned reserve/read/outcome routes with live branch authority, original open cashier custody and durable audit. This is UX8A server groundwork; native physical opening stays disabled. No payment or cash movement endpoint is changed.
+
 `GET /api/pos/v1/customer/end-of-day` adds an authorized branch read summary for the reconciliation draft: current open work, pending reviews and movement-derived closed-session variance. It requires customer roles, live branch `pos.cash-review.read` and Restaurant owner validation; it does not resolve reviews. See [source window, states and failures](End-Of-Day-Draft.md).
 
 ## Order manual-tender projection

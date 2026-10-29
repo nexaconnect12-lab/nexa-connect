@@ -1,5 +1,9 @@
 # NexaConnect Project Architecture
 
+## Branch-approved manual PromptPay QR
+
+[ADR-054](Decisions/ADR-054-branch-promptpay-qr.md) separates Restaurant configuration/audit ownership from Media original PNG storage/safety. Protected BFF routes recheck workspace membership and CSRF; branch configuration authority controls management and menu-read controls cashier delivery. Correlated adapters use existing service addresses and the exact Media workload owner policy. Native POS opts in with a 60-second in-memory lease, 30-second refresh and fresh-read prerequisite for new confirmations. Original uncertain requests retain saved amounts/method/proof/keys and do not require another QR transfer. No schema or grant change. See [API](../API/Branch-PromptPay-QR.md) and [operations](../Deployment/POS-Branch-PromptPay-QR.md).
+
 ## Additive local Omise sandbox checkout
 
 [ADR-053](Decisions/ADR-053-additive-local-omise-sandbox.md) keeps the manual terminal default
@@ -17,19 +21,24 @@ binding-first outbox/reconciliation startup is retained. Restart inherits the pr
 replacement/downgrade are not implicit maintenance actions. Hosted profiles stay manual-only.
 See [setup, verification and acceptance exclusions](../Deployment/POS-Mixed-Omise-Sandbox.md).
 
-## Gated cash-drawer preparation (POS UX8)
+## Gated cash-drawer authority (POS UX8A)
 
-The native staff panel reports drawer opening unavailable. An isolated client workflow
-depends on explicit live authorization, driver and intent-store ports, checks session state
-around authorization/reservation and submits at most once per retained scoped intent. A
-separate SQLite Infrastructure adapter parameterizes values and reserves transactionally;
-it is not constructed in production and is not an authoritative server audit. Unknown device
-outcomes and audit failures cannot trigger a payment or automatic retry. No raw Windows
-adapter, payment hook, permission, server endpoint, persistence migration or enabled setting
-is introduced. Backend authority, device profile, lifecycle and actual hardware acceptance
-remain completion prerequisites; this is preparation, not delivered physical operation.
-See [UX8](../Deployment/POS-UX8-Cash-Drawer.md) and
-[intent format](../Database/POS-Drawer-Intents.md).
+The POS service owns default-off drawer-intent routes, live Restaurant/Authorization checks,
+Domain custody/transition rules and parameterized Infrastructure transactions. POS24 adds
+append-only reservation/outcome/audit; Authorization16 separates manual, fresh cash-sale and
+own-intent read permissions at compatibility0.39.0. Exact current POS custody is locked before
+one consumed intent/audit/outbox commit. A sale needs the original confirmed cash projection
+within 60 seconds. One organization/Order consumes a sale across operation IDs and terminals.
+Only the first response grants a fixed 60-second submission window; replay/read/outcome never
+renew it. Client outcomes are evidence only. External authority is check-time, not a distributed
+lock; there is no HTTP transaction span or financial mutation.
+
+Native driver/payment-hook composition, manual controls and journal activation remain UX8B.
+The existing isolated native workflow/SQLite adapter is not constructed in production or
+authoritative server audit. Opening remains disabled; no guessed command or historical-sale
+replay. See [ADR-055](Decisions/ADR-055-drawer-authority.md),
+[UX8A rollout](../Deployment/POS-UX8A-Drawer-Authority.md) and
+[server persistence](../Database/Drawer-Intents.md).
 
 ## Native setup diagnostics (POS UX7)
 
@@ -740,7 +749,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 212 tables with service-owned indexes and constraints; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state, while Customer version 2 adds append-only audit that excludes profile fields and preserves its version-1 outbox. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 215 tables with service-owned indexes and constraints; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state, while Customer version 2 adds append-only audit that excludes profile fields and preserves its version-1 outbox. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Database creation is a provisioning concern, not a service migration. Local Docker initialization creates the 13 catalog databases, one migration owner, and separate restricted runtime roles before service migrations are applied. Production uses the equivalent infrastructure-as-code and secret-management workflow.
 

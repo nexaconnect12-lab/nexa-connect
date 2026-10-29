@@ -1,5 +1,7 @@
 # Authorization Service
 
+Authorization16 adds distinct pos.drawer.manual-open, pos.drawer.cash-sale-open and pos.drawer.read. Existing/new tenant-admin and store-manager roles receive all three; cashier receives cash-sale/read only. Scope, live decisions and original-cashier custody remain required; no realm-role, credential or hardware enablement. See [UX8A](../../../docs/Deployment/POS-UX8A-Drawer-Authority.md).
+
 UX4 exposes a dedicated Media-workload-only boolean gallery check for the fixed
 `catalog.menu.read` permission at organization/restaurant/branch scope. Application code
 uses the existing live decision service and audit; callers cannot choose another permission

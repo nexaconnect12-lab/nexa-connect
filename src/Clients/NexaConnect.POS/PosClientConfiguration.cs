@@ -25,7 +25,8 @@ public sealed record PosClientConfiguration(
     bool EnableOmiseTestCheckout = false,
     string PaymentApi = "",
     string MediaApi = "",
-    bool UseIsolatedLocalPilotStorage = false)
+    bool UseIsolatedLocalPilotStorage = false,
+    bool UseBranchPromptPayQr = false)
 {
     public void ValidateCheckout()
     {
@@ -42,6 +43,7 @@ public sealed record PosClientConfiguration(
             throw new InvalidDataException("Configure valid organization, restaurant, branch, store and terminal identifiers.");
         if (Currency != "THB" || PaymentMethod is not ("cash_manual" or "promptpay_manual" or "card_omise_test"))
             throw new InvalidDataException("Cashier checkout requires a supported THB payment method.");
+        if(UseBranchPromptPayQr&&string.IsNullOrWhiteSpace(MediaApi))throw new InvalidDataException("Branch PromptPay QR requires the Media service.");
         if (PaymentMethod == "card_omise_test" && !EnableOmiseTestCheckout
             || EnableOmiseTestCheckout && new[] { Authority, PosApi, OrderApi, CatalogApi, PaymentApi }
                 .Where(value=>!string.IsNullOrWhiteSpace(value)).Any(value => !new Uri(value).IsLoopback))
@@ -114,7 +116,8 @@ public sealed record PosClientConfiguration(
             root.GetProperty("Pos").TryGetProperty("EnableOmiseTestCheckout", out var cardEnabled) && cardEnabled.GetBoolean(),
             services.TryGetProperty("PaymentApi", out var payment) ? payment.GetString() ?? "" : "",
             services.TryGetProperty("MediaApi", out var media) ? media.GetString() ?? "" : "",
-            root.GetProperty("Pos").TryGetProperty("UseIsolatedLocalPilotStorage", out var isolated) && isolated.GetBoolean());
+            root.GetProperty("Pos").TryGetProperty("UseIsolatedLocalPilotStorage", out var isolated) && isolated.GetBoolean(),
+            root.GetProperty("Pos").TryGetProperty("UseBranchPromptPayQr",out var branchQr)&&branchQr.GetBoolean());
         configuration.ValidateCheckout();
         return configuration;
     }

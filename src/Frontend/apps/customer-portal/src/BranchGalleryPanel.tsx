@@ -6,7 +6,7 @@ import {signInToCustomer} from "./navigation";
 
 type Slide={assetId:string;title:string;caption:string};
 type Gallery={organizationId:string;branchId:string;version:number;staff:Slide[];customer:Slide[];secondsPerSlide:number};
-type Asset={id:string;originalFileName:string;processingStatus:string};
+type Asset={id:string;originalFileName:string;processingStatus:string;ownerService:string;ownerType:string};
 const api=createApiClient({onUnauthorized:signInToCustomer});
 export function BranchGalleryPanel(){
   const [branch,setBranch]=useState(""),[gallery,setGallery]=useState<Gallery>(),[assets,setAssets]=useState<Asset[]>([]);
@@ -18,7 +18,7 @@ export function BranchGalleryPanel(){
     const controller=new AbortController();pending.current?.abort();pending.current=controller;setBusy(true);setGallery(undefined);setNotice(undefined);setApproved(false);
     try{
       const [selection,media]=await Promise.all([api.request<Gallery>(`/bff/customer/screensaver-gallery/branches/${branch}`,{signal:controller.signal}),api.request<Asset[]>("/bff/customer/media",{signal:controller.signal})]);
-      if(!controller.signal.aborted){setGallery(selection);setAssets(media.filter(a=>a.processingStatus==="ready"));}
+      if(!controller.signal.aborted){setGallery(selection);setAssets(media.filter(a=>a.processingStatus==="ready"&&a.ownerService==="catalog"&&a.ownerType==="product"));}
     }catch{if(!controller.signal.aborted)setNotice("Gallery unavailable or access denied. Check your workspace and permissions.");}
     finally{if(!controller.signal.aborted)setBusy(false);}
   };

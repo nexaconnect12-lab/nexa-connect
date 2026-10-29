@@ -1,8 +1,9 @@
 # Omise sandbox alongside manual POS payments
 
-29 October 2026: source implementation adds sandbox card checkout to the same local POS
-application as cash/manual PromptPay and QR collection. Default profiles remain manual;
-the retained pilot has not been activated for Omise or certified by a fresh provider test.
+29 October 2026: sandbox capability is activated and the matching update installed in the
+retained local POS alongside cash/manual PromptPay and QR collection. Default profiles
+remain manual. The operator reported the fresh-token sandbox flow working on 29 October;
+full mixed-mode/provider/recovery acceptance remains pending as qualified below.
 This is not production card collection or a physical card-reader integration.
 
 ## Cashier workflow
@@ -82,6 +83,53 @@ separate. In particular, legacy card checkout does not establish a persisted car
 shift link or certify branch day-close/settlement of card receipts.
 
 ## Observability and verification
+
+The completed local gate `bd919915-ef74-4624-b8c2-03c9e98d8afa` passed 1,233 unit tests
+without skips, six architecture tests, 55 HTTP tests, 90 frontend tests, 57 QR browser tests,
+45 financial browser tests and eight owning integration checks, plus hosting, security,
+candidate/acceptance guards and required Windows fixtures. The sandbox profile script passed
+38 isolated guards. Owning cleanup and broker recovery passed. The earlier run stopped at
+one existing phone price-review assertion; its isolated recheck and the final complete gate
+passed. Earlier failed evidence remains retained, not relabelled.
+
+Historical release `c4da9310deeb44cbb7d425e30bd0e413` was prepared with the existing manual/off
+profile but was not installed. At that pre-activation check, the retained pilot had no
+protected Omise test credential and POS was running. No service refresh, provider transaction
+or financial data change was performed during that implementation verification. The subsequent
+activation is recorded separately below.
+
+The tested source was subsequently committed as `a859472896b1bc0ea4fe8101822c7be74b4a54a7`;
+its executable input hash is unchanged, but the immutable candidate records the earlier
+revision/dirty identity. This verification record is historical implementation evidence,
+not current-source activation approval. A fresh matching candidate/package is required by
+the normal source guard before installation/activation; do not alter or bypass old receipts.
+
+### Retained pilot activation — 29 October 2026
+
+After the operator reported Backend ready, the retained stack reported Ready with 12 services,
+an enabled capability and protected test credential present. A fresh full gate
+`4378ffd7-70ef-4196-877c-344a55c1e697` passed all required checks, including 1,233 unit tests
+without skips, 55 HTTP, 90 frontend, 57 QR browser and eight owning checks with cleanup/broker
+recovery. Candidate/source/artifact guards passed before installing enabled release
+`af64cf2e5e3a4915bb017733c1291d02` into retained run `c30b628ab23141f389119daa565f894f`.
+
+Fresh QR pilot `97105d80127542fcaaa859bba75e0549` reuses the exact certificate files and
+public origin. Windows-trusted HTTPS returned guest page 200 and staff denial 404. Fresh
+phone templates remain pending; no historical phone pass was carried forward. All eight
+protected local files matched pre-install hashes. Scope, reference data and service addresses
+were unchanged. The installed profile retains `cash_manual` and isolated storage while enabling
+the sandbox choice. POS reopened from the exact installed release with a responsive window.
+
+Local evidence is retained in `.runstate/pos-mixed-omise-activation.json`, the corresponding
+before/pending/private lifecycle logs and current pilot record. This is local setup evidence,
+not production readiness or proof that the test credential matches a new card token's account.
+The agent did not submit a payment. After locating the checkout selector and receiving
+fresh-token instructions, the operator reported “ok, working now” on 29 October 2026.
+This records reported sandbox-flow usability only. No original Order/Payment identity,
+Paid/captured status, amount, dashboard account match, receipt, interrupted recovery or
+duplicate-charge result was independently inspected or separately confirmed. Full mixed-mode
+and provider/recovery acceptance remain pending. Later source changes require the normal
+fresh activation guards.
 
 Existing `nexaconnect-pos-client` checkout transport, `nexaconnect-order` and
 `nexaconnect-payment` safe correlation events are reused; filter by service, original

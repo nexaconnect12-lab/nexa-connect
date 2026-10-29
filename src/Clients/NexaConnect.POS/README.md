@@ -1,5 +1,7 @@
 # NexaConnect POS
 
+Optional Pos:UseBranchPromptPayQr (default false) reads approved branch PNG through Services:MediaApi. Payment offers Refresh branch QR, 30-second refresh and 60-second in-memory expiry, with no locked/offline image fallback. New receipt proof resets with image/order/tender changes and updates button readiness immediately. Original uncertain manual payment retains its saved request and can verify without an image. See [operator setup](../../../docs/Deployment/POS-Branch-PromptPay-QR.md) and [payment policy](Payments/README.md).
+
 **Checkout → Checkout payment** supports an optional **Omise sandbox card — test only**
 choice alongside the configured manual default. It appears only in explicitly enabled
 loopback profiles. Pending checkout pins its original method; method changes/manual/QR

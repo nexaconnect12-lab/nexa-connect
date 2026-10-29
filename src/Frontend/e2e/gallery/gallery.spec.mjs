@@ -8,7 +8,7 @@ async function setup(page,{denied=false,conflict=false}={}){
   else if(path.endsWith("/access"))json={organizations:[{organizationId:org,organizationName:"One",applicationCode:"nexa_connect"},{organizationId:other,organizationName:"Two",applicationCode:"nexa_connect"}]};
   else if(path.endsWith("/tenant")){if(route.request().method()==="POST")state.tenant=route.request().postDataJSON();json=state.tenant;}
   else if(path.endsWith("/operational-branches"))json=[{branchId:branch,name:"Branch",code:"one",currency:"THB",timeZone:"Asia/Singapore"}];
-  else if(path==="/bff/customer/media")json=[{id:a,originalFileName:"Meal A.png",processingStatus:"ready"},{id:b,originalFileName:"Meal B.png",processingStatus:"ready"},{id:other,originalFileName:"Unapproved.png",processingStatus:"quarantined"}];
+  else if(path==="/bff/customer/media")json=[{id:a,originalFileName:"Meal A.png",processingStatus:"ready",ownerService:"catalog",ownerType:"product"},{id:b,originalFileName:"Meal B.png",processingStatus:"ready",ownerService:"catalog",ownerType:"product"},{id:other,originalFileName:"Unapproved.png",processingStatus:"quarantined",ownerService:"catalog",ownerType:"product"},{id:org,originalFileName:"Bank QR.png",processingStatus:"ready",ownerService:"restaurant",ownerType:"promptpay_qr"}];
   else if(path.endsWith("/csrf"))json={requestToken:"synthetic-csrf"};
   else if(path.includes("/screensaver-gallery/branches/")){
    if(denied)return route.fulfill({status:403,json:{}});
@@ -35,6 +35,7 @@ test("approval requires explicit consent and sends bounded role lists, CSRF and 
 });
 test("only ready assets are offered and edits invalidate approval",async({page})=>{
  await setup(page);await page.getByRole("combobox",{name:"Add staff image",exact:true}).click();await expect(page.getByRole("option",{name:"Unapproved.png"})).toHaveCount(0);
+ await expect(page.getByRole("option",{name:"Bank QR.png"})).toHaveCount(0);
  await page.getByRole("option",{name:"Meal A.png",exact:true}).click();await page.getByRole("checkbox").check();
  await page.getByLabel("staff slide 1 caption").fill("Changed");await expect(page.getByRole("checkbox")).not.toBeChecked();
 });

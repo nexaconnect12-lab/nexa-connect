@@ -1,5 +1,7 @@
 # Windows first-draft terminal (slice 4)
 
+[Branch PromptPay upload](POS-Branch-PromptPay-QR.md) replaces deployment-file QR configuration in explicitly enabled profiles. Preserve custody/recovery when packaging and installing the matching Services:MediaApi plus Pos:UseBranchPromptPayQr flag. Legacy file profiles default unchanged; a bank PNG and actual payment acceptance are not seeded by installation.
+
 The owned local package may optionally carry an additive Omise sandbox capability while
 retaining its manual default, scope and recovery directory. Hosted installers remain
 manual-only. Select new checkout methods in POS; never switch a retained order's method

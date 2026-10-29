@@ -1,5 +1,7 @@
 # Drawer preparation (UX8)
 
+UX8A now supplies [server reserve/read/outcome authority](../../../../../docs/API/Drawer-Intents.md), default-off under POS24 / Authorization16. This native component remains unconstructed and has no HTTP authority adapter or payment hook; integrating the original expiring one-use grant, local/current-session fences and outcome reporting belongs to UX8B with verified hardware.
+
 This component is **preparatory**, not an enabled drawer integration. The staff terminal
 panel reports Disabled. No production composition constructs the workflow/journal or calls
 a drawer after payment. There is no opening button, enable switch, guessed ESC/POS sequence,

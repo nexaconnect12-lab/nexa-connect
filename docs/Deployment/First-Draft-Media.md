@@ -1,5 +1,7 @@
 # Local first-draft product-image uploads
 
+[Branch PromptPay PNG](POS-Branch-PromptPay-QR.md) is a separate live branch-configuration workflow. It uses the same Media storage/scanner/CSP origin but does not require broad organization Media grants. Do not upload a bank QR as a Catalog photo or screensaver asset; its purpose-specific original PNG delivery preserves dimensions.
+
 The optional `-EnableMedia` profile adds the existing Media service to a local Windows
 draft. Default drafts retain their ten-service inventory. The explicit profile retains
 Media migration 4, a separate Media runtime database login, private MinIO storage and a

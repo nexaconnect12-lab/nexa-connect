@@ -31,9 +31,9 @@ try{
     $sourceJson=& node scripts/release/source.mjs;if($LASTEXITCODE -ne 0){throw 'QR6 source inventory failed.'};$source=$sourceJson|ConvertFrom-Json
     $schemaJson=& node scripts/release/qr6.mjs catalog;if($LASTEXITCODE -ne 0){throw 'QR6 schema inventory failed.'};$schemas=$schemaJson|ConvertFrom-Json
     $env:NEXACONNECT_ENVIRONMENT='Testing';$env:NEXACONNECT_POS_DPAPI_ACCEPTANCE='1'
-    Trx unit 'tests/Unit/NexaConnect.UnitTests' '' 1052
+    Trx unit 'tests/Unit/NexaConnect.UnitTests' '' 1287
     Trx architecture 'tests/Architecture/NexaConnect.ArchitectureTests' '' 6
-    Trx http 'tests/Integration/NexaConnect.IntegrationTests' 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests|FullyQualifiedName~OrderListBoundaryTests|FullyQualifiedName~MediaAuthenticatedHttpAcceptanceTests|FullyQualifiedName~GalleryReaderBoundaryTests|FullyQualifiedName~BarcodeBoundaryTests' 55
+    Trx http 'tests/Integration/NexaConnect.IntegrationTests' 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests|FullyQualifiedName~OrderListBoundaryTests|FullyQualifiedName~MediaAuthenticatedHttpAcceptanceTests|FullyQualifiedName~GalleryReaderBoundaryTests|FullyQualifiedName~BarcodeBoundaryTests|FullyQualifiedName~PromptPayQrBoundaryTests|FullyQualifiedName~CustomerPromptPayQrBoundaryTests|FullyQualifiedName~DrawerIntentBoundaryTests' 84
     Native hosting node @('--test','--test-reporter=tap','docker/pilot/hosting.test.mjs')
     $checks.hosting.count=CountResult tap (Join-Path $run 'hosting.private.log') 47
     Native candidate-guards node @('--test','--test-reporter=tap','scripts/release/qr6.test.mjs')
@@ -42,6 +42,7 @@ try{
     $checks['acceptance-guards'].count=CountResult tap (Join-Path $run 'acceptance-guards.private.log') 39
     Native media-profile-guards pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-first-draft-media-guards.ps1'))
     Native omise-profile-guards pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-first-draft-omise-guards.ps1'))
+    Native promptpay-profile-guards pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-first-draft-promptpay-guards.ps1'))
     Native pos-build dotnet @('build','src/Clients/NexaConnect.POS','--no-restore','--verbosity','quiet')
     Native pos-print-layout dotnet @('run','--project','tests/Windows/NexaConnect.PosPrintingTests','--verbosity','quiet')
     Native pos-scanning-fixture dotnet @('run','--project','tests/Windows/NexaConnect.PosTouchTests','--verbosity','quiet')
@@ -52,7 +53,7 @@ try{
         $json=Join-Path $run 'frontend-unit.json';Native frontend-unit node @($npm,'test','--','--reporter=json',"--outputFile=$json")
         $checks['frontend-unit'].count=CountResult vitest $json 88
         foreach($pair in @(@('frontend-build','build'),@('audit-production','audit:production'),@('audit-all','audit:all'))){Native $pair[0] node @($npm,'run',$pair[1])}
-        foreach($pair in @(@('qr-browser','qr-entry',57),@('day-close-browser','day-close',8),@('day-cutoff-browser','day-cutoff',8),@('day-seal-browser','day-seal',22),@('settlement-reporting-browser','settlement-reporting',7))){
+        foreach($pair in @(@('qr-browser','qr-entry',66),@('day-close-browser','day-close',8),@('day-cutoff-browser','day-cutoff',8),@('day-seal-browser','day-seal',22),@('settlement-reporting-browser','settlement-reporting',7))){
             $json=Join-Path $run ($pair[0]+'.json');$env:PLAYWRIGHT_JSON_OUTPUT_FILE=$json
             Native $pair[0] node @('node_modules/@playwright/test/cli.js','test','--config',"playwright.$($pair[1]).config.mjs",'--reporter=json')
             $checks[$pair[0]].count=CountResult playwright $json $pair[2]
@@ -64,9 +65,16 @@ try{
     if($match.Count -ne 1){throw 'QR6 owning receipt was not uniquely identified.'}
     $receiptPath=[IO.Path]::GetFullPath($match[0]);$receipt=Get-Content -LiteralPath $receiptPath -Raw|ConvertFrom-Json
     $expected=Join-Path $repoRoot ".runstate/qr-entry/$($receipt.runId)/verification.json"
-    if($receipt.runId -cnotmatch '^[a-f0-9]{32}$' -or $receiptPath -cne [IO.Path]::GetFullPath($expected) -or $receipt.passed -ne $true -or $receipt.cleanupVerified -ne $true -or $receipt.brokerRecoveryVerified -ne $true -or $receipt.caseCount -lt 8 -or $receipt.productionVerified -ne $false){throw 'QR6 owning evidence is incomplete.'}
+    if($receipt.runId -cnotmatch '^[a-f0-9]{32}$' -or $receiptPath -cne [IO.Path]::GetFullPath($expected) -or $receipt.passed -ne $true -or $receipt.cleanupVerified -ne $true -or $receipt.brokerRecoveryVerified -ne $true -or $receipt.caseCount -lt 9 -or $receipt.productionVerified -ne $false){throw 'QR6 owning evidence is incomplete.'}
     Copy-Item -LiteralPath $receiptPath -Destination (Join-Path $run 'owning.json')
     $checks.owning=@{passed=$true;count=[int]$receipt.caseCount;cleanupVerified=$true;brokerRecoveryVerified=$true;evidenceSha256=(Get-FileHash -LiteralPath (Join-Path $run 'owning.json') -Algorithm SHA256).Hash.ToLowerInvariant()}
+    Native drawer-authority-owning pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-pos-drawer-authority.ps1'),'-ConfirmDisposableInfrastructure')
+    $drawerMatch=@(Get-Content (Join-Path $run 'drawer-authority-owning.private.log')|ForEach-Object {if($_ -match '^Drawer authority owning gate passed with cleanup: (.+/verification\.json)$'){$Matches[1]}})
+    if($drawerMatch.Count -ne 1){throw 'Drawer owning receipt was not uniquely identified.'}
+    $drawerReceipt=Get-Content -LiteralPath $drawerMatch[0] -Raw|ConvertFrom-Json
+    if($drawerReceipt.runId -cnotmatch '^[a-f0-9]{32}$' -or [IO.Path]::GetFullPath($drawerMatch[0]) -cne [IO.Path]::GetFullPath((Join-Path $repoRoot ".runstate/drawer-authority/$($drawerReceipt.runId)/verification.json")) -or -not $drawerReceipt.passed -or -not $drawerReceipt.cleanupVerified -or $drawerReceipt.caseCount -lt 3 -or $drawerReceipt.productionVerified -ne $false){throw 'Drawer owning evidence is incomplete.'}
+    Copy-Item -LiteralPath $drawerMatch[0] -Destination (Join-Path $run 'drawer-owning.json')
+    $checks['drawer-authority-owning']=@{passed=$true;count=[int]$drawerReceipt.caseCount;cleanupVerified=$true;evidenceSha256=(Get-FileHash (Join-Path $run 'drawer-owning.json')).Hash.ToLowerInvariant()}
     $outputJson=& node scripts/release/qr6.mjs artifacts;if($LASTEXITCODE -ne 0){throw 'QR6 compiled artifact inventory failed.'};$outputs=$outputJson|ConvertFrom-Json
     $after=& node scripts/release/source.mjs
     if($LASTEXITCODE -ne 0 -or ($after -join "`n") -cne ($sourceJson -join "`n")){throw 'QR6 source changed during verification.'}

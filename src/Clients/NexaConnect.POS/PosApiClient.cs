@@ -157,6 +157,20 @@ public sealed class PosApiClient : IDisposable
         return await response.Content.ReadFromJsonAsync<NexaConnect.Contracts.Media.GalleryBundle>(ct)??throw new InvalidDataException();
     }
 
+    public async Task<NexaConnect.Contracts.Media.PromptPayQrBundleV1> PromptPayQrAsync(PosTokenSet token,CancellationToken ct)
+    {
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(ct);deadline.CancelAfter(TimeSpan.FromSeconds(20));ct=deadline.Token;
+        if(string.IsNullOrWhiteSpace(_configuration.MediaApi))throw new InvalidOperationException("Media service is not configured.");
+        using var request=CreateRequest(HttpMethod.Get,$"api/media/v1/customer/organizations/{_configuration.OrganizationId:D}/branches/{_configuration.BranchId:D}/promptpay-qr",token);
+        AddTenantContext(request,_configuration.OrganizationId);
+        using var response=await SendCheckoutAsync(_mediaHttpClient,request,"promptpay.qr.read",Guid.NewGuid(),ct,true);
+        await EnsureSuccessAsync(response,"Branch PromptPay QR is unavailable.");await response.Content.LoadIntoBufferAsync(3_000_000,ct);
+        var bundle=await response.Content.ReadFromJsonAsync<NexaConnect.Contracts.Media.PromptPayQrBundleV1>(ct)??throw new InvalidDataException();
+        try{PromptPayQrPolicy.Validate(bundle,_configuration.OrganizationId,_configuration.RestaurantId,_configuration.BranchId,DateTimeOffset.UtcNow);}
+        catch(InvalidDataException){loggerFactory.CreateLogger("NexaConnect.POS.Checkout").LogWarning("Branch PromptPay QR response rejected");throw;}
+        return bundle;
+    }
+
     public async Task<PosPaymentRefund> CreateRefundAsync(PosTokenSet token, Guid paymentIntentId, Guid operationId,
         decimal amount, string reasonCode, CancellationToken cancellationToken = default)
     {

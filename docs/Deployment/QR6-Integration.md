@@ -1,5 +1,9 @@
 # QR6 — integrated verification and phone-test candidate
 
+UX8A raises mandatory coverage to1287unit/84HTTP cases and adds a three-case drawer-authority-owning gate with a separately hashed receipt and verified fixture cleanup. POS24 / Authorization16 are in the new candidate schema inventory. Existing candidate/phone proofs stay historical; no physical drawer opening or retained-pilot deployment is implied. See [UX8A](POS-UX8A-Drawer-Authority.md).
+
+The gate additionally requires promptpay-profile-guards, 66 QR browser cases (including nine synthetic PromptPay setup cases), new PromptPay HTTP/policy coverage and nine owning PostgreSQL cases including selection CAS/audit rollback. This does not certify a bank image or receipt. Use a fresh source-bound candidate and keep actual upload/payment UAT pending until performed. See [PromptPay](POS-Branch-PromptPay-QR.md).
+
 The candidate gate additionally requires isolated `omise-profile-guards` for additive local
 sandbox capability. These validate lifecycle, credential isolation and packaging without
 provider traffic. Existing evidence is not relabelled; prepare a fresh candidate for changed

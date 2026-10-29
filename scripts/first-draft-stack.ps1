@@ -10,15 +10,18 @@ param(
     [switch]$ConfirmTestResources,
     [switch]$EnableMedia,
     [switch]$EnableOmiseTestCheckout,
+    [switch]$EnableBranchPromptPayQr,
     [switch]$NoBuild
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
 . (Join-Path $PSScriptRoot 'first-draft-omise-helpers.ps1')
+. (Join-Path $PSScriptRoot 'first-draft-promptpay-helpers.ps1')
 . (Join-Path $PSScriptRoot 'payment-review-joined-helpers.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $catalog=Get-DraftServiceCatalog $root -IncludeMedia:$EnableMedia
 $compatibility=($catalog.Values | Sort-Object { [version]$_.minimumApplicationVersion })[-1].minimumApplicationVersion
+if($EnableBranchPromptPayQr -and $Action -notin @('Start','Validate')){throw 'Explicit branch PromptPay activation requires Start or Validate.'}
 if($EnableOmiseTestCheckout){
     if($Action -notin @('Start','Validate')){throw 'Explicit Omise activation requires Start or Validate.'}
     Assert-DraftOmiseTestKey $env:NEXACONNECT_OMISE_TEST_SECRET_KEY
@@ -26,6 +29,7 @@ if($EnableOmiseTestCheckout){
 if ($Action -eq 'Validate') {
     Assert-DraftPayment $PaymentMethod $QrImagePath
     if($QrPilotOrigin){Assert-DraftQrPilotOrigin $QrPilotOrigin}
+    if($EnableBranchPromptPayQr -and -not $EnableMedia){throw 'Validate branch PromptPay with -EnableMedia.'}
     [pscustomobject]@{paymentMethod=$PaymentMethod;currency='THB';timeZone='Asia/Singapore';applicationCompatibility=$compatibility;schemaTargets=$catalog;providerCheckoutEnabled=[bool]$EnableOmiseTestCheckout}
     return
 }
@@ -269,6 +273,9 @@ if($state.Contains('mediaEnabled') -and $state.mediaEnabled){
     $compose=Get-DraftComposeArguments $root $RunId
 }
 Assert-DraftUrls $state.urls
+[void](Test-DraftBranchPromptPayEnabled $state)
+if($EnableBranchPromptPayQr){Enable-DraftBranchPromptPay $state $Action ([bool]$NoBuild);Save-State}
+if((Test-DraftBranchPromptPayEnabled $state) -and (-not $state.Contains('mediaEnabled') -or -not $state.mediaEnabled)){throw 'The enabled branch QR profile requires Media.'}
 if($state.infrastructure.Count){
     $allPorts=@($state.urls.Values|ForEach-Object{([uri]$_).Port})+@($state.infrastructure.Values)
     if(($allPorts|Sort-Object -Unique).Count -ne $allPorts.Count){throw 'Application and infrastructure ports must be distinct.'}
@@ -426,6 +433,7 @@ try {
             $pos.Pos.PromptPayQrImagePath=$asset
         }
         Set-DraftPosServiceUrls $pos $state
+        $pos.Pos | Add-Member -NotePropertyName UseBranchPromptPayQr -NotePropertyValue ([bool](Test-DraftBranchPromptPayEnabled $state)) -Force
         $pos | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $run 'pos/appsettings.json')
         $pos | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $savedPosPath
     }

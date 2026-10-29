@@ -1,5 +1,7 @@
 # Local first-draft infrastructure
 
+The optional branch PromptPay profile reuses existing Media/storage/scanner services without Compose topology, schema or secret changes. Activate through the stopped draft stack with -EnableBranchPromptPayQr after Media is enabled; preserve retained state and recovery. See [operator guide](../../docs/Deployment/POS-Branch-PromptPay-QR.md).
+
 Optional local Omise sandbox selection reuses these owned databases/broker and adds no
 container/port or public provider endpoint. The lifecycle passes the DPAPI-retained test
 credential only to Payment and enables Order's existing card gate while keeping the POS

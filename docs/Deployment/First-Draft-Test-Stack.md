@@ -1,5 +1,7 @@
 # First-draft local test stack
 
+Optional -EnableBranchPromptPayQr on a stopped, build-enabled Start publishes Pos:UseBranchPromptPayQr=true and retains this Boolean on restart. It requires the Media profile, preserves existing Omise capability/secrets and does not seed a merchant image. Defaults stay false; matching packages and fresh source-bound evidence are required. See [PromptPay activation](POS-Branch-PromptPay-QR.md).
+
 Optional `-EnableOmiseTestCheckout` on a stopped, build-enabled Start adds sandbox card
 capability beside the manual default; defaults remain off. It retains the test credential
 in existing current-user DPAPI secrets and publishes only the capability flag to POS.

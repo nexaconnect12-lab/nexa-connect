@@ -35,6 +35,14 @@ function Get-TerminalScope($Configuration) {
         if(-not [uri]::TryCreate([string]$Configuration.Services.PaymentApi,[UriKind]::Absolute,[ref]$payment) -or -not $payment.IsLoopback -or $payment.Scheme -notin @('http','https') -or $payment.UserInfo -or $payment.Query -or $payment.Fragment){throw 'Sandbox capability requires the local Payment service.'}
     }
     $scope.Currency=[string]$pos.Currency;$scope.PaymentMethod=[string]$pos.PaymentMethod
+    $hasBranchQr=if($pos -is [System.Collections.IDictionary]){$pos.Contains('UseBranchPromptPayQr')}else{$null-ne $pos.PSObject.Properties['UseBranchPromptPayQr']}
+    if($hasBranchQr){
+        if($pos.UseBranchPromptPayQr -isnot [bool]){throw 'Branch PromptPay selection must be Boolean.'}
+        if($pos.UseBranchPromptPayQr){
+            $mediaUri=$null
+            if(-not [uri]::TryCreate([string]$Configuration.Services.MediaApi,[UriKind]::Absolute,[ref]$mediaUri) -or -not $mediaUri.IsLoopback -or $mediaUri.Scheme -notin @('http','https') -or $mediaUri.UserInfo -or $mediaUri.Query -or $mediaUri.Fragment){throw 'Branch PromptPay requires the local Media service.'}
+        }
+    }
     $hasPilotSetting=if($pos -is [System.Collections.IDictionary]){$pos.Contains('UseIsolatedLocalPilotStorage')}else{$null -ne $pos.PSObject.Properties['UseIsolatedLocalPilotStorage']}
     if($hasPilotSetting){
         if($pos.UseIsolatedLocalPilotStorage -isnot [bool]){throw 'Pilot storage selection must be Boolean.'}

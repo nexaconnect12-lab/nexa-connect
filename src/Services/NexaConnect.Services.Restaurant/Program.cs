@@ -28,6 +28,10 @@ builder.Services.AddScoped<OperationalBranchDiscovery>();
 builder.Services.AddScoped<IBranchManagementRepository, PostgresBranchManagementRepository>();
 builder.Services.AddScoped<BranchProductConfigurationService>();
 builder.Services.AddScoped<BranchGalleryService>();
+builder.Services.AddScoped<IBranchPromptPayQrRepository,PostgresBranchPromptPayQrRepository>();
+builder.Services.AddScoped<BranchPromptPayQrService>();
+builder.Services.AddHttpClient<IPromptPayQrAssetValidator,HttpPromptPayQrAssetValidator>(client=>{client.BaseAddress=new Uri(builder.Configuration["Services:Media"]??"https://media.invalid/");client.Timeout=TimeSpan.FromSeconds(15);})
+    .ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<GalleryReaderSelection>();
 builder.Services.AddScoped<IGalleryReaderAuthorizer,HttpGalleryReaderAuthorizer>();
 foreach(var service in new[]{("GalleryDirectory","PlatformDirectory"),("GalleryAuthorization","Authorization")})

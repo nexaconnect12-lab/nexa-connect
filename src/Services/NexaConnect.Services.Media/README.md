@@ -1,5 +1,7 @@
 # Media service
 
+Branch PromptPay uses dedicated upload/completion/readiness routes with live branch configuration.manage, independent of organization-wide Media rights. Cashier delivery requires live branch menu.read. Services:Restaurant and existing Media workload credentials validate owners; generic upload/completion cannot bypass purpose authority. Static PNG is bounded to 2 MiB/64–2048 pixels and delivered losslessly with at most a 60-second lease; no gallery-reader capability or photo variant. Shared correlation and safe PromptPay events use nexaconnect-media. See [API](../../../docs/API/Branch-PromptPay-QR.md) and [setup](../../../docs/Deployment/POS-Branch-PromptPay-QR.md).
+
 UX4 adds `GalleryReaders`, purpose-separated protected 24-hour capabilities and a bounded
 gallery-only GET. Caller issuance requires live branch menu-read. Locked reads use Media's
 existing workload identity for dedicated Restaurant delegation, repeat live selection checks

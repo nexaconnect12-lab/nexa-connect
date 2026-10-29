@@ -154,11 +154,13 @@
               </ComboBox>
               <StackPanel x:Name="PromptPayQrPanel">
                 <TextBlock x:Name="PromptPayQrText" TextWrapping="Wrap" />
-                <Image x:Name="PromptPayQrImage" Width="220" Height="220" Margin="0,16" HorizontalAlignment="Left" />
+                <Image x:Name="PromptPayQrImage" Width="220" Height="220" Margin="0,16" HorizontalAlignment="Left" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor" SnapsToDevicePixels="True" />
+                <Button x:Name="RefreshPromptPayQrButton" Content="Refresh branch QR" Click="RefreshPromptPayQr_Click" HorizontalAlignment="Left" />
                 <TextBlock Text="Receipt or bank reference" />
-                <TextBox x:Name="BankReferenceTextBox" MaxLength="64" AutomationProperties.Name="Receipt or bank reference" />
-                <CheckBox x:Name="ReceiptConfirmedCheckBox" Content="I verified the received payment and receipt" VerticalContentAlignment="Center" />
+                <TextBox x:Name="BankReferenceTextBox" MaxLength="64" AutomationProperties.Name="Receipt or bank reference" TextChanged="PaymentProof_Changed" />
+                <CheckBox x:Name="ReceiptConfirmedCheckBox" Content="I verified the received payment and receipt" VerticalContentAlignment="Center" Checked="PaymentProof_Changed" Unchecked="PaymentProof_Changed" />
               </StackPanel>
+              <TextBlock x:Name="PaymentReadinessText" TextWrapping="Wrap" Margin="0,8" />
               <TextBlock Text="Confirm only after receiving the exact amount. If the result is uncertain, verify the existing payment; do not collect again." TextWrapping="Wrap" Margin="0,16" Foreground="#63756A" />
               <TextBlock Text="Cancellation reason" Margin="0,16,0,0" />
               <TextBox x:Name="CancellationReasonTextBox" MaxLength="200" AutomationProperties.Name="Cancellation reason" />
@@ -508,7 +510,7 @@
           <StackPanel Grid.Column="2" VerticalAlignment="Center">
             <Button x:Name="WorkflowNextButton" Click="WorkflowNext_Click" Margin="0" />
             <Button x:Name="PlaceOrderButton" Content="Send order · Continue to payment" Click="PlaceOrder_Click" Style="{StaticResource Primary}" Margin="0" ToolTipService.ShowOnDisabled="True" />
-            <Button x:Name="PaidButton" Content="Confirm payment received" Click="Paid_Click" Style="{StaticResource Primary}" Margin="0" />
+            <Button x:Name="PaidButton" Content="Confirm payment received" Click="Paid_Click" Style="{StaticResource Primary}" Margin="0" ToolTipService.ShowOnDisabled="True" />
           </StackPanel>
         </Grid>
         <ProgressBar x:Name="BusyProgress" IsIndeterminate="True" Height="3" Margin="0,6,0,0" Visibility="Collapsed" AutomationProperties.Name="Action in progress"/>
