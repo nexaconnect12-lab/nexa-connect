@@ -1,5 +1,13 @@
 # NexaConnect
 
+[POS UX7](docs/Deployment/POS-UX7-Terminal-Setup.md) adds a staff setup overview,
+explicit anonymous reachability/device checks, navigation to existing tests and a
+sanitized support-report export. Detection remains separate from hardware/UAT acceptance.
+
+[POS UX6](docs/Deployment/POS-UX6-Barcode-Scanning.md) adds Catalog-owned product barcode
+bindings, staff management and optional guarded scan-to-cart. Apply Catalog 5; live branch
+permissions, original cart/pricing/payment safeguards and hardware acceptance remain distinct.
+
 [POS UX5](docs/Deployment/POS-UX5-Receipt-Printing.md) adds saved Windows receipt-printer
 selection, optional 80 mm layout and synthetic preview/test printing. Sales/refund reprints
 recheck live access around the Windows dialog; print errors preserve payment/recovery.

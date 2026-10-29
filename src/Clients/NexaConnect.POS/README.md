@@ -1,5 +1,22 @@
 # NexaConnect POS
 
+**Terminal & sync → Terminal setup overview** projects configured/detected/untested/
+unavailable states, explicit bounded reachability and Windows metadata checks, navigation
+to existing receipt/barcode/input/display controls and sanitized JSON export. It does not
+run business commands, print, enable scanning or certify hardware automatically. No new
+preference/recovery format. See [UX7 usage/privacy/tests](../../../docs/Deployment/POS-UX7-Terminal-Setup.md)
+and [Diagnostics responsibilities](Diagnostics/README.md).
+
+UX6 adds **Checkout → Enable barcode scan entry (this session)** as an opt-in for the
+running window: it defaults off on startup but can remain checked
+across lock/resume or sign-out, which clear input and pending lookup. Focus
+the explicit field and scan a supported keyboard-emulating code with Enter-only suffix,
+or type and Add barcode. Live Catalog reads verify configured branch/product availability;
+the existing cart/quote/payment guards remain. POS-owned confirmations consume scanner
+text/Enter while this mode is enabled; click/tap or Tab then Space confirms deliberately.
+No global hooks, offline map or scanner preference persistence. See
+[UX6 setup, duplicate handling and actual-device gates](../../../docs/Deployment/POS-UX6-Barcode-Scanning.md).
+
 **Terminal & sync → Receipt printer** saves a Windows queue and Standard (default)/80 mm
 layout separately from input preferences. Preview or explicitly print a labelled synthetic
 test; Windows confirms each job. Sales/refund reprints reload live authorized original

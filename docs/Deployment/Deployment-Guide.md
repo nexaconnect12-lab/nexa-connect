@@ -1,5 +1,11 @@
 # Deployment Guide
 
+Deploy UX6 barcode routes with **Catalog 5** and matching Customer BFF/portal/POS. Existing
+service URLs and branch menu.read/write permissions remain; scanner entry defaults off
+per session and adds no secret or device driver. History blocks barcode downgrade; use
+forward recovery after assignments. See [setup/verification](POS-UX6-Barcode-Scanning.md)
+and [storage/grants](../Database/Product-Barcodes.md).
+
 [QR9](QR9-Acceptance.md) adds local certificate/live-TLS diagnostics and bounded,
 retry-safe operator checklists linked to the exact QR7 candidate/activation. Preparing
 or diagnosing a pilot does not pass a phone, payment, saved-PDF or release gate.
@@ -58,7 +64,7 @@ dependency loss blocks new Paid commits while committed exact retries remain rec
 See [terminal admission and its observation limits](../API/Terminal-Admission.md) and
 [Windows draft installation](First-Draft-Windows-POS.md).
 
-Current catalog deployment uses application compatibility `0.38.0`: Order 19, Payment 18, POS 23, Reporting 22 and Authorization 15, with matching binaries/Customer BFF/portal. Earlier version sets below describe the releases that introduced each capability, not the latest targets. Preview the actual service migration catalog before deployment. For the November local Windows draft, use the [owned test stack](First-Draft-Test-Stack.md); it does not reuse root application databases or certify production acceptance.
+Current catalog deployment uses application compatibility `0.38.0`: Catalog 5, Restaurant 4, Order 22, Payment 18, POS 23, Reporting 22 and Authorization 15, with matching binaries/Customer BFF/portal. Earlier version sets below describe the releases that introduced each capability, not the latest targets. Preview the actual service migration catalog before deployment. For the November local Windows draft, use the [owned test stack](First-Draft-Test-Stack.md); it does not reuse root application databases or certify production acceptance.
 
 Temporary finalization preparation was introduced with Order 17 / Payment 16 / POS 16 / Authorization 12, compatibility 0.31.0 and matching BFF/Portal, with Reporting 20 unchanged. Use the current catalog targets above for latest deployment. Stop old affected hosts, migrate independently owned sources and coordinator, then enable routes. Apply runtime fence/generation privileges and synchronized clocks. See [rollout and recovery](Day-Close-Finalization-Preparation.md).
 

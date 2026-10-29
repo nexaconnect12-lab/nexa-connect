@@ -1,0 +1,7 @@
+{
+  "version": 5,
+  "name": "product_barcodes",
+  "transactional": true,
+  "downgradeSafety": "destructive",
+  "minimumApplicationVersion": "0.38.0"
+}

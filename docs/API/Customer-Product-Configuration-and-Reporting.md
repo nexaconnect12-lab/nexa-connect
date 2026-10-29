@@ -1,5 +1,9 @@
 # Customer product configuration, reporting, and media
 
+UX6 adds branch product barcode management under Configuration, using separate Catalog-
+owned versioned assignments and existing menu permissions. It does not change Restaurant
+configuration or financial reporting. See [barcode API](Product-Barcodes.md).
+
 Reporting entry-role filters include `customer-user` alongside the existing customer roles. This aligns scoped draft provisioning with these routes; live organization, branch and product-permission checks remain required and the realm role grants no financial authority. See [Slice 5 manager acceptance](../Deployment/First-Draft-Manager.md). No request/response or schema change is introduced.
 
 The Customer Portal adds a read-only end-of-day draft through `/bff/customer/reports/end-of-day` and the Reporting organization route. A completed local business date uses Restaurant-owned timezone metadata; customer-authorized Order/Payment/POS reads supply source amounts and unresolved work, alongside separate Reporting projection/check evidence. No settlement approval or repair occurs. See [contract and owning permissions](End-Of-Day-Draft.md).

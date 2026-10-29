@@ -270,6 +270,22 @@ public sealed class PosApiClient : IDisposable
         await EnsureSuccessAsync(response, "Shift close failed.");
     }
 
+    public async Task<PosBarcodeMatch> LookupBarcodeAsync(PosTokenSet token,string code,CancellationToken ct)
+    {
+        if(!BarcodeScanPolicy.Valid(code))throw new InvalidDataException("Invalid product barcode.");
+        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(ct);deadline.CancelAfter(TimeSpan.FromSeconds(10));ct=deadline.Token;
+        using var request=CreateRequest(HttpMethod.Post,$"api/catalog/v1/customer/branches/{_configuration.BranchId:D}/barcode-lookup",token);
+        AddTenantContext(request,_configuration.OrganizationId);request.Content=JsonContent.Create(new NexaConnect.Contracts.Catalog.BarcodeLookupRequest(code));
+        using var response=await SendCheckoutAsync(_catalogHttpClient,request,"catalog.barcode.lookup",Guid.NewGuid(),ct,true);
+        await EnsureSuccessAsync(response,"Barcode lookup unavailable.");await response.Content.LoadIntoBufferAsync(16384,ct);
+        var match=await response.Content.ReadFromJsonAsync<PosBarcodeMatch>(ct)??throw new InvalidDataException();
+        if(match.OrganizationId!=_configuration.OrganizationId||match.BranchId!=_configuration.BranchId||match.Barcode!=code
+            ||match.Item is not {} item||item.ProductId==Guid.Empty||string.IsNullOrWhiteSpace(item.Name)||item.Name.Length>200
+            ||item.UnitPrice<0||item.Currency!=_configuration.Currency||item.PreparationStation is null||item.PreparationStation.Length>64)
+            throw new InvalidDataException("Barcode result does not match the configured branch.");
+        return match;
+    }
+
     public async Task<IReadOnlyCollection<PosMenuItem>> GetMenuAsync(PosTokenSet token, Guid branchId, CancellationToken cancellationToken = default)
     {
         using var request = CreateRequest(HttpMethod.Get, $"api/catalog/v1/branches/{branchId:D}/menu-items", token);

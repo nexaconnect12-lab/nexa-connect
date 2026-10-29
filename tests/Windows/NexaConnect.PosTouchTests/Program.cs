@@ -44,7 +44,9 @@ internal static class Program
         var preferences = new PosUiPreferences(Path.Combine(root, "preferences"));
         var printers = new ReceiptPrinterPreferences(Path.Combine(root, "printers"));
         var printDriver = new CancelPrintDriver();
-        var window = new MainWindow(auth, api, new LocalPosStore(scope, root), new LocalOutboxStore(scope, root), config, preferences, printers, printDriver, () => Task.FromResult(new[] { "Fixture PDF" }))
+        var diagnosticsHandler = new ReachabilityHandler();
+        var diagnostics = new PosTerminalDiagnostics(config, diagnosticsHandler);
+        var window = new MainWindow(auth, api, new LocalPosStore(scope, root), new LocalOutboxStore(scope, root), config, preferences, printers, printDriver, () => Task.FromResult(new[] { "Fixture PDF" }), diagnostics)
             { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
         try
         {
@@ -54,6 +56,7 @@ internal static class Program
                     SessionStartedAtUtc: DateTimeOffset.UtcNow, SessionExpiresAtUtc: DateTimeOffset.UtcNow.AddHours(1), Subject: "fixture", Authority: config.Authority));
             Invoke(window, "UpdateOperationalState");
             window.Show(); Pump(window);
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
             var tabs = (TabControl)window.FindName("WorkspaceTabs");
             var inputMode = (CheckBox)window.FindName("TouchFirstCheckBox");
             Require(inputMode.IsChecked == false, "touch-first defaults off");
@@ -138,6 +141,9 @@ internal static class Program
             tabs.SelectedIndex = 0; Pump(window);
             VerifyDensity(window, preferences, args);
             VerifyPrinterSettings(window, printers, printDriver, root);
+            VerifyScannerGuards(window);
+            VerifyTerminalSetup(window,diagnosticsHandler);
+            if(args.Contains("--ux7-preview")){((TabItem)window.FindName("TerminalTab")).IsSelected=true;((ScrollViewer)((TabItem)window.FindName("TerminalTab")).Content).ScrollToTop();Pump(window);SavePreview(window,".runstate/pos-ux7-overview-preview.png");}
             tabs.SelectedIndex = 0; Pump(window);
             Invoke(window, "ShowTouchInput", field);
             Invoke(window, "SetBusy", "Fixture busy");
@@ -164,6 +170,64 @@ internal static class Program
         finally { window.Close(); }
     }
     private static void Pump(Window window) { window.UpdateLayout(); window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, () => { }); window.UpdateLayout(); }
+    private static void VerifyTerminalSetup(MainWindow window,ReachabilityHandler handler)
+    {
+        ((TabItem)window.FindName("TerminalTab")).IsSelected=true;Invoke(window,"UpdateOperationalState");Pump(window);
+        var list=(ItemsControl)window.FindName("TerminalSetupList");
+        Require(list.Items.Count==15,"setup overview includes settings and six logical service checks");
+        var rows=list.Items.Cast<TerminalSetupRow>().ToArray();
+        Require(rows.Single(r=>r.Area=="Output acceptance").Status==TerminalReadiness.Untested,"overview never infers physical acceptance");
+        Invoke(window,"RefreshTerminalSetup_Click",window,new RoutedEventArgs());
+        for(int i=0;i<60&&(bool)typeof(MainWindow).GetField("busy",Private)!.GetValue(window)!;i++){Pump(window);Thread.Sleep(5);}
+        Pump(window);Require(handler.Requests==5,"explicit checks issue only anonymous reachability requests");
+        Require(((TextBlock)window.FindName("StatusText")).Text.Contains("checks complete"),"global progress guidance completes with the overview");
+        Require(list.Items.Cast<TerminalSetupRow>().Single(r=>r.Area=="Printer").Status==TerminalReadiness.Detected,"saved queue detection projected without printing");
+        Invoke(window,"OpenScannerSetup_Click",window,new RoutedEventArgs());Pump(window);
+        Require(((TabItem)window.FindName("CheckoutTab")).IsSelected&&((CheckBox)window.FindName("ScanModeCheckBox")).IsChecked!=true,"scanner shortcut navigates without enabling or submitting");
+        Invoke(window,"OpenPrinterSetup_Click",window,new RoutedEventArgs());Pump(window);
+        Require(((TabItem)window.FindName("TerminalTab")).IsSelected,"printer shortcut returns to settings only");
+        handler.Hold=true;Invoke(window,"RefreshTerminalSetup_Click",window,new RoutedEventArgs());
+        Invoke(window,"ClearReceiptView");handler.Release();
+        for(int i=0;i<60&&(bool)typeof(MainWindow).GetField("busy",Private)!.GetValue(window)!;i++){Pump(window);Thread.Sleep(5);}
+        Pump(window);
+        Require(list.Items.Cast<TerminalSetupRow>().Where(r=>r.Area.StartsWith("Service:")).All(r=>r.Status==TerminalReadiness.Untested),"late diagnostic responses cannot restore cleared results");
+    }
+    private sealed class ReachabilityHandler:HttpMessageHandler
+    {
+        public int Requests;public bool Hold;private readonly List<TaskCompletionSource<HttpResponseMessage>> pending=[];
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct)
+        {
+            Requests++;Require(request.Method==HttpMethod.Get&&request.Headers.Authorization is null&&request.Content is null,"setup check is header-only anonymous GET");
+            if(!Hold)return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
+            var task=new TaskCompletionSource<HttpResponseMessage>(TaskCreationOptions.RunContinuationsAsynchronously);pending.Add(task);return task.Task;
+        }
+        public void Release(){Hold=false;foreach(var task in pending)task.TrySetResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));pending.Clear();}
+    }
+    private static void VerifyScannerGuards(MainWindow window)
+    {
+        ((TabItem)window.FindName("CheckoutTab")).IsSelected=true;Pump(window);
+        var input=(TextBox)window.FindName("BarcodeScanTextBox");var mode=(CheckBox)window.FindName("ScanModeCheckBox");
+        Require(mode.IsChecked!=true&&!input.IsEnabled,"scanner entry defaults off");
+        typeof(MainWindow).GetField("_activeShift",Private)!.SetValue(window,new LocalShiftState(Guid.NewGuid(),"FIXTURE",DateTimeOffset.UtcNow));
+        Invoke(window,"UpdateOperationalState");mode.IsChecked=true;Pump(window);
+        Require(input.IsEnabled,"explicit mode enables dedicated field for editable checkout");
+        input.Text="001";((TabItem)window.FindName("PaymentTab")).IsSelected=true;Pump(window);
+        Require(input.Text==""&&!input.IsEnabled,"leaving checkout clears and disables scan input");
+        ((TabItem)window.FindName("CheckoutTab")).IsSelected=true;Pump(window);input.Text="001";
+        Invoke(window,"ClearReceiptView");Require(input.Text=="","privacy transition clears partial scanner data");
+        Require(!ScannerSafeConfirmation.AllowsKey(System.Windows.Input.Key.Enter)&&!ScannerSafeConfirmation.AllowsKey(System.Windows.Input.Key.Y),"scanner suffix and payload cannot confirm");
+        Require(ScannerSafeConfirmation.AllowsKey(System.Windows.Input.Key.Tab)&&ScannerSafeConfirmation.AllowsKey(System.Windows.Input.Key.Space),"deliberate keyboard confirmation remains available");
+        Require(!ScannerSafeConfirmation.Ask(window,"Fixture","Fixture",()=>false),"invalidated confirmation never opens");
+        var dialog=new ScannerSafeConfirmation(window,"Fixture only","Fixture");
+        try {
+            var enter=new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,PresentationSource.FromVisual(window),Environment.TickCount,System.Windows.Input.Key.Enter){RoutedEvent=System.Windows.Input.Keyboard.PreviewKeyDownEvent};
+            dialog.RaiseEvent(enter);Require(enter.Handled,"protected WPF dialog consumes scanner Enter");
+            var composition=new System.Windows.Input.TextComposition(System.Windows.Input.InputManager.Current,dialog,"Y001");
+            var text=new System.Windows.Input.TextCompositionEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,composition){RoutedEvent=System.Windows.Input.TextCompositionManager.PreviewTextInputEvent};
+            dialog.RaiseEvent(text);Require(text.Handled,"protected WPF dialog consumes scanner text/mnemonics");
+        } finally {dialog.Close();}
+        mode.IsChecked=false;typeof(MainWindow).GetField("_activeShift",Private)!.SetValue(window,null);Invoke(window,"UpdateOperationalState");
+    }
     private static void VerifyPrinterSettings(MainWindow window, ReceiptPrinterPreferences preferences, CancelPrintDriver driver, string root)
     {
         ((TabItem)window.FindName("TerminalTab")).IsSelected = true; Pump(window);

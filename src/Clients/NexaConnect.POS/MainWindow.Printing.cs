@@ -41,15 +41,16 @@ public partial class MainWindow
         SetBusy("Finding Windows printers…");
         try
         {
-            var names = await printerDiscovery();
+            var names = await DiscoverPrintersBoundedAsync(windowCancellation.Token);
             if (!PrintSessionCurrent(generation, subject)) return;
             RenderPrinterSettings(names);
+            RecordPrinterDiscovery(names);
             PrinterSetupStatus.Text = receiptPrintOptions.PrinterName is { } saved && !names.Contains(saved, StringComparer.OrdinalIgnoreCase)
                 ? "The saved printer is unavailable. Reconnect it or choose another printer and save. No printer was substituted."
                 : names.Length == 0 ? "No Windows printers found. Install a Windows printer driver, then refresh."
                 : "Printers refreshed. Select a printer and layout, then Save printer settings.";
         }
-        catch { if (PrintSessionCurrent(generation, subject)) PrinterSetupStatus.Text = "Windows printers could not be read. Check the Windows Print Spooler and installed drivers, then refresh."; }
+        catch { if (PrintSessionCurrent(generation, subject)) { RecordPrinterDiscovery(null); PrinterSetupStatus.Text = "Windows printers could not be read. Check the Windows Print Spooler and installed drivers, then refresh."; } }
         finally { UpdateOperationalState(); }
     }
     private void SavePrinterSettings_Click(object sender, RoutedEventArgs e)
@@ -71,6 +72,7 @@ public partial class MainWindow
         if (displayedPrintContent is { } content) ShowPrintPreview(content);
         TestReceiptPreview.Document = null;
         PrinterSetupStatus.Text = "Printer settings saved for this terminal and Windows user. Windows still confirms every print.";
+        RenderTerminalOverview();
     }
     private void ShowPrintPreview(ReceiptPrintContent content)
     {

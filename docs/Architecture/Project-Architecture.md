@@ -1,5 +1,38 @@
 # NexaConnect Project Architecture
 
+## Native setup diagnostics (POS UX7)
+
+The POS Diagnostics component separates typed setting/detection projection from actual
+hardware acceptance. Staff-only navigation reaches existing settings/tests without starting
+them. A separate HttpClient sends anonymous, redirect/cookie-disabled header-only requests
+to configured origins/identity discovery with bounded deadlines and safe correlation logs;
+it cannot consume cashier credentials or grant business access. Privacy generations cancel
+and reject late results. Explicit user-selected JSON export is a 16 KiB typed allow-list
+of reported versions, flags, bounded counts and UTC service observations, with atomic file
+replacement/link guards. It includes no identity, address, device name, financial content,
+token or raw response. No background upload, database or preference schema is introduced.
+See [component](../../src/Clients/NexaConnect.POS/Diagnostics/README.md),
+[file contract](../API/POS-Terminal-Diagnostics.md) and
+[operations/acceptance](../Deployment/POS-UX7-Terminal-Setup.md).
+
+## Product barcode ownership and scanner entry (POS UX6)
+
+Catalog migration 5 owns a tenant-wide code/product registry, versioned branch assignments
+and immutable detailed audit. Existing branch permissions govern branch-only changes;
+Domain collision/version decisions run under an Infrastructure tenant-serialized transaction
+with registry cleanup and generic Catalog audit outbox. Other owners' databases/entities
+are not shared. Customer BFF derives protected tenant/subject and CSRF for management.
+Native POS posts read-only scoped lookups through existing correlated Catalog transport,
+then reuses the guarded cart/quote workflow. Scanner mode is session-only/default off and
+independent of touch/density; explicit input/context fences and protected POS confirmations
+apply. The opt-in lasts for the running window and can remain checked across lock/sign-out;
+those transitions clear input/pending lookup, and restart defaults off. Protected confirmations
+prevent supported code/Enter input from approving business/privacy decisions. No global
+keyboard hook, offline execution, device identity or new financial command is introduced.
+See [ADR-052](Decisions/ADR-052-product-barcodes-and-scanner-entry.md),
+[API](../API/Product-Barcodes.md), [storage](../Database/Product-Barcodes.md) and
+[deployment/acceptance](../Deployment/POS-UX6-Barcode-Scanning.md).
+
 ## Receipt printing (POS UX5)
 
 The native client's Printing component owns queue preferences, imageable-page layout and
@@ -676,7 +709,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 209 tables with service-owned indexes and constraints; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state, while Customer version 2 adds append-only audit that excludes profile fields and preserves its version-1 outbox. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 212 tables with service-owned indexes and constraints; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state, while Customer version 2 adds append-only audit that excludes profile fields and preserves its version-1 outbox. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Database creation is a provisioning concern, not a service migration. Local Docker initialization creates the 13 catalog databases, one migration owner, and separate restricted runtime roles before service migrations are applied. Production uses the equivalent infrastructure-as-code and secret-management workflow.
 

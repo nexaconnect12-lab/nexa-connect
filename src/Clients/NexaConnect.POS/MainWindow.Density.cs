@@ -45,6 +45,7 @@ public partial class MainWindow
             ? "Touch density: larger controls and spacing. Automatic keyboards are controlled separately above."
             : "Standard density (default): efficient keyboard/mouse layout. Automatic keyboards are controlled separately above.";
         UpdateResponsiveLayout();
+        RenderTerminalOverview();
     }
 
     private void DensityWindow_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateResponsiveLayout();

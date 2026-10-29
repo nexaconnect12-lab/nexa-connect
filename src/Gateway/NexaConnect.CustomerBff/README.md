@@ -1,5 +1,12 @@
 # NexaConnect Customer BFF
 
+UX6 adds protected barcode binding GET/PUT and CSRF routes under `/bff/customer/barcodes`.
+Selected workspace/stable subject are derived server-side, current membership rechecked,
+and owning Catalog authority retained. Responses cap at 4096 bytes; downstream bodies
+are suppressed. The dedicated redirect-disabled adapter propagates correlation. Service
+`nexaconnect-customer-bff` emits safe `Barcode BFF` events without tokens/bodies/codes.
+See [API](../../../docs/API/Product-Barcodes.md) and [UX6](../../../docs/Deployment/POS-UX6-Barcode-Scanning.md).
+
 Set optional `Bff:MediaUploadOrigin` for direct signed staff uploads: one exact HTTPS origin, or loopback HTTP only in Development/Test. Only staff connect-src gains this origin; guest /order stays self-only. The local Media profile supplies it; default is empty. See [local setup](../../../docs/Deployment/First-Draft-Media.md).
 
 The optional local `-EnableMedia` draft profile supplies `Services:Media` from the owned

@@ -1,6 +1,12 @@
 # NexaConnect Data Migration
 
-Order22 adds immutable order_qr_collections custody (one table; current full catalog209). Current manual-settlement SQL requires22 even with QR flags disabled; compatibility0.38.0 remains. Empty downgrade/reapply only; collection history blocks downgrade. POS23/Reporting22 remain unchanged. See [QR5 storage](../../../docs/Database/QR-Collection.md).
+Catalog 5 adds three barcode registry/binding/immutable-audit tables (current full catalog
+212), compatibility 0.38.0. Apply before barcode use; empty 5→4→5 is supported, history
+blocks downgrade. Owning tests cover concurrency, audit and outbox rollback. See
+[storage/grants](../../../docs/Database/Product-Barcodes.md) and
+[UX6](../../../docs/Deployment/POS-UX6-Barcode-Scanning.md).
+
+Order22 adds immutable order_qr_collections custody (one table; full catalog209 at QR5 introduction). Current manual-settlement SQL requires22 even with QR flags disabled; compatibility0.38.0 remains. Empty downgrade/reapply only; collection history blocks downgrade. POS23/Reporting22 remain unchanged. See [QR5 storage](../../../docs/Database/QR-Collection.md).
 
 Order21 adds immutable order_qr_acceptances and request review/consent columns/state
 constraints. Current QR readers require through migration22; financial compatibility remains

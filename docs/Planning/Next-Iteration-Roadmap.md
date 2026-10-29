@@ -138,6 +138,20 @@ a new financial workflow as a UI task. Cached screensaver images are not offline
 
 ## Long-term POS product design principles
 
+[POS UX7 — terminal setup and peripheral diagnostics](../Deployment/POS-UX7-Terminal-Setup.md)
+adds one staff setup overview, explicit read-only reachability/device discovery, navigation
+to existing tests and a sanitized support snapshot. It preserves input/printing/scanning
+defaults and separates configuration/detection from actual hardware/UAT observations.
+Physical scanner/printer/displays, saved PDF, phone and long-lock acceptance remain pending.
+
+[POS UX6](../Deployment/POS-UX6-Barcode-Scanning.md) adds Catalog-owned versioned branch
+barcodes, organization-wide product uniqueness, staff management and scan entry that defaults
+off on startup. Its running-window opt-in may remain checked across lock/sign-out, while
+input/pending lookup clears. Live lookup reuses original cart/pricing guards; supported scanner text/Enter
+cannot approve POS-owned confirmations. Model/interface/layout/suffix and actual operator/
+physical acceptance remain pending. Drawer, weighted/GS1, vendor protocols, offline lookup
+and card authentication remain separate future slices.
+
 [POS UX5 — printer setup and 80 mm receipts](../Deployment/POS-UX5-Receipt-Printing.md)
 adds saved Windows queues, optional roll layout and labelled synthetic test output.
 Read-only sales/refund reprints retain live authorization and payment custody. Actual PDF

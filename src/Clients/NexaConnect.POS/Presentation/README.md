@@ -1,5 +1,16 @@
 # POS presentation
 
+UX7's [Diagnostics component](../Diagnostics/README.md) supplies the staff-only setup
+overview with wrapped/scrolling status rows and navigation-only shortcuts. Detection is
+not physical acceptance; generation fences and the existing privacy surface mask/clear
+results. Only typed sanitized facts enter explicit support exports; customer projection
+and financial commands remain unchanged. See [UX7](../../../../docs/Deployment/POS-UX7-Terminal-Setup.md).
+
+UX6's adjacent Scanning component supplies pure input/context/repeat policies and a
+protected WPF confirmation. MainWindow.Scanning owns explicit scan entry for the running window,
+live lookup fences and privacy clearing. Existing cart and service authority remain
+separate. See [UX6](../../../../docs/Deployment/POS-UX6-Barcode-Scanning.md).
+
 UX5 receipt pages live in the adjacent [Printing component](../Printing/README.md), with
 Standard/80 mm formatting independent of staff density. Staff preview/test/settings clear
 or hide at privacy transitions and never enter customer projection or financial commands.

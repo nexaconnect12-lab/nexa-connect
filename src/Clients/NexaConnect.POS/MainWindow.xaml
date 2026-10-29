@@ -54,10 +54,20 @@
                 <Button DockPanel.Dock="Right" Content="Clear filters" Click="ClearMenuSearch_Click" Margin="8,4,0,14" />
                 <TextBox x:Name="MenuSearchTextBox" AutomationProperties.Name="Search menu" ToolTip="Search menu by name" TextChanged="MenuFilter_Changed" />
               </DockPanel>
-              <DockPanel Grid.Row="2">
+              <StackPanel Grid.Row="2">
+              <DockPanel>
                 <TextBlock Text="Station" Margin="0,16,12,0" />
                 <ComboBox x:Name="StationComboBox" SelectionChanged="StationFilter_Changed" AutomationProperties.Name="Preparation station filter" />
               </DockPanel>
+                <CheckBox x:Name="ScanModeCheckBox" Content="Enable barcode scan entry (this session)" Checked="ScanMode_Changed" Unchecked="ScanMode_Changed" AutomationProperties.Name="Enable barcode scan entry" />
+                <StackPanel x:Name="BarcodeScanPanel" Visibility="Collapsed">
+                  <DockPanel>
+                    <Button x:Name="AddBarcodeButton" DockPanel.Dock="Right" Content="Add barcode" Click="ScanBarcode_Click" IsEnabled="False" />
+                    <TextBox x:Name="BarcodeScanTextBox" MaxLength="65" IsEnabled="False" PreviewKeyDown="BarcodeScan_KeyDown" AutomationProperties.Name="Product barcode scan entry" ToolTip="Focus here; scan a supported product code ending with Enter, or type it and choose Add barcode." />
+                  </DockPanel>
+                  <TextBlock x:Name="BarcodeScanStatus" Text="Scanner input is optional. Focus the barcode field before scanning." TextWrapping="Wrap" Foreground="#52655A" />
+                </StackPanel>
+              </StackPanel>
               <Grid Grid.Row="3">
                 <ListBox x:Name="MenuList" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                   <ListBox.ItemsPanel>
@@ -388,6 +398,27 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
           <Border Style="{StaticResource Card}" Margin="0,16,0,0">
             <StackPanel>
+              <StackPanel x:Name="TerminalSetupControls" Margin="0,0,0,24">
+                <TextBlock Text="Terminal setup overview" Style="{StaticResource Heading}" />
+                <TextBlock Text="Configured is a setting; Detected is a last-check response. Untested and Unavailable require follow-up. Peripheral detection does not certify actual output or safe hardware use." TextWrapping="Wrap" Margin="0,0,0,8" />
+                <WrapPanel>
+                  <Button Content="Refresh setup &amp; services" Click="RefreshTerminalSetup_Click" />
+                  <Button Content="Input settings" Click="OpenInputSetup_Click" />
+                  <Button Content="Display setup" Click="OpenDisplaySetup_Click" />
+                  <Button Content="Printer setup / test receipt" Click="OpenPrinterSetup_Click" />
+                  <Button Content="Barcode setup / test" Click="OpenScannerSetup_Click" />
+                  <Button Content="Export support report" Click="ExportTerminalSupport_Click" />
+                </WrapPanel>
+                <TextBlock x:Name="TerminalSetupStatus" Text="Run explicit checks to refresh detection. Hardware acceptance remains untested." TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" Margin="0,8" />
+                <ItemsControl x:Name="TerminalSetupList">
+                  <ItemsControl.ItemTemplate><DataTemplate>
+                    <Border BorderBrush="#D3DDD6" BorderThickness="0,0,0,1" Padding="0,8">
+                      <StackPanel><WrapPanel><TextBlock Text="{Binding Area}" FontWeight="SemiBold" Margin="0,0,12,0" /><TextBlock Text="{Binding Status}" FontWeight="SemiBold" /></WrapPanel>
+                        <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" /></StackPanel>
+                    </Border>
+                  </DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
               <TextBlock Text="Input settings" Style="{StaticResource Heading}" />
               <CheckBox x:Name="TouchFirstCheckBox" Content="Enable touch-first POS" Checked="TouchFirst_Changed" Unchecked="TouchFirst_Changed" AutomationProperties.Name="Enable touch-first POS" />
               <TextBlock Text="Optional. Default is keyboard and mouse operation. Changes apply immediately and are saved for this terminal and Windows user." TextWrapping="Wrap" Foreground="#52655A" Margin="0,4,0,8" />

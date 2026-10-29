@@ -1,5 +1,15 @@
 # Catalog Service
 
+UX6 adds migration 5 and customer barcode read/write/lookup routes. Domain owns code,
+collision and version rules; Infrastructure commits tenant-wide registry, branch binding,
+immutable detailed audit and generic audit outbox under one tenant-serialized transaction.
+Existing live branch menu.read/write applies; workload bypass is absent. Same-product
+cross-branch sharing is allowed, foreign-product collisions fail, and clearing releases
+only unused codes. In-memory mode is non-durable. No financial/guest contract changes.
+See [API and safe correlation queries](../../../docs/API/Product-Barcodes.md),
+[schema/grants/rollback](../../../docs/Database/Product-Barcodes.md) and
+[deployment/tests](../../../docs/Deployment/POS-UX6-Barcode-Scanning.md).
+
 QR2 adds private `/api/catalog/v1/internal/organizations/{organization}/branches/{branch}/guest-menu`
 for exact `nexaconnect-order-service` workload only. Application projects the owning menu,
 bounded to 200 items, 200 characters/name and 64 characters/station; Infrastructure uses organization+branch parameters

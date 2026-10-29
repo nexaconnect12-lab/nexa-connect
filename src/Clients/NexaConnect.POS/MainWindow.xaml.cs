@@ -62,7 +62,8 @@ public partial class MainWindow : Window
         PosUiPreferences? uiPreferences = null,
         ReceiptPrinterPreferences? receiptPrinterPreferences = null,
         IReceiptPrintDriver? printDriver = null,
-        Func<Task<string[]>>? discoverPrinters = null)
+        Func<Task<string[]>>? discoverPrinters = null,
+        PosTerminalDiagnostics? diagnostics = null)
     {
         InitializeComponent();
 
@@ -76,7 +77,10 @@ public partial class MainWindow : Window
         printerPreferences = receiptPrinterPreferences ?? ReceiptPrinterPreferences.ForTerminal(configuration);
         receiptPrintDriver = printDriver ?? new WindowsReceiptPrintDriver();
         printerDiscovery = discoverPrinters ?? (() => Task.Run(WindowsReceiptPrintDriver.Printers));
+        terminalDiagnostics = diagnostics ?? new PosTerminalDiagnostics(configuration);
+        terminalServiceChecks = terminalDiagnostics.Initial();
         InitializePrinting();
+        InitializeScanning();
         try { ReceiptOrderIdTextBox.Text = _localStore.LoadLastReceipt()?.OrderId.ToString("D") ?? ""; }
         catch (Exception) { ReceiptStatusText.Text = "Last receipt reference unavailable; enter the paid order ID."; }
         pendingRefund = _localStore.LoadPendingRefund();
@@ -498,15 +502,20 @@ public partial class MainWindow : Window
 
     private void AddMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        if (!CanEditCart() || sender is not Button { DataContext: PosMenuItem item } || !item.Available) return;
+        if (sender is Button { DataContext: PosMenuItem item }) TryAddMenuItem(item);
+    }
+    private bool TryAddMenuItem(PosMenuItem item)
+    {
+        if (!CanEditCart() || !item.Available) return false;
         if (!CashierPresentation.MatchesCurrency(item.Currency, _configuration.Currency))
         {
             StatusText.Text = "This item's currency differs from the terminal currency. Ask your manager to check the menu and terminal setup.";
-            return;
+            return false;
         }
         var existing = cart.FirstOrDefault(line => line.ProductId == item.ProductId);
-        if (existing is null) cart.Add(new CartLine(item)); else if (existing.Quantity < int.MaxValue) existing.Quantity++;
+        if (existing is null) cart.Add(new CartLine(item)); else if (existing.Quantity < int.MaxValue) existing.Quantity++; else return false;
         RefreshCart();
+        return true;
     }
 
     private void IncreaseQuantity_Click(object sender, RoutedEventArgs e)
@@ -651,10 +660,10 @@ public partial class MainWindow : Window
         }
         finally { CardTokenBox.Clear(); UpdateOperationalState(); }
     }
-    private bool ConfirmQuote(PosOrderQuote quote) => MessageBox.Show(this,
+    private bool ConfirmQuote(PosOrderQuote quote) => ConfirmStaffAction(
         string.Join("\n", quote.Lines.Select(l => $"{l.Quantity} × {l.Name} @ THB {l.UnitPrice:N2}"))
         + "\n\n" + quote.Pricing.Summary + "\n\nConfirm this bill and send to the kitchen?",
-        "Confirm order pricing", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+        "Confirm order pricing");
 
     private void CardToken_Changed(object sender, RoutedEventArgs e)
     {
@@ -685,10 +694,10 @@ public partial class MainWindow : Window
             StatusText.Text = "Verify the PromptPay receipt and enter its reference before marking the order Paid.";
             return;
         }
-        if (MessageBox.Show(this,
+        if (!ConfirmStaffAction(
                 settlementUncertain ? "Verify the previous payment attempt? Do not collect payment again."
                 : $"Confirm {currentOrder.Currency} {currentOrder.TotalAmount:N2} received by {(method == "cash" ? "cash" : "PromptPay")}?",
-                "Confirm payment", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                "Confirm payment")) return;
 
         settlementInFlight = true;
         SetBusy(settlementUncertain ? "Verifying the previous payment attempt…" : "Confirming payment…");
@@ -753,10 +762,10 @@ public partial class MainWindow : Window
         string reason = savedSettlement?.CancellationReason ?? CancellationReasonTextBox.Text.Trim();
         if (reason.Length is < 1 or > 200 || reason.Any(char.IsControl))
         { StatusText.Text = "Enter a cancellation reason of 1-200 printable characters."; return; }
-        if (MessageBox.Show(this, cancellationStatus == "pending"
+        if (!ConfirmStaffAction(cancellationStatus == "pending"
                 ? "Verify the original cancellation request?"
                 : "Cancel this unpaid order and withdraw it from Kitchen?",
-            "Confirm cancellation", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            "Confirm cancellation")) return;
         if (savedSettlement is null)
         {
             StatusText.Text = "Pending settlement recovery is missing. Preserve local state and reconcile; do not collect payment.";
@@ -987,8 +996,8 @@ public partial class MainWindow : Window
         string action = pendingCashReviewAttempt is null
             ? decision == "approve" ? "approve this variance" : "mark this variance for investigation"
             : "verify the saved decision using its original identity and values";
-        if (MessageBox.Show($"Confirm that you want to {action}. The reason and your identity will be retained.",
-                "Confirm cash review", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK)
+        if (!ConfirmStaffAction($"Confirm that you want to {action}. The reason and your identity will be retained.",
+                "Confirm cash review",true))
             return;
 
         try
@@ -1168,6 +1177,8 @@ public partial class MainWindow : Window
         displayedRefundReceipt = null;
         PrintRefundButton.IsEnabled = false;
         displayedPrintContent = null;
+        ClearSetupDiagnostics();
+        ClearBarcodeInput();
         TestReceiptPreview.Document = null;
     }
 
@@ -1337,6 +1348,7 @@ public partial class MainWindow : Window
 
     private void SetBusy(string message)
     {
+        if (!barcodeReading) ClearBarcodeInput();
         HideTouchInput();
         busy = true;
         ResumeButton.IsEnabled = false;
@@ -1425,6 +1437,8 @@ public partial class MainWindow : Window
             (pendingCashReviewAttempt is null || pendingCashReviewAttempt.Decision == "approve");
         CashReviewReasonTextBox.IsEnabled = canResolveCashReview && pendingCashReviewAttempt is null;
         MenuList.IsEnabled = CanEditCart();
+        UpdateScanControls();
+        RenderTerminalOverview();
         CartList.IsEnabled = CanEditCart();
         UpdateTenderControls();
         RefreshMenuFilter();
@@ -1699,6 +1713,7 @@ public partial class MainWindow : Window
         sessionTimer.Tick -= SessionTimer_Tick;
         _authentication.StatusChanged -= OnStatusChanged;
         _api.Dispose();
+        terminalDiagnostics.Dispose();
         displays?.Dispose();
         base.OnClosed(e);
     }

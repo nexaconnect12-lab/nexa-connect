@@ -1,5 +1,20 @@
 # NexaConnect Project Architecture
 
+POS UX7 projects client settings and explicit Windows/HTTP observations into a staff-only
+setup overview. An independent credential-free, redirect-disabled header-only client checks
+reachability without business reads/commands. Explicit bounded support export allow-lists
+versions, flags, counts and status/timestamps, excluding identities/endpoints/operational
+data. No backend, schema, authorization or customer-projection changes. See
+[UX7](../../docs/Deployment/POS-UX7-Terminal-Setup.md) and
+[report contract](../../docs/API/POS-Terminal-Diagnostics.md).
+
+POS UX6 adds Catalog-owned organization barcode registry, versioned branch bindings and
+immutable audit (migration 5), with Domain collision/CAS rules and transactional audit outbox.
+Staff BFF derives tenant/CSRF; native optional dedicated scan entry uses live branch menu
+lookups and protected confirmations. No financial command or offline authority is added.
+See [ADR-052](../../docs/Architecture/Decisions/ADR-052-product-barcodes-and-scanner-entry.md)
+and [UX6 deployment/tests](../../docs/Deployment/POS-UX6-Barcode-Scanning.md).
+
 POS UX5 adds client-owned printer preferences, Standard/80 mm WPF receipt layout and a
 read-only print workflow with live owning-service reload before/after the Windows dialog.
 Separate bounded local preferences do not change input, recovery or backend schemas.
@@ -621,7 +636,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned migrations exist for all 13 service databases and currently define 209 tables with service-owned indexes and constraints. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. Customer version 2 adds append-only audit that excludes profile fields while its version-1 outbox remains authoritative. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned migrations exist for all 13 service databases and currently define 212 tables with service-owned indexes and constraints. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. Customer version 2 adds append-only audit that excludes profile fields while its version-1 outbox remains authoritative. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Rules:
 

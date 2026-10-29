@@ -161,6 +161,10 @@ builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICus
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerCashCorrection>();
 builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerCashCorrectionPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerCashCorrectionPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Gallery.CustomerGalleryService>();
+builder.Services.AddScoped<CustomerBarcodeService>();
+builder.Services.AddScoped<ICustomerBarcodePort,HttpCustomerBarcodePort>();
+builder.Services.AddHttpClient("BarcodeCatalog",client=>{client.BaseAddress=new Uri(builder.Configuration["Services:Catalog"]??throw new InvalidOperationException("Services:Catalog is required."));client.Timeout=TimeSpan.FromSeconds(15);})
+    .ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Gallery.ICustomerGalleryPort,NexaConnect.CustomerBff.Infrastructure.Gallery.HttpCustomerGalleryPort>();
 var app = builder.Build();
 // Gallery reuses named clients with shared correlation propagation and the Customer session.

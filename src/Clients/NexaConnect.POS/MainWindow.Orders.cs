@@ -30,6 +30,8 @@ public partial class MainWindow
     {
         if (!viewInitialized || !ReferenceEquals(e.Source, WorkspaceTabs)) return;
         HideTouchInput();
+        ClearBarcodeInput();
+        UpdateScanControls();
         RenderWorkflow();
         if (OrdersTab.IsSelected) await LoadOrdersAsync(null);
         else ClearOrderList();

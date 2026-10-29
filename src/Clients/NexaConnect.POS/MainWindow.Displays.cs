@@ -30,6 +30,7 @@ public partial class MainWindow
         try
         {
             var monitors = displayPlatform.Read();
+            RecordDisplayDiscovery(monitors.Count);
             StaffDisplayPicker.ItemsSource = monitors;
             CustomerDisplayPicker.ItemsSource = monitors;
             StaffDisplayPicker.SelectedIndex = CustomerDisplayPicker.SelectedIndex = -1;
@@ -37,7 +38,8 @@ public partial class MainWindow
                 ? "Customer display active. Refreshing this list does not reassign windows."
                 : "Single-screen staff mode. Select two distinct extended-desktop displays to enable the customer view. Assignments reset on restart.";
         }
-        catch { DisplayStatusText.Text = "Displays could not be read. Customer display remains unavailable."; }
+        catch { RecordDisplayDiscovery(null); DisplayStatusText.Text = "Displays could not be read. Customer display remains unavailable."; }
+        RenderTerminalOverview();
     }
 
     private void ApplyDisplays_Click(object sender, RoutedEventArgs e)
@@ -45,9 +47,9 @@ public partial class MainWindow
         if (busy || !IsSignedIn() || displaySafetyBlocked) return;
         if (StaffDisplayPicker.SelectedItem is not PosMonitor staff || CustomerDisplayPicker.SelectedItem is not PosMonitor customer)
         { DisplayStatusText.Text = "Select the staff and customer displays explicitly."; return; }
-        if (MessageBox.Show(this,
+        if (!ConfirmStaffAction(
             "Confirm the selected staff screen is private and Windows is using Extend, not Duplicate. The customer screen must not be used to authenticate or operate staff controls.",
-            "Assign display roles", MessageBoxButton.OKCancel, MessageBoxImage.Information) != MessageBoxResult.OK) return;
+            "Assign display roles",true)) return;
         if (busy || !IsSignedIn() || displaySafetyBlocked) return;
         PublishCustomerDisplay();
         try
@@ -57,6 +59,7 @@ public partial class MainWindow
                 : "Assignment refused. Use two distinct, non-overlapping extended-desktop displays. Check resolution/DPI and restart if the safety screen is shown.";
         }
         catch { DisplayStatusText.Text = "Display assignment unavailable. Continue on the staff screen."; }
+        RenderTerminalOverview();
     }
 
     private void DisableCustomerDisplay_Click(object sender, RoutedEventArgs e)
@@ -64,6 +67,7 @@ public partial class MainWindow
         if (busy || !IsSignedIn() || displaySafetyBlocked) return;
         displays?.Disable();
         DisplayStatusText.Text = "Customer display closed and cleared. Continue in single-screen staff mode.";
+        RenderTerminalOverview();
     }
 
     private void PublishCustomerDisplay()

@@ -108,6 +108,7 @@ public partial class MainWindow
             updatingInputMode = true;
             try { TouchFirstCheckBox.IsChecked = touchFirst; }
             finally { updatingInputMode = false; }
+            RenderTerminalOverview();
         }
     }
 

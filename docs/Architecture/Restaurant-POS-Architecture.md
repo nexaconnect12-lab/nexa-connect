@@ -1,5 +1,18 @@
 # NexaConnect Restaurant POS Architecture
 
+POS UX7's staff setup overview and support export are observational client functions.
+Anonymous HTTP/device detection cannot certify branch authorization, schema, physical
+hardware or financial readiness. Existing order/payment/shift/recovery ownership and
+customer display remain unchanged. See [UX7](../Deployment/POS-UX7-Terminal-Setup.md).
+
+POS UX6 resolves Catalog-owned barcodes against the live authorized branch menu and adds
+one item only to an editable native cart. It retains authoritative quote/placement/payment,
+existing customer projection and original pending-work fences. Barcode metadata is not
+inventory reservation, Kitchen dispatch or offline checkout. Protected confirmations in
+optional scanner mode consume supported scanner text/Enter. See
+[ADR-052](Decisions/ADR-052-product-barcodes-and-scanner-entry.md) and
+[UX6](../Deployment/POS-UX6-Barcode-Scanning.md).
+
 POS UX5 refines ordinary receipt presentation with saved Windows queue selection and an
 optional 80 mm layout. Order/Payment remain authoritative: reprints use existing live reads
 before and after the print dialog and cannot create sales, refunds or drawer movements.

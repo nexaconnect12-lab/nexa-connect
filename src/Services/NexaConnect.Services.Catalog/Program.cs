@@ -14,6 +14,8 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<NexaConnect.Services.Catalog.Application.Barcodes.BarcodeApplication>();
 builder.Services.AddScoped<NexaConnect.Services.Catalog.Application.Menu.GuestMenuRead>();
 builder.Services.AddMemoryCache();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -25,9 +27,10 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     var dataSource = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("Catalog") ?? throw new InvalidOperationException("ConnectionStrings:Catalog is required.")).Build();
     builder.Services.AddSingleton(dataSource);
     builder.Services.AddSingleton<IMenuCatalog, PostgresMenuCatalog>();
+    builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.Barcodes.IBarcodeRepository,PostgresBarcodeRepository>();
     if (builder.Configuration.GetValue<bool>("Outbox:Enabled")) builder.Services.AddPostgresOutbox(builder.Configuration, "Catalog");
 }
-else builder.Services.AddSingleton<IMenuCatalog, InMemoryMenuCatalog>();
+else { builder.Services.AddSingleton<IMenuCatalog, InMemoryMenuCatalog>(); builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.Barcodes.IBarcodeRepository,InMemoryBarcodeRepository>(); }
 builder.Services.AddHttpClient<ICatalogTenantAuthorizer, HttpOrganizationAccessChecker>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"]
