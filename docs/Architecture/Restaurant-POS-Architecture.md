@@ -1,5 +1,10 @@
 # NexaConnect Restaurant POS Architecture
 
+UX8D separates history-only server enablement from opening authority: bounded own-cashier
+list/review can run with `HistoryEnabled=true` and `Enabled=false`, preserving all live
+read authorization and disabled native hardware. Matched pilot activation and operator
+acceptance are separate from source verification. See [rollout](../Deployment/POS-UX8D-Pilot-Acceptance.md).
+
 UX8C adds authorized original-cashier terminal history/read-only review across closed custody. POS25 is index-only (compatibility0.40.0); no money, cash movement or original intent/outcome is changed. Native lookup metadata is DPAPI protected and legacy rows remain consumed without invented IDs. Viewing cannot grant/open/reset/retry a drawer. See [ADR-057](Decisions/ADR-057-drawer-history-review.md) and [review](../Deployment/POS-UX8C-Drawer-History.md).
 
 Restaurant owns the branch-approved manual PromptPay asset selection through versioned configuration and transactional audit/outbox; Media owns safe static PNG bytes. No payment authority moves into image delivery. POS proof belongs to the original cashier/order/shift; uncertain settlement reuses its entire saved intent. Approval shares branch concurrency_version with other configuration and can invalidate quotes. See [ADR-054](Decisions/ADR-054-branch-promptpay-qr.md).

@@ -8,7 +8,7 @@ using NexaConnect.Services.POS.Application.Shifts;
 using NexaConnect.Services.POS.Domain.Drawers;
 namespace NexaConnect.Services.POS.Controllers;
 
-public sealed class DrawerIntentOptions {public bool Enabled{get;set;}}
+public sealed class DrawerIntentOptions {public bool Enabled{get;set;}public bool HistoryEnabled{get;set;}}
 [ApiController,Authorize,ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
 [Route("api/pos/v1/customer/organizations/{organizationId:guid}/drawer-intents")]
 public sealed class DrawerIntentsController(DrawerIntents application,IOptions<DrawerIntentOptions> options,ILogger<DrawerIntentsController> logger):ControllerBase

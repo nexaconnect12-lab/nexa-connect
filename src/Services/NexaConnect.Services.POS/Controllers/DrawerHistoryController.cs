@@ -22,7 +22,7 @@ public sealed class DrawerHistoryController(DrawerHistoryReader application,IOpt
     {
         var subject=User.FindFirst("sub")?.Value;
         if(subject is null||!AuthenticationHeaderValue.TryParse(Request.Headers.Authorization,out var bearer)||!bearer.Scheme.Equals("Bearer",StringComparison.OrdinalIgnoreCase)||string.IsNullOrWhiteSpace(bearer.Parameter))return Unauthorized();
-        if(!options.Value.Enabled)return StatusCode(503,new{code="drawer_authority_disabled"});
+        if(!options.Value.Enabled&&!options.Value.HistoryEnabled)return StatusCode(503,new{code="drawer_authority_disabled"});
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(ct);deadline.CancelAfter(TimeSpan.FromSeconds(15));
         try{return await action(new(subject,bearer.Parameter),deadline.Token);}
         catch(ArgumentException){return BadRequest();}

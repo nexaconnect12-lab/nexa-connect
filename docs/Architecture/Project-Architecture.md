@@ -1,8 +1,16 @@
 # NexaConnect Project Architecture
 
+## Installed POS acceptance (UX9)
+
+[UX9](../Deployment/POS-UX9-Acceptance.md) adds local operational tooling rather than application behavior. Installed manifest/configuration, live owned process/listener and backend inventories, scope/profile and configured QR files bind a seventeen-case operator pack. Sequential observations/defects are locally protected; resolution resets the case for retest. Export uses an explicit allowlist. Installed-release observations can be historical and never grant current-source, QR9, public release or production readiness. Automated unit/HTTP/WPF regressions produce separate source-bound receipts without retained business or device operations. Existing API/domain/persistence/identity boundaries and schemas are unchanged.
+
+## History-only pilot rollout (UX8D)
+
+[UX8D](../Deployment/POS-UX8D-Pilot-Acceptance.md) adds independent default-off `DrawerIntents:HistoryEnabled` for list/selected review while `Enabled` continues to gate authority/outcome/legacy reads. Existing authorization, bounded adapters and correlated observability are unchanged. Local lifecycle opt-in requires stopped, build-enabled Start and persists only the Boolean; POS alone receives history enablement and explicit disabled authority. No new schema/grant or device/financial mutation. Matched packages and retained-state checks precede separate operator acceptance.
+
 ## Read-only drawer history (UX8C)
 
-[ADR-057](Decisions/ADR-057-drawer-history-review.md) adds scoped own-actor list/selected review to POS with pre/post hierarchy, permission and terminal-relationship checks. POS25 indexes actor/terminal/time/operation without new server tables or grants. Bounded keyset windows/cursors are context, never credentials. Native row selection replaces UUID entry; future local reservations add current-user DPAPI lookup context atomically, while reads neither create nor backfill state. Server authorization precedes local loading, with no offline denial/outage fallback. Scope/session/privacy fences clear late responses. Local/server observations are distinct; no opening/reset/renewal/outcome/payment write. Hardware/pilot activation stays deferred. See [flow and limits](../Deployment/POS-UX8C-Drawer-History.md).
+[ADR-057](Decisions/ADR-057-drawer-history-review.md) adds scoped own-actor list/selected review to POS with pre/post hierarchy, permission and terminal-relationship checks. POS25 indexes actor/terminal/time/operation without new server tables or grants. Bounded keyset windows/cursors are context, never credentials. Native row selection replaces UUID entry; future local reservations add current-user DPAPI lookup context atomically, while reads neither create nor backfill state. Server authorization precedes local loading, with no offline denial/outage fallback. Scope/session/privacy fences clear late responses. Local/server observations are distinct; no opening/reset/renewal/outcome/payment write. UX8D installed matching history-only software/migrations; hardware activation and operator acceptance stay deferred. See [flow and limits](../Deployment/POS-UX8C-Drawer-History.md).
 
 ## Branch-approved manual PromptPay QR
 

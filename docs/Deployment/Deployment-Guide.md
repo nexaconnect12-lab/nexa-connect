@@ -1,5 +1,7 @@
 # Deployment Guide
 
+For history-only local POS rollout, use [UX8D](POS-UX8D-Pilot-Acceptance.md). `first-draft-stack.ps1 -Action Start -EnableDrawerHistory` requires stopped services/builds and persists a Boolean; only POS receives `DrawerIntents__HistoryEnabled=true`, with `DrawerIntents__Enabled=false`. Other profiles remain unchanged; match POS25/Authorization16 and explicit compatibility0.40.0.
+
 Deploy UX6 barcode routes with **Catalog 5** and matching Customer BFF/portal/POS. Existing
 service URLs and branch menu.read/write permissions remain; scanner entry defaults off
 per session and adds no secret or device driver. History blocks barcode downgrade; use

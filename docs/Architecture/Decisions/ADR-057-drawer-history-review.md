@@ -26,6 +26,11 @@ physical proof or financial mutation. Production driver remains disabled.
 
 ## Consequences
 
+UX8D subsequently separates default-off `DrawerIntents:HistoryEnabled` for list/selected
+review from `Enabled`, which continues to gate reserve/outcome/legacy reads and also admits
+history. History-only rollout keeps every live authorization check and cannot enable commands.
+See [pilot rollout](../../Deployment/POS-UX8D-Pilot-Acceptance.md).
+
 POS25 adds one history index and compatibility0.40.0, no server table or grant. Native context
 is an additive side table for future attempts, not a financial-schema change. Preserve it and
 Windows-user keys. Older opaque local rows may be individually unrecoverable; authorized

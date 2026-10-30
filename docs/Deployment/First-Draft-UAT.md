@@ -1,5 +1,7 @@
 # First-draft acceptance and handover (slice 7)
 
+The later [POS UX9 pack](POS-UX9-Acceptance.md) separately covers installed dual displays, gallery, barcode, Omise sandbox, drawer-history privacy and recovery/operator checks. It neither replaces this sixteen-case release-bound UAT nor grants fresh-source/QR9/public release readiness. Existing commands and requirements below are unchanged.
+
 Use one Windows PC, Microsoft Print to PDF, synthetic THB transactions and
 `Asia/Singapore`. One person tests four separate identities. This guide and the local
 recording tool support acceptance; actual Windows/PDF and next-day observations are

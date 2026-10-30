@@ -5,8 +5,9 @@
 Implemented in source. This adds authorized server history, protected lookup metadata for
 future local attempts and staff review without UUID entry. It never opens a drawer, renews,
 resets or retries an intent, reports an outcome or changes payment. Production still uses
-DisabledDrawerDriver. The retained pilot has not been migrated/restarted or installed for
-this slice. Real hardware and physical acceptance remain pending.
+DisabledDrawerDriver. Subsequent [UX8D](POS-UX8D-Pilot-Acceptance.md) installed the matching
+history-only pilot and POS25 / Authorization16 on 30 October 2026. Signed-in operator,
+financial/device and physical acceptance remain pending.
 
 1. Sign in as the original cashier. Open **Terminal & sync → Cash drawer → Drawer attempt
    history — read only**. An open shift/cash session or physical driver is not required.
@@ -52,8 +53,11 @@ Every displayed status remains an observation, never physical proof or an openin
 
 Apply **POS25**, minimum application compatibility **0.40.0**, with matching service/native
 binaries. The migration launcher still defaults to0.38.0; explicitly select0.40.0. POS25 adds
-one index, no server table/permission. Authorization16 and default-off `DrawerIntents:Enabled`
-remain applicable. Populated25→24→25 index-only rollback preserves all intent/outcome/audit.
+one index, no server table/permission. Authorization16 remains applicable. Subsequent UX8D
+permits list/selected review under default-off `DrawerIntents:HistoryEnabled` or existing
+`DrawerIntents:Enabled`; only the latter enables command/legacy-read routes. Use the
+[history-only pilot rollout](POS-UX8D-Pilot-Acceptance.md) to retain disabled opening authority.
+Populated25→24→25 index-only rollback preserves all intent/outcome/audit.
 
 The native lazy `drawer-intents.db` preserves existing hash-based deduplication. Future factory
 reservations atomically add `drawer_history_context`: hashed issuer/full-scope/actor lookup plus

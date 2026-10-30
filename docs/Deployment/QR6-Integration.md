@@ -1,5 +1,7 @@
 # QR6 — integrated verification and phone-test candidate
 
+UX8D requires `drawer-profile-guards` and at least91 HTTP cases in a fresh candidate. See [history-only pilot activation](POS-UX8D-Pilot-Acceptance.md). Previous receipts remain historical.
+
 UX8C raises required coverage to1332unit/90HTTP and four drawer-owning cases, including history scope/pagination/read-only behavior and index downgrade/reapply. Windows checks include selection without UUID, unchanged journal/device state and stale-result clearing. POS25 is in the schema inventory. Fresh candidate evidence is required; physical/pilot acceptance is not implied. See [UX8C](POS-UX8C-Drawer-History.md).
 
 UX8B software preparation raises the unit minimum to1312 and extends the Windows fixture to default-disabled drawer controls, guarded cash-only coordination, replay/session fences and device failure without financial recovery changes. Existing HTTP/schema/owning gates remain required. Native tests use fake hardware only; physical UX8B and pilot activation remain separate. See [scope](POS-UX8B-Native-Drawer.md).

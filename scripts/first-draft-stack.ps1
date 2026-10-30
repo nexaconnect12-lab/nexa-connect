@@ -11,17 +11,20 @@ param(
     [switch]$EnableMedia,
     [switch]$EnableOmiseTestCheckout,
     [switch]$EnableBranchPromptPayQr,
+    [switch]$EnableDrawerHistory,
     [switch]$NoBuild
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
 . (Join-Path $PSScriptRoot 'first-draft-omise-helpers.ps1')
 . (Join-Path $PSScriptRoot 'first-draft-promptpay-helpers.ps1')
+. (Join-Path $PSScriptRoot 'first-draft-drawer-helpers.ps1')
 . (Join-Path $PSScriptRoot 'payment-review-joined-helpers.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $catalog=Get-DraftServiceCatalog $root -IncludeMedia:$EnableMedia
 $compatibility=($catalog.Values | Sort-Object { [version]$_.minimumApplicationVersion })[-1].minimumApplicationVersion
 if($EnableBranchPromptPayQr -and $Action -notin @('Start','Validate')){throw 'Explicit branch PromptPay activation requires Start or Validate.'}
+if($EnableDrawerHistory -and $Action -notin @('Start','Validate')){throw 'Explicit drawer history activation requires Start or Validate.'}
 if($EnableOmiseTestCheckout){
     if($Action -notin @('Start','Validate')){throw 'Explicit Omise activation requires Start or Validate.'}
     Assert-DraftOmiseTestKey $env:NEXACONNECT_OMISE_TEST_SECRET_KEY
@@ -185,6 +188,7 @@ function Set-Configurations {
             foreach($entry in (Get-DraftQrPilotSettings $name $script:state.qrPilotOrigin).GetEnumerator()){$config[$entry.Key]=$entry.Value}
         }
         foreach($entry in (Get-DraftOmiseServiceSettings $name $script:state $script:secrets).GetEnumerator()){$config[$entry.Key]=$entry.Value}
+        foreach($entry in (Get-DraftDrawerServiceSettings $name $script:state).GetEnumerator()){$config[$entry.Key]=$entry.Value}
         $script:configurations[$name]=$config
     }
 }
@@ -274,6 +278,8 @@ if($state.Contains('mediaEnabled') -and $state.mediaEnabled){
 }
 Assert-DraftUrls $state.urls
 [void](Test-DraftBranchPromptPayEnabled $state)
+[void](Test-DraftDrawerHistoryEnabled $state)
+if($EnableDrawerHistory){Enable-DraftDrawerHistory $state $Action ([bool]$NoBuild);Save-State}
 if($EnableBranchPromptPayQr){Enable-DraftBranchPromptPay $state $Action ([bool]$NoBuild);Save-State}
 if((Test-DraftBranchPromptPayEnabled $state) -and (-not $state.Contains('mediaEnabled') -or -not $state.mediaEnabled)){throw 'The enabled branch QR profile requires Media.'}
 if($state.infrastructure.Count){

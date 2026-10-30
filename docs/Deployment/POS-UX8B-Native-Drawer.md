@@ -7,7 +7,8 @@ connection and vendor opening-test details are unavailable. Native coordination,
 HTTP adapter, disabled manual controls and the guarded post-cash-payment hook are implemented
 in source. **Physical UX8B is not complete.** Production constructs only DisabledDrawerDriver;
 there is no enable switch, RAW command, pulse/pin/voltage selection or receipt-queue fallback.
-The retained local pilot has not been restarted, migrated or installed for this preparation.
+This preparation was initially source-only. Subsequent [UX8D](POS-UX8D-Pilot-Acceptance.md)
+installed matching software/migrations with history-only reads; physical opening remains disabled.
 
 The staff Terminal & sync → Cash drawer section shows software prepared/hardware disabled,
 three predefined manual reasons and an unavailable opening action. Printer selection cannot

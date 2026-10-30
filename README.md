@@ -1,6 +1,10 @@
 # NexaConnect
 
-[POS UX8C](docs/Deployment/POS-UX8C-Drawer-History.md) adds authorized own-terminal history and row-based original-record review, with protected restart lookup context for future local attempts. Review cannot open/reset/retry a drawer or change payment; physical hardware and local-pilot activation remain deferred.
+[POS UX9](docs/Deployment/POS-UX9-Acceptance.md) adds isolated regression verification and a seventeen-case installed-release acceptance pack. Operator observations remain separate from source tests and release readiness; no application reinstall or physical driver activation is included.
+
+[POS UX8D](docs/Deployment/POS-UX8D-Pilot-Acceptance.md) adds an opt-in history-only pilot profile and matched-package acceptance procedure. Drawer commands and physical opening remain disabled; installation and operator results are recorded separately.
+
+[POS UX8C](docs/Deployment/POS-UX8C-Drawer-History.md) adds authorized own-terminal history and row-based original-record review, with protected restart lookup context for future local attempts. Review cannot open/reset/retry a drawer or change payment; matching history-only software is installed through UX8D; physical hardware and operator acceptance remain deferred.
 
 [Branch-approved PromptPay PNG](docs/Deployment/POS-Branch-PromptPay-QR.md) adds manager upload/approval in Customer Portal and opt-in native POS delivery. Live branch permissions, short image leases and receipt verification remain mandatory; uncertain original payments retain their saved request. Actual bank-image/payment acceptance is separate.
 

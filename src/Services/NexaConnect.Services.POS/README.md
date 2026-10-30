@@ -1,5 +1,7 @@
 # NexaConnect POS Service
 
+UX8D adds default-off `DrawerIntents:HistoryEnabled` for authorized list and selected review only. Existing `Enabled` still gates reserve/outcome/legacy single reads and also permits history for existing authority profiles. Both default false; no permission bypass or driver activation. See [pilot rollout](../../../docs/Deployment/POS-UX8D-Pilot-Acceptance.md).
+
 UX8C adds GET drawer history and scoped selected review under existing pos.drawer.read/default-off DrawerIntents. Pre/post owning hierarchy/permission/terminal checks and exact subject filters protect every page/missing-record result; closed custody is readable. POS25 adds one bounded-history index, compatibility0.40.0, no table/grant. Shared nexaconnect-pos correlation and fixed Drawer history denial/unavailable events omit bodies/subjects/cursors. See [API](../../../docs/API/Drawer-Intents.md) and [operations/tests](../../../docs/Deployment/POS-UX8C-Drawer-History.md).
 
 UX8A adds default-off DrawerIntents:Enabled, live scoped drawer authority and append-only intent/outcome/audit with transactional pos.audit.v1 outbox. POS24 / Authorization16 (compatibility0.39.0) are required before enabling the routes. Original cashier custody is locked; fresh confirmed cash projection is required for sale reservations. No financial mutation, driver or native payment hook. Service nexaconnect-pos emits safe correlated Drawer intent events. See [API](../../../docs/API/Drawer-Intents.md) and [deployment/tests](../../../docs/Deployment/POS-UX8A-Drawer-Authority.md).

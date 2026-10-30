@@ -9,9 +9,11 @@ disabled manual controls and guarded original-cash-only hook. No device driver i
 the user deferred equipment facts and selected software preparation. See
 [UX8B preparation and remaining activation](POS-UX8B-Native-Drawer.md).
 
-[UX8C](POS-UX8C-Drawer-History.md) subsequently adds source-only authorized own-cashier/terminal
+[UX8C](POS-UX8C-Drawer-History.md) subsequently adds authorized own-cashier/terminal
 history and read-only original-record review. It does not enable physical opening, change
-payment or resolve/reset consumed intents; the retained pilot remains unchanged.
+payment or resolve/reset consumed intents. [UX8D](POS-UX8D-Pilot-Acceptance.md) installed matching
+history-only software/migrations on 30 October 2026; opening authority/hardware and operator
+acceptance remain gated.
 
 ## Equipment facts and prerequisites
 

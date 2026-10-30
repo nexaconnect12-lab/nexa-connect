@@ -6,8 +6,10 @@ UX8A implements the POS-owned server authority and durable intent/audit contract
 Physical opening stays disabled. No native payment hook, manual-open button, driver, RAW
 printer command or automatic retry is enabled. UX8B still requires the exact printer model,
 drawer connection, Windows driver and vendor-supported electrical/command details recorded
-in [UX8](POS-UX8-Cash-Drawer.md). The retained local pilot has not been migrated/restarted
-or installed for UX8A; its existing payments and approved QR configuration are untouched.
+in [UX8](POS-UX8-Cash-Drawer.md). UX8A was initially source-only; subsequent
+[UX8D](POS-UX8D-Pilot-Acceptance.md) installed matching software and migrations with only
+history reads enabled. Opening authority stays disabled; existing protected recovery and
+approved QR configuration are preserved.
 
 ## Implemented boundaries
 

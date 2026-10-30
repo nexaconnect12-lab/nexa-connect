@@ -19,6 +19,16 @@ namespace NexaConnect.IntegrationTests;
 
 public sealed class DrawerIntentBoundaryTests
 {
+ [Fact]public async Task History_only_profile_allows_scoped_reads_but_denies_every_command_route()
+ {
+  var p=new Ports();await using var app=await Host(p,false,true);using var client=app.GetTestClient();Identify(client,"cashier");
+  using var list=await client.GetAsync(HistoryPath(p));Assert.Equal(HttpStatusCode.OK,list.StatusCode);
+  using var review=await client.GetAsync(ReviewPath(p));Assert.Equal(HttpStatusCode.NotFound,review.StatusCode);
+  using var reserve=await client.PostAsJsonAsync(Path(p),p.Input);Assert.Equal(HttpStatusCode.ServiceUnavailable,reserve.StatusCode);
+  using var outcome=await client.PostAsJsonAsync(Path(p)+"/"+p.Input.OperationId+"/outcome",new DrawerOutcomeRequestV1(p.Input.OrganizationId,"unknown"));Assert.Equal(HttpStatusCode.ServiceUnavailable,outcome.StatusCode);
+  using var original=await client.GetAsync(Path(p)+"/"+p.Input.OperationId);Assert.Equal(HttpStatusCode.ServiceUnavailable,original.StatusCode);
+  p.Granted=false;using var denied=await client.GetAsync(HistoryPath(p));Assert.Equal(HttpStatusCode.Forbidden,denied.StatusCode);Assert.Equal(0,p.Reservations);
+ }
  [Theory][InlineData(null,false,401)][InlineData("cashier",false,503)][InlineData("cashier",true,200)]
  public async Task History_list_is_authenticated_default_off_and_read_only(string? subject,bool enabled,int expected)
  {
@@ -80,10 +90,10 @@ public sealed class DrawerIntentBoundaryTests
  }
  private static string Path(Ports p)=>$"/api/pos/v1/customer/organizations/{p.Input.OrganizationId}/drawer-intents";
  private static void Identify(HttpClient c,string? subject){if(subject is not null){c.DefaultRequestHeaders.Authorization=new("Bearer","synthetic");c.DefaultRequestHeaders.Add("X-Test-Subject",subject);}}
- private static async Task<WebApplication> Host(Ports p,bool enabled)
+ private static async Task<WebApplication> Host(Ports p,bool enabled,bool historyEnabled=false)
  {
   var b=WebApplication.CreateBuilder();b.WebHost.UseTestServer();b.Services.AddLogging(l=>l.ClearProviders());b.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions,Identity>("Test",_=>{});b.Services.AddAuthorization();
-  b.Services.AddControllers().AddApplicationPart(typeof(DrawerIntentsController).Assembly);b.Services.Configure<DrawerIntentOptions>(o=>o.Enabled=enabled);
+  b.Services.AddControllers().AddApplicationPart(typeof(DrawerIntentsController).Assembly);b.Services.Configure<DrawerIntentOptions>(o=>{o.Enabled=enabled;o.HistoryEnabled=historyEnabled;});
   b.Services.AddSingleton<IDrawerIntentRepository>(p);b.Services.AddSingleton<IRestaurantScopeReader>(p);b.Services.AddSingleton<IAuthorizationDecisionClient>(p);b.Services.AddScoped<DrawerIntents>();
   b.Services.AddSingleton<IDrawerHistoryRepository>(p);b.Services.AddSingleton(TimeProvider.System);b.Services.AddScoped<DrawerHistoryReader>();
   var app=b.Build();app.UseAuthentication();app.UseAuthorization();app.MapControllers();await app.StartAsync();return app;

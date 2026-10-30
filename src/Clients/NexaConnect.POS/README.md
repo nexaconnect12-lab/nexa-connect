@@ -1,5 +1,9 @@
 # NexaConnect POS
 
+[UX9 acceptance](../../../docs/Deployment/POS-UX9-Acceptance.md) adds `test-pos-acceptance.ps1` for isolated source regressions and `pos-acceptance.ps1` for seventeen installed-target operator cases/defects/retests. No native binaries, authentication policy or physical driver changes. Automated fixture results and real equipment/operator evidence stay separate.
+
+[UX8D pilot rollout](../../../docs/Deployment/POS-UX8D-Pilot-Acceptance.md) documents installation of matching history-capable backend/native packages while preserving scoped recovery/preferences. Native factory remains DisabledDrawerDriver; history-only server opt-in does not enable opening controls. Operator acceptance is separate.
+
 UX8C adds Terminal & sync → Cash drawer → read-only attempt history with recent periods, bounded paging and row-based original lookup. Authorized server reads precede matching protected local context; lock/cashier/period changes and denials clear observations and suppress late responses. Future local reservations capture DPAPI lookup context atomically; existing journal reads create nothing. No device/financial/report/reset call is issued by review. See [use and limits](../../../docs/Deployment/POS-UX8C-Drawer-History.md).
 
 Optional Pos:UseBranchPromptPayQr (default false) reads approved branch PNG through Services:MediaApi. Payment offers Refresh branch QR, 30-second refresh and 60-second in-memory expiry, with no locked/offline image fallback. New receipt proof resets with image/order/tender changes and updates button readiness immediately. Original uncertain manual payment retains its saved request and can verify without an image. See [operator setup](../../../docs/Deployment/POS-Branch-PromptPay-QR.md) and [payment policy](Payments/README.md).

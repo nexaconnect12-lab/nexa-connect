@@ -1,5 +1,11 @@
 # Identity Claims Contract
 
+UX8D separates default-off history-only enablement from drawer command authority. Enabling
+`DrawerIntents:HistoryEnabled` permits only list/selected review with the same live
+`pos.drawer.read`, own-actor and terminal checks; it grants no permission or device capability.
+Reserve/outcome/legacy reads still require `DrawerIntents:Enabled`. See
+[profile and rollout](../Deployment/POS-UX8D-Pilot-Acceptance.md).
+
 UX8C uses existing live pos.drawer.read and authenticated original subject for terminal-scoped history/review; managers receive no delegation to read other cashiers. Scope/permission/terminal relationship are rechecked before/after DB I/O, even when review finds no row. Native history uses current issuer/session identity and clears on privacy changes; local DPAPI metadata is never an authority/capability. No realm client/role/credential/grant added. See [history](../Deployment/POS-UX8C-Drawer-History.md).
 
 UX8B native authority calls require the still-current original token subject/issuer, unlocked/unexpired session and configured terminal scope. Tokens are never stored in the drawer journal, retained for locked refresh or forwarded through guest routes. The server remains the live permission/custody authority; a native flag or reason does not authorize another cashier. See [native integration](../Deployment/POS-UX8B-Native-Drawer.md).

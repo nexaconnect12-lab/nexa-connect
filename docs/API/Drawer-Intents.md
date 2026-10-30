@@ -1,5 +1,7 @@
 # POS drawer intent API
 
+UX8D configuration: list and selected `/review` GETs require `DrawerIntents:Enabled` **or** `DrawerIntents:HistoryEnabled` (both default false). History-only mode preserves every live scoped read check while reserve, outcome and legacy single-record routes still require `Enabled`; those remain503 when it is false. Safe failure codes/correlation telemetry are unchanged. See [rollout](../Deployment/POS-UX8D-Pilot-Acceptance.md).
+
 UX8A adds versioned authenticated no-store routes under
 `/api/pos/v1/customer/organizations/{organizationId}/drawer-intents`. They are default-off
 behind POS `DrawerIntents:Enabled`; no guest route or physical drawer command is added.
@@ -55,7 +57,8 @@ See [setup, verification and debugging](../Deployment/POS-UX8A-Drawer-Authority.
 ## UX8C history contracts
 
 POS25/matching service/native binaries add an index-only history surface under existing
-`pos.drawer.read` and DrawerIntents enablement. List requires exact terminal relationship,
+`pos.drawer.read` and either `DrawerIntents:Enabled` or `DrawerIntents:HistoryEnabled`.
+List requires exact terminal relationship,
 own authenticated actor and a half-open UTC reserved-at window of at most31days. Limit1–50,
 native25; optional opaque keyset cursor is bound to actor/scope/window but is not a credential.
 Every list/review checks live hierarchy/permission/relationship before and after database I/O.

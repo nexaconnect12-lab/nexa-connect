@@ -33,7 +33,7 @@ try{
     $env:NEXACONNECT_ENVIRONMENT='Testing';$env:NEXACONNECT_POS_DPAPI_ACCEPTANCE='1'
     Trx unit 'tests/Unit/NexaConnect.UnitTests' '' 1332
     Trx architecture 'tests/Architecture/NexaConnect.ArchitectureTests' '' 6
-    Trx http 'tests/Integration/NexaConnect.IntegrationTests' 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests|FullyQualifiedName~OrderListBoundaryTests|FullyQualifiedName~MediaAuthenticatedHttpAcceptanceTests|FullyQualifiedName~GalleryReaderBoundaryTests|FullyQualifiedName~BarcodeBoundaryTests|FullyQualifiedName~PromptPayQrBoundaryTests|FullyQualifiedName~CustomerPromptPayQrBoundaryTests|FullyQualifiedName~DrawerIntentBoundaryTests' 90
+    Trx http 'tests/Integration/NexaConnect.IntegrationTests' 'FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests|FullyQualifiedName~OrderListBoundaryTests|FullyQualifiedName~MediaAuthenticatedHttpAcceptanceTests|FullyQualifiedName~GalleryReaderBoundaryTests|FullyQualifiedName~BarcodeBoundaryTests|FullyQualifiedName~PromptPayQrBoundaryTests|FullyQualifiedName~CustomerPromptPayQrBoundaryTests|FullyQualifiedName~DrawerIntentBoundaryTests' 91
     Native hosting node @('--test','--test-reporter=tap','docker/pilot/hosting.test.mjs')
     $checks.hosting.count=CountResult tap (Join-Path $run 'hosting.private.log') 47
     Native candidate-guards node @('--test','--test-reporter=tap','scripts/release/qr6.test.mjs')
@@ -43,6 +43,7 @@ try{
     Native media-profile-guards pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-first-draft-media-guards.ps1'))
     Native omise-profile-guards pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-first-draft-omise-guards.ps1'))
     Native promptpay-profile-guards pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-first-draft-promptpay-guards.ps1'))
+    Native drawer-profile-guards pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-first-draft-drawer-guards.ps1'))
     Native pos-build dotnet @('build','src/Clients/NexaConnect.POS','--no-restore','--verbosity','quiet')
     Native pos-print-layout dotnet @('run','--project','tests/Windows/NexaConnect.PosPrintingTests','--verbosity','quiet')
     Native pos-scanning-fixture dotnet @('run','--project','tests/Windows/NexaConnect.PosTouchTests','--verbosity','quiet')
