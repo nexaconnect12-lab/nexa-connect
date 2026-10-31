@@ -1,5 +1,29 @@
 # Next iteration: phases, checklist and implementation prompts
 
+**UX20 — isolated recovery and access-control verification** adds a source-bound serial
+runner for existing POS/native/HTTP regressions and disposable PostgreSQL/RabbitMQ cashier
+and Order recovery fixtures. Synthetic identities and added native history-outage clearing
+coverage do not pass real operator or Keycloak acceptance. Retained installation and UX19
+case results are preserved. See [UX20](../Deployment/POS-UX20-Isolated-Recovery-Access.md).
+
+UX20 combined run `717a550de1a343e2acf59ce0db775e36` passes the final source-bound diagnostic
+suite with verified disposable cleanup. It corrects stale producer counts and legacy fixture
+schema assumptions; no runtime/schema deployment is required. Installed operator progress
+remains nine passed, six pending and two blocked, separate from automation and real OIDC acceptance.
+
+**UX19 — cashier walkthrough and confirmed-defect fixes** is in progress. The first-batch
+procedure uses the existing UX18/UX9 pack for actual cashier observations; no new tracker or
+application feature is added. Ordinary close/reopen is supplemental lifecycle evidence,
+separate from pending-payment recovery. Operator-confirmed cashier sign-in, idle-lock/resume
+and cash-original-settlement, PDF receipt/reprint, manual PromptPay, Omise sandbox and QR
+cash-collection, QR manual PromptPay collection and print-cancellation recovery passes are
+recorded. Barcode testing is blocked pending the physical scanner/test codes, and dual-display
+testing is blocked until both screens are ready; physical printer output remains separate.
+The first walkthrough batch also has a separate operator-confirmed normal close/reopen result;
+it does not pass pending-payment recovery. Remaining observations and any reproduced-defect
+fixes remain pending.
+See [UX19 walkthrough](../Deployment/POS-UX19-Cashier-Walkthrough.md).
+
 31 October 2026: **UX18 — guided cashier acceptance and targeted hardening** adds a read-only Worklist action to the existing seventeen-case installed pack, with prerequisites, expected results and defect/retest priorities. Guided tooling is delivered; actual cashier/phone/hardware observations and any confirmed-defect corrections remain pending. No POS reinstall or migration is required. See [UX18](../Deployment/POS-UX18-Cashier-Acceptance.md).
 
 31 October 2026: **UX17 — bounded shutdown and lifecycle diagnostics** hardens reproduced UI-blocking disposal/cancellation, isolates cleanup failures, queues display notifications and binds lifetime to the actual staff workspace. Safe bounded local diagnostics support investigation; original cashier/financial recovery is retained. The complete source-bound gate and thirteen isolated shutdown scenarios pass; the matching local pilot is installed with twelve Ready services, preserved data and a responsive POS. A controlled normal startup-authentication close exits in 109 ms with code 0 and reopens with four checked protected files unchanged. Actual operator acceptance remains pending; the historical installed UX15 cause is not claimed as diagnosed. See [UX17](../Deployment/POS-UX17-Shutdown-Diagnostics.md).

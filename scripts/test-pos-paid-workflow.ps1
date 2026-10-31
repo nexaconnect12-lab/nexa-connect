@@ -68,15 +68,19 @@ try {
     [xml] $integrationDocument = Get-Content -LiteralPath $integrationTrx -Raw
     $unitCounters = $unitDocument.TestRun.ResultSummary.Counters
     $integrationCounters = $integrationDocument.TestRun.ResultSummary.Counters
-    if ([int] $unitCounters.total -ne 17 -or [int] $unitCounters.passed -ne 17 -or
-        [int] $integrationCounters.total -ne 3 -or [int] $integrationCounters.passed -ne 3) {
-        throw 'POS Paid evidence is incomplete; expected 17 protected SQLite/recovery and 3 backend cases.'
+    if ([int] $unitCounters.total -lt 18 -or [int] $unitCounters.passed -ne [int] $unitCounters.total -or
+        [int] $unitCounters.executed -ne [int] $unitCounters.total -or [int] $unitCounters.notExecuted -ne 0 -or
+        [int] $integrationCounters.total -ne 3 -or [int] $integrationCounters.passed -ne 3 -or
+        [int] $integrationCounters.executed -ne 3 -or [int] $integrationCounters.notExecuted -ne 0) {
+        throw 'POS Paid evidence is incomplete; expected at least 18 protected SQLite/recovery and all 3 backend cases.'
     }
 
     [ordered]@{
         runId = Split-Path $run -Leaf
         completedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
-        testsPassed = 20
+        testsPassed = [int] $unitCounters.passed + [int] $integrationCounters.passed
+        protectedRecoveryCases = [int] $unitCounters.passed
+        backendCases = [int] $integrationCounters.passed
         localSqliteRecoveryPassed = $true
         protectedStateRecoveryPassed = $true
         postgresProjectionPassed = $true
@@ -87,6 +91,7 @@ try {
         liveOidcVerified = $false
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $run 'evidence.json') -Encoding utf8
     Write-Output "POS Paid workflow acceptance passed. Sanitized evidence retained at '$run'."
+    [pscustomobject]@{ evidenceKind='pos-paid-workflow'; evidencePath=(Join-Path $run 'evidence.json') }
 }
 finally {
     $env:NEXACONNECT_ENVIRONMENT = $previousEnvironment

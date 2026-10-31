@@ -53,12 +53,17 @@ public sealed class OrderMigrationRunnerAcceptanceTests
             await AssertPersistedOwnershipAndOutboxAsync(dataSource);
             await AssertRecoveryClaimFencesForegroundProgressAsync(dataSource);
             await AssertKitchenAcceptedProviderPaymentCanBeClaimedAsync(dataSource);
-            await AssertKitchenAcceptedManualTenderCanSettleAsync(dataSource);
+            await SeedHistoricalReceiptAsync(dataSource);
             await SeedRecoverableOrderAsync(dataSource);
             Assert.NotEqual(0,await RunAsync(scriptsRoot,5,true));
             Assert.True(await ColumnExistsAsync(dataSource,"orders","receipt_snapshot"));
             Assert.NotEqual(0,await RunAsync(scriptsRoot,9,true));
             Assert.True(await ColumnExistsAsync(dataSource,"orders","pricing_snapshot"));
+            // Historical migration/rollback checks above use their original versions. Current
+            // repository behavior additionally requires the QR collection persistence contract.
+            Assert.Equal(0,await RunAsync(scriptsRoot,22));
+            Assert.True(await TableExistsAsync(dataSource,"order_qr_collections"));
+            await AssertKitchenAcceptedManualTenderCanSettleAsync(dataSource);
         }
         finally
         {
@@ -69,7 +74,7 @@ public sealed class OrderMigrationRunnerAcceptanceTests
 
     private static Task<int> RunAsync(string root,int target,bool destructive=false)
     {
-        var args=new List<string>{"--service","Order","--scripts-root",root,"--target",target.ToString(),"--application-version","0.22.0","--confirm"};
+        var args=new List<string>{"--service","Order","--scripts-root",root,"--target",target.ToString(),"--application-version","0.38.0","--confirm"};
         if(destructive)args.AddRange(["--allow-destructive","--backup-verified"]);
         return MigrationApplication.RunAsync(args.ToArray());
     }
@@ -142,6 +147,20 @@ public sealed class OrderMigrationRunnerAcceptanceTests
         order.Submit();
         await new PostgresOrderRepository(source).SaveWithEventAsync(order,new OrderSubmittedV1(Guid.NewGuid(),Guid.NewGuid(),
             DateTimeOffset.UtcNow,order.Id,order.OrganizationId,order.BranchId,[],order.TotalAmount,order.Currency),default);
+    }
+
+    private static async Task SeedHistoricalReceiptAsync(NpgsqlDataSource source)
+    {
+        // Preserve real receipt-history rollback coverage at schema11 independently of
+        // current manual-tender persistence, which additionally requires schema22.
+        var order=OrderAggregate.Create(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),
+            [new OrderLine(Guid.NewGuid(),"Historical receipt fixture",25m,1,"kitchen")],"THB",Guid.NewGuid(),
+            workflowPaymentMethod:"card_omise_test",workflowCorrelationId:Guid.NewGuid());
+        order.Submit();order.MarkInventoryReserved();order.MarkKitchenAccepted();
+        order.MarkPaid(Guid.NewGuid());order.IssueReceipt(DateTimeOffset.UtcNow,"card_omise_test");
+        var repository=new PostgresOrderRepository(source);
+        await repository.SaveAsync(order,default);
+        Assert.NotNull(await repository.GetReceiptAsync(order.OrganizationId,order.BranchId,order.Id,default));
     }
 
     private static async Task AssertKitchenAcceptedManualTenderCanSettleAsync(NpgsqlDataSource source)

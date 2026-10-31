@@ -1,5 +1,7 @@
 # NexaConnect
 
+[POS UX20](docs/Deployment/POS-UX20-Isolated-Recovery-Access.md) combines isolated POS regressions and generated database/broker recovery fixtures under one source-bound diagnostic receipt. It requires verified cleanup and preserves installed operator results; real identity/device acceptance remains separate.
+
 [POS UX18](docs/Deployment/POS-UX18-Cashier-Acceptance.md) adds a read-only guided worklist over the existing seventeen-case acceptance pack. Prerequisites, expected results and defect/retest priorities guide actual cashier testing; observations and release readiness remain separate.
 
 [POS UX17](docs/Deployment/POS-UX17-Shutdown-Diagnostics.md) hardens shutdown against reproduced blocking/faulting cleanup, adds bounded safe lifecycle diagnostics and preserves original cashier/payment recovery. The verified matching local pilot is installed and a controlled close/reopen check passes; the historical cause and actual operator acceptance remain separate.

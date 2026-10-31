@@ -1,5 +1,7 @@
 # NexaConnect Project Architecture
 
+[UX20](../../docs/Deployment/POS-UX20-Isolated-Recovery-Access.md) adds a serial diagnostic runner over existing isolated POS regressions and generated owning-service database/broker recovery fixtures. Fixture identities are simulated, inherited retained-stack settings are cleared for child tests, and successful cleanup/source binding is required. Native history-outage privacy coverage is extended; no runtime, service or schema boundary changes or operator acceptance promotion.
+
 [UX18](../../docs/Deployment/POS-UX18-Cashier-Acceptance.md) adds a read-only grouped operator worklist over the existing validated installed-target acceptance record. It suggests defect investigation, observation or prerequisite review without recording events, replacing packs or changing runtime/service/data boundaries. Actual acceptance and source/release readiness remain separate.
 
 UX17 adds native lifecycle diagnostics and independent non-UI cleanup, immediate identity/cancellation fences, actual-workspace shutdown ownership and asynchronous display notifications. Reproduced blocked/faulted cleanup paths are covered without forced process exit or recovery reset. The matching local pilot is installed; a controlled startup-authentication normal close exits with code 0 and reopens with protected state unchanged. Original installed UX15 diagnosis and real operator acceptance remain separate. See [UX17](../../docs/Deployment/POS-UX17-Shutdown-Diagnostics.md).

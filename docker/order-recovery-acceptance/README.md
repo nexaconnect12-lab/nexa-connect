@@ -1,5 +1,10 @@
 # Isolated Order workflow-recovery acceptance infrastructure
 
+The current fixture applies Order22 (application compatibility0.38.0) before using the
+current repository, including its QR collection guard. Historical migration-6 evidence
+remains historical; the recovered workflow scenarios and generated infrastructure ownership
+are unchanged. See [UX20 verification](../../docs/Deployment/POS-UX20-Isolated-Recovery-Access.md).
+
 This test-only Compose project supplies a fresh PostgreSQL 17 database and RabbitMQ 4 broker for `scripts/test-order-workflow-recovery-live.ps1`. Both services publish dynamic IPv4-loopback ports and keep data in temporary filesystems. The launcher generates the password in memory, creates a unique `nexa-order-recovery-it-<uuid>` Compose project, and removes that exact project and its volumes in `finally`.
 
 The integration test starts its own loopback-only dependency fixture and real Order child processes. No Keycloak, Inventory, or Kitchen production service is contacted. The fixture returns one stable reservation or ticket identity per Order, can hold a response until Order is terminated, and records only identifier/count/correlation evidence.

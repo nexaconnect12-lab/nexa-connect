@@ -39,6 +39,10 @@ When all cases pass, `next` is null; release/production readiness still remains 
 
 ## Execute in manageable groups
 
+[UX19's first walkthrough batch](POS-UX19-Cashier-Walkthrough.md) provides ordered sign-in,
+idle lock/resume, synthetic cash, PDF/reprint and supplemental normal close/reopen checks.
+It uses this same pack; ordinary close/reopen does not pass interrupted-payment recovery.
+
 | Group | Cases and preparation |
 | --- | --- |
 | Access | Cashier sign-in, idle lock/resume and genuine session expiry/fallback. Use a separate identity test context for expiry; preserve retained policy and recovery. |

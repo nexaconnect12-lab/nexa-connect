@@ -310,17 +310,20 @@ internal static partial class Program
         list.SelectedIndex=0;Pump(window);Require(check.IsEnabled,"history row selection replaces UUID entry");Invoke(window,"DrawerHistoryCheck_Click",window,new RoutedEventArgs());Wait();
         Require(((TextBlock)window.FindName("DrawerHistoryGuidanceText")).Text.Contains("uncertain"),"unknown server outcome has safe guidance");Require(before.SequenceEqual(File.ReadAllBytes(Path.Combine(root,"drawer-intents.db")))&&driver.Calls==calls,"review cannot mutate journal or submit hardware");
         port.Denied=true;Invoke(window,"DrawerHistoryRefresh_Click",window,new RoutedEventArgs());Wait();Require(list.Items.Count==0&&!check.IsEnabled&&status.Text.Contains("access denied"),"permission denial clears cached observations");
-        port.Denied=false;port.Hold=true;Invoke(window,"DrawerHistoryRefresh_Click",window,new RoutedEventArgs());Pump(window);Invoke(window,"ClearReceiptView");port.Release();Wait();Require(list.Items.Count==0,"late history cannot restore rows after privacy-generation change");
+        port.Denied=false;Invoke(window,"DrawerHistoryRefresh_Click",window,new RoutedEventArgs());Wait();Require(list.Items.Count==1,"authorized history can reload after denial");
+        port.Unavailable=true;Invoke(window,"DrawerHistoryRefresh_Click",window,new RoutedEventArgs());Wait();Require(list.Items.Count==0&&!check.IsEnabled&&status.Text.Contains("unavailable"),"dependency outage clears history without a cached fallback");
+        Require(before.SequenceEqual(File.ReadAllBytes(Path.Combine(root,"drawer-intents.db")))&&driver.Calls==calls,"denial and outage never change drawer journal or invoke hardware");
+        port.Unavailable=false;port.Hold=true;Invoke(window,"DrawerHistoryRefresh_Click",window,new RoutedEventArgs());Pump(window);Invoke(window,"ClearReceiptView");port.Release();Wait();Require(list.Items.Count==0,"late history cannot restore rows after privacy-generation change");
         var auth=(PosAuthentication)typeof(MainWindow).GetField("_authentication",Private)!.GetValue(window)!;var original=auth.CurrentToken!;
         port.Hold=true;Invoke(window,"DrawerHistoryRefresh_Click",window,new RoutedEventArgs());Pump(window);typeof(PosAuthentication).GetProperty("CurrentToken")!.SetValue(auth,original with{Subject="different-history-user"});port.Release();Wait();Require(list.Items.Count==0,"late history cannot cross a cashier change");
         typeof(PosAuthentication).GetProperty("CurrentToken")!.SetValue(auth,original);Invoke(window,"ClearDrawerHistory");Invoke(window,"UpdateOperationalState");
     }
     private sealed class DrawerHistoryFixturePort(PosClientConfiguration c):NexaConnect.POS.Hardware.Drawers.IDrawerHistoryPort
     {
-        public bool Denied,Hold;private TaskCompletionSource<NexaConnect.Contracts.POS.DrawerHistoryPageV1>? pending;private NexaConnect.Contracts.POS.DrawerHistoryPageV1? saved;
+        public bool Denied,Hold,Unavailable;private TaskCompletionSource<NexaConnect.Contracts.POS.DrawerHistoryPageV1>? pending;private NexaConnect.Contracts.POS.DrawerHistoryPageV1? saved;
         private readonly NexaConnect.Contracts.POS.DrawerHistoryItemV1 row=Make();
         private static NexaConnect.Contracts.POS.DrawerHistoryItemV1 Make(){var at=DateTimeOffset.UtcNow.AddMinutes(-2);return new(Guid.NewGuid(),"manual","cash_check",null,Guid.NewGuid(),Guid.NewGuid(),"reserved",at,at.AddSeconds(60),null);}
-        public Task<NexaConnect.Contracts.POS.DrawerHistoryPageV1> ListAsync(string subject,DateTimeOffset from,DateTimeOffset to,string? cursor,CancellationToken ct){if(Denied)throw new UnauthorizedAccessException();saved=new(c.OrganizationId,c.RestaurantId,c.BranchId,c.StoreId,c.TerminalId,from,to,[row],null);if(!Hold)return Task.FromResult(saved);pending=new(TaskCreationOptions.RunContinuationsAsynchronously);return pending.Task;}
+        public Task<NexaConnect.Contracts.POS.DrawerHistoryPageV1> ListAsync(string subject,DateTimeOffset from,DateTimeOffset to,string? cursor,CancellationToken ct){if(Denied)throw new UnauthorizedAccessException();if(Unavailable)throw new HttpRequestException("synthetic history outage");saved=new(c.OrganizationId,c.RestaurantId,c.BranchId,c.StoreId,c.TerminalId,from,to,[row],null);if(!Hold)return Task.FromResult(saved);pending=new(TaskCreationOptions.RunContinuationsAsynchronously);return pending.Task;}
         public Task<NexaConnect.Contracts.POS.DrawerHistoryItemV1?> ReviewAsync(string subject,Guid operation,CancellationToken ct)=>Task.FromResult<NexaConnect.Contracts.POS.DrawerHistoryItemV1?>(row with{Status="unknown",ReportedAtUtc=DateTimeOffset.UtcNow});
         public void Release(){Hold=false;pending?.TrySetResult(saved!);pending=null;}
     }

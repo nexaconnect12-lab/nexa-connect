@@ -41,8 +41,8 @@ public sealed class OrderWorkflowRecoveryLiveAcceptanceTests
         {
             Environment.SetEnvironmentVariable("NEXACONNECT_ORDER_DB", connectionString);
             Assert.Equal(0, await MigrationApplication.RunAsync([
-                "--service", "Order", "--scripts-root", scriptsRoot, "--target", "6",
-                "--application-version", "0.15.0", "--confirm"]));
+                "--service", "Order", "--scripts-root", scriptsRoot, "--target", "22",
+                "--application-version", "0.38.0", "--confirm"]));
         }
         finally
         {

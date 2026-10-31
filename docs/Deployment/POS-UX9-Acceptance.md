@@ -16,6 +16,10 @@ failed or blocked case prevents operator completion. All severities remain visib
 
 ## Automated regression
 
+[UX20](POS-UX20-Isolated-Recovery-Access.md) combines this full regression with guarded
+disposable cashier and Order recovery fixtures. Its source-bound receipt requires verified
+cleanup and cannot record operator cases or grant live identity/release readiness.
+
 UX12 adds `scripts/test-pos-acceptance.ps1 -ShutdownOnly` for isolated close/reopen,
 stalled callback, refresh cancellation, duplicate instance and recovery-preservation checks.
 It also runs in the complete native fixture. This mode is mutually exclusive with

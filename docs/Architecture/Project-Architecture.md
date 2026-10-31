@@ -1,5 +1,7 @@
 # NexaConnect Project Architecture
 
+[UX20](../Deployment/POS-UX20-Isolated-Recovery-Access.md) composes existing isolated verification producers with checked receipts, source binding and cleanup. Child fixture configuration is separated from inherited retained-stack settings; generated loopback resources and simulated identities do not establish real OIDC/operator acceptance. No application/service/data boundary changes.
+
 [UX18](../Deployment/POS-UX18-Cashier-Acceptance.md) projects the existing installed acceptance record into allow-listed grouped guidance and next actions. Worklist reuses live binding checks and creates no observation or report; invalid binding selects repair rather than a case. No runtime, service, schema or identity boundary changes; source/release evidence remains separate.
 
 UX17 makes staff Closed-event shutdown independent of auxiliary MainWindow ownership. Authentication is fenced synchronously; cancellation callbacks and client disposal run off the dispatcher with one bounded exit grace period. UI display cleanup remains dispatcher-owned and display notifications are queued/fenced. Allow-listed bounded local lifecycle diagnostics contain no identity/business payloads and are not financial evidence. No service, authorization or persistence boundary changes. See [UX17](../Deployment/POS-UX17-Shutdown-Diagnostics.md).

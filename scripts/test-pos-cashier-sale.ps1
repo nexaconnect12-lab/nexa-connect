@@ -44,6 +44,8 @@ $created = $false
 $backendPassed = $false
 $verifierContractPassed = $false
 $cleanupPassed = $false
+$protectedPosCases = 0
+$orderReceiptCases = 0
 New-Item -ItemType Directory -Path $run -Force | Out-Null
 
 try {
@@ -69,8 +71,17 @@ try {
     $env:NEXACONNECT_ENVIRONMENT = 'Testing'
     $env:DOTNET_ENVIRONMENT = 'Testing'
 
-    & (Join-Path $root 'scripts/test-pos-paid-workflow.ps1') -ConfirmDisposableInfrastructure -ConfirmDestructiveRollback
+    & (Join-Path $root 'scripts/test-pos-paid-workflow.ps1') -ConfirmDisposableInfrastructure -ConfirmDestructiveRollback | Tee-Object -Variable paidOutputs
     if ($LASTEXITCODE -ne 0) { throw 'Protected POS recovery/projection acceptance failed.' }
+    $pointers = @($paidOutputs | Where-Object { $_ -is [pscustomobject] -and $_.PSObject.Properties.Name -contains 'evidenceKind' -and $_.evidenceKind -ceq 'pos-paid-workflow' })
+    if ($pointers.Count -ne 1) { throw 'Expected one fresh protected POS evidence pointer.' }
+    $paidPath = [IO.Path]::GetFullPath([string]$pointers[0].evidencePath)
+    $paidRun = Split-Path (Split-Path $paidPath -Parent) -Leaf
+    if ($paidRun -cnotmatch '^[a-f0-9]{32}$' -or $paidPath -cne [IO.Path]::GetFullPath((Join-Path $root ".runstate/pos-paid-workflow/$paidRun/evidence.json"))) { throw 'Protected POS evidence path ownership mismatch.' }
+    $paidReceipt = Get-Content -LiteralPath $paidPath -Raw | ConvertFrom-Json
+    if ($paidReceipt.runId -cne $paidRun -or $paidReceipt.protectedRecoveryCases -lt 18 -or $paidReceipt.backendCases -ne 3 -or
+        $paidReceipt.testsPassed -ne ($paidReceipt.protectedRecoveryCases + $paidReceipt.backendCases)) { throw 'Protected POS evidence counts are incomplete.' }
+    $protectedPosCases = [int]$paidReceipt.testsPassed
 
     $env:NEXACONNECT_PRICING_ACCEPTANCE = '1'
     $env:NEXACONNECT_ORDER_CLEAN_INSTALL_ACCEPTANCE = '1'
@@ -86,9 +97,11 @@ try {
     }
     [xml]$receiptResults = Get-Content -LiteralPath $receiptTrx -Raw
     $receiptCounts = $receiptResults.TestRun.ResultSummary.Counters
-    if ([int]$receiptCounts.total -ne 3 -or [int]$receiptCounts.passed -ne 3 -or [int]$receiptCounts.notExecuted -ne 0) {
-        throw 'All three Order receipt, authorization, and migration acceptance cases must execute and pass.'
+    if ([int]$receiptCounts.total -lt 4 -or [int]$receiptCounts.passed -ne [int]$receiptCounts.total -or
+        [int]$receiptCounts.executed -ne [int]$receiptCounts.total -or [int]$receiptCounts.notExecuted -ne 0) {
+        throw 'At least four Order receipt, authorization, and migration acceptance cases must all execute and pass.'
     }
+    $orderReceiptCases = [int]$receiptCounts.passed
     $backendPassed = $true
 
     & pwsh -NoProfile -File (Join-Path $root 'tests/Scripts/Test-PosCashierAcceptance.ps1')
@@ -113,8 +126,8 @@ finally {
             completedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
             automatedBackendPassed = $backendPassed
             verifierContractPassed = $verifierContractPassed
-            protectedPosCases = 20
-            orderReceiptAuthorizationAndMigrationCases = 3
+            protectedPosCases = $protectedPosCases
+            orderReceiptAuthorizationAndMigrationCases = $orderReceiptCases
             verifierFixtureCases = 15
             cleanupVerified = $cleanupPassed
             liveOidcVerified = $false
