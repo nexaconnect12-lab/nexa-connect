@@ -24,10 +24,10 @@ try{
     if(-not $brokerReady){& docker logs $brokerContainer *> (Join-Path $run 'broker-startup.private.log');throw 'QR broker fixture was not ready.'}
     $env:NEXACONNECT_QR_INTEGRATION_DB="Host=127.0.0.1;Port=$port;Database=$database;Username=postgres;Password=$password"
     $env:NEXACONNECT_QR_INTEGRATION_BROKER="amqp://${brokerUser}:${brokerPassword}@127.0.0.1:$brokerPort"
-    & dotnet test (Join-Path $repoRoot 'tests/Integration/NexaConnect.IntegrationTests') --no-restore --filter 'FullyQualifiedName~QrEntryPersistenceTests|FullyQualifiedName~QrMenuPersistenceTests|FullyQualifiedName~QrRequestPersistenceTests|FullyQualifiedName~QrAcceptancePersistenceTests|FullyQualifiedName~QrJourneyPersistenceTests|FullyQualifiedName~OrderListPersistenceTests|FullyQualifiedName~DraftMediaAccessPersistenceTests|FullyQualifiedName~BarcodePersistenceTests|FullyQualifiedName~PromptPayQrPersistenceTests' --verbosity quiet --logger 'trx;LogFileName=qr.trx' --results-directory $run *> (Join-Path $run 'persistence.private.log')
+    & dotnet test (Join-Path $repoRoot 'tests/Integration/NexaConnect.IntegrationTests') --no-restore --filter 'FullyQualifiedName~QrEntryPersistenceTests|FullyQualifiedName~QrMenuPersistenceTests|FullyQualifiedName~MenuPhotoPersistenceTests|FullyQualifiedName~MenuOrganizationPersistenceTests|FullyQualifiedName~MenuDetailsPersistenceTests|FullyQualifiedName~MenuAvailabilityPersistenceTests|FullyQualifiedName~QrRequestPersistenceTests|FullyQualifiedName~QrAcceptancePersistenceTests|FullyQualifiedName~QrJourneyPersistenceTests|FullyQualifiedName~OrderListPersistenceTests|FullyQualifiedName~DraftMediaAccessPersistenceTests|FullyQualifiedName~BarcodePersistenceTests|FullyQualifiedName~PromptPayQrPersistenceTests' --verbosity quiet --logger 'trx;LogFileName=qr.trx' --results-directory $run *> (Join-Path $run 'persistence.private.log')
     if($LASTEXITCODE -ne 0){throw 'QR persistence test failed; private diagnostics retained.'}
     . (Join-Path $PSScriptRoot 'first-draft-release-helpers.ps1')
-    $caseCount=Read-DraftTestCounts (Join-Path $run 'qr.trx') 9;$passed=$true
+    $caseCount=Read-DraftTestCounts (Join-Path $run 'qr.trx') 13;$passed=$true
 }finally{
     $env:NEXACONNECT_QR_INTEGRATION_DB=$prior
     $env:NEXACONNECT_QR_INTEGRATION_BROKER=$priorBroker

@@ -16,6 +16,8 @@ builder.Services.AddControllers();builder.Services.AddOpenApi();builder.Services
 builder.Services.AddMemoryCache();builder.Services.AddHttpClient<IServiceWorkloadTokenProvider,ServiceWorkloadTokenProvider>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<BranchGalleryDelivery>();
+builder.Services.AddScoped<MenuPhotoDelivery>();
+builder.Services.AddSingleton<IMenuPhotoEncoder,MenuPhotoEncoder>();
 builder.Services.AddScoped<PromptPayQrDelivery>();
 builder.Services.AddScoped<PromptPayQrUploads>();
 builder.Services.AddSingleton<IPromptPayPngEncoder,PromptPayPngEncoder>();

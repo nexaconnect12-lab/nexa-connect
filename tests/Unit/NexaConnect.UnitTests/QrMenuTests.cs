@@ -72,8 +72,39 @@ public sealed class QrMenuTests
         for(int i=0;i<200;i++)catalog.AddForOrganizationBranch(org,branch,new(Guid.NewGuid(),"Item",1,"THB","kitchen"));
         Assert.Throws<ArgumentException>(()=>read.Read(org,branch));
     }
-    private sealed class Port : IQrMenuPort
+    [Fact] public async Task Photos_use_live_guest_scope_without_changing_quote_or_allowing_foreign_products()
     {
+        var port=new Port();var service=new QrMenuService(port,new Policies(),TimeProvider.System,port);
+        var cart=new QrCart([new(port.Item.ProductId,1)]);var before=await service.QuoteAsync(Token,cart,default);
+        Assert.Null(await service.PhotoAsync(Token,Guid.NewGuid(),default));Assert.Equal(0,port.PhotoReads);
+        Assert.Equal(new byte[]{1,2,3},await service.PhotoAsync(Token,port.Item.ProductId,default));
+        Assert.Equal(before.Fingerprint,(await service.QuoteAsync(Token,cart,default)).Fingerprint);
+        Assert.Equal((port.Context.OrganizationId,port.Context.BranchId,port.Item.ProductId),port.PhotoScope);
+    }
+    [Theory][InlineData("revoked")][InlineData("removed")][InlineData("oversized")]
+    public async Task Photo_races_and_oversized_bytes_fail_closed(string condition)
+    {
+        var port=new Port();var service=new QrMenuService(port,new Policies(),TimeProvider.System,port);
+        port.AfterPhoto=()=>{if(condition=="revoked")port.Context=port.Context with{VisitorId=Guid.NewGuid()};if(condition=="removed")port.Count=0;};
+        if(condition=="oversized")port.PhotoBytes=new byte[524289];
+        if(condition=="removed")Assert.Null(await service.PhotoAsync(Token,port.Item.ProductId,default));
+        else if(condition=="revoked")await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>service.PhotoAsync(Token,port.Item.ProductId,default));
+        else await Assert.ThrowsAsync<HttpRequestException>(()=>service.PhotoAsync(Token,port.Item.ProductId,default));
+    }
+    [Fact]public async Task Organization_is_guest_scoped_and_never_changes_authoritative_quote_fingerprint()
+    {
+        var port=new Port();var category=new QrMenuCategory(Guid.NewGuid(),"Food");port.Layout=new([category],[new(port.Item.ProductId,category.Id),new(Guid.NewGuid(),category.Id)]);
+        var service=new QrMenuService(port,new Policies(),TimeProvider.System,null,port);var cart=new QrCart([new(port.Item.ProductId,1)]);var before=await service.QuoteAsync(Token,cart,default);
+        var layout=await service.OrganizationAsync(Token,default);Assert.Single(layout.Items);Assert.Equal(category.Id,Assert.Single(layout.Categories).Id);
+        port.Layout=new([category with{Name="Mains"}],layout.Items);Assert.Equal(before.Fingerprint,(await service.QuoteAsync(Token,cart,default)).Fingerprint);
+        port.AfterOrganization=()=>port.Context=port.Context with{VisitorId=Guid.NewGuid()};await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>service.OrganizationAsync(Token,default));
+    }
+    private sealed class Port : IQrMenuPort,IQrMenuPhotoPort,IQrMenuOrganizationPort
+    {
+        public QrMenuOrganization Layout=new([],[]);public Action? AfterOrganization;
+        public Task<QrMenuOrganization> OrganizationAsync(Guid org,Guid branch,CancellationToken ct){Assert.Equal(Context.OrganizationId,org);Assert.Equal(Context.BranchId,branch);AfterOrganization?.Invoke();return Task.FromResult(Layout);}
+        public byte[] PhotoBytes=[1,2,3];public int PhotoReads;public Action? AfterPhoto;public (Guid,Guid,Guid) PhotoScope;
+        public Task<byte[]?> PhotoAsync(Guid o,Guid b,Guid p,CancellationToken ct){PhotoScope=(o,b,p);PhotoReads++;AfterPhoto?.Invoke();return Task.FromResult<byte[]?>(PhotoBytes);}
         public QrGuestContext Context=new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"R","B","A1","THB",DateTimeOffset.UtcNow.AddMinutes(30));
         public CatalogMenuItem Item=new(Guid.NewGuid(),"Soup",107,"THB",true,"kitchen");public int ContextReads,MenuReads,Count=1;public Guid Organization,Branch;public bool RevokeDuringMenu;
         public Task<QrGuestContext?> ContextAsync(string capability,CancellationToken ct){ContextReads++;return Task.FromResult<QrGuestContext?>(RevokeDuringMenu&&MenuReads>0?null:Context);}

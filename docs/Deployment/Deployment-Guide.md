@@ -1,5 +1,9 @@
 # Deployment Guide
 
+UX14 requires **Catalog9 / compatibility0.44.0** with matching Catalog/BFF/frontend/POS. Stop old Catalog writers before migration: older upserts omit details-version increments. Preserve menu values, related references and financial recovery. See [details rollout](POS-UX14-Menu-Details.md).
+
+UX13 requires **Catalog8 / compatibility0.43.0** before matching Catalog/BFF/portal/POS rollout. Stop old metadata writers that reset availability; preserve current flags, scopes and protected recovery. See [availability rollout and acceptance](POS-UX13-Menu-Availability.md).
+
 For history-only local POS rollout, use [UX8D](POS-UX8D-Pilot-Acceptance.md). `first-draft-stack.ps1 -Action Start -EnableDrawerHistory` requires stopped services/builds and persists a Boolean; only POS receives `DrawerIntents__HistoryEnabled=true`, with `DrawerIntents__Enabled=false`. Other profiles remain unchanged; match POS25/Authorization16 and explicit compatibility0.40.0.
 
 Deploy UX6 barcode routes with **Catalog 5** and matching Customer BFF/portal/POS. Existing
@@ -66,7 +70,7 @@ dependency loss blocks new Paid commits while committed exact retries remain rec
 See [terminal admission and its observation limits](../API/Terminal-Admission.md) and
 [Windows draft installation](First-Draft-Windows-POS.md).
 
-Current catalog deployment requires explicit application compatibility `0.40.0` for POS 25 (UX8C drawer history); Authorization remains 16 (UX8A drawer authority). The migration launcher default remains `0.38.0` and must not be used implicitly for those targets; drawer routes and physical integration remain disabled unless separately approved. Other current targets are Catalog 5, Restaurant 4, Order 22, Payment 18 and Reporting 22, with matching binaries/Customer BFF/portal. Earlier version sets below describe the releases that introduced each capability, not the latest targets. Preview the actual service migration catalog before deployment. For the November local Windows draft, use the [owned test stack](First-Draft-Test-Stack.md); it does not reuse root application databases or certify production acceptance.
+Current catalog deployment requires explicit application compatibility `0.44.0` for Catalog9 (menu item details); POS remains 25 and Authorization remains 16. The migration launcher default remains `0.38.0` and must not be used implicitly for those targets; drawer routes and physical integration remain disabled unless separately approved. Other current targets are Restaurant 4, Order 22, Payment 18 and Reporting 22, with matching binaries/Customer BFF/portal. Earlier version sets below describe the releases that introduced each capability, not the latest targets. Preview the actual service migration catalog before deployment. For the November local Windows draft, use the [owned test stack](First-Draft-Test-Stack.md); it does not reuse root application databases or certify production acceptance.
 
 Temporary finalization preparation was introduced with Order 17 / Payment 16 / POS 16 / Authorization 12, compatibility 0.31.0 and matching BFF/Portal, with Reporting 20 unchanged. Use the current catalog targets above for latest deployment. Stop old affected hosts, migrate independently owned sources and coordinator, then enable routes. Apply runtime fence/generation privileges and synchronized clocks. See [rollout and recovery](Day-Close-Finalization-Preparation.md).
 

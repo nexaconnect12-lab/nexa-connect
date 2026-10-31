@@ -1,5 +1,15 @@
 # NexaConnect frontend foundations
 
+UX15 adds **Menu management**: one branch picker, search and item list with Details, Image, Availability and Categories & order sections. Independent saves retain their CSRF/version/permission checks; draft/busy guards cover selection, navigation, workspace, sign-out and unload. Media management retains screensaver galleries; menu images are selected in the unified workspace. Standalone editor deep links remain compatibility routes without shared-workspace guards. See [workflow and verification](../../docs/Deployment/POS-UX15-Menu-Management.md).
+
+UX14 adds **Menu item editor**: branch/name selection, existing item drafts, before/after review and explicit confirmation, with re-review after field changes. Currency is retained; conflict/uncertainty requires reload and branch/workspace switches discard stale drafts. Four gallery browser cases cover the workflow. See [details workflow and limits](../../docs/Deployment/POS-UX14-Menu-Details.md).
+
+UX13 Customer Portal adds **Menu availability**: branch/name selection, explicit sold-out/restore confirmation, per-item versions and reload after conflict/uncertainty. Branch/workspace changes clear stale state; POS/QR refresh existing availability. Gallery browser fixtures cover this workflow. See [rollout and limits](../../docs/Deployment/POS-UX13-Menu-Availability.md).
+
+UX11 adds a dedicated Menu categories page: branch picker, category creation/rename/order, searchable product assignment and explicit versioned save/conflict recovery. QR menus use the same categories/order plus search; filters retain cart state and layout failure falls back to all items. Existing photo approval remains separate. See [UX11](../../docs/Deployment/POS-UX11-Menu-Organization.md).
+
+Customer Media management now selects menu products by name, reuses ready uploaded images or uploads for the selected product, previews and explicitly approves the branch selection. Guest QR menus use same-origin optional photos; absent/error photos leave cart/pricing usable. No UUID typing or public storage URL is needed for photo assignment/display. See [manager steps](../../docs/Deployment/Menu-Photos.md).
+
 QR6 pins patched Zod4.6.7, updates form-validation peer compatibility and uses z.guid() in financial API schemas to preserve the existing .NET GUID format. Existing scope, money, safe-version/date and authorization checks remain. New GUID/bounded-collection tests and preparation/cutoff/seal/settlement browser regressions accompany the QR matrix; both dependency audits remain required. See [QR6](../../docs/Deployment/QR6-Integration.md) and [dependency policy](../../docs/Deployment/Frontend-Dependency-Hardening.md).
 
 QR5 shows the accepted original collection reference and live-visit safe original paid receipt in guest status; staff queue distinguishes Paid. Browser adds no payment command or staff credential. See [QR5](../../docs/Deployment/QR5-Collection.md).

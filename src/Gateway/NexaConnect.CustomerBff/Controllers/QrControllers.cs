@@ -33,6 +33,7 @@ public sealed class QrGuestEntryController(IQrGatewayPort port, IOptions<QrGuest
     [HttpGet("context")] public Task<IActionResult> Context(CancellationToken ct) => Execute("context", null, ct);
     [HttpDelete("sessions")] public Task<IActionResult> End(CancellationToken ct) => Execute("end", null, ct);
     [HttpGet("menu")] public Task<IActionResult> Menu(CancellationToken ct) => Shopping("menu", null, ct);
+    [HttpGet("menu-organization")]public Task<IActionResult> Organization(CancellationToken ct)=>Shopping("organization",null,ct);
     [HttpPost("quote"), RequestSizeLimit(8192)] public Task<IActionResult> Quote(QrCart cart, CancellationToken ct) => Shopping("quote", cart, ct);
     [HttpGet("requests")] public Task<IActionResult> Mine(CancellationToken ct) => Shopping("mine",null,ct);
     [HttpPost("requests"),RequestSizeLimit(1024)] public Task<IActionResult> Submit(QrSubmission input,CancellationToken ct) => Shopping("submit",input,ct);
@@ -60,6 +61,11 @@ public sealed class QrGuestEntryController(IQrGatewayPort port, IOptions<QrGuest
                 return StatusCode(SafeStatus(reply.Status), new { title = "Menu or cart unavailable. Refresh and review before continuing." });
             }
             // Typed allowlist prevents internal dependency fields from reaching guests.
+            if(operation=="organization"){
+                var layout=reply.Body?.Deserialize<QrMenuOrganization>(JsonSerializerOptions.Web);
+                if(layout?.Categories is null||layout.Items is null||layout.Categories.Count>50||layout.Items.Count>200||layout.Categories.Any(x=>x is null)||layout.Items.Any(x=>x is null))throw new JsonException();
+                return Ok(layout);
+            }
             if(operation=="mine")return Ok(reply.Body?.Deserialize<QrRequestList>(JsonSerializerOptions.Web)??throw new JsonException());
             if(operation is "submit" or "confirm")return Ok(reply.Body?.Deserialize<QrRequestView>(JsonSerializerOptions.Web)??throw new JsonException());
             if (operation == "menu")

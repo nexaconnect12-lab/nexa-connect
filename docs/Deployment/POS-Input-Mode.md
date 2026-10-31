@@ -1,5 +1,9 @@
 # Optional POS touch-first mode
 
+The [terminal-sections follow-up](POS-UX10-Windows11-Cashier.md#terminal-sections-follow-up) moves
+this setting to **Terminal & sync → Input & devices → Input settings** after matching installation.
+Earlier releases show it directly on the Terminal & sync page; preferences/defaults do not change.
+
 Touch-first operation is optional and **off by default**, including existing terminals
 that have no saved preference. Keyboard, mouse and supported scanner input remain usable
 in either mode. The UX2 workflow dock, original financial actions and readable controls

@@ -8,6 +8,7 @@ const settings = {
   organizationId: process.env.NEXACONNECT_PHASE8_E2E_ORGANIZATION_ID,
   applicationCode: process.env.NEXACONNECT_PHASE8_E2E_APPLICATION_CODE ?? "nexa_connect",
   catalogProductId: process.env.NEXACONNECT_PHASE8_E2E_CATALOG_PRODUCT_ID,
+  branchId: process.env.NEXACONNECT_PHASE8_E2E_BRANCH_ID,
   processingTimeout: Number(process.env.NEXACONNECT_PHASE8_E2E_PROCESSING_TIMEOUT_MS ?? "90000"),
 };
 
@@ -16,6 +17,7 @@ const required = [
   settings.password,
   settings.organizationId,
   settings.catalogProductId,
+  settings.branchId,
 ];
 const configured = settings.enabled && required.every((value) => Boolean(value));
 let createdAssetId;
@@ -78,15 +80,15 @@ test("customer signs in, selects an authorized tenant, and completes the Media l
   }, { applicationCode: settings.applicationCode });
   expect(rejectedTenantStatus).toBe(403);
 
-  await page.getByText("Media management", { exact: true }).first().click();
-  await expect(page.getByRole("heading", { name: "Media management" })).toBeVisible();
+  const menu=await browserJson(page,`/bff/customer/catalog/branches/${settings.branchId}/menu-items`);
+  const product=menu.find(item=>item.productId===settings.catalogProductId);expect(product).toBeTruthy();
+  await openMenuImage(page,product.name);
 
   const png = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
     "base64",
   );
   const fileName = `phase8-e2e-${randomUUID()}.png`;
-  await page.getByPlaceholder("Catalog product UUID").fill(settings.catalogProductId);
   await page.locator('input[type="file"]').setInputFiles({ name: fileName, mimeType: "image/png", buffer: png });
 
   const uploadStarted = page.waitForResponse(
@@ -95,7 +97,7 @@ test("customer signs in, selects an authorized tenant, and completes the Media l
   const uploadCompleted = page.waitForResponse(
     (response) => response.url().includes("/complete") && response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  await page.getByRole("button", { name: "Upload for selected menu item", exact: true }).click();
   const startResponse = await uploadStarted;
   expect(startResponse.ok(), await startResponse.text()).toBeTruthy();
   const session = await startResponse.json();
@@ -104,7 +106,7 @@ test("customer signs in, selects an authorized tenant, and completes the Media l
   expect(session.asset.sizeBytes).toBe(png.length);
   const completionResponse = await uploadCompleted;
   expect(completionResponse.ok(), await completionResponse.text()).toBeTruthy();
-  await expect(page.getByText("Upload completed; thumbnail and display variants are processing.")).toBeVisible();
+  await expect(page.getByText(/Uploaded for the selected product/)).toBeVisible();
 
   await expect.poll(
     async () => {
@@ -126,7 +128,8 @@ test("customer signs in, selects an authorized tenant, and completes the Media l
   }
 
   await page.reload();
-  await page.getByText("Media management", { exact: true }).first().click();
+  await openMenuImage(page,product.name);
+  await page.getByLabel('Search uploaded images').fill(fileName);
   const row = page.getByRole("row").filter({ hasText: fileName });
   await expect(row.getByText("ready", { exact: true })).toBeVisible();
   const deleted = page.waitForResponse(
@@ -162,4 +165,14 @@ async function browserJson(page, path) {
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function openMenuImage(page,name){
+  await page.getByRole('menuitem',{name:'Menu management',exact:true}).click();
+  await page.getByLabel('Menu management branch').selectOption(settings.branchId);
+  await page.getByRole('button',{name:'Load menu',exact:true}).click();
+  await page.getByLabel('Search managed menu items').fill(name);
+  await page.getByRole('button',{name:`Manage ${name}`,exact:true}).click();
+  await page.getByRole('tab',{name:'Image',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Refresh images',exact:true})).toBeEnabled();
 }

@@ -14,6 +14,7 @@ builder.Logging.AddFilter("Microsoft.AspNetCore.Routing",LogLevel.Warning);
 builder.Logging.AddFilter("System.Net.Http.HttpClient",LogLevel.None);
 builder.Services.AddSingleton(services=>services.GetRequiredService<IConfiguration>().GetSection("QrPilot").Get<PilotOptions>()??throw new InvalidOperationException("QR pilot configuration required."));
 builder.Services.AddSingleton(new BoundedRequestGate(TimeProvider.System,perKey:120,global:1000));
+builder.Services.AddKeyedSingleton("menu-photos",new BoundedRequestGate(TimeProvider.System,perKey:240,global:1000));
 builder.Services.AddHttpClient("pilot",(services,client)=>{var options=services.GetRequiredService<PilotOptions>();options.Validate();client.BaseAddress=new Uri(options.BackendOrigin);client.Timeout=TimeSpan.FromSeconds(20);})
     .ConfigurePrimaryHttpMessageHandler(services=>new HttpClientHandler{AllowAutoRedirect=false,UseCookies=false,ServerCertificateCustomValidationCallback=(_,cert,_,errors)=>services.GetRequiredService<PilotOptions>().BackendCertificate(cert,errors)})
     .AddNexaConnectCorrelationPropagation();
@@ -55,7 +56,8 @@ app.Run(async context=>
     {logger.LogWarning("QR pilot mutation origin denied");context.Response.StatusCode=403;return;}
     if(context.Request.Method=="POST"&&!context.Request.HasJsonContentType()){context.Response.StatusCode=415;return;}
     if(context.Request.Method=="GET"&&(context.Request.ContentLength>0||context.Request.Headers.TransferEncoding.Count>0)){context.Response.StatusCode=400;return;}
-    if(!context.RequestServices.GetRequiredService<BoundedRequestGate>().Admit(context.Connection.RemoteIpAddress?.ToString()??"unknown"))
+    var gate=context.Request.Path.Value?.EndsWith("/photo",StringComparison.Ordinal)==true?context.RequestServices.GetRequiredKeyedService<BoundedRequestGate>("menu-photos"):context.RequestServices.GetRequiredService<BoundedRequestGate>();
+    if(!gate.Admit(context.Connection.RemoteIpAddress?.ToString()??"unknown"))
     {logger.LogWarning("QR pilot admission limited");context.Response.StatusCode=429;context.Response.Headers.RetryAfter="60";return;}
     try
     {

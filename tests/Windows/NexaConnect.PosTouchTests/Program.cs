@@ -9,12 +9,17 @@ using System.Windows.Threading;
 using NexaConnect.POS;
 
 // Windows-only presentation fixture. Never reads live POS storage or authenticates.
-internal static class Program
+internal static partial class Program
 {
     private static readonly BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args is ["--shutdown-child", var childRoot, var mode]) { RunShutdownChild(childRoot, mode); return; }
+        if (args is ["--shutdown-only"]) { VerifyShutdown(); return; }
+        VerifySessionExpiry();
+        if (args is ["--session-expiry-only"]) return;
+        VerifyShutdown();
         var keyboard = new TouchKeyboard();
         string? last = null; keyboard.KeyPressed += key => last = key;
         keyboard.Configure("Fixture reference", false);
@@ -61,6 +66,11 @@ internal static class Program
             Invoke(window, "UpdateOperationalState");
             window.Show(); Pump(window);
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
+            VerifyCashierNavigation(window);
+            VerifyMenuPhotoPresentation(window);
+            VerifyMenuOrganization(window,config);
+            VerifyMenuAvailability(window);
+            if(args.Contains("--shell-preview")){PreviewCashierShell(window);return;}
             VerifyMixedPayments(window,config);
             VerifyPromptPayProof(window,config);
             VerifyDrawerIntegration(window,drawerDriver,drawerAuthority,root);
@@ -151,7 +161,7 @@ internal static class Program
             VerifyPrinterSettings(window, printers, printDriver, root);
             VerifyScannerGuards(window);
             VerifyTerminalSetup(window,diagnosticsHandler);
-            if(args.Contains("--ux7-preview")){((TabItem)window.FindName("TerminalTab")).IsSelected=true;((ScrollViewer)((TabItem)window.FindName("TerminalTab")).Content).ScrollToTop();Pump(window);SavePreview(window,".runstate/pos-ux7-overview-preview.png");}
+            if(args.Contains("--ux7-preview")){((TabItem)window.FindName("TerminalTab")).IsSelected=true;((TabItem)window.FindName("TerminalOverviewTab")).IsSelected=true;((ScrollViewer)window.FindName("TerminalOverviewScroll")).ScrollToTop();Pump(window);SavePreview(window,".runstate/pos-ux7-overview-preview.png");}
             tabs.SelectedIndex = 0; Pump(window);
             Invoke(window, "ShowTouchInput", field);
             Invoke(window, "SetBusy", "Fixture busy");
@@ -203,7 +213,8 @@ internal static class Program
     }
     private static void VerifyTerminalSetup(MainWindow window,ReachabilityHandler handler)
     {
-        ((TabItem)window.FindName("TerminalTab")).IsSelected=true;Invoke(window,"UpdateOperationalState");Pump(window);
+        ((TabItem)window.FindName("TerminalTab")).IsSelected=true;((TabItem)window.FindName("TerminalOverviewTab")).IsSelected=true;Invoke(window,"UpdateOperationalState");Pump(window);
+        Require(((TabControl)window.FindName("TerminalSections")).Items.Count==4,"terminal areas have independent inner sections");
         Require(((TextBlock)window.FindName("DrawerAvailabilityText")).Text.Contains("Disabled"),"drawer preparation must not imply an enabled physical driver");
         Require(!((Button)window.FindName("DrawerOpenButton")).IsEnabled,"manual opening remains disabled without verified hardware");
         Require(!((ComboBox)window.FindName("DrawerReasonPicker")).IsEnabled,"drawer reason cannot enable hardware");
@@ -219,7 +230,16 @@ internal static class Program
         Invoke(window,"OpenScannerSetup_Click",window,new RoutedEventArgs());Pump(window);
         Require(((TabItem)window.FindName("CheckoutTab")).IsSelected&&((CheckBox)window.FindName("ScanModeCheckBox")).IsChecked!=true,"scanner shortcut navigates without enabling or submitting");
         Invoke(window,"OpenPrinterSetup_Click",window,new RoutedEventArgs());Pump(window);
-        Require(((TabItem)window.FindName("TerminalTab")).IsSelected,"printer shortcut returns to settings only");
+        Require(((TabItem)window.FindName("TerminalTab")).IsSelected&&((TabItem)window.FindName("TerminalDevicesTab")).IsSelected,"printer shortcut opens its inner settings section");
+        Invoke(window,"OpenInputSetup_Click",window,new RoutedEventArgs());Pump(window);
+        Require(((TabItem)window.FindName("TerminalDevicesTab")).IsSelected,"input shortcut opens its inner settings section");
+        Invoke(window,"OpenDisplaySetup_Click",window,new RoutedEventArgs());Pump(window);
+        Require(((TabItem)window.FindName("TerminalDevicesTab")).IsSelected,"display shortcut opens its inner settings section");
+        ((TabItem)window.FindName("TerminalSyncTab")).IsSelected=true;Pump(window);
+        Invoke(window,"ShowTouchInput",(TextBox)window.FindName("TerminalCodeTextBox"));Pump(window);
+        Require(((TouchKeyboard)window.FindName("InputKeyboard")).Visibility==Visibility.Visible,"fixture opens input for the active sync field");
+        ((TabItem)window.FindName("TerminalOverviewTab")).IsSelected=true;Pump(window);
+        Require(((TouchKeyboard)window.FindName("InputKeyboard")).Visibility==Visibility.Collapsed,"inner section changes cannot leave a keyboard editing hidden settings");
         handler.Hold=true;Invoke(window,"RefreshTerminalSetup_Click",window,new RoutedEventArgs());
         Invoke(window,"ClearReceiptView");handler.Release();
         for(int i=0;i<60&&(bool)typeof(MainWindow).GetField("busy",Private)!.GetValue(window)!;i++){Pump(window);Thread.Sleep(5);}
@@ -282,7 +302,7 @@ internal static class Program
     }
     private static void VerifyDrawerHistory(MainWindow window,DrawerHistoryFixturePort port,DrawerFixtureDriver driver,string root)
     {
-        ((TabItem)window.FindName("TerminalTab")).IsSelected=true;Invoke(window,"UpdateOperationalState");Pump(window);
+        ((TabItem)window.FindName("TerminalTab")).IsSelected=true;((TabItem)window.FindName("TerminalDrawerTab")).IsSelected=true;Invoke(window,"UpdateOperationalState");Pump(window);
         var list=(DataGrid)window.FindName("DrawerHistoryList");var check=(Button)window.FindName("DrawerHistoryCheckButton");var status=(TextBlock)window.FindName("DrawerHistoryStatusText");int calls=driver.Calls;
         var before=File.ReadAllBytes(Path.Combine(root,"drawer-intents.db"));
         void Wait(){for(int i=0;i<200&&(bool)typeof(MainWindow).GetField("drawerHistoryReading",Private)!.GetValue(window)!;i++){Pump(window);Thread.Sleep(5);}Pump(window);}
@@ -353,7 +373,7 @@ internal static class Program
     }
     private static void VerifyPrinterSettings(MainWindow window, ReceiptPrinterPreferences preferences, CancelPrintDriver driver, string root)
     {
-        ((TabItem)window.FindName("TerminalTab")).IsSelected = true; Pump(window);
+        ((TabItem)window.FindName("TerminalTab")).IsSelected = true; ((TabItem)window.FindName("TerminalDevicesTab")).IsSelected=true; Pump(window);
         Invoke(window, "RefreshPrinters_Click", window, new RoutedEventArgs()); Pump(window);
         var printer = (ComboBox)window.FindName("ReceiptPrinterPicker"); var paper = (ComboBox)window.FindName("ReceiptPaperPicker");
         Require(printer.Items.Count == 2 && paper.SelectedIndex == 0, "default Windows dialog and standard layout");
@@ -446,9 +466,11 @@ internal static class Program
     private static string PreferencesPath(PosUiPreferences preferences) => (string)typeof(PosUiPreferences).GetField("path", Private)!.GetValue(preferences)!;
     private sealed class NoNetworkHandler(PosClientConfiguration configuration) : HttpMessageHandler
     {
+        public static int PhotoStatus=503,PhotoCalls;
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Require(request.Method == HttpMethod.Get, "presentation fixture must not issue financial commands");
+            if(request.RequestUri!.AbsolutePath.EndsWith("/photo",StringComparison.Ordinal)){PhotoCalls++;return Task.FromResult(new HttpResponseMessage((System.Net.HttpStatusCode)PhotoStatus));}
             return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) {
                 Content = System.Net.Http.Json.JsonContent.Create(new PosBranchOrderPage(configuration.OrganizationId,
                     configuration.RestaurantId, configuration.BranchId, Array.Empty<PosBranchOrder>(), null)) });

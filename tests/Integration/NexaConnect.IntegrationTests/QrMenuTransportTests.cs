@@ -9,6 +9,15 @@ namespace NexaConnect.IntegrationTests;
 
 public sealed class QrMenuTransportTests
 {
+    [Theory][InlineData(false)][InlineData(true)]public async Task Organization_uses_Order_workload_and_rejects_foreign_Catalog_scope(bool foreign)
+    {
+        var org=Guid.NewGuid();var branch=Guid.NewGuid();var category=new NexaConnect.Contracts.Catalog.MenuCategory(Guid.NewGuid(),"Food");
+        using var handler=new Handler{Body=JsonSerializer.Serialize(new NexaConnect.Contracts.Catalog.BranchMenuOrganization(foreign?Guid.NewGuid():org,branch,1,[category],[new(Guid.NewGuid(),category.Id)]),JsonSerializerOptions.Web)};
+        using var http=new HttpClient(handler){BaseAddress=new("https://catalog.test/")};http.DefaultRequestHeaders.Authorization=new("Bearer","own-order-workload");
+        var port=new HttpQrMenuPort(new Clients(http,http));
+        if(foreign)await Assert.ThrowsAsync<HttpRequestException>(()=>port.OrganizationAsync(org,branch,default));else Assert.Single((await port.OrganizationAsync(org,branch,default)).Categories);
+        Assert.Equal("Bearer own-order-workload",handler.Authorization);Assert.Null(handler.Session);Assert.False(handler.Cookie);Assert.EndsWith("/menu-organization",handler.Path);
+    }
     [Fact] public async Task Context_and_catalog_credentials_are_separate_and_responses_are_bounded()
     {
         var context=new QrGuestContext(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"R","B","A1","THB",DateTimeOffset.UtcNow.AddHours(1));

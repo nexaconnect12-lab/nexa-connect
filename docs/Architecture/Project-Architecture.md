@@ -1,5 +1,41 @@
 # NexaConnect Project Architecture
 
+[UX18](../Deployment/POS-UX18-Cashier-Acceptance.md) projects the existing installed acceptance record into allow-listed grouped guidance and next actions. Worklist reuses live binding checks and creates no observation or report; invalid binding selects repair rather than a case. No runtime, service, schema or identity boundary changes; source/release evidence remains separate.
+
+UX17 makes staff Closed-event shutdown independent of auxiliary MainWindow ownership. Authentication is fenced synchronously; cancellation callbacks and client disposal run off the dispatcher with one bounded exit grace period. UI display cleanup remains dispatcher-owned and display notifications are queued/fenced. Allow-listed bounded local lifecycle diagnostics contain no identity/business payloads and are not financial evidence. No service, authorization or persistence boundary changes. See [UX17](../Deployment/POS-UX17-Shutdown-Diagnostics.md).
+
+UX16 changes only native WPF presentation resources, operational separators and filter arrangement. Dark navigation labels/selection remain template-local, independent of inherited transaction text, financial state and authorization. Existing named controls, handlers, privacy surfaces, optional input/density preferences and all service/data boundaries remain intact. See [UX16](../Deployment/POS-UX16-Flat-Cashier.md).
+
+UX15 adds a frontend Menu management coordinator for branch/item selection, scoped editor lifetimes, draft-discard guards and busy navigation protection. Each editor keeps its existing BFF/CSRF/versioned use case; there is no cross-section transaction, new API or persistence owner. Availability versions are never merged into details versions, and public image approval is scoped to the selected item. See [UX15](../Deployment/POS-UX15-Menu-Management.md).
+
+UX14 keeps branch/product commercial metadata and an independent details version in Catalog9. A framework-free transition model, live-authorized use case and row-locked audit/outbox transaction back the protected BFF editor. Matching legacy upserts advance the details version while preserving availability. Existing quote fingerprints/consent validate new work; accepted snapshots/recovery remain unchanged. See [ADR-061](Decisions/ADR-061-safe-menu-details-editing.md).
+
+UX13 keeps manual selling availability in the Catalog branch/product row with an independent version, row-locked CAS and atomic audit/outbox. A protected BFF exposes manager editing; POS/QR refresh existing menu flags. Metadata updates preserve sold-out state, and accepted Order snapshots/recovery remain independent. Cross-service validation defines admission; no distributed selling lock or Inventory deduction rule is added. See [ADR-060](Decisions/ADR-060-branch-menu-availability.md).
+
+## Native application lifetime (UX12)
+
+The staff MainWindow controls WPF application shutdown. App-owned cancellation ends
+current-user callback accept/read and identity transport without synchronously waiting on the
+dispatcher. IPC reads are bounded to 4,096 characters/five seconds and marshal authentication
+processing to the dispatcher; PKCE, state and original-cashier checks remain mandatory. A
+zero-wait mutex lease excludes concurrent workspaces and supports restart after released or
+abandoned ownership. Close cancels presentation requests without clearing financial recovery
+or signing out. Service topology, data ownership, schemas and HTTP contracts are unchanged.
+See [behavior and verification](../Deployment/POS-UX12-Shutdown-Restart.md).
+
+UX11 keeps branch menu categories/display order in Catalog7, independent of price/availability/photo and financial contracts. One bounded aggregate and atomic CAS/audit/outbox save protect concurrent editors; Order translates private scoped layout to a live-guest projection, and POS sorts original-item wrappers. Missing layout falls back to all items. See [ADR-059](Decisions/ADR-059-menu-organization.md), [API](../API/Menu-Organization.md) and [storage](../Database/Menu-Organization.md).
+
+Approved menu photos use Catalog-owned branch/product references (migration6), with atomic selection/audit/outbox and unchanged financial contracts. Media owns immutable source provenance and processed bytes; exact Order→Catalog→Media workload routes expose bounded PNG only, while BFF/Order retain live guest scope. Native photos are optional short-lived memory and clear on privacy transitions. See [ADR-058](Decisions/ADR-058-approved-menu-photos.md) and [API](../API/Menu-Photos.md).
+
+## Native cashier presentation (UX10)
+
+Terminal sections are presentation-only inner TabControl destinations with separate scrolling.
+Overview defaults first; setup shortcuts select Input & devices and nested selection only
+hides touch input. The existing outer selection handler ignores nested events, preserving
+Orders-loading and privacy boundaries. Existing API, identity and persistence ownership remain.
+
+[UX10](../Deployment/POS-UX10-Windows11-Cashier.md) changes shared WPF templates and shell layout while retaining the eight native TabControl destinations/handlers and protected operational surface. Selection accents are template-local; navigation does not become an authorization boundary. Header Lock delegates to existing original-owner session/recovery handling without financial/device commands. Default Standard density, optional keyboard/touch preferences, pinned workflow and customer-display privacy remain independent. No API, ownership, persistence or service topology changes.
+
 ## Installed POS acceptance (UX9)
 
 [UX9](../Deployment/POS-UX9-Acceptance.md) adds local operational tooling rather than application behavior. Installed manifest/configuration, live owned process/listener and backend inventories, scope/profile and configured QR files bind a seventeen-case operator pack. Sequential observations/defects are locally protected; resolution resets the case for retest. Export uses an explicit allowlist. Installed-release observations can be historical and never grant current-source, QR9, public release or production readiness. Automated unit/HTTP/WPF regressions produce separate source-bound receipts without retained business or device operations. Existing API/domain/persistence/identity boundaries and schemas are unchanged.
@@ -772,7 +808,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 215 tables with service-owned indexes and constraints; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state, while Customer version 2 adds append-only audit that excludes profile fields and preserves its version-1 outbox. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 221 tables with service-owned indexes and constraints; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state, while Customer version 2 adds append-only audit that excludes profile fields and preserves its version-1 outbox. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Database creation is a provisioning concern, not a service migration. Local Docker initialization creates the 13 catalog databases, one migration owner, and separate restricted runtime roles before service migrations are applied. Production uses the equivalent infrastructure-as-code and secret-management workflow.
 

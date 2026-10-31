@@ -1,5 +1,25 @@
 # Identity Claims Contract
 
+UX14 reuses catalog.menu.read/write with subject-bound selected-tenant Customer BFF membership, CSRF writes and live Catalog branch checks. No guest/workload management bypass, issuer/client/secret/role or financial approval change. Both outbound details clients disable redirects and propagate validated correlation. See [details API](../API/Menu-Details.md).
+
+UX13 reuses live branch catalog.menu.read/write and subject-bound Customer BFF membership/CSRF enforcement. Guest and workload identities gain no availability management bypass; no new role/client/secret/session policy is introduced. See [availability boundaries](../API/Menu-Availability.md).
+
+UX12 authentication disposal cancels pending sign-in and transport/refresh waiters, and
+rejects late credential installation. Native callback IPC remains current-user-only and
+bounded; it never replaces PKCE/state or original-cashier validation. Closing POS preserves
+saved credential/owner and financial recovery records rather than signing out. No issuer,
+role, grant, session timeout or callback URI changes. See
+[shutdown/restart boundaries](../Deployment/POS-UX12-Shutdown-Restart.md).
+
+UX11 reuses live branch catalog.menu.read/write for category browsing/management; BFF retains selected subject/tenant/current membership and CSRF writes. Only exact Order workload reads the private Catalog layout; guest delivery revalidates its live capability and current menu membership. No new grant or financial authority. See [menu organization boundaries](../API/Menu-Organization.md).
+
+Approved menu-photo selection/preview requires live branch Catalog write and organization
+Media read; cashier selected-image delivery requires branch Catalog read only. Guest delivery
+uses the live visit capability, exact Order workload at Catalog and exact Catalog workload
+at Media, with no staff token or raw storage URL exposed. Same-organization asset reuse
+does not change original ownership. No role/client/grant is added. See
+[routes and boundary checks](../API/Menu-Photos.md).
+
 UX8D separates default-off history-only enablement from drawer command authority. Enabling
 `DrawerIntents:HistoryEnabled` permits only list/selected review with the same live
 `pos.drawer.read`, own-actor and terminal checks; it grants no permission or device capability.
@@ -22,7 +42,7 @@ owning services. General workload authorization remains unchanged. See
 
 Settlement original-event replay is now provided by [ADR-035](../Architecture/Decisions/ADR-035-audited-settlement-replay.md) and [the administrative runbook](../Deployment/Settlement-Replay.md). POS 23 adds two immutable audit tables; Reporting stays 22 and compatibility is 0.38.0 (201 tables, POS 52 / Reporting 19). Customer routes/permissions remain read-only; unknown original publication fields fail closed.
 
-Reporting 22 adds two owned immutable settlement projection/hash tables; the current catalog contains 215 tables (Reporting 19/POS 55). Settlement reporting reuses reporting.sales.read and pos.day-close.read with customer membership/scope revalidation; it adds no grant. Cutoff settlement event bindings were introduced at Reporting 22/POS 23 and compatibility 0.38.0; the current catalog requires compatibility 0.40.0 for POS 25. New POS publication is V2; original V1 history stays unchanged. See [settlement reporting](../API/Settlement-Reporting.md) and [operations](../Deployment/Settlement-Reporting.md).
+Reporting 22 adds two owned immutable settlement projection/hash tables; the current catalog contains 221 tables (Reporting 19/POS 55). Settlement reporting reuses reporting.sales.read and pos.day-close.read with customer membership/scope revalidation; it adds no grant. Cutoff settlement event bindings were introduced at Reporting 22/POS 23 and compatibility 0.38.0; the current catalog requires compatibility 0.44.0 for Catalog 9 (POS remains 25). New POS publication is V2; original V1 history stays unchanged. See [settlement reporting](../API/Settlement-Reporting.md) and [operations](../Deployment/Settlement-Reporting.md).
 
 Correction-aware retained checks add no permission or workload identity. Reporting sales read plus live owning financial reads cover exact manifests/seals; POS coordination keeps read/prepare/approve/finalize and configured amount posting limits separate. Customer bearer/correlation propagate through the existing adapters. See [contract](../API/Correction-Day-Evidence.md) and [operations](../Deployment/Correction-Day-Evidence.md).
 

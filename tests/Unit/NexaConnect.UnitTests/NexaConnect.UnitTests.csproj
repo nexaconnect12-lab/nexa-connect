@@ -53,6 +53,9 @@
   <ItemGroup>
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PendingCheckout.cs" Link="POS\PendingCheckout.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosApiClient.cs" Link="POS\PosApiClient.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosApiClient.MenuPhotos.cs" Link="POS\PosApiClient.MenuPhotos.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosApiClient.MenuOrganization.cs" Link="POS\PosApiClient.MenuOrganization.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosMenuOrganizationView.cs" Link="POS\PosMenuOrganizationView.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosClientConfiguration.cs" Link="POS\PosClientConfiguration.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosInstallationPolicy.cs" Link="POS\PosInstallationPolicy.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosTokenSet.cs" Link="POS\PosTokenSet.cs" />

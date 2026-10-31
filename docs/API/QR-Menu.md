@@ -1,5 +1,7 @@
 # QR2 menu and cart quote
 
+UX11 adds a separate optional menu-organization GET for categories/positions, without extending these financial menu/quote DTOs. Order rechecks live guest context and product membership; unavailable metadata falls back to complete menu browsing. See [menu organization API](Menu-Organization.md).
+
 With QR3 enabled, successful quotes are retained and additionally include quoteId. That
 UUID identifies the exact visitor-bound reviewed snapshot and becomes the submission
 identity. With QR3 disabled, QR2 retains its transient behavior. See [QR requests](QR-Requests.md).

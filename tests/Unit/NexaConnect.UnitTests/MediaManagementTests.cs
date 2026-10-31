@@ -4,6 +4,18 @@ namespace NexaConnect.UnitTests;
 
 public sealed class MediaManagementTests
 {
+    [Theory][InlineData("pending")][InlineData("quarantined")][InlineData("wrong-owner")][InlineData("no-variant")][InlineData("version-race")][InlineData("ready")]
+    public async Task Menu_photo_delivery_requires_ready_processed_product_and_rechecks_lifecycle(string condition)
+    {
+        var repo=new Repo{Found=Asset(),Variant="processed-thumbnail"};var found=repo.Found!.Value;
+        repo.Found=found with{Asset=found.Asset with{ProcessingStatus=condition is "pending" or "quarantined"?condition:"ready",OwnerService=condition=="wrong-owner"?"restaurant":"catalog"}};
+        if(condition=="no-variant")repo.Variant=null;
+        var storage=new Storage();if(condition=="version-race")storage.AfterRead=()=>{var v=repo.Found!.Value;repo.Found=v with{Asset=v.Asset with{ConcurrencyVersion=v.Asset.ConcurrencyVersion+1}};};
+        var output=await new MenuPhotoDelivery(repo,storage,new PhotoEncoder()).ReadAsync(repo.Org,repo.Id,default);
+        if(condition=="ready"){Assert.Equal(new byte[]{1,2,3},output);Assert.Equal("processed-thumbnail",storage.ReadKey);Assert.Equal(2097152,storage.MaximumRead);}
+        else Assert.Null(output);
+    }
+    private sealed class PhotoEncoder:IMenuPhotoEncoder {public byte[] Encode(byte[] source)=>[1,2,3];}
     [Fact]
     public async Task Start_rejects_unsafe_type_size_and_owner()
     {
@@ -55,11 +67,11 @@ public sealed class MediaManagementTests
     private sealed class Owners : IMediaOwnerValidator { public bool Exists = true; public Task<bool> ExistsAsync(Guid o, string s, string t, Guid id, CancellationToken c) => Task.FromResult(Exists); }
     private sealed class Storage : IMediaObjectStorage
     {
-        public StoredObjectInfo? Info; public byte[] Content = new byte[10];
+        public StoredObjectInfo? Info; public byte[] Content = new byte[10];public Action? AfterRead;public string? ReadKey;public long MaximumRead;
         public Task<string> CreateUploadUrlAsync(string k, string t, long s, string h, TimeSpan l, CancellationToken c) => Task.FromResult("https://upload.test");
         public Task<string> CreateDownloadUrlAsync(string k, TimeSpan l, CancellationToken c) => Task.FromResult("https://download.test");
         public Task<StoredObjectInfo?> InspectAsync(string k, CancellationToken c) => Task.FromResult(Info);
-        public Task<byte[]> ReadAsync(string k, long m, CancellationToken c) => Task.FromResult(Content);
+        public Task<byte[]> ReadAsync(string k, long m, CancellationToken c) {ReadKey=k;MaximumRead=m;AfterRead?.Invoke();return Task.FromResult(Content);}
         public Task PutAsync(string k, byte[] content, string type, string checksum, CancellationToken c) => Task.CompletedTask;
         public Task DeleteAsync(string k, CancellationToken c) => Task.CompletedTask;
     }
@@ -68,7 +80,8 @@ public sealed class MediaManagementTests
         public Guid Org = Guid.NewGuid(), Id = Guid.NewGuid(); public string? Key; public StartMediaUploadCommand? Command; public (MediaAssetSummary Asset, string Key, string Checksum)? Found; public bool Quarantined;
         public Task<MediaAssetSummary> StartAsync(Guid o, Guid id, string k, StartMediaUploadCommand x, string a, DateTimeOffset e, MediaQuota quota, CancellationToken c) { Key = k; Command = x; return Task.FromResult(new MediaAssetSummary(id, x.OwnerService, x.OwnerType, x.OwnerId, x.FileName, x.ContentType, x.SizeBytes, "pending", DateTimeOffset.UtcNow, null, 1)); }
         public Task<(MediaAssetSummary Asset, string Key, string Checksum)?> FindAsync(Guid o, Guid id, CancellationToken c) => Task.FromResult(Found);
-        public Task<string?> FindVariantKeyAsync(Guid o, Guid id, string name, CancellationToken c) => Task.FromResult<string?>(null);
+        public string? Variant;
+        public Task<string?> FindVariantKeyAsync(Guid o, Guid id, string name, CancellationToken c) => Task.FromResult(Variant);
         public Task<MediaAssetSummary?> CompleteAsync(Guid o, Guid id, long v, string a, CancellationToken c) => Task.FromResult<MediaAssetSummary?>(Found?.Asset);
         public Task<MediaAssetSummary?> QuarantineAsync(Guid o, Guid id, long v, string a, string category, CancellationToken c) { Quarantined = true; return Task.FromResult<MediaAssetSummary?>(Found?.Asset); }
         public Task<MediaAssetSummary?> DeleteAsync(Guid o, Guid id, long v, string a, CancellationToken c) => Task.FromResult<MediaAssetSummary?>(Found?.Asset);

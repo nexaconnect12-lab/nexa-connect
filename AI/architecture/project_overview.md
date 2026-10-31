@@ -1,6 +1,37 @@
 # NexaConnect Project Architecture
 
+[UX18](../../docs/Deployment/POS-UX18-Cashier-Acceptance.md) adds a read-only grouped operator worklist over the existing validated installed-target acceptance record. It suggests defect investigation, observation or prerequisite review without recording events, replacing packs or changing runtime/service/data boundaries. Actual acceptance and source/release readiness remain separate.
+
+UX17 adds native lifecycle diagnostics and independent non-UI cleanup, immediate identity/cancellation fences, actual-workspace shutdown ownership and asynchronous display notifications. Reproduced blocked/faulted cleanup paths are covered without forced process exit or recovery reset. The matching local pilot is installed; a controlled startup-authentication normal close exits with code 0 and reopens with protected state unchanged. Original installed UX15 diagnosis and real operator acceptance remain separate. See [UX17](../../docs/Deployment/POS-UX17-Shutdown-Diagnostics.md).
+
+UX16 refines the native cashier theme with flat surfaces, template-local dark-rail contrast and compact Category/Station filters. Existing WPF handlers, default Standard/keyboard input, optional Touch settings and protected business/session recovery remain unchanged. No service/data boundary changes. The matching local pilot is installed; actual operator/device acceptance remains pending. See [UX16](../../docs/Deployment/POS-UX16-Flat-Cashier.md).
+
+UX15 composes the existing Catalog-backed menu editors into one Customer Portal workspace with shared branch/item selection, isolated drafts and independent saves/approval. Version ownership and service boundaries are unchanged; Catalog9 / full221 / compatibility0.44.0 remain current. The retained local pilot is activated with twelve Ready services and a responsive matching POS; actual operator acceptance remains pending. See [UX15](../../docs/Deployment/POS-UX15-Menu-Management.md).
+
+UX14 adds Catalog9 details version/audit and a protected name/price/station editor with explicit review/confirmation. Row-locked CAS and legacy upsert version increments protect stale drafts; availability and accepted Order snapshots remain independent. Current Catalog31/full221, minimum compatibility0.44.0. See [ADR-061](../../docs/Architecture/Decisions/ADR-061-safe-menu-details-editing.md).
+
+UX13 adds Catalog-owned per-product availability CAS/audit (migration8, compatibility0.43.0), protected manager editing and native sold-out labels. Existing quote/acceptance checks use live availability; accepted snapshots and financial recovery remain unchanged. See [ADR-060](../../docs/Architecture/Decisions/ADR-060-branch-menu-availability.md).
+
+UX12 makes the staff window the native application lifetime owner. Current-user callback IPC
+uses bounded asynchronous reads and exit cancellation; disposed authentication cannot install
+late credentials, and the existing mutex is explicitly acquired/released for restart. Financial
+recovery, original-cashier resume, APIs and schemas remain unchanged. See
+[UX12](../../docs/Deployment/POS-UX12-Shutdown-Restart.md) for verification/rollout boundaries.
+
+UX11 adds a Catalog-owned branch menu-organization aggregate (migration7): versioned categories/product placements, tenant/branch locking and atomic audit/outbox. Customer Portal edits by name; POS wraps original menu items and Order/BFF serve minimal live-guest presentation metadata. Existing price/quote/payment contracts are unchanged; optional layout failure falls back to all items. See [ADR-059](../../docs/Architecture/Decisions/ADR-059-menu-organization.md).
+
+Catalog6 adds versioned branch/product primary-photo selection with immutable audit/outbox. Customer Portal selects products by name and previews/approves ready same-organization Media images; exact private Order→Catalog→Media reads serve bounded processed PNG to live-authorized guest/POS menus. Financial DTOs/pricing remain unchanged and photos fail to text-only menus. See [ADR-058](../../docs/Architecture/Decisions/ADR-058-approved-menu-photos.md).
+
+The UX10 terminal-sections follow-up groups overview, input/devices, drawer and synchronization
+into independently scrolling inner tabs within the existing protected surface. Direct setup
+shortcuts select the proper section and nested selection hides stale touch input without
+triggering outer Orders discovery. No service, ownership or financial transition changes.
+
+[UX10](../../docs/Deployment/POS-UX10-Windows11-Cashier.md) refreshes native WPF resources and the cashier shell with a labeled, scrollable navigation rail and a header Lock affordance routed through existing original-cashier locking. The protected surface, workflow/tender handlers, optional input/density preferences and server contracts remain intact. No framework, data or authorization change; the matching history-only pilot is installed with protected state preserved; actual accessibility/hardware/operator acceptance remains pending.
+
 [UX9](../../docs/Deployment/POS-UX9-Acceptance.md) adds tooling-only POS regressions and installed-target operator observations. The private fixed target snapshot rechecks package, owned backend, scope/profile and QR activation; failed/blocked observations remain recordable during outages, while passing requires a valid target. Defect resolution requires retesting. Reports separate historical installed acceptance, source regressions and QR/release readiness; no runtime/schema/authentication or device policy changes.
+
+UX9's `-SessionExpiryOnly` runner exercises the native session timer and Resume/callback flow with fake identity responses and temporary DPAPI/financial storage. It verifies expiry, refresh rejection/outage/backoff, restart lock and original-cashier-only fallback without touching the retained pilot or granting operator acceptance.
 
 [UX8D](../../docs/Deployment/POS-UX8D-Pilot-Acceptance.md) separates default-off POS history-read enablement from opening authority. The local stopped/build-only opt-in persists across restart and changes only POS environment; existing scoped authorization/telemetry remain. Matching migration/package rollout and operator acceptance are separate gates, with the physical driver disabled.
 
@@ -665,7 +696,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned migrations exist for all 13 service databases and currently define 215 tables with service-owned indexes and constraints. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. Customer version 2 adds append-only audit that excludes profile fields while its version-1 outbox remains authoritative. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned migrations exist for all 13 service databases and currently define 221 tables with service-owned indexes and constraints. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. Customer version 2 adds append-only audit that excludes profile fields while its version-1 outbox remains authoritative. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Rules:
 

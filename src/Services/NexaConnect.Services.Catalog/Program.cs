@@ -15,8 +15,13 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 
 builder.Services.AddControllers();
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<NexaConnect.Services.Catalog.Application.Details.MenuDetailsService>();
+builder.Services.AddScoped<NexaConnect.Services.Catalog.Application.Availability.MenuAvailabilityService>();
+builder.Services.AddScoped<NexaConnect.Services.Catalog.Application.Organization.MenuOrganizationService>();
 builder.Services.AddScoped<NexaConnect.Services.Catalog.Application.Barcodes.BarcodeApplication>();
 builder.Services.AddScoped<NexaConnect.Services.Catalog.Application.Menu.GuestMenuRead>();
+builder.Services.AddScoped<NexaConnect.Services.Catalog.Application.MenuPhotos.MenuPhotos>();
+builder.Services.AddHttpClient<NexaConnect.Services.Catalog.Application.MenuPhotos.IMenuPhotoAssetReader,HttpMenuPhotoAssetReader>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:Media"]??"https://media.invalid/");c.Timeout=TimeSpan.FromSeconds(10);}).ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddMemoryCache();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -27,10 +32,19 @@ if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("Post
     var dataSource = new NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("Catalog") ?? throw new InvalidOperationException("ConnectionStrings:Catalog is required.")).Build();
     builder.Services.AddSingleton(dataSource);
     builder.Services.AddSingleton<IMenuCatalog, PostgresMenuCatalog>();
+    builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.Details.IMenuDetailsRepository,PostgresMenuDetailsRepository>();
+    builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.Availability.IMenuAvailabilityRepository,PostgresMenuAvailabilityRepository>();
+    builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.Organization.IMenuOrganizationRepository,PostgresMenuOrganizationRepository>();
+    builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.MenuPhotos.IMenuPhotoRepository,PostgresMenuPhotoRepository>();
     builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.Barcodes.IBarcodeRepository,PostgresBarcodeRepository>();
     if (builder.Configuration.GetValue<bool>("Outbox:Enabled")) builder.Services.AddPostgresOutbox(builder.Configuration, "Catalog");
 }
-else { builder.Services.AddSingleton<IMenuCatalog, InMemoryMenuCatalog>(); builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.Barcodes.IBarcodeRepository,InMemoryBarcodeRepository>(); }
+else { builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.Organization.IMenuOrganizationRepository,InMemoryMenuOrganizationRepository>(); builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.MenuPhotos.IMenuPhotoRepository,InMemoryMenuPhotoRepository>(); builder.Services.AddSingleton<IMenuCatalog, InMemoryMenuCatalog>(); builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.Barcodes.IBarcodeRepository,InMemoryBarcodeRepository>(); }
+if (builder.Configuration.GetValue<string>("Persistence:Provider")?.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase) != true)
+{
+    builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.Availability.IMenuAvailabilityRepository,InMemoryMenuAvailabilityRepository>();
+    builder.Services.AddSingleton<NexaConnect.Services.Catalog.Application.Details.IMenuDetailsRepository,InMemoryMenuDetailsRepository>();
+}
 builder.Services.AddHttpClient<ICatalogTenantAuthorizer, HttpOrganizationAccessChecker>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Services:PlatformDirectory"]

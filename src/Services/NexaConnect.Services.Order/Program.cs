@@ -24,6 +24,7 @@ NexaConnect.Infrastructure.Authentication.AuthenticationServiceCollectionExtensi
 builder.Services.AddControllers();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(new BoundedRequestGate(TimeProvider.System, perKey: 1000, global: 1000));
+builder.Services.AddKeyedSingleton("menu-photos",new BoundedRequestGate(TimeProvider.System,perKey:1000,global:1000));
 builder.Services.AddScoped<QrMenuService>();
 builder.Services.AddScoped<QrRequestService>();
 builder.Services.AddScoped<QrAcceptanceService>();
@@ -35,6 +36,8 @@ builder.Services.AddScoped<IQrAcceptancePort,HttpQrMenuPort>();
 builder.Services.AddHttpClient("QrAcceptanceContext",client=>client.BaseAddress=new Uri(builder.Configuration["Services:Restaurant"]!))
     .ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation().AddHttpMessageHandler<OutboundTokenHandler>();
 builder.Services.AddScoped<IQrMenuPort, HttpQrMenuPort>();
+builder.Services.AddScoped<IQrMenuPhotoPort, HttpQrMenuPort>();
+builder.Services.AddScoped<IQrMenuOrganizationPort,HttpQrMenuPort>();
 builder.Services.AddHttpClient("QrGuestContext", client => client.BaseAddress = new Uri(builder.Configuration["Services:Restaurant"]!))
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false }).AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient("QrGuestCatalog", client => client.BaseAddress = new Uri(builder.Configuration["Services:Catalog"]!))

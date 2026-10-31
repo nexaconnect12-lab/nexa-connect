@@ -16,6 +16,11 @@ failed or blocked case prevents operator completion. All severities remain visib
 
 ## Automated regression
 
+UX12 adds `scripts/test-pos-acceptance.ps1 -ShutdownOnly` for isolated close/reopen,
+stalled callback, refresh cancellation, duplicate instance and recovery-preservation checks.
+It also runs in the complete native fixture. This mode is mutually exclusive with
+`-SessionExpiryOnly`; neither records an operator pass. See [UX12](POS-UX12-Shutdown-Restart.md).
+
 Run on the Windows development PC:
 
 ```powershell
@@ -35,6 +40,38 @@ Each run writes private diagnostics and `verification.json` under `.runstate/pos
 The receipt binds the current executable source inventory before/after the run and records
 actual executed/passed counts; failed runs remain failed. It is `automated-pos-regression`,
 not operator acceptance, CI or a QR6/public release candidate. No automatic retry or promotion.
+
+### Isolated session expiry and fallback
+
+To run only the automated session checks:
+
+```powershell
+pwsh -NoProfile -File scripts/test-pos-acceptance.ps1 -SessionExpiryOnly
+```
+
+This writes a separate source-bound `automated-pos-session-expiry` receipt under the same
+`pos-regression` directory. The default full command also runs these scenarios as part of
+the Windows input fixture. The fixture invokes the production session timer and real Resume
+button/authentication callback paths in hidden, non-activating test windows. It uses a fake
+identity HTTP handler and captured browser-launch delegate, never a real browser/protocol
+registration or Keycloak request. All tokens, PKCE callbacks, custody and original pending
+payment are synthetic. DPAPI/token storage and financial SQLite state use unique temporary
+directories; successful cleanup is confined to the fixture parent.
+
+Coverage includes absolute expiry while access is still valid; expired access without a
+refresh token; provider refresh rejection400/401; identity503 with valid-access grace and
+backoff, followed by lock after access expiry; and successful same-operator refresh without
+extending the absolute boundary. Expiry must hide/disable private work and financial actions,
+save a credential-free locked original-cashier marker, and retain exact shift, cash session,
+pending method/proof/idempotency and financial-store bytes. A new authentication instance must
+restore the locked owner. Cancellation and another cashier's callback keep it locked; the
+original cashier's interactive PKCE callback restores the workspace. Any business/device HTTP
+request fails the fixture. The production policy/timeouts and retained pilot remain untouched.
+
+These are deterministic production-code tests with simulated identity responses. They do not
+prove expiry/revocation in a real identity-provider session or real browser authentication.
+The operator `session-expiry-fallback` case remains separate and is never marked passed by
+this command. No installation, service refresh, real financial action or device output occurs.
 
 ## Prepare an installed-target pack
 
@@ -69,6 +106,10 @@ existing QR6/QR9 and release gates for fresh-source/device/public-release eviden
 does not weaken or replace those gates or the [first-draft UAT](First-Draft-UAT.md).
 
 ## Execute the cases
+
+[UX18](POS-UX18-Cashier-Acceptance.md) adds read-only `-Action Worklist` to this same pack:
+grouped prerequisites/procedures and a next-action suggestion. It records no observations,
+retains installed binding checks and never promotes source/release readiness.
 
 One tester can use the existing cashier, manager, Kitchen and restricted identities. Use
 dedicated synthetic test orders and record their private evidence separately. Save UUID
@@ -127,6 +168,17 @@ against concurrently changing services; keep the target frozen while testing. Le
 QR9, hardware and release acceptance remain independently required.
 
 ## Verification and observed status
+
+The session-expiry extension passed standalone run `1febb30059204699a11bdfe613622dbf`
+on 30 October 2026 at 10:33 Singapore time. Full regression
+`8c4ae242c3d542ba9c077366a83b5fd9` passed at 10:34 with 1,332 unit tests, 49 HTTP cases,
+34 guard assertions and both native input/receipt-layout fixtures; its native log includes
+the new session scenarios. Both source-bound receipts record no retained-pilot mutation,
+provider request or operator acceptance, and retain false release/production readiness.
+The fixture exercises production timer/Resume/callback code with synthetic identity responses,
+not a real identity-provider/browser session. No operator case was updated, timeout policy
+changed or retained pilot installed/refreshed. Earlier diagnostic `14045` remains historical
+and was not relabelled as the final source run. Earlier UX9 measurements below remain historical.
 
 Regression `939bdb2832134b6386b7cafaf420324e` completed on 30 October 2026 at 09:44
 Singapore time. Its source-bound receipt passed all 1,332 unit tests, 49 HTTP boundary cases,

@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {repository,source,sameSource,sha} from './source.mjs';
 import {catalog} from './next-release.mjs';
 
-export const gates={unit:1332,architecture:6,http:91,hosting:47,'candidate-guards':22,'acceptance-guards':39,'media-profile-guards':1,'omise-profile-guards':1,'promptpay-profile-guards':1,'drawer-profile-guards':1,'frontend-unit':90,'frontend-check':1,'frontend-build':1,'audit-production':1,'audit-all':1,'qr-browser':66,'day-close-browser':8,'day-cutoff-browser':8,'day-seal-browser':22,'settlement-reporting-browser':7,'pos-build':1,'pos-print-layout':1,'pos-scanning-fixture':1,owning:9,'drawer-authority-owning':4};
+export const gates={unit:1390,architecture:7,http:136,hosting:47,'candidate-guards':22,'acceptance-guards':39,'media-profile-guards':1,'omise-profile-guards':1,'promptpay-profile-guards':1,'drawer-profile-guards':1,'frontend-unit':90,'frontend-check':1,'frontend-build':1,'audit-production':1,'audit-all':1,'qr-browser':75,'menu-photo-browser':34,'day-close-browser':8,'day-cutoff-browser':8,'day-seal-browser':22,'settlement-reporting-browser':7,'pos-build':1,'pos-print-layout':1,'pos-scanning-fixture':1,owning:13,'drawer-authority-owning':4};
 export const phoneCases=['camera-scan-https','independent-guests-same-table','menu-cart-price-review','submit-refresh-original','staff-accept-kitchen-once','cash-original-order','manual-promptpay-original-order','switch-app-lock-resume','network-loss-original-recovery','qr-revocation-scope-denial','paid-receipt-pdf-reprint','cash-reporting-reconciliation'];
 const pending=['clean-source-remote-ci','hosted-https-configuration','signed-matching-installer-and-hosting-artifacts','ios-safari-camera-acceptance','android-chrome-camera-acceptance','windows-pos-oidc-displays-pdf','dedicated-server-reboot-restore-monitoring','user-acceptance'];
 const requireValue=(ok)=>{if(!ok)throw new Error('QR6 evidence is missing, changed, failed or incomplete.');};
@@ -37,7 +37,7 @@ export function assess(evidence,current,schemas,outputs){
 export function prepare(run){
  noLinks(run);const evidence=read(path.join(run,'verification.json'));
  const candidate=assess(evidence,source(),catalog(),artifacts());
- const own=read(path.join(run,'owning.json'));requireValue(own.passed===true&&own.caseCount>=9&&own.cleanupVerified===true&&own.brokerRecoveryVerified===true&&own.productionVerified===false);
+ const own=read(path.join(run,'owning.json'));requireValue(own.passed===true&&own.caseCount>=11&&own.cleanupVerified===true&&own.brokerRecoveryVerified===true&&own.productionVerified===false);
  requireValue(sha(fs.readFileSync(path.join(run,'owning.json')))===candidate.checks.owning.evidenceSha256);
  const drawer=read(path.join(run,'drawer-owning.json'));requireValue(drawer.passed===true&&drawer.caseCount>=4&&drawer.cleanupVerified===true&&drawer.productionVerified===false);
  requireValue(sha(fs.readFileSync(path.join(run,'drawer-owning.json')))===candidate.checks['drawer-authority-owning'].evidenceSha256);

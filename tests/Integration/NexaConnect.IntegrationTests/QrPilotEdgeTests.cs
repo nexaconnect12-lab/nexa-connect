@@ -20,6 +20,12 @@ namespace NexaConnect.IntegrationTests;
 
 public sealed class QrPilotEdgeTests
 {
+    [Fact]public void Photo_allowlist_accepts_only_exact_product_get_without_parameters()
+    {
+        string path=$"/bff/guest/qr/menu/{Guid.NewGuid():D}/photo";
+        Assert.True(PilotOptions.Allowed("GET",path));Assert.False(PilotOptions.Allowed("POST",path));
+        Assert.False(PilotOptions.Allowed("GET",path+"?token=private"));Assert.False(PilotOptions.Allowed("GET",path.Replace("/photo","/original")));
+    }
     [Fact] public async Task Real_loopback_tls_backend_requires_the_original_certificate_pin_without_trust_store_changes()
     {
         using var key=RSA.Create(2048);var request=new CertificateRequest("CN=localhost",key,HashAlgorithmName.SHA256,RSASignaturePadding.Pkcs1);

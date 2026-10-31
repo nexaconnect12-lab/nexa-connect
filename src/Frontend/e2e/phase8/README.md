@@ -1,5 +1,10 @@
 # Phase 8 joined browser acceptance
 
+UX15 routes the upload/refresh/delete workflow through **Menu management → Image**, with the shared branch/item selection. The test uses existing seeded data and does not approve a public menu assignment. It is opt-in and separate from mocked browser regression coverage.
+The updated real-stack path has not been executed for UX15; syntax validation alone is not
+joined acceptance. Seed the configured product in the configured authorized branch with a
+unique display name in that branch, because the UI helper selects its exact name.
+
 This opt-in Playwright suite exercises the real Customer Portal, Keycloak login, Customer BFF tenant selection, Media API, presigned MinIO transfer, ClamAV validation, PostgreSQL lifecycle, and asynchronous Media worker. It proves an authorized tenant can upload, process, download, and delete a Catalog-owned image and that an ungranted organization selection is denied.
 
 The suite does not provision users or business data. Start the disposable development stack described in the Customer Portal README and seed a customer user with `nexa_connect` access, an organization-scoped `tenant-admin` assignment, and a Catalog product owned by that organization. Never point the suite at production.
@@ -19,6 +24,7 @@ $env:NEXACONNECT_PHASE8_E2E_USERNAME = '<customer-username>'
 $env:NEXACONNECT_PHASE8_E2E_PASSWORD = '<customer-password>'
 $env:NEXACONNECT_PHASE8_E2E_ORGANIZATION_ID = '<organization-uuid>'
 $env:NEXACONNECT_PHASE8_E2E_CATALOG_PRODUCT_ID = '<catalog-product-uuid>'
+$env:NEXACONNECT_PHASE8_E2E_BRANCH_ID = '<authorized-branch-containing-product-uuid>'
 npm run test:e2e:phase8
 ```
 

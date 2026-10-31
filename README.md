@@ -1,6 +1,33 @@
 # NexaConnect
 
+[POS UX18](docs/Deployment/POS-UX18-Cashier-Acceptance.md) adds a read-only guided worklist over the existing seventeen-case acceptance pack. Prerequisites, expected results and defect/retest priorities guide actual cashier testing; observations and release readiness remain separate.
+
+[POS UX17](docs/Deployment/POS-UX17-Shutdown-Diagnostics.md) hardens shutdown against reproduced blocking/faulting cleanup, adds bounded safe lifecycle diagnostics and preserves original cashier/payment recovery. The verified matching local pilot is installed and a controlled close/reopen check passes; the historical cause and actual operator acceptance remain separate.
+
+[POS UX16](docs/Deployment/POS-UX16-Flat-Cashier.md) refines the Windows cashier interface with flat panels, a contrasting labeled rail, restrained control corners and side-by-side menu filters. Existing operations, optional touch/density choices and protected recovery remain intact. The matching retained local pilot is installed; actual operator/device acceptance remains pending.
+
+[POS UX15](docs/Deployment/POS-UX15-Menu-Management.md) consolidates menu details, image-library selection, availability and categories into **Menu management**, with a shared branch/item selection and guarded drafts. Each save and public-image approval remains explicit. The retained local pilot is activated; actual manager/POS/phone acceptance remains pending.
+
+[POS UX14](docs/Deployment/POS-UX14-Menu-Details.md) adds an existing-menu-item editor with before/after review, safe price changes, per-item conflict protection and audited saves. Availability, related references and accepted financial snapshots are retained. The matching local pilot is installed; actual operator acceptance remains pending.
+
+[POS UX13](docs/Deployment/POS-UX13-Menu-Availability.md) adds branch menu availability controls, per-item conflict protection and audited sold-out/restore changes. POS and QR use the existing live flag; accepted orders and financial recovery remain separate. The matching local pilot is installed; actual operator acceptance remains pending.
+
+[POS UX12](docs/Deployment/POS-UX12-Shutdown-Restart.md) hardens staff-window shutdown,
+bounded callback IPC, authentication cancellation and single-instance restart. Run
+`scripts/test-pos-acceptance.ps1 -ShutdownOnly` for isolated recovery-preserving checks;
+matching installation and real-device acceptance are separate.
+
+[POS UX11](docs/Deployment/POS-UX11-Menu-Organization.md) adds branch menu categories, product-name assignment and display ordering in Customer Portal, with category/search browsing in Windows POS and QR menus. Catalog7 owns the audited layout; existing prices, photo approval and financial recovery remain separate.
+
+Menu photos now support product-name selection, reuse/upload, preview and explicit branch approval in Customer Portal, with optional processed-image display in guest QR and Windows POS menus. Catalog6 owns the audited selection; Media retains storage ownership. See [menu photo setup](docs/Deployment/Menu-Photos.md).
+
+Terminal & sync now separates **Overview**, **Input & devices**, **Cash drawer** and **Sync & recovery** into independently scrolling inner tabs. The [terminal-sections follow-up](docs/Deployment/POS-UX10-Windows11-Cashier.md#terminal-sections-follow-up) is installed in the retained pilot with existing state preserved.
+
+[POS UX10](docs/Deployment/POS-UX10-Windows11-Cashier.md) adds a Windows 11-inspired cashier workspace: labeled left navigation, neutral shared controls/menu tiles and a direct existing-workspace Lock action. Touch remains optional and payment/recovery policy is unchanged; the matching local pilot is installed, with real-device/operator acceptance still separate.
+
 [POS UX9](docs/Deployment/POS-UX9-Acceptance.md) adds isolated regression verification and a seventeen-case installed-release acceptance pack. Operator observations remain separate from source tests and release readiness; no application reinstall or physical driver activation is included.
+
+Run `scripts/test-pos-acceptance.ps1 -SessionExpiryOnly` for isolated native expiry, refresh-denial/outage and original-cashier fallback tests with synthetic identity and temporary protected recovery. It does not record an operator acceptance pass.
 
 [POS UX8D](docs/Deployment/POS-UX8D-Pilot-Acceptance.md) adds an opt-in history-only pilot profile and matched-package acceptance procedure. Drawer commands and physical opening remain disabled; installation and operator results are recorded separately.
 

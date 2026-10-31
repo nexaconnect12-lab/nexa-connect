@@ -1,5 +1,13 @@
 # NexaConnect Customer BFF
 
+UX14 exposes protected /bff/customer/menu-details routes with CustomerSession, subject-bound tenant membership, CSRF and bounded bodies/responses. MenuDetailsCatalog/Directory reuse Services:Catalog/PlatformDirectory, disable redirects and propagate correlation. Existing nexaconnect-customer-bff safe status/category logs and debugging queries are documented in [details API](../../../docs/API/Menu-Details.md).
+
+UX13 adds /bff/customer/menu-availability management with existing CustomerSession, selected-tenant membership and CSRF writes. The MenuAvailabilityCatalog client uses Services:Catalog, disables redirects and propagates validated correlation; bounds/errors are documented in [API/diagnostics](../../../docs/API/Menu-Availability.md). No guest or workload management route is added.
+
+UX11 adds CustomerSession/tenant/current-membership category GET/PUT with CSRF writes and65536-byte bounds under /bff/customer/menu-organization. Redirect-disabled Catalog adapter propagates correlation. Guest menu-organization uses only the existing secure guest capability and typed public DTOs. Service nexaconnect-customer-bff emits safe Menu organization BFF/QR shopping boundaries. See [API/debugging](../../../docs/API/Menu-Organization.md).
+
+Menu-photo staff GET/PUT/preview routes derive selected tenant/stable subject, recheck Directory membership and require CSRF for selection writes. Guest photo GET requires exact HTTPS origin and cookie capability; only the guest capability reaches Order. Dedicated photo budgets, redirect-disabled correlated adapters and bounded PNG/JSON forwarding preserve private storage. Service nexaconnect-customer-bff emits safe Menu photo BFF/QR menu photo boundary events. See [API/debugging](../../../docs/API/Menu-Photos.md).
+
 PromptPay management under /bff/customer/promptpay-qr derives selected workspace/stable subject, rechecks Directory membership and protects writes with CSRF/4096-byte limits. Dedicated bounded Restaurant/Media adapters propagate correlation without redirects or downstream body logging; existing Services addresses and Bff:MediaUploadOrigin are reused. Service nexaconnect-customer-bff emits safe PromptPay status/denial events. Guest routes and bank verification remain separate. See [contract](../../../docs/API/Branch-PromptPay-QR.md).
 
 UX6 adds protected barcode binding GET/PUT and CSRF routes under `/bff/customer/barcodes`.

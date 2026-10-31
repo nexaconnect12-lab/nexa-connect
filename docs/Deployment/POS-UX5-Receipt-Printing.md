@@ -1,5 +1,9 @@
 # POS UX5 — printer setup and 80 mm receipts
 
+After installing the [terminal-sections follow-up](POS-UX10-Windows11-Cashier.md#terminal-sections-follow-up),
+printer controls are under **Terminal & sync → Input & devices → Receipt printer**. Earlier
+releases place them directly on the Terminal & sync page; the workflow below is otherwise unchanged.
+
 Implemented and installed in the retained local pilot on 28 October 2026. Saved-PDF
 inspection and actual printer acceptance remain pending. The purchased printer's model,
 connection, driver and exact printable area are still unconfirmed.

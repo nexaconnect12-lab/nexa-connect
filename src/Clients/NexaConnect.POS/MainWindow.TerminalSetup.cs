@@ -67,12 +67,16 @@ public partial class MainWindow
         finally{setupCancellation=null;if(!windowCancellation.IsCancellationRequested)UpdateOperationalState();}
     }
     private void OpenInputSetup_Click(object sender,RoutedEventArgs e)=>NavigateSetup(TouchFirstCheckBox);
+    private void TerminalSection_Changed(object sender,SelectionChangedEventArgs e)
+    {
+        if(viewInitialized&&ReferenceEquals(e.Source,TerminalSections))HideTouchInput();
+    }
     private void OpenDisplaySetup_Click(object sender,RoutedEventArgs e)=>NavigateSetup(StaffDisplayPicker);
     private void OpenPrinterSetup_Click(object sender,RoutedEventArgs e)=>NavigateSetup(PrinterSetupControls);
     private void NavigateSetup(FrameworkElement target)
     {
         if(busy||!IsSignedIn()||displaySafetyBlocked)return;
-        TerminalTab.IsSelected=true;target.BringIntoView();
+        TerminalTab.IsSelected=true;TerminalDevicesTab.IsSelected=true;TerminalSections.UpdateLayout();target.BringIntoView();
     }
     private void OpenScannerSetup_Click(object sender,RoutedEventArgs e)
     {

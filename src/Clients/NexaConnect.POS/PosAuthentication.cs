@@ -18,6 +18,9 @@ public sealed class PosAuthentication : IDisposable
     private readonly IPosTokenStore _tokenStore;
     private readonly object _sync = new();
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly CancellationTokenSource lifetime = new();
+    private bool disposed;
+    private int disposeStarted;
     private TaskCompletionSource<PosTokenSet>? _pending;
     private PkceRequest? _pkce;
     private int _callbackConsumed;
@@ -93,6 +96,7 @@ public sealed class PosAuthentication : IDisposable
         PosTokenSet? expectedOperator;
         lock (_sync)
         {
+            ObjectDisposedException.ThrowIf(disposed, this);
             if (_pending is not null)
             {
                 throw new InvalidOperationException("A POS sign-in is already in progress.");
@@ -130,8 +134,11 @@ public sealed class PosAuthentication : IDisposable
         }
     }
 
-    public async Task HandleCallbackAsync(string callbackUri)
+    public async Task HandleCallbackAsync(string callbackUri, CancellationToken cancellationToken = default)
     {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
+        cancellationToken = cancellation.Token;
+        if (cancellationToken.IsCancellationRequested) return;
         if (callbackUri.Length > MaxCallbackLength ||
             !Uri.TryCreate(callbackUri, UriKind.Absolute, out Uri? callback) ||
             !string.Equals(callback.Scheme, "nexaconnect-pos", StringComparison.OrdinalIgnoreCase) ||
@@ -180,11 +187,11 @@ public sealed class PosAuthentication : IDisposable
                 throw new InvalidOperationException("The sign-in response did not contain an authorization code.");
             }
 
-            PosTokenSet token = await RedeemCodeAsync(code, pkce.Verifier);
+            PosTokenSet token = await RedeemCodeAsync(code, pkce.Verifier, cancellationToken);
             lock (_sync)
             {
                 // Do not install credentials from a cancelled or superseded attempt.
-                if (!ReferenceEquals(_pending, completion) || completion.Task.IsCompleted) return;
+                if (disposed || cancellationToken.IsCancellationRequested || !ReferenceEquals(_pending, completion) || completion.Task.IsCompleted) return;
                 if (HasOperator(CurrentToken) && !SameOperator(CurrentToken!, token))
                 {
                     SafeEvent("resume-identity-denied", null);
@@ -207,6 +214,8 @@ public sealed class PosAuthentication : IDisposable
 
     public async Task<PosTokenSet> RefreshAsync(CancellationToken cancellationToken = default)
     {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
+        cancellationToken = cancellation.Token;
         using var correlationScope = CorrelationContext.Push(IdentityCorrelation());
         await _refreshGate.WaitAsync(cancellationToken);
         try
@@ -214,6 +223,8 @@ public sealed class PosAuthentication : IDisposable
             PosTokenSet current;
             lock (_sync)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (disposed) throw new OperationCanceledException(cancellationToken);
                 current = CurrentToken ?? throw new PosReauthenticationRequiredException();
             }
             if (_requiresInteractiveSignIn || current.LockedAtUtc is not null ||
@@ -237,6 +248,8 @@ public sealed class PosAuthentication : IDisposable
             {
                 lock (_sync)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (disposed) throw new OperationCanceledException(cancellationToken);
                     if (!ReferenceEquals(CurrentToken, current))
                         return CurrentToken ?? throw new PosReauthenticationRequiredException();
                     RequireInteractiveSignIn();
@@ -251,6 +264,8 @@ public sealed class PosAuthentication : IDisposable
             refreshed = await BindOperatorAsync(refreshed, cancellationToken);
             lock (_sync)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (disposed) throw new OperationCanceledException(cancellationToken);
                 if (!ReferenceEquals(CurrentToken, current))
                     return CurrentToken ?? throw new PosReauthenticationRequiredException();
                 if (!SameOperator(current, refreshed))
@@ -302,7 +317,7 @@ public sealed class PosAuthentication : IDisposable
             query.Select(pair => Uri.EscapeDataString(pair.Key) + "=" + Uri.EscapeDataString(pair.Value)));
     }
 
-    private async Task<PosTokenSet> RedeemCodeAsync(string code, string verifier)
+    private async Task<PosTokenSet> RedeemCodeAsync(string code, string verifier, CancellationToken cancellationToken)
     {
         using var correlationScope = CorrelationContext.Push(IdentityCorrelation());
         string endpoint = _configuration.Authority.TrimEnd('/') + "/protocol/openid-connect/token";
@@ -315,13 +330,13 @@ public sealed class PosAuthentication : IDisposable
             ["code_verifier"] = verifier
         });
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = content };
-        using HttpResponseMessage response = await SendIdentityAsync(request, "sign-in", CancellationToken.None);
+        using HttpResponseMessage response = await SendIdentityAsync(request, "sign-in", cancellationToken);
         response.EnsureSuccessStatusCode();
-        using JsonDocument document = await response.Content.ReadFromJsonAsync<JsonDocument>()
+        using JsonDocument document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken)
             ?? throw new InvalidDataException("The token response was empty.");
         JsonElement root = document.RootElement;
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        return await BindOperatorAsync(ReadToken(root, null, now, now.AddHours(_configuration.SessionAbsoluteTimeoutHours)), CancellationToken.None);
+        return await BindOperatorAsync(ReadToken(root, null, now, now.AddHours(_configuration.SessionAbsoluteTimeoutHours)), cancellationToken);
     }
 
     private static bool SameOperator(PosTokenSet first, PosTokenSet second) =>
@@ -406,12 +421,26 @@ public sealed class PosAuthentication : IDisposable
         return values;
     }
 
+    internal void StopForShutdown()
+    {
+        lock (_sync)
+        {
+            if(disposed)return;
+            disposed=true;
+            _pending?.TrySetCanceled();_pending=null;_pkce=null;
+        }
+        _ = lifetime.CancelAsync().ContinueWith(task=>_ = task.Exception,
+            CancellationToken.None,TaskContinuationOptions.OnlyOnFaulted,TaskScheduler.Default);
+    }
     public void Dispose()
     {
-        _refreshGate.Dispose();
-        _httpClient.Dispose();
-        _loggerFactory.Dispose();
+        StopForShutdown();
+        if(Interlocked.Exchange(ref disposeStarted,1)!=0)return;
+        // A refresh still releases its managed gate in finally; never dispose it underneath that continuation.
+        try {_httpClient.Dispose();}
+        finally {_loggerFactory.Dispose();}
     }
+
 }
 
 public sealed class PosSessionResumeException(string message) : Exception(message);

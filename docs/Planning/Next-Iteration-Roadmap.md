@@ -1,5 +1,51 @@
 # Next iteration: phases, checklist and implementation prompts
 
+31 October 2026: **UX18 — guided cashier acceptance and targeted hardening** adds a read-only Worklist action to the existing seventeen-case installed pack, with prerequisites, expected results and defect/retest priorities. Guided tooling is delivered; actual cashier/phone/hardware observations and any confirmed-defect corrections remain pending. No POS reinstall or migration is required. See [UX18](../Deployment/POS-UX18-Cashier-Acceptance.md).
+
+31 October 2026: **UX17 — bounded shutdown and lifecycle diagnostics** hardens reproduced UI-blocking disposal/cancellation, isolates cleanup failures, queues display notifications and binds lifetime to the actual staff workspace. Safe bounded local diagnostics support investigation; original cashier/financial recovery is retained. The complete source-bound gate and thirteen isolated shutdown scenarios pass; the matching local pilot is installed with twelve Ready services, preserved data and a responsive POS. A controlled normal startup-authentication close exits in 109 ms with code 0 and reopens with four checked protected files unchanged. Actual operator acceptance remains pending; the historical installed UX15 cause is not claimed as diagnosed. See [UX17](../Deployment/POS-UX17-Shutdown-Diagnostics.md).
+
+31 October 2026: **UX16 — flat professional cashier presentation** follows the user’s request for a flatter POS design. Source refines panels, control corners, navigation contrast, table/row separators and compact filters while retaining optional touch mode, native workflows and financial/privacy boundaries. The complete source-bound release gate passes and the matching local package is installed with twelve Ready services and a responsive POS window. Eight protected files and original business data are preserved; actual operator/device acceptance remains pending. See [UX16](../Deployment/POS-UX16-Flat-Cashier.md).
+
+31 October 2026: the UX16 update observed a windowless installed UX15 process after user-confirmed closure. Verified background cleanup preserved all eight protected files. Real shutdown/reopen reliability remains a follow-up, separate from passing synthetic fixtures and the flat UI. See [shutdown observation](../Deployment/POS-UX12-Shutdown-Restart.md#installed-shutdown-observation-31-october-2026).
+
+31 October 2026: the user selected **Oracle Cloud Always Free VM** for the next temporary
+cloud-testing pilot and will reserve three subdomain names under the already-owned
+`usenexaconnect.com`: `test.usenexaconnect.com` (staff portal),
+`order-test.usenexaconnect.com` (guest QR ordering), and `auth-test.usenexaconnect.com`
+(authentication). These are planned names, not configured/reachable endpoints. Oracle account,
+region/capacity, VM shape/OS/storage, ARM64 dependency compatibility, measured full-stack
+resource fit, isolation, DNS, public TLS, backup/restore and hosted acceptance remain pending.
+This selects a temporary testing target; it does not declare production cloud migration or
+change the retained local pilot. See [hosting prerequisites](../Deployment/Next-Iteration-Phase-6.md).
+
+31 October 2026: **UX15 — unified Menu management** combines Details, Image, Availability and Categories & order under one branch/item selection, preserving explicit independent saves and image approval. The complete source-bound gate passes (34 portal menu/gallery cases, including twelve new unified-workspace cases); the retained pilot is activated with twelve Ready services, a verified served bundle and responsive matching POS. Eight protected files and existing business data are preserved; fresh operator acceptance remains pending. See [UX15](../Deployment/POS-UX15-Menu-Management.md).
+
+31 October 2026: **UX14 — menu item editor and safe price changes** passes the complete source gate and is activated with Catalog9, twelve Ready services and a responsive matching POS. Eight protected files and original metadata/availability/history/references/financial data are preserved; only the new details versions initialize to zero, with no details audit rows. Actual manager/POS/phone acceptance remains pending. The user reports UX13 working without completing unrelated cases. See [UX14](../Deployment/POS-UX14-Menu-Details.md).
+
+31 October 2026: **UX13 — branch menu availability** passes the complete source gate and is activated with Catalog8, twelve Ready services and a responsive matching POS. Eight protected files and original business data/availability/layout/image approvals are preserved; the new versions initialize to zero and audit is empty. Actual manager/POS/phone acceptance remains pending. The user reports UX12 reopening working without completing unrelated cases. See [UX13](../Deployment/POS-UX13-Menu-Availability.md).
+
+31 October 2026: **UX12 — POS shutdown and restart reliability** implements staff-window
+application lifetime, bounded cancellable callback IPC, identity shutdown fencing and explicit
+single-instance acquisition. The complete source gate passed and the matching package is
+activated in the retained local pilot with twelve Ready services and a responsive POS window.
+Temporary protected-recovery/process tests cover close/reopen; eight protected files, existing
+layout/image approvals and business data are preserved. Actual operator close/reopen and
+both-screen acceptance remain pending. The user reports UX11
+working, without completing the separate acceptance pack. See [UX12](../Deployment/POS-UX12-Shutdown-Restart.md).
+
+31 October 2026: **UX11 — menu categories and organized browsing** is verified and activated in the retained local pilot with Catalog7, matching POS and fresh QR binding. It adds named category/product assignment and ordered snapshot saves; POS and QR share category/search browsing with Uncategorized/failure fallback. Existing business data, image approvals and ten protected local files are preserved. Actual manager/phone/POS acceptance remains pending. See [UX11 setup/status](../Deployment/POS-UX11-Menu-Organization.md).
+
+30 October 2026: Menu image implementation adds product-name selection, existing image reuse/upload, preview and explicit branch approval, plus guest QR/native POS photos. The verified matching local pilot and Catalog6 are activated with preserved recovery and business data. Existing uploads are not automatically approved; actual manager/phone/POS acceptance remains pending. See [setup and verification](../Deployment/Menu-Photos.md).
+
+30 October 2026: UX10 terminal setup follow-up separates Overview, Input & devices, Cash drawer
+and Sync & recovery into independently scrolling inner sections. Overview is initially
+selected; shortcuts choose their destination and section switches hide stale touch input.
+See [source/rollout status](../Deployment/POS-UX10-Windows11-Cashier.md#terminal-sections-follow-up).
+
+30 October 2026: **UX10 — Windows 11-inspired cashier workspace** implements labeled left navigation, consistent native WPF surfaces/controls, menu tiles and a direct secure Lock affordance. It retains workflow/payment/recovery boundaries and optional touch/input modes. The matching pilot is installed with eight protected files preserved; seventeen fresh operator cases remain pending, and a windowless shutdown remnant requires separate investigation. See [source, rollout and accessibility acceptance](../Deployment/POS-UX10-Windows11-Cashier.md); physical drawer and portal redesign remain separate.
+
+30 October 2026: UX9 session-expiry automation adds a standalone `-SessionExpiryOnly` mode and native production timer/Resume-path fixtures for expiry, denied/unavailable refresh, protected restart lock, cancellation and original-cashier-only fallback. Synthetic identity and temporary recovery tests do not pass the real operator expiry case or change retained timeouts. See [coverage and limits](../Deployment/POS-UX9-Acceptance.md#isolated-session-expiry-and-fallback).
+
 30 October 2026: **UX9 — end-to-end POS acceptance and recovery hardening** adds an isolated source regression runner and seventeen installed-release operator cases, with exact-target checks, bounded evidence references and defect/retest tracking. Source tests cannot pass human/peripheral cases; installed observations do not promote current-source or release readiness. No application rollout or drawer enabling. See [procedures and measured results](../Deployment/POS-UX9-Acceptance.md).
 
 30 October 2026: **UX8D — local pilot activation and acceptance** adds history-only local enablement with opening authority disabled, required profile/HTTP guards and a matched-package preservation/acceptance procedure. The retained pilot now has matching history-only software/POS25/Authorization16 installed with eight protected files preserved; opening remains disabled. Source verification and activation results are tracked separately in [UX8D](../Deployment/POS-UX8D-Pilot-Acceptance.md); hardware/financial/device acceptance is never inferred.
@@ -242,7 +288,9 @@ keyboard necessary for normal cashier workflows.
 ### Windows 11-inspired visual direction
 
 Use Windows 11 as a design reference for a clean, modern and consistent POS interface:
-clear typography, appropriate spacing, rounded corners and intuitive visual hierarchy.
+clear typography, appropriate spacing, restrained corners and intuitive visual hierarchy.
+The 31 October flat-POS refinement favors square panels, minimal control rounding and clear
+separators over heavily rounded cards, while preserving this readability/consistency direction.
 Keep colors, icons, buttons, dialogs and navigation patterns consistent throughout the
 application. Retain a distinct POS-focused interface optimized for retail operations,
 readability, usability and fast cashier workflows.

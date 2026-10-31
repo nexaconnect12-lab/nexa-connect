@@ -38,6 +38,12 @@ public sealed class QrAcceptancePersistenceTests
             var requests=new QrRequestService(menu,repo,auth);var acceptance=new QrAcceptanceService(repo,port,port,policies,auth,menu,TimeProvider.System);
             var inventory=new InventoryStore(stock);inventory.SetStock(port.Context.OrganizationId,port.Context.BranchId,port.Product,10,new("fixture",Guid.NewGuid()));
             var quote=await requests.QuoteAsync(Token,new([new(port.Product,1)]),default);var request=await requests.SubmitAsync(Token,new(quote.QuoteId!.Value,quote.Fingerprint),Guid.NewGuid(),default);
+            // Sold-out changes block fresh quote/acceptance but never mutate the retained request.
+            port.Available=false;
+            await Assert.ThrowsAsync<PricingChangedException>(()=>requests.QuoteAsync(Token,new([new(port.Product,1)]),default));
+            await Assert.ThrowsAsync<GuestRequestConflictException>(()=>acceptance.AcceptAsync(port.Context.OrganizationId,port.Context.BranchId,request.Id,new(1),"operator","Bearer staff",Guid.NewGuid(),default));
+            Assert.Equal("pending",(await repo.GetAsync(port.Context.OrganizationId,port.Context.BranchId,request.Id,default))!.Request.Status);
+            Assert.Equal(0,await Count(orders,"orders"));port.Available=true;
             auth.Allowed=false;await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>acceptance.AcceptAsync(port.Context.OrganizationId,port.Context.BranchId,request.Id,new(1),"operator","Bearer staff",Guid.NewGuid(),default));auth.Allowed=true;
             port.Price=214;var review=(await acceptance.AcceptAsync(port.Context.OrganizationId,port.Context.BranchId,request.Id,new(1),"operator","Bearer staff",Guid.NewGuid(),default))!;
             Assert.Equal("price_review",review.Status);Assert.Equal(235.4m,review.ReviewQuote!.TotalAmount);Assert.Equal(0,await Count(orders,"orders"));Assert.Equal(10,inventory.GetStock(port.Context.OrganizationId,port.Context.BranchId).Single().AvailableQuantity);
@@ -46,6 +52,9 @@ public sealed class QrAcceptancePersistenceTests
             port.DineIn=false;await Assert.ThrowsAsync<GuestRequestConflictException>(()=>acceptance.AcceptAsync(port.Context.OrganizationId,port.Context.BranchId,request.Id,new(confirmed.Version),"operator","Bearer staff",Guid.NewGuid(),default));port.DineIn=true;
             var accepted=await Task.WhenAll(Enumerable.Range(0,12).Select(_=>acceptance.AcceptAsync(port.Context.OrganizationId,port.Context.BranchId,request.Id,new(confirmed.Version),"operator","Bearer staff",Guid.NewGuid(),default)));
             Assert.All(accepted,r=>Assert.Equal(request.Id,r!.OrderId));Assert.Equal(1,await Count(orders,"orders"));Assert.Equal(1,await Count(orders,"order_qr_acceptances"));Assert.Equal(0,await Count(kitchen,"kitchen_tickets"));
+            port.Available=false;
+            var availabilityReplay=await acceptance.AcceptAsync(port.Context.OrganizationId,port.Context.BranchId,request.Id,new(confirmed.Version),"operator","Bearer staff",Guid.NewGuid(),default);
+            Assert.Equal(request.Id,availabilityReplay!.OrderId);Assert.Equal(1,await Count(orders,"orders"));port.Available=true;
             var original=new PostgresOrderRepository(orders);var saved=await original.GetAsync(request.Id,default);Assert.Equal("qr",saved!.Channel);Assert.Equal("dine_in",saved.ServiceType);Assert.Equal("cash_manual",saved.WorkflowPaymentMethod);Assert.Equal(235.4m,saved.TotalAmount);Assert.Null(saved.PaymentIntentId);Assert.Null(saved.Receipt);
             await using(var eventCount=orders.CreateCommand("SELECT count(*) FROM outbox_messages WHERE event_type='OrderSubmittedV1'"))Assert.Equal(1L,await eventCount.ExecuteScalarAsync());
             // Each dependency commits before its simulated transport response is lost.
@@ -173,10 +182,10 @@ public sealed class QrAcceptancePersistenceTests
     private static async Task<long> Count(NpgsqlDataSource source,string table){Assert.Contains(table,new[]{"orders","order_qr_acceptances","kitchen_tickets","inventory_reservation_lines"});await using var c=source.CreateCommand($"SELECT count(*) FROM \"{table}\"");return (long)(await c.ExecuteScalarAsync())!;}
     private sealed class Port:IQrMenuPort,IQrAcceptancePort
     {
-        public QrGuestContext Context=new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"R","B","A1","THB",DateTimeOffset.UtcNow.AddHours(1));public Guid Product=Guid.NewGuid();public decimal Price=107;public bool DineIn=true;
+        public QrGuestContext Context=new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),"R","B","A1","THB",DateTimeOffset.UtcNow.AddHours(1));public Guid Product=Guid.NewGuid();public decimal Price=107;public bool DineIn=true,Available=true;
         public Task<QrGuestContext?> ContextAsync(string token,CancellationToken ct)=>Task.FromResult<QrGuestContext?>(Context);
         public Task<QrAcceptanceContext?> ContextAsync(GuestRequestScope scope,CancellationToken ct)=>Task.FromResult<QrAcceptanceContext?>(new(Context,DineIn));
-        public Task<IReadOnlyList<CatalogMenuItem>> MenuAsync(Guid org,Guid branch,CancellationToken ct){Assert.Equal(Context.OrganizationId,org);Assert.Equal(Context.BranchId,branch);return Task.FromResult<IReadOnlyList<CatalogMenuItem>>([new(Product,"Soup",Price,"THB",true,"kitchen")]);}
+        public Task<IReadOnlyList<CatalogMenuItem>> MenuAsync(Guid org,Guid branch,CancellationToken ct){Assert.Equal(Context.OrganizationId,org);Assert.Equal(Context.BranchId,branch);return Task.FromResult<IReadOnlyList<CatalogMenuItem>>([new(Product,"Soup",Price,"THB",Available,"kitchen")]);}
     }
     private sealed class Policies:IBranchPricingPort{public Task<PricingPolicy> GetAsync(Guid org,Guid restaurant,Guid branch,CancellationToken ct)=>Task.FromResult(new PricingPolicy(1,7,true,10));}
     internal sealed class Auth:IOrderTenantAuthorizer{public bool Allowed=true;public Task<bool> HasBranchAccessAsync(Guid org,Guid branch,string p,string b,CancellationToken ct)=>Task.FromResult(Allowed);public Task<Guid?> GetBranchDecisionAsync(Guid org,Guid branch,string p,string b,CancellationToken ct)=>Task.FromResult<Guid?>(Allowed?Guid.NewGuid():null);}

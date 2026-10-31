@@ -100,9 +100,10 @@ public sealed record PosPaymentRefund(Guid Id, Guid OrganizationId, Guid Restaur
     DateTimeOffset RequestedAtUtc, DateTimeOffset? CompletedAtUtc,
     string? FailureCode, PosRefundReceipt? Receipt);
 
-public sealed class PosApiClient : IDisposable
+public sealed partial class PosApiClient : IDisposable
 {
     private readonly PosClientConfiguration _configuration;
+    private int disposeStarted;
     private readonly HttpClient _httpClient;
     private readonly HttpClient _orderHttpClient;
     private readonly HttpClient _catalogHttpClient;
@@ -787,6 +788,7 @@ public sealed class PosApiClient : IDisposable
 
     public void Dispose()
     {
+        if(Interlocked.Exchange(ref disposeStarted,1)!=0)return;
         _httpClient.Dispose();
         _orderHttpClient.Dispose();
         _catalogHttpClient.Dispose();

@@ -1,5 +1,11 @@
 # POS UX3 — display density and responsive layouts
 
+After installing the [terminal-sections follow-up](POS-UX10-Windows11-Cashier.md#terminal-sections-follow-up),
+use **Terminal & sync → Input & devices → Display density**. Earlier releases show density on the
+single Terminal & sync page. This location change does not reset saved density or keyboard preferences.
+
+[UX10](POS-UX10-Windows11-Cashier.md) refreshes the shared WPF theme and places the same destinations in a labeled, scrollable left rail. Existing Standard/Touch density and independent automatic-keyboard preferences remain unchanged; verify the new shell at actual device scaling before operator acceptance.
+
 Display density is independent of the [optional automatic keyboard setting](POS-Input-Mode.md).
 The defaults are **Standard density** and **touch-first off**. Changing either setting
 preserves the other, so all four combinations are supported.

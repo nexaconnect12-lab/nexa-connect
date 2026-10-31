@@ -11,10 +11,10 @@ public sealed class RestaurantBranchScopeClient(
 {
     public async Task<RestaurantBranchScope?> GetAsync(Guid branchId, CancellationToken cancellationToken)
     {
-        client.BaseAddress = new Uri(configuration["Services:Restaurant"]
+        var origin = new Uri(configuration["Services:Restaurant"]
             ?? throw new InvalidOperationException("Services:Restaurant is required."));
         using var request = new HttpRequestMessage(
-            HttpMethod.Get, $"api/restaurant/v1/branches/{branchId:D}/authorization-scope");
+            HttpMethod.Get, new Uri(origin, $"api/restaurant/v1/branches/{branchId:D}/authorization-scope"));
         request.Headers.Authorization = new AuthenticationHeaderValue(
             "Bearer", await tokenProvider.GetAsync(cancellationToken));
         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);

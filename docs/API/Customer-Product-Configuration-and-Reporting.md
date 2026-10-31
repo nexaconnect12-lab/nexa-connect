@@ -1,5 +1,7 @@
 # Customer product configuration, reporting, and media
 
+UX14 adds versioned existing-item details GET/PUT through the protected Customer BFF. Legacy Catalog menu POST/upsert remains compatible but matching writers increment menu_version on actual metadata edits, invalidating stale reviewed drafts. See [menu details API and bounds](Menu-Details.md).
+
 UX6 adds branch product barcode management under Configuration, using separate Catalog-
 owned versioned assignments and existing menu permissions. It does not change Restaurant
 configuration or financial reporting. See [barcode API](Product-Barcodes.md).

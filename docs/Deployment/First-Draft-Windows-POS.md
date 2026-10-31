@@ -1,5 +1,11 @@
 # Windows first-draft terminal (slice 4)
 
+[UX17 shutdown diagnostics](POS-UX17-Shutdown-Diagnostics.md) hardens controlled blocking/faulting cleanup and adds safe bounded lifecycle logs. Keep original recovery when investigating an unseen POS process; a closed window or completed log event alone does not prove OS-process exit. Source and installed/operator evidence remain separate.
+
+[UX16 flat cashier presentation](POS-UX16-Flat-Cashier.md) refines the Windows 11-inspired staff theme and reduces menu-filter height. Existing handlers, privacy/recovery and optional input/density choices remain. Source verification, matching installation and actual equipment/operator acceptance are separate.
+
+[UX10 cashier presentation](POS-UX10-Windows11-Cashier.md) adds a Windows 11-inspired labeled left navigation rail and direct header Lock action through the existing authenticated-resume policy. A matching package is required; source previews do not change an installed terminal. Preserve existing recovery/preferences and re-run installed-target acceptance after rollout.
+
 [Branch PromptPay upload](POS-Branch-PromptPay-QR.md) replaces deployment-file QR configuration in explicitly enabled profiles. Preserve custody/recovery when packaging and installing the matching Services:MediaApi plus Pos:UseBranchPromptPayQr flag. Legacy file profiles default unchanged; a bank PNG and actual payment acceptance are not seeded by installation.
 
 The owned local package may optionally carry an additive Omise sandbox capability while

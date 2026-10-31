@@ -2,6 +2,7 @@
 $ErrorActionPreference='Stop'
 . "$PSScriptRoot/first-draft-uat-helpers.ps1"
 . "$PSScriptRoot/pos-acceptance-helpers.ps1"
+. "$PSScriptRoot/pos-acceptance-worklist.ps1"
 $script:count=0
 function Require([bool]$Value){if(-not $Value){throw 'POS acceptance guard failed.'};$script:count++}
 function Reject([scriptblock]$Work){try{& $Work|Out-Null}catch{$script:count++;return};throw 'Unsafe POS acceptance record accepted.'}
@@ -53,3 +54,36 @@ $record.privateNotes='secret-fixture';$record.binding.endpoint='secret-fixture';
 $json=Get-PosAcceptanceReport $record $true $true|ConvertTo-Json -Depth 20
 Require (-not $json.Contains('secret-fixture') -and -not $json.Contains('installDirectory'))
 Write-Output "PASS: $script:count POS acceptance guards; synthetic observations are not operator acceptance."
+
+# UX18 guidance is a projection, never an observation or a replacement acceptance pack.
+$record=Fresh
+$before=$record|ConvertTo-Json -Depth 20 -Compress
+$work=Get-PosAcceptanceWorklist $record $true $false
+Require ($work.cases.Count -eq 17 -and $work.next.caseId -ceq 'cashier-signin' -and $work.next.action -ceq 'observe')
+Require (($work.cases.id -join ',') -ceq ((Get-PosAcceptanceCases) -join ','))
+Require (@($work.cases|Where-Object {-not $_.prerequisite -or -not $_.procedure -or -not $_.expected -or -not $_.group}).Count -eq 0)
+Require (($record|ConvertTo-Json -Depth 20 -Compress) -ceq $before)
+Require (-not $work.observationsRecorded -and -not $work.qrCandidateFresh -and -not $work.currentSourceVerified -and -not $work.releaseReady -and -not $work.productionVerified)
+$record=Add-PosAcceptanceEvent $record (Observation cashier-signin)
+Require ((Get-PosAcceptanceWorklist $record $true $true).next.caseId -ceq 'idle-lock-resume')
+$record=Add-PosAcceptanceEvent $record (Observation idle-lock-resume blocked)
+Require ((Get-PosAcceptanceWorklist $record $true $true).next.caseId -ceq 'session-expiry-fallback')
+$record=Add-PosAcceptanceEvent $record (Observation receipt-pdf-reprint failed)
+Require ((Get-PosAcceptanceWorklist $record $true $true).next.action -ceq 'investigate-failure')
+$record=Add-PosAcceptanceEvent $record $defect
+$work=Get-PosAcceptanceWorklist $record $true $true
+Require ($work.next.caseId -ceq 'cash-original-settlement' -and $work.next.action -ceq 'investigate-defect')
+Require ($work.cases.Where({$_.id -ceq 'cash-original-settlement'})[0].openDefectCount -eq 1)
+$invalid=Get-PosAcceptanceWorklist $record $false $true
+Require ($invalid.next.action -ceq 'repair-binding' -and $null -eq $invalid.next.caseId -and -not $invalid.operatorCasesComplete)
+$record=Add-PosAcceptanceEvent $record $resolve
+Require ((Get-PosAcceptanceWorklist $record $true $true).cases.Where({$_.id -ceq 'cash-original-settlement'})[0].nextAction -ceq 'observe')
+foreach($case in (Get-PosAcceptanceCases)){if($case -cne 'idle-lock-resume'){$record=Add-PosAcceptanceEvent $record (Observation $case)}}
+Require ((Get-PosAcceptanceWorklist $record $true $true).next.action -ceq 'review-prerequisite')
+$record=Add-PosAcceptanceEvent $record (Observation idle-lock-resume)
+$work=Get-PosAcceptanceWorklist $record $true $true
+Require ($null -eq $work.next -and $work.operatorCasesComplete -and -not $work.releaseReady -and -not $work.productionVerified)
+$record.privateNotes='secret-fixture';$record.binding.endpoint='secret-fixture';$record.events[0].raw='secret-fixture'
+$json=Get-PosAcceptanceWorklist $record $true $true|ConvertTo-Json -Depth 20
+Require (-not $json.Contains('secret-fixture') -and -not $json.Contains('installDirectory'))
+Write-Output "PASS: $script:count total POS acceptance/worklist guards; no operator observations recorded."

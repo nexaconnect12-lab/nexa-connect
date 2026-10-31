@@ -20,6 +20,24 @@ namespace NexaConnect.IntegrationTests;
 
 public sealed class QrGuestBoundaryTests
 {
+    [Fact]public async Task Menu_organization_guest_route_uses_cookie_and_drops_private_fields()
+    {
+        await using var f=new Factory();using var c=f.CreateClient(Options());
+        Assert.Equal(HttpStatusCode.Unauthorized,(await c.GetAsync("/bff/guest/qr/menu-organization")).StatusCode);
+        c.DefaultRequestHeaders.Add("Origin","https://localhost");await c.PostAsJsonAsync("/bff/guest/qr/sessions",new QrEntryExchange(new string('E',43)));
+        using var r=await c.GetAsync("/bff/guest/qr/menu-organization");Assert.Equal(HttpStatusCode.OK,r.StatusCode);Assert.True(r.Headers.CacheControl?.NoStore);
+        var body=await r.Content.ReadAsStringAsync();Assert.DoesNotContain("internalSecret",body);Assert.DoesNotContain("organizationId",body);Assert.DoesNotContain("branchId",body);Assert.DoesNotContain("version",body);
+    }
+    [Fact]public async Task Menu_organization_staff_write_requires_csrf_subject_and_current_membership()
+    {
+        await using var f=new Factory();using var c=f.CreateClient(Options());await SignIn(f,c);var branch=Guid.NewGuid();string url=$"/bff/customer/menu-organization/branches/{branch}";
+        var update=new NexaConnect.Contracts.Catalog.UpdateMenuOrganization(0,[],[]);
+        Assert.Equal(HttpStatusCode.BadRequest,(await c.PutAsJsonAsync(url,update)).StatusCode);
+        var csrf=await c.GetFromJsonAsync<JsonElement>("/bff/customer/menu-organization/csrf");c.DefaultRequestHeaders.Add("X-Nexa-CSRF",csrf.GetProperty("requestToken").GetString());
+        using var saved=await c.PutAsJsonAsync(url,update);Assert.Equal(HttpStatusCode.OK,saved.StatusCode);Assert.Equal(1,f.Layout!.Sends);Assert.Equal(f.Port.Organization,f.Layout.LastTenant!.OrganizationId);
+        f.Port.Membership=false;Assert.Equal(HttpStatusCode.Forbidden,(await c.GetAsync(url)).StatusCode);Assert.Equal(1,f.Layout.Sends);
+        f.Port.Membership=true;await SignIn(f,c,"another-subject");Assert.Equal(HttpStatusCode.Unauthorized,(await c.GetAsync(url)).StatusCode);
+    }
     [Fact]public async Task Acceptance_and_price_confirmation_keep_staff_csrf_and_guest_origin_authority_separate()
     {
         await using var factory=new Factory(true,true,true);using var guest=factory.CreateClient(Options());Guid id=Guid.NewGuid();string confirm=$"/bff/guest/qr/requests/{id}/confirm-price";
@@ -142,6 +160,7 @@ public sealed class QrGuestBoundaryTests
     }
     private sealed class Factory(bool enabled = true,bool requests=false,bool acceptance=false) : WebApplicationFactory<CUSTOMERBFF::Program>
     {
+        public OrganizationPort? Layout;
         public Port Port { get; } = new();
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -154,8 +173,15 @@ public sealed class QrGuestBoundaryTests
                 ["Services:Catalog"]="https://catalog.test/",["Services:Inventory"]="https://inventory.test/",
                 ["QrGuest:Enabled"]=enabled.ToString(),["QrGuest:MenuEnabled"]="true",["QrGuest:RequestsEnabled"]=requests.ToString(),["QrGuest:AcceptanceEnabled"]=acceptance.ToString(),["QrGuest:PublicOrigin"]="https://localhost"
             }));
-            builder.ConfigureTestServices(services => { services.RemoveAll<IQrGatewayPort>(); services.AddSingleton<IQrGatewayPort>(Port); });
+            builder.ConfigureTestServices(services => { services.RemoveAll<IQrGatewayPort>(); services.AddSingleton<IQrGatewayPort>(Port);Layout=new(Port);services.RemoveAll<CUSTOMERBFF::NexaConnect.CustomerBff.Application.Catalog.ICustomerMenuOrganizationPort>();services.AddSingleton<CUSTOMERBFF::NexaConnect.CustomerBff.Application.Catalog.ICustomerMenuOrganizationPort>(Layout); });
         }
+    }
+    private sealed class OrganizationPort(Port access):CUSTOMERBFF::NexaConnect.CustomerBff.Application.Catalog.ICustomerMenuOrganizationPort
+    {
+        public int Sends;public TenantContext? LastTenant;
+        public Task<CurrentPlatformAccessResponse?> AccessAsync(string token,CancellationToken ct)=>access.AccessAsync(token,ct);
+        public Task<HttpResponseMessage> SendAsync(TenantContext tenant,Guid branch,NexaConnect.Contracts.Catalog.UpdateMenuOrganization? input,string token,CancellationToken ct)
+        {Assert.Equal("server-held-test-token",token);Sends++;LastTenant=tenant;return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=JsonContent.Create(new NexaConnect.Contracts.Catalog.BranchMenuOrganization(tenant.OrganizationId,branch,1,[],[]))});}
     }
     private sealed class Port : IQrGatewayPort
     {
@@ -175,6 +201,7 @@ public sealed class QrGuestBoundaryTests
         {
             Assert.NotEqual(new string('H',43),session);
             if(Status!=200||!sessions.ContainsKey(session))return Task.FromResult(new QrGatewayReply(401,null));
+            if(operation=="organization")return Task.FromResult(new QrGatewayReply(200,JsonSerializer.SerializeToElement(new{organizationId=Organization,branchId=Guid.NewGuid(),version=9,internalSecret="hidden",categories=new[]{new{id=Guid.NewGuid(),name="Food",internalSecret="hidden"}},items=Array.Empty<object>()},JsonSerializerOptions.Web)));
             return Task.FromResult(operation=="menu"?new QrGatewayReply(200,JsonSerializer.SerializeToElement(new{items=new[]{new{productId=Guid.NewGuid(),name="Soup",unitPrice=107,currency="THB",available=true,preparationStation="secret",internalSecret="secret"}},internalSecret="secret"},JsonSerializerOptions.Web)):new QrGatewayReply(409,null));
         }
         private readonly Dictionary<string, QrGuestContext> sessions = []; public int Starts; public int Status = 200; public bool ExpiredContext;

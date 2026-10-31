@@ -6,8 +6,28 @@ using NexaConnect.Services.Order.Application.Workflow;
 
 namespace NexaConnect.Services.Order.Infrastructure.Clients;
 
-public sealed class HttpQrMenuPort(IHttpClientFactory clients) : IQrMenuPort,IQrAcceptancePort
+public sealed class HttpQrMenuPort(IHttpClientFactory clients,ILogger<HttpQrMenuPort>? logger=null) : IQrMenuPort,IQrAcceptancePort,IQrMenuPhotoPort,IQrMenuOrganizationPort
 {
+    public async Task<QrMenuOrganization> OrganizationAsync(Guid org,Guid branch,CancellationToken ct)
+    {
+        using var request=new HttpRequestMessage(HttpMethod.Get,$"api/catalog/v1/internal/organizations/{org:D}/branches/{branch:D}/menu-organization");
+        var value=await Read<NexaConnect.Contracts.Catalog.BranchMenuOrganization>(clients.CreateClient("QrGuestCatalog"),request,65536,ct,false);
+        if(value is null||value.OrganizationId!=org||value.BranchId!=branch||value.Version<0||value.Categories is null||value.Items is null
+            ||value.Categories.Count>50||value.Items.Count>200||value.Categories.Any(x=>x is null||x.Id==Guid.Empty||string.IsNullOrWhiteSpace(x.Name)||x.Name.Length>80||x.Name.Any(char.IsControl))
+            ||value.Items.Any(x=>x is null||x.ProductId==Guid.Empty||x.CategoryId==Guid.Empty)||value.Categories.Select(x=>x.Id).Distinct().Count()!=value.Categories.Count
+            ||value.Categories.Select(c=>c.Name.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=value.Categories.Count||value.Version==0&&(value.Categories.Count>0||value.Items.Count>0)
+            ||value.Items.Select(x=>x.ProductId).Distinct().Count()!=value.Items.Count||value.Items.Any(x=>x.CategoryId is Guid id&&!value.Categories.Any(c=>c.Id==id)))throw new HttpRequestException("Invalid menu organization.");
+        return new(value.Categories.Select(x=>new QrMenuCategory(x.Id,x.Name)).ToArray(),value.Items.Select(x=>new QrMenuPlacement(x.ProductId,x.CategoryId)).ToArray());
+    }
+    public async Task<byte[]?> PhotoAsync(Guid organization,Guid branch,Guid product,CancellationToken ct)
+    {
+        using var request=new HttpRequestMessage(HttpMethod.Get,$"api/catalog/v1/internal/organizations/{organization:D}/branches/{branch:D}/products/{product:D}/photo");
+        using var response=await clients.CreateClient("QrGuestCatalog").SendAsync(request,HttpCompletionOption.ResponseHeadersRead,ct);
+        if(response.StatusCode==HttpStatusCode.NotFound)return null;
+        if(!response.IsSuccessStatusCode){logger?.LogWarning("QR menu photo Catalog boundary rejected {StatusCode}",(int)response.StatusCode);throw new HttpRequestException("Menu photo unavailable.");}
+        if(response.Content.Headers.ContentType?.MediaType!="image/png"||response.Content.Headers.ContentLength>524288)throw new InvalidDataException();
+        await response.Content.LoadIntoBufferAsync(524288,ct);return await response.Content.ReadAsByteArrayAsync(ct);
+    }
     public async Task<QrAcceptanceContext?> ContextAsync(Domain.Qr.GuestRequestScope scope,CancellationToken ct)
     {
         using var request=new HttpRequestMessage(HttpMethod.Get,$"api/restaurant/v1/internal/organizations/{scope.OrganizationId:D}/branches/{scope.BranchId:D}/qr-visitors/{scope.VisitorId:D}/entries/{scope.EntryId:D}");

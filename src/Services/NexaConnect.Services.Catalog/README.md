@@ -1,5 +1,19 @@
 # Catalog Service
 
+UX14 adds existing-item menu-details reads/edits under live menu.read/write. Catalog9 adds menu_version and immutable before/after audit; row-lock CAS, audit and two versioned outbox events commit atomically. Legacy upserts increment details versions on actual changes while preserving availability. Existing nexaconnect-catalog structured status/category diagnostics remain safe. See [API/debugging](../../../docs/API/Menu-Details.md) and [schema/rollback](../../../docs/Database/Menu-Details.md).
+
+UX13 exposes customer branch menu-availability GET and per-product PUT under existing menu.read/write. Catalog8 adds availability_version and immutable audit; row-lock CAS/audit/outbox commit together. Metadata upsert preserves the flag/version. Existing correlated nexaconnect-catalog diagnostics use safe status/category only. See [API/debugging](../../../docs/API/Menu-Availability.md) and [schema/rollback](../../../docs/Database/Menu-Availability.md).
+
+UX11 adds MenuOrganizationService and Catalog7 versioned branch layouts, Domain validation, parameterized locked persistence and atomic immutable audit/generic outbox. Existing live branch menu.read/write applies; internal read requires exact Order workload. No price event or financial DTO changes. Service nexaconnect-catalog logs safe Menu organization boundary events with shared correlation. See [API/debugging](../../../docs/API/Menu-Organization.md), [storage](../../../docs/Database/Menu-Organization.md) and [rollout](../../../docs/Deployment/POS-UX11-Menu-Organization.md).
+
+Branch-scope authorization uses an absolute request URI derived from `Services:Restaurant`
+without changing the shared client's BaseAddress after sending requests. Repeated and
+concurrent live checks remain valid, including menu-photo read/preview/save/delivery
+revalidation. Workload credentials, correlation propagation and live permission checks are
+unchanged. `CatalogBranchScopeReuseTests` exercises the real adapter and the photo workflow.
+
+Catalog6 adds approved branch/product menu-photo references with domain version/approval checks, owning menu-row locks and atomic local audit/generic outbox. Existing live menu.read/write applies; assignment/preview also requires Media read. Services:Media and existing Catalog workload credentials fetch bounded processed PNG; exact Order workload selected-photo read is private. Service nexaconnect-catalog propagates correlation and emits safe Menu photo boundary events. See [API/debugging](../../../docs/API/Menu-Photos.md), [storage](../../../docs/Database/Menu-Photos.md) and [deployment](../../../docs/Deployment/Menu-Photos.md).
+
 UX6 adds migration 5 and customer barcode read/write/lookup routes. Domain owns code,
 collision and version rules; Infrastructure commits tenant-wide registry, branch binding,
 immutable detailed audit and generic audit outbox under one tenant-serialized transaction.

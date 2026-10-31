@@ -11,7 +11,7 @@ public sealed class MigrationRunnerTests
             ["PlatformDirectory"] = 3,
             ["Authorization"] = 16,
             ["Restaurant"] = 4,
-            ["Catalog"] = 5,
+            ["Catalog"] = 9,
             ["Inventory"] = 5,
             ["Order"] = 22,
             ["Kitchen"] = 3,

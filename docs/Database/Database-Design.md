@@ -1,5 +1,13 @@
 # NexaConnect Database Design
 
+Catalog9 adds menu_version and immutable before/after details audit: current Catalog31/full221, compatibility0.44.0. Per-item row locks/CAS commit edits and audit/outbox together; legacy changes advance versions, and availability/references/financial history remain independent. See [details storage](Menu-Details.md).
+
+Catalog8 adds per-item availability_version and one immutable audit table: Catalog30/full220 at introduction, compatibility0.43.0. Domain CAS and owning row locks preserve concurrent sold-out decisions, with atomic audit/outbox. Metadata upsert no longer resets availability. See [persistence](Menu-Availability.md).
+
+Catalog7 adds two branch menu-organization snapshot/audit tables: Catalog29 and full catalog219 at introduction, compatibility0.42.0. Layout is independent of price and financial state; domain CAS, owning product locks and atomic audit/outbox protect saves. See [persistence](Menu-Organization.md).
+
+Catalog6 adds two primary-photo selection/audit tables, bringing Catalog to27 and the full catalog to217 tables at menu-photo introduction. Minimum application compatibility0.41.0; financial schemas are unchanged. Owning menu-row locking and atomic audit/outbox protect first-write races. See [menu photo persistence](Menu-Photos.md).
+
 POS24 adds three append-only drawer intent/outcome/audit tables, bringing the full catalog to215. Authorization16 adds role-permission backfill, not tables. Default-off server authority reuses exact POS custody and confirmed cash projection without changing financial balances/revisions. See [drawer persistence](Drawer-Intents.md).
 
 Catalog 5 adds an organization barcode registry, versioned branch bindings and immutable
@@ -33,7 +41,7 @@ POS 22 adds source_day_cutoffs.correction_revision_epoch as a generated nullable
 
 Reporting 21 owns cash_correction_facts and cash_correction_event_receipts, uniquely fencing event and organization/correction/work/tender/Order. Atomic receipt/fact/checkpoint commits and immutable triggers protect redelivery. POS 21 owns cash_correction_replay_runs/attempts, with operator UUID, database session_user and append-only started/confirmed outcomes. No cross-owner SQL is introduced. See [contract](../API/Cash-Correction-Reporting.md) and [operations](../Deployment/Cash-Correction-Reporting.md).
 
-POS 20 owns late_cash_corrections and late_cash_correction_audit (193 total catalog tables at introduction; the current catalog has 215). Scoped uniqueness covers operations/work/original event/tender/Order; local custody/review/drawer FKs preserve provenance. Ledger/receipt/audit/revision/outbox share one owning transaction. Posting-time journal selection preserves historical snapshots; source day hashes include correction identity/amount. No cross-database FK or transaction is introduced. See [correction contract](../API/Late-Cash-Corrections.md) and [operations](../Deployment/Late-Cash-Corrections.md).
+POS 20 owns late_cash_corrections and late_cash_correction_audit (193 total catalog tables at introduction; the current catalog has 221). Scoped uniqueness covers operations/work/original event/tender/Order; local custody/review/drawer FKs preserve provenance. Ledger/receipt/audit/revision/outbox share one owning transaction. Posting-time journal selection preserves historical snapshots; source day hashes include correction identity/amount. No cross-database FK or transaction is introduced. See [correction contract](../API/Late-Cash-Corrections.md) and [operations](../Deployment/Late-Cash-Corrections.md).
 
 Late-work review adds one independently owned source_late_work_reviews table to each of Order 19, Payment 18 and POS 19. Existing custody receives stable work UUIDs and organization/received/work indexes; no foreign database access or shared Domain entities are introduced. Review PK is organization/barrier/work/version, with organization/operation uniqueness, owning FKs, append guards and immutable history. Actor, authorization UUID and fingerprint remain private. Financial journals, custody disposition and settlement receipts do not change. See [DDL, transactions, grants and rollback](../Deployment/Late-Work-Reviews.md).
 

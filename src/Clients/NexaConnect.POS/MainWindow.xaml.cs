@@ -127,8 +127,8 @@ public partial class MainWindow : Window
         }
         InitializeTouchInput();
         viewInitialized = true;
-        MenuList.ItemsSource = menu;
-        System.Windows.Data.CollectionViewSource.GetDefaultView(menu).Filter = value => value is PosMenuItem item && CashierPresentation.MatchesMenu(item.Name, item.PreparationStation, MenuSearchTextBox.Text, StationComboBox.SelectedItem as string);
+        InitializeMenuPhotos();
+        System.Windows.Data.CollectionViewSource.GetDefaultView(menuTiles).Filter = value => value is MenuTile tile && MatchesMenuCategory(tile) && CashierPresentation.MatchesMenu(tile.Item.Name, tile.Item.PreparationStation, MenuSearchTextBox.Text, StationComboBox.SelectedItem as string);
         StationComboBox.ItemsSource = new[] { "All stations" };
         StationComboBox.SelectedIndex = 0;
         ShiftNumberTextBox.Text = CashierPresentation.NewShiftNumber(DateTimeOffset.Now, Guid.NewGuid());
@@ -173,7 +173,8 @@ public partial class MainWindow : Window
             signInCancellation.Cancel();
             return;
         }
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(windowCancellation.Token);
+        cancellation.CancelAfter(TimeSpan.FromMinutes(3));
         signInCancellation = cancellation;
         SetBusy("Opening secure sign-in…");
         SignInButton.Content = "Cancel sign-in";
@@ -283,9 +284,10 @@ public partial class MainWindow : Window
 
     private async void LoadMenu_Click(object sender, RoutedEventArgs e)
     {
-        if (_authentication.CurrentToken is null) return;
-        try { SetBusy("Loading menu…"); menu.Clear(); foreach (var item in await _api.GetMenuAsync(_authentication.CurrentToken, _configuration.BranchId)) menu.Add(item); StationComboBox.ItemsSource = new[] { "All stations" }.Concat(menu.Select(item => item.PreparationStation).Distinct().OrderBy(value => value)).ToArray(); StationComboBox.SelectedIndex = 0; StatusText.Text = $"Loaded {menu.Count} menu items."; }
-        catch (Exception exception) { StatusText.Text = exception is PosApiException api ? api.Message : "Menu could not be loaded. Check the Catalog service."; }
+        if (_authentication.CurrentToken is not {} token || !IsSignedIn()) return;
+        int generation=receiptSessionGeneration;string? subject=token.Subject;
+        try { SetBusy("Loading menu…"); menu.Clear(); var items=await _api.GetMenuAsync(token, _configuration.BranchId,windowCancellation.Token);if(!PrintSessionCurrent(generation,subject))return;foreach (var item in items) menu.Add(item); StationComboBox.ItemsSource = new[] { "All stations" }.Concat(menu.Select(item => item.PreparationStation).Distinct().OrderBy(value => value)).ToArray(); StationComboBox.SelectedIndex = 0; StatusText.Text = $"Loaded {menu.Count} menu items.";menuPhotoRequested=true;_=LoadMenuPhotosAsync();_=LoadMenuOrganizationAsync(); }
+        catch (Exception exception) { if(PrintSessionCurrent(generation,subject))StatusText.Text = exception is PosApiException api ? api.Message : "Menu could not be loaded. Check the Catalog service."; }
         finally { UpdateOperationalState(); }
     }
 
@@ -508,7 +510,8 @@ public partial class MainWindow : Window
 
     private void AddMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { DataContext: PosMenuItem item }) TryAddMenuItem(item);
+        if(sender is Button {DataContext:MenuTile tile})TryAddMenuItem(tile.Item);
+        else if (sender is Button { DataContext: PosMenuItem item }) TryAddMenuItem(item);
     }
     private bool TryAddMenuItem(PosMenuItem item)
     {
@@ -542,7 +545,7 @@ public partial class MainWindow : Window
     private void RefreshMenuFilter()
     {
         if (!viewInitialized) return;
-        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(menu);
+        var view = System.Windows.Data.CollectionViewSource.GetDefaultView(menuTiles);
         view.Refresh();
         MenuEmptyText.Text = CashierWorkflow.MenuEmptyMessage(IsSignedIn(), _activeShift is not null, menu.Count > 0, busy);
         MenuEmptyText.Visibility = view.IsEmpty ? Visibility.Visible : Visibility.Collapsed;
@@ -1192,6 +1195,8 @@ public partial class MainWindow : Window
 
     private void ClearReceiptView()
     {
+        ClearMenuPhotos();
+        ClearMenuOrganization();
         ClearOrderList();
         QrCollectionDetailsText.Text = "";
         QrReferenceTextBox.Clear();
@@ -1402,6 +1407,7 @@ public partial class MainWindow : Window
 
     private void UpdateOperationalState()
     {
+        if(windowCancellation.IsCancellationRequested)return;
         busy = false;
         WorkspaceTabs.IsEnabled = !reauthenticationRequired;
         bool signedIn = IsSignedIn();
@@ -1418,8 +1424,9 @@ public partial class MainWindow : Window
         PrintRefundButton.IsEnabled = signedIn && displayedRefundReceipt is not null;
         bool hasStoredSession = _authentication.CurrentToken is not null;
         bool hasActiveShift = _activeShift is not null;
-        SignInButton.Content = "Sign in";
+        SignInButton.Content = signedIn ? "Signed in" : "Sign in";
         SignInButton.IsEnabled = !signedIn;
+        LockWorkspaceButton.IsEnabled = signedIn;
         SignOutButton.IsEnabled = hasStoredSession;
         OpenShiftButton.IsEnabled = signedIn && !hasActiveShift;
         CloseShiftButton.IsEnabled = hasActiveShift;
@@ -1611,8 +1618,15 @@ public partial class MainWindow : Window
         }
     }
 
+    private void LockWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        if (!reauthenticationRequired && _authentication.CurrentToken is not null)
+            LockSession("Workspace paused. Authenticate to resume your original workspace.");
+    }
+
     private void LockSession(string message)
     {
+        if(windowCancellation.IsCancellationRequested)return;
         HideTouchInput();
         // Hide and disable immediately, even while an already-started command is completing.
         // That command retains its original recovery identity and is never replayed by locking.
@@ -1676,8 +1690,14 @@ public partial class MainWindow : Window
         base.OnPreviewTouchDown(e);
     }
 
-    private void OnStatusChanged(object? sender, string status) =>
-        Dispatcher.Invoke(() => StatusText.Text = status);
+    private void OnStatusChanged(object? sender, string status)
+    {
+        if (windowCancellation.IsCancellationRequested || Dispatcher.HasShutdownStarted) return;
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            if (!windowCancellation.IsCancellationRequested) StatusText.Text = status;
+        });
+    }
 
     private bool HasQueuedCashMovements(Guid sessionId)
     {
@@ -1731,24 +1751,41 @@ public partial class MainWindow : Window
             : "Ask the customer to scan this restaurant PromptPay QR, then verify the receipt.";
     }
 
+    internal PosLifecycleTrace Lifecycle {get;set;}=PosLifecycleTrace.Disabled;
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        base.OnClosing(e);
+        Lifecycle.Record(PosLifecycleStage.WindowClosing,e.Cancel?PosLifecycleOutcome.Pending:PosLifecycleOutcome.Begin);
+    }
     protected override void OnClosed(EventArgs e)
     {
-        windowCancellation.Cancel();
-        promptPayQrTimer.Stop();promptPayQrTimer.Tick-=PromptPayQrTick;
-        signInCancellation?.Cancel();
-        sessionTimer.Stop();
-        orderListTimer.Stop();
-        orderListTimer.Tick -= OrderListTimer_Tick;
-        galleryTimer.Stop();
-        galleryTimer.Tick -= GalleryTick;
-        sessionTimer.Tick -= SessionTimer_Tick;
-        _authentication.StatusChanged -= OnStatusChanged;
-        _api.Dispose();
-        terminalDiagnostics.Dispose();
-        drawerCoordinator.Dispose();
-        ClearDrawerHistory();drawerHistory.Dispose();
-        displays?.Dispose();
-        base.OnClosed(e);
+        try
+        {
+            Lifecycle.Step(PosLifecycleStage.AuthenticationFence,_authentication.StopForShutdown);
+            Lifecycle.Cancel(PosLifecycleStage.WindowCancellation,windowCancellation);
+            Lifecycle.Cancel(PosLifecycleStage.SignInCancellation,signInCancellation);
+            Lifecycle.Cancel(PosLifecycleStage.MenuPhotos,menuPhotoCancellation);menuPhotoCancellation=null;
+            Lifecycle.Cancel(PosLifecycleStage.MenuOrganization,menuOrganizationCancellation);menuOrganizationCancellation=null;
+            Lifecycle.Cancel(PosLifecycleStage.DrawerHistory,drawerHistoryCancellation);drawerHistoryCancellation=null;
+            Interlocked.Increment(ref galleryGeneration);
+            galleryBundle=null;galleryReader=null;galleryImages=[];
+            Lifecycle.Step(PosLifecycleStage.Timers,()=>{
+                menuPhotoTimer.Stop();menuPhotoTimer.Tick-=MenuPhotoTick;menu.CollectionChanged-=MenuPhotosChanged;
+                ClearMenuPhotos();ClearMenuOrganization();
+                promptPayQrTimer.Stop();promptPayQrTimer.Tick-=PromptPayQrTick;
+                sessionTimer.Stop();sessionTimer.Tick-=SessionTimer_Tick;
+                orderListTimer.Stop();orderListTimer.Tick-=OrderListTimer_Tick;
+                galleryTimer.Stop();galleryTimer.Tick-=GalleryTick;
+                _authentication.StatusChanged-=OnStatusChanged;
+            });
+            Lifecycle.Background(PosLifecycleStage.ApiClients,_api.Dispose);
+            Lifecycle.Background(PosLifecycleStage.Diagnostics,terminalDiagnostics.Dispose);
+            Lifecycle.Background(PosLifecycleStage.Drawer,drawerCoordinator.Dispose);
+            Lifecycle.Step(PosLifecycleStage.DrawerHistory,ClearDrawerHistory);
+            Lifecycle.Background(PosLifecycleStage.DrawerHistory,drawerHistory.Dispose);
+            Lifecycle.Step(PosLifecycleStage.Displays,()=>displays?.Dispose());
+        }
+        finally { base.OnClosed(e); }
     }
 
     private void UpdateCartTotal()

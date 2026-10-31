@@ -1,4 +1,4 @@
-<Window x:Class="NexaConnect.POS.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="NexaConnect · Cashier" Width="1280" Height="850" MinWidth="960" MinHeight="640" WindowStartupLocation="CenterScreen" SizeChanged="DensityWindow_SizeChanged" Background="#F4F6F3" FontFamily="Segoe UI" FontSize="{DynamicResource PosBodyFontSize}" Foreground="#172A22">
+<Window x:Class="NexaConnect.POS.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="NexaConnect · Cashier" Width="1280" Height="850" MinWidth="960" MinHeight="640" WindowStartupLocation="CenterScreen" SizeChanged="DensityWindow_SizeChanged" Background="{DynamicResource PosCanvas}" FontFamily="Segoe UI" FontSize="{DynamicResource PosBodyFontSize}" Foreground="#172A22">
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
@@ -6,7 +6,7 @@
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Window.Resources>
-  <Grid xmlns:pos="clr-namespace:NexaConnect.POS">
+  <Grid xmlns:pos="clr-namespace:NexaConnect.POS" Background="{StaticResource PosCanvas}">
     <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <ScrollViewer x:Name="InputViewport" Margin="24" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly">
   <Grid x:Name="OperationalSurface" MinHeight="480" Height="{Binding ViewportHeight, ElementName=InputViewport}">
@@ -15,25 +15,29 @@
       <RowDefinition Height="*" />
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
-    <Grid Margin="0,0,0,16">
+    <Border x:Name="CashierHeader" BorderBrush="{StaticResource PosDivider}" BorderThickness="0,0,0,1" Padding="0,0,0,12" Margin="0,0,0,12">
+    <Grid>
       <Grid.ColumnDefinitions>
         <ColumnDefinition />
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
       <StackPanel>
-        <TextBlock Text="NexaConnect / Cashier" FontSize="28" FontWeight="Bold" />
+        <TextBlock Text="NexaConnect" FontSize="26" FontWeight="SemiBold" />
+        <TextBlock Text="Cashier workspace" FontSize="12" Foreground="#475569" Margin="0,2,0,0" />
         <TextBlock x:Name="ContextText" TextWrapping="Wrap" Margin="0,6,16,0" Foreground="#52655A" />
         <TextBlock x:Name="SessionText" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,6,0,0" />
       </StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
         <Button Content="Windows keyboard" Click="WindowsKeyboard_Click" AutomationProperties.Name="Open Windows on-screen keyboard" />
+        <Button x:Name="LockWorkspaceButton" Content="Lock" Click="LockWorkspace_Click" AutomationProperties.Name="Lock cashier workspace" ToolTip="Pause securely without closing your shift or clearing pending work." />
         <Button x:Name="SignInButton" Content="Sign in" Click="SignIn_Click" Style="{StaticResource Primary}" />
         <Button x:Name="SignOutButton" Content="Sign out" Click="SignOut_Click" ToolTipService.ShowOnDisabled="True" />
       </StackPanel>
     </Grid>
-    <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Background="Transparent" BorderThickness="0" SelectionChanged="WorkspaceTab_Changed">
-      <TabItem x:Name="CheckoutTab" Header="Checkout">
-        <Grid Margin="0,16,0,0">
+    </Border>
+    <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Style="{StaticResource CashierNavigation}" Background="Transparent" BorderThickness="0" SelectionChanged="WorkspaceTab_Changed" AutomationProperties.Name="Cashier navigation">
+      <TabItem x:Name="CheckoutTab" Header="Checkout" Tag="&#xE80F;">
+        <Grid Margin="0">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="3*" />
             <ColumnDefinition Width="2*" />
@@ -55,10 +59,12 @@
                 <TextBox x:Name="MenuSearchTextBox" AutomationProperties.Name="Search menu" ToolTip="Search menu by name" TextChanged="MenuFilter_Changed" />
               </DockPanel>
               <StackPanel Grid.Row="2">
-              <DockPanel>
-                <TextBlock Text="Station" Margin="0,16,12,0" />
-                <ComboBox x:Name="StationComboBox" SelectionChanged="StationFilter_Changed" AutomationProperties.Name="Preparation station filter" />
-              </DockPanel>
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                  <StackPanel Margin="0,0,8,0"><TextBlock Text="Category"/><ComboBox x:Name="CategoryComboBox" DisplayMemberPath="Label" SelectionChanged="MenuCategory_Changed" AutomationProperties.Name="Menu category filter" Margin="0,4,0,6"/></StackPanel>
+                  <StackPanel Grid.Column="1"><TextBlock Text="Station"/><ComboBox x:Name="StationComboBox" SelectionChanged="StationFilter_Changed" AutomationProperties.Name="Preparation station filter" Margin="0,4,0,6"/></StackPanel>
+                </Grid>
+                <TextBlock x:Name="MenuCategoryStatusText" Foreground="#63756A" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/>
                 <CheckBox x:Name="ScanModeCheckBox" Content="Enable barcode scan entry (this session)" Checked="ScanMode_Changed" Unchecked="ScanMode_Changed" AutomationProperties.Name="Enable barcode scan entry" />
                 <StackPanel x:Name="BarcodeScanPanel" Visibility="Collapsed">
                   <DockPanel>
@@ -83,14 +89,20 @@
                   </ListBox.ItemContainerStyle>
                   <ListBox.ItemTemplate>
                     <DataTemplate>
-                      <Button Width="{DynamicResource PosMenuWidth}" MinHeight="{DynamicResource PosMenuHeight}" Click="AddMenuItem_Click" IsEnabled="{Binding Available}" AutomationProperties.Name="{Binding Name}">
+                      <Button Style="{StaticResource MenuTile}" Width="{DynamicResource PosMenuWidth}" MinHeight="{DynamicResource PosMenuHeight}" Click="AddMenuItem_Click" IsEnabled="{Binding Item.Available}" AutomationProperties.Name="{Binding Item.Name}">
                         <StackPanel>
-                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                          <TextBlock Text="{Binding PreparationStation}" Foreground="#63756A" FontSize="12" Margin="0,6" />
+                          <Image Source="{Binding Photo}" Height="76" Stretch="Uniform" Margin="0,0,0,8">
+                            <Image.Style><Style TargetType="Image"><Style.Triggers><DataTrigger Binding="{Binding Photo}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Image.Style>
+                          </Image>
+                          <TextBlock Text="{Binding Item.Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                          <TextBlock Text="Sold out" FontWeight="SemiBold" Margin="0,4,0,0">
+                            <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding Item.Available}" Value="False"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                          </TextBlock>
+                          <TextBlock Text="{Binding Item.PreparationStation}" Foreground="#63756A" FontSize="12" Margin="0,6" />
                           <TextBlock FontSize="18">
-                            <Run Text="{Binding Currency, Mode=OneWay}" />
+                            <Run Text="{Binding Item.Currency, Mode=OneWay}" />
                             <Run Text=" " />
-                            <Run Text="{Binding UnitPrice, Mode=OneWay, StringFormat=N2}" />
+                            <Run Text="{Binding Item.UnitPrice, Mode=OneWay, StringFormat=N2}" />
                           </TextBlock>
                         </StackPanel>
                       </Button>
@@ -112,7 +124,7 @@
               <ListBox Grid.Row="1" x:Name="CartList" BorderThickness="0" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemTemplate>
                   <DataTemplate>
-                    <StackPanel Margin="0,8">
+                    <Border BorderBrush="{StaticResource PosDivider}" BorderThickness="0,0,0,1" Padding="0,10"><StackPanel>
                       <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
                       <DockPanel Margin="0,8,0,0">
                         <TextBlock Text="{Binding LineTotal, StringFormat=N2}" DockPanel.Dock="Right" VerticalAlignment="Center" />
@@ -120,7 +132,7 @@
                         <TextBlock Text="{Binding Quantity}" Width="30" VerticalAlignment="Center" TextAlignment="Center" />
                         <Button Content="+" Width="{DynamicResource PosControlHeight}" Padding="0" Click="IncreaseQuantity_Click" AutomationProperties.Name="Increase quantity" />
                       </DockPanel>
-                    </StackPanel>
+                    </StackPanel></Border>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
               </ListBox>
@@ -141,9 +153,9 @@
           </Border>
         </Grid>
       </TabItem>
-      <TabItem x:Name="PaymentTab" Header="Payment">
+      <TabItem x:Name="PaymentTab" Header="Payment" Tag="&#xE8C7;">
         <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
-          <Border Style="{StaticResource Card}" Margin="0,16,0,0" MaxWidth="700" HorizontalAlignment="Center">
+          <Border Style="{StaticResource Card}" MaxWidth="700" HorizontalAlignment="Center">
             <StackPanel>
               <TextBlock Text="Complete payment" Style="{StaticResource Heading}" />
               <TextBlock x:Name="PendingOrderText" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,20" />
@@ -173,8 +185,8 @@
           </Border>
         </ScrollViewer>
       </TabItem>
-      <TabItem x:Name="OrdersTab" Header="Orders">
-        <Grid Margin="16">
+      <TabItem x:Name="OrdersTab" Header="Orders" Tag="&#xE8A5;">
+        <Grid Margin="0">
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
           <TextBlock Text="Branch orders" Style="{StaticResource Heading}"/>
           <WrapPanel Grid.Row="1" Margin="0,8,0,16">
@@ -207,7 +219,7 @@
           </StackPanel>
         </Grid>
       </TabItem>
-      <TabItem Header="QR collection">
+      <TabItem Header="QR collection" Tag="&#xE8D4;">
         <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
           <StackPanel Margin="16">
             <TextBlock Text="Collect an accepted QR order" Style="{StaticResource Heading}" />
@@ -219,9 +231,9 @@
           </StackPanel>
         </ScrollViewer>
       </TabItem>
-      <TabItem x:Name="ShiftCashTab" Header="Shift &amp; cash">
+      <TabItem x:Name="ShiftCashTab" Header="Shift &amp; cash" Tag="&#xE823;">
         <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
-          <Grid x:Name="ShiftCashLayout" Margin="0,16,0,0">
+          <Grid x:Name="ShiftCashLayout" Margin="0">
             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
               <ColumnDefinition />
@@ -289,8 +301,8 @@
           </Grid>
         </ScrollViewer>
       </TabItem>
-      <TabItem x:Name="CashReviewTab" Header="Cash review">
-        <Grid Margin="0,16,0,0">
+      <TabItem x:Name="CashReviewTab" Header="Cash review" Tag="&#xE9D9;">
+        <Grid Margin="0">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -370,8 +382,8 @@
           </Grid>
         </Grid>
       </TabItem>
-      <TabItem x:Name="ReceiptsTab" Header="Receipts">
-        <Grid Margin="0,16,0,0">
+      <TabItem x:Name="ReceiptsTab" Header="Receipts" Tag="&#xE8A5;">
+        <Grid Margin="0">
           <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
           <WrapPanel>
             <TextBox x:Name="ReceiptOrderIdTextBox" Width="320" AutomationProperties.Name="Receipt order ID" />
@@ -399,43 +411,12 @@
           <FlowDocumentScrollViewer Grid.Row="4" x:Name="ReceiptPreview" IsToolBarVisible="False" />
         </Grid>
       </TabItem>
-      <TabItem x:Name="TerminalTab" Header="Terminal &amp; sync">
-        <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
-          <Border Style="{StaticResource Card}" Margin="0,16,0,0">
-            <StackPanel>
-              <StackPanel x:Name="DrawerSetupControls" Margin="0,0,0,24" xmlns:drawer="clr-namespace:NexaConnect.POS.Hardware.Drawers">
-                <TextBlock Text="Cash drawer" Style="{StaticResource Heading}" />
-                <TextBlock x:Name="DrawerAvailabilityText" Text="{x:Static drawer:DrawerAvailability.Status}" TextWrapping="Wrap" Margin="0,8,0,8" />
-                <TextBlock Text="{x:Static drawer:DrawerAvailability.Requirements}" TextWrapping="Wrap" />
-                <TextBlock Text="Automatic cash-sale opening: Off. Manual opening: Unavailable. Payments and reconciliation continue independently of physical drawer opening." TextWrapping="Wrap" Margin="0,8,0,0" />
-                <TextBlock Text="Manual opening reason" Margin="0,8,0,4" />
-                <ComboBox x:Name="DrawerReasonPicker" IsEnabled="False" SelectedIndex="0" AutomationProperties.Name="Manual drawer reason">
-                  <ComboBoxItem Content="Change required" />
-                  <ComboBoxItem Content="Cash check" />
-                  <ComboBoxItem Content="Supervisor access" />
-                </ComboBox>
-                <Button x:Name="DrawerOpenButton" Content="Request manual drawer opening" IsEnabled="False" Click="DrawerOpen_Click" HorizontalAlignment="Left" Margin="0,8,0,0" />
-                <TextBlock x:Name="DrawerOutcomeText" Text="No drawer action attempted. Verified hardware remains unavailable." TextWrapping="Wrap" Margin="0,8,0,0" />
-                <TextBlock Text="Drawer attempt history — read only" Style="{StaticResource Heading}" Margin="0,16,0,8" />
-                <WrapPanel>
-                  <ComboBox x:Name="DrawerHistoryPeriodPicker" SelectedIndex="1" SelectionChanged="DrawerHistoryPeriod_Changed" AutomationProperties.Name="Drawer history period" MinWidth="170">
-                    <ComboBoxItem Content="Last 24 hours" /><ComboBoxItem Content="Last 7 days" /><ComboBoxItem Content="Last 30 days" />
-                  </ComboBox>
-                  <Button x:Name="DrawerHistoryRefreshButton" Content="Load / refresh history" Click="DrawerHistoryRefresh_Click" />
-                  <Button x:Name="DrawerHistoryMoreButton" Content="Load more" Click="DrawerHistoryMore_Click" IsEnabled="False" />
-                  <Button x:Name="DrawerHistoryCheckButton" Content="Check selected original record" Click="DrawerHistoryCheck_Click" IsEnabled="False" />
-                </WrapPanel>
-                <TextBlock x:Name="DrawerHistoryStatusText" Text="Load your authorized history for this terminal. Viewing cannot open a drawer or change payment." TextWrapping="Wrap" Margin="0,8" />
-                <DataGrid x:Name="DrawerHistoryList" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" SelectionChanged="DrawerHistorySelection_Changed" MaxHeight="280" MinHeight="100" AutomationProperties.Name="Drawer attempt history">
-                  <DataGrid.Columns>
-                    <DataGridTextColumn Header="Time (UTC)" Binding="{Binding TimeLabel}" Width="180" />
-                    <DataGridTextColumn Header="Attempt" Binding="{Binding CauseLabel}" Width="*" />
-                    <DataGridTextColumn Header="Local observation" Binding="{Binding LocalLabel}" Width="150" />
-                    <DataGridTextColumn Header="Server observation" Binding="{Binding ServerLabel}" Width="150" />
-                  </DataGrid.Columns>
-                </DataGrid>
-                <TextBlock x:Name="DrawerHistoryGuidanceText" Text="Submitted means a command was reported, not proof of physical opening. Uncertain intents must not be reset or retried." TextWrapping="Wrap" Margin="0,8" />
-              </StackPanel>
+      <TabItem x:Name="TerminalTab" Header="Terminal &amp; sync" Tag="&#xE713;">
+        <TabControl x:Name="TerminalSections" Background="Transparent" BorderThickness="0" Padding="0" SelectedIndex="0" SelectionChanged="TerminalSection_Changed" AutomationProperties.Name="Terminal setup sections">
+          <TabItem x:Name="TerminalOverviewTab" Header="Overview" Style="{StaticResource TerminalSectionTab}">
+            <ScrollViewer x:Name="TerminalOverviewScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" Margin="0,8,0,0">
+              <Border Style="{StaticResource Card}">
+                <StackPanel>
               <StackPanel x:Name="TerminalSetupControls" Margin="0,0,0,24">
                 <TextBlock Text="Terminal setup overview" Style="{StaticResource Heading}" />
                 <TextBlock Text="Configured is a setting; Detected is a last-check response. Untested and Unavailable require follow-up. Peripheral detection does not certify actual output or safe hardware use." TextWrapping="Wrap" Margin="0,0,0,8" />
@@ -457,6 +438,14 @@
                   </DataTemplate></ItemsControl.ItemTemplate>
                 </ItemsControl>
               </StackPanel>
+                </StackPanel>
+              </Border>
+            </ScrollViewer>
+          </TabItem>
+          <TabItem x:Name="TerminalDevicesTab" Header="Input &amp; devices" Style="{StaticResource TerminalSectionTab}">
+            <ScrollViewer x:Name="TerminalDevicesScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" Margin="0,8,0,0">
+              <Border Style="{StaticResource Card}">
+                <StackPanel>
               <TextBlock Text="Input settings" Style="{StaticResource Heading}" />
               <CheckBox x:Name="TouchFirstCheckBox" Content="Enable touch-first POS" Checked="TouchFirst_Changed" Unchecked="TouchFirst_Changed" AutomationProperties.Name="Enable touch-first POS" />
               <TextBlock Text="Optional. Default is keyboard and mouse operation. Changes apply immediately and are saved for this terminal and Windows user." TextWrapping="Wrap" Foreground="#52655A" Margin="0,4,0,8" />
@@ -495,6 +484,55 @@
                 <Button x:Name="DisableCustomerDisplayButton" Content="Use staff screen only" Click="DisableCustomerDisplay_Click" />
               </WrapPanel>
               <TextBlock x:Name="DisplayStatusText" TextWrapping="Wrap" Margin="0,0,0,24" />
+                </StackPanel>
+              </Border>
+            </ScrollViewer>
+          </TabItem>
+          <TabItem x:Name="TerminalDrawerTab" Header="Cash drawer" Style="{StaticResource TerminalSectionTab}">
+            <ScrollViewer x:Name="TerminalDrawerScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" Margin="0,8,0,0">
+              <Border Style="{StaticResource Card}">
+                <StackPanel>
+              <StackPanel x:Name="DrawerSetupControls" Margin="0,0,0,24" xmlns:drawer="clr-namespace:NexaConnect.POS.Hardware.Drawers">
+                <TextBlock Text="Cash drawer" Style="{StaticResource Heading}" />
+                <TextBlock x:Name="DrawerAvailabilityText" Text="{x:Static drawer:DrawerAvailability.Status}" TextWrapping="Wrap" Margin="0,8,0,8" />
+                <TextBlock Text="{x:Static drawer:DrawerAvailability.Requirements}" TextWrapping="Wrap" />
+                <TextBlock Text="Automatic cash-sale opening: Off. Manual opening: Unavailable. Payments and reconciliation continue independently of physical drawer opening." TextWrapping="Wrap" Margin="0,8,0,0" />
+                <TextBlock Text="Manual opening reason" Margin="0,8,0,4" />
+                <ComboBox x:Name="DrawerReasonPicker" IsEnabled="False" SelectedIndex="0" AutomationProperties.Name="Manual drawer reason">
+                  <ComboBoxItem Content="Change required" />
+                  <ComboBoxItem Content="Cash check" />
+                  <ComboBoxItem Content="Supervisor access" />
+                </ComboBox>
+                <Button x:Name="DrawerOpenButton" Content="Request manual drawer opening" IsEnabled="False" Click="DrawerOpen_Click" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                <TextBlock x:Name="DrawerOutcomeText" Text="No drawer action attempted. Verified hardware remains unavailable." TextWrapping="Wrap" Margin="0,8,0,0" />
+                <TextBlock Text="Drawer attempt history — read only" Style="{StaticResource Heading}" Margin="0,16,0,8" />
+                <WrapPanel>
+                  <ComboBox x:Name="DrawerHistoryPeriodPicker" SelectedIndex="1" SelectionChanged="DrawerHistoryPeriod_Changed" AutomationProperties.Name="Drawer history period" MinWidth="170">
+                    <ComboBoxItem Content="Last 24 hours" /><ComboBoxItem Content="Last 7 days" /><ComboBoxItem Content="Last 30 days" />
+                  </ComboBox>
+                  <Button x:Name="DrawerHistoryRefreshButton" Content="Load / refresh history" Click="DrawerHistoryRefresh_Click" />
+                  <Button x:Name="DrawerHistoryMoreButton" Content="Load more" Click="DrawerHistoryMore_Click" IsEnabled="False" />
+                  <Button x:Name="DrawerHistoryCheckButton" Content="Check selected original record" Click="DrawerHistoryCheck_Click" IsEnabled="False" />
+                </WrapPanel>
+                <TextBlock x:Name="DrawerHistoryStatusText" Text="Load your authorized history for this terminal. Viewing cannot open a drawer or change payment." TextWrapping="Wrap" Margin="0,8" />
+                <DataGrid x:Name="DrawerHistoryList" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" SelectionChanged="DrawerHistorySelection_Changed" MaxHeight="280" MinHeight="100" AutomationProperties.Name="Drawer attempt history">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Time (UTC)" Binding="{Binding TimeLabel}" Width="180" />
+                    <DataGridTextColumn Header="Attempt" Binding="{Binding CauseLabel}" Width="*" />
+                    <DataGridTextColumn Header="Local observation" Binding="{Binding LocalLabel}" Width="150" />
+                    <DataGridTextColumn Header="Server observation" Binding="{Binding ServerLabel}" Width="150" />
+                  </DataGrid.Columns>
+                </DataGrid>
+                <TextBlock x:Name="DrawerHistoryGuidanceText" Text="Submitted means a command was reported, not proof of physical opening. Uncertain intents must not be reset or retried." TextWrapping="Wrap" Margin="0,8" />
+              </StackPanel>
+                </StackPanel>
+              </Border>
+            </ScrollViewer>
+          </TabItem>
+          <TabItem x:Name="TerminalSyncTab" Header="Sync &amp; recovery" Style="{StaticResource TerminalSectionTab}">
+            <ScrollViewer x:Name="TerminalSyncScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" Margin="0,8,0,0">
+              <Border Style="{StaticResource Card}">
+                <StackPanel>
               <TextBlock Text="Terminal management" Style="{StaticResource Heading}" />
               <TextBlock Text="Terminal code" />
               <TextBox x:Name="TerminalCodeTextBox" Text="POS-001" MaxWidth="400" HorizontalAlignment="Left" MinWidth="280" AutomationProperties.Name="Terminal code" />
@@ -515,14 +553,16 @@
                 <Button x:Name="RetryRejectedOutboxButton" Content="Retry rejected movements" Click="RetryRejectedOutbox_Click" />
               </WrapPanel>
               <TextBlock Text="Resolve the authorization or configuration issue before retrying rejected movements. Pending movements must sync before their cash session can close." TextWrapping="Wrap" MaxWidth="650" HorizontalAlignment="Left" />
-            </StackPanel>
-          </Border>
-        </ScrollViewer>
+                </StackPanel>
+              </Border>
+            </ScrollViewer>
+          </TabItem>
+        </TabControl>
       </TabItem>
     </TabControl>
   </Grid>
   </ScrollViewer>
-    <Border x:Name="WorkflowDock" Grid.Row="1" Background="White" BorderBrush="#D3DDD6" BorderThickness="1" CornerRadius="12" Padding="12,8" Margin="24,0,24,8">
+    <Border x:Name="WorkflowDock" Grid.Row="1" Background="White" BorderBrush="{StaticResource PosDivider}" BorderThickness="0,2,0,0" CornerRadius="0" Padding="12,8" Margin="24,0,24,8">
       <StackPanel>
         <Grid>
           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition x:Name="WorkflowAmountColumn" Width="230"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>

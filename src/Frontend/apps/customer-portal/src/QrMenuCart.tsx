@@ -1,3 +1,5 @@
+import {MenuPhoto} from "./MenuPhoto";
+import {MenuOrganization,checkedOrganization,orderedMenu,categoryFor} from "./menuOrganization";
 import {useEffect,useRef,useState} from "react";
 import {Alert,Button,Typography} from "antd";
 
@@ -15,6 +17,7 @@ export function QrMenuCart({currency,onExpired,submit}:{currency:string;onExpire
   const [items,setItems]=useState<Item[]>([]),[cart,setCart]=useState<Line[]>([]),[quote,setQuote]=useState<Quote>(),
     [busy,setBusy]=useState(false),[loaded,setLoaded]=useState(false),[notice,setNotice]=useState<string>(),[changed,setChanged]=useState(false);
   const revision=useRef(0),previous=useRef<string>(),alive=useRef(true),callback=useRef(onExpired);callback.current=onExpired;
+  const [organization,setOrganization]=useState<MenuOrganization>({categories:[],items:[]}),[category,setCategory]=useState("*"),[search,setSearch]=useState("");
   const money=(value:number)=>new Intl.NumberFormat(undefined,{style:"currency",currency}).format(value);
   const fail=(e:unknown)=>{
     if(e instanceof Error&&e.message==="401"){callback.current();return;}
@@ -23,7 +26,8 @@ export function QrMenuCart({currency,onExpired,submit}:{currency:string;onExpire
   };
   const load=async()=>{
     const version=++revision.current;setQuote(undefined);setBusy(true);setNotice(undefined);
-    try{const menu=await read<{items:Item[]}>("menu");if(alive.current&&version===revision.current){setItems(menu.items);setLoaded(true);}}
+    try{const [menu,layout]=await Promise.all([read<{items:Item[]}>("menu"),read<unknown>("menu-organization").then(checkedOrganization).catch(()=>null)]);
+      if(alive.current&&version===revision.current){setItems(menu.items);setOrganization(layout??{categories:[],items:[]});setCategory(current=>current==="*"||current===""||layout?.categories.some(c=>c.id===current)?current:"*");setLoaded(true);if(!layout)setNotice("Categories unavailable; showing menu items without category organization.");}}
     catch(e){if(alive.current&&version===revision.current)fail(e);}
     finally{if(alive.current&&version===revision.current)setBusy(false);}
   };
@@ -59,8 +63,10 @@ export function QrMenuCart({currency,onExpired,submit}:{currency:string;onExpire
     {busy&&<p role="status">Loading menu or totals…</p>}
     {notice&&<Alert role="status" type="warning" message={notice} style={{marginTop:12}}/>}
     {loaded&&items.length===0&&<p role="status">No menu items are available. Please ask staff.</p>}
-    <ul style={{padding:0,listStyle:"none"}}>{items.map(item=><li key={item.productId} style={{borderBottom:"1px solid #ddd",padding:"16px 0",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-      <div style={{flex:"1 1 160px",overflowWrap:"anywhere"}}><strong>{item.name}</strong><div>{money(item.unitPrice)}</div>{!item.available&&<span>Unavailable</span>}</div>
+    {loaded&&<div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:12}}><label>Category <select aria-label="Menu category" value={category} onChange={e=>setCategory(e.target.value)} style={{minHeight:44,maxWidth:"100%"}}><option value="*">All categories</option>{organization.categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}<option value="">Uncategorized</option></select></label><label>Search menu <input aria-label="Search QR menu" type="search" value={search} onChange={e=>setSearch(e.target.value)} style={{minHeight:44,maxWidth:"100%"}}/></label></div>}
+    {loaded&&items.length>0&&!items.some(i=>(category==="*"||categoryFor(i.productId,organization)===(category||null))&&i.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()))&&<p role="status">No items match these filters. Your cart is unchanged.</p>}
+    <ul style={{padding:0,listStyle:"none"}}>{orderedMenu(items,organization).filter(i=>(category==="*"||categoryFor(i.productId,organization)===(category||null))&&i.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map(item=><li key={item.productId} style={{borderBottom:"1px solid #ddd",padding:"16px 0",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+      <MenuPhoto src={`/bff/guest/qr/menu/${item.productId}/photo`} name={item.name}/><div style={{flex:"1 1 160px",overflowWrap:"anywhere"}}><strong>{item.name}</strong><div>{money(item.unitPrice)}</div>{!item.available&&<span>Unavailable</span>}</div>
       <Button aria-label={`Add ${item.name}`} style={{minHeight:44}} disabled={!item.available||busy||(cart.find(l=>l.productId===item.productId)?.quantity??0)>=99||(!cart.some(l=>l.productId===item.productId)&&cart.length>=50)}
         onClick={()=>update(item.productId,(cart.find(l=>l.productId===item.productId)?.quantity??0)+1)}>Add</Button>
     </li>)}</ul>

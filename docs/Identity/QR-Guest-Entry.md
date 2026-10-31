@@ -1,5 +1,7 @@
 # QR1 guest authority
 
+Menu photo GET uses only the existing secure guest cookie through BFF/Order with live visit and menu membership checks. Exact Order workload reads selected Catalog photos; exact Catalog workload reads bounded processed Media thumbnails. Staff selection requires live menu.write plus organization media.asset.read; no new grant or general anonymous Media access. See [menu photo boundaries](../API/Menu-Photos.md).
+
 QR7 optionally fronts one fresh local-stack QR profile with a private-LAN HTTPS edge. Only the QR guest cookie and exact mutation Origin reach the pinned localhost BFF; staff Authorization/tenant/session cookies and forwarding headers are stripped. No Keycloak role/client, guest payment authority or permission grant is added. Test CA trust is a manual per-device prerequisite, never installed automatically. See [edge boundary](../API/QR7-Pilot-Edge.md) and [setup](../Deployment/QR7-Pilot.md).
 
 QR5 collection references grant no authority. Staff must hold live branch order.manual-payment.confirm, and immutable Order custody binds original collecting subject/terminal/store/shift/operation. Exact POS workload admission enforces optional expected shift/store. Guest sees only original live-visit paid receipt projection without staff/terminal/bank/decision data; no guest settlement endpoint or new role. See [QR5](../API/QR-Collection.md).

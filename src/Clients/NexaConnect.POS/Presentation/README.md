@@ -1,5 +1,25 @@
 # POS presentation
 
+UX17 queues display-change notifications and ignores callbacks after coordinator disposal/dispatcher shutdown. Display cleanup is idempotent and customer closure runs even if hook removal fails. UI resource cleanup stays on the dispatcher; unrelated client disposal/cancellation callbacks run independently off it. The staff Closed event owns application exit; no presentation callback gains financial or identity authority. See [lifecycle boundaries](../../../../docs/Deployment/POS-UX17-Shutdown-Diagnostics.md).
+
+UX16 refines `PosTheme.xaml` and the staff operational layout with flat content panels, restrained shared control corners, dark navigation/solid selected state, neutral grid headers and row/action separators. Adjacent Category/Station filters retain their controls and handlers. Light navigation labels are template-local, never inherited as workspace text. Native contrast/bounds/popup fixtures and synthetic preview cover presentation; customer display, lock gallery and financial/session behavior remain independent. See [UX16](../../../../docs/Deployment/POS-UX16-Flat-Cashier.md).
+
+UX11 adds an optional category picker and category/text/station filter composition over original-item MenuTile wrappers. Branch-scoped layout requests are bounded and fenced; missing/invalid metadata falls back to the full menu, and privacy transitions clear labels. Barcode/cart/price objects are unchanged. See [UX11](../../../../docs/Deployment/POS-UX11-Menu-Organization.md).
+
+Terminal & sync groups Overview, Input & devices, Cash drawer and Sync & recovery into inner
+tabs with independent scroll areas. `TerminalSectionTab` is a separate text-only header style;
+its label emphasis and selected colors do not become inherited workspace styling. Overview
+is initially selected; nested selection events hide stale touch input without triggering
+outer Orders loading. Existing direct setup shortcuts select the appropriate section.
+
+UX10's shared `PosTheme.xaml` and cashier shell provide a scrollable labeled left rail,
+template-local selection indicators, neutral surfaces and rounded native WPF controls.
+Non-editable selectors retain ComboBox behavior with a scrollable popup at least as wide
+as the field. Header Lock delegates to existing original-cashier `LockSession` handling;
+it does not submit a business command or change saved density/input preferences. Native
+window controls and the protected operational/customer-display separation remain. See
+[UX10 scope, verification and rollout](../../../../docs/Deployment/POS-UX10-Windows11-Cashier.md).
+
 UX7's [Diagnostics component](../Diagnostics/README.md) supplies the staff-only setup
 overview with wrapped/scrolling status rows and navigation-only shortcuts. Detection is
 not physical acceptance; generation fences and the existing privacy surface mask/clear

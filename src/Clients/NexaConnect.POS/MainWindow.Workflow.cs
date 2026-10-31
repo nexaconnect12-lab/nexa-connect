@@ -61,6 +61,6 @@ public partial class MainWindow
     private void ClearMenuSearch_Click(object sender, RoutedEventArgs e)
     {
         if (busy || !IsSignedIn() || displaySafetyBlocked || reauthenticationRequired) return;
-        MenuSearchTextBox.Clear(); StationComboBox.SelectedIndex = 0; HideTouchInput();
+        MenuSearchTextBox.Clear(); StationComboBox.SelectedIndex = 0; CategoryComboBox.SelectedIndex=0; HideTouchInput();
     }
 }

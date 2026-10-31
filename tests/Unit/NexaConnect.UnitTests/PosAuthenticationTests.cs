@@ -8,6 +8,52 @@ namespace NexaConnect.UnitTests;
 public sealed class PosAuthenticationTests
 {
     [Fact]
+    public async Task Shutdown_cancels_pending_signin_without_deleting_original_owner()
+    {
+        using var f = new Fixture();
+        await f.Login();
+        var original = f.Store.Value;
+        var signin = f.Auth.SignInAsync(true);
+        f.Auth.Dispose();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => signin);
+        Assert.Same(original, f.Store.Value);
+        await f.Callback(f.Uri!);
+        Assert.Same(original, f.Store.Value);
+    }
+
+    [Fact]
+    public async Task Shutdown_during_code_redemption_cannot_install_late_credentials()
+    {
+        using var f = new Fixture();
+        f.Handler.DelayCode = true;
+        var signin = f.Auth.SignInAsync();
+        var callback = f.Callback(f.Uri!);
+        await f.Handler.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        f.Auth.Dispose();
+        f.Handler.Release.TrySetResult(); // Deliberately uncooperative handler returns after disposal.
+        await callback.WaitAsync(TimeSpan.FromSeconds(3));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => signin);
+        Assert.Null(f.Store.Value);
+    }
+
+    [Fact]
+    public async Task Shutdown_cancels_refresh_and_gate_waiter_without_saving_or_disposed_gate_fault()
+    {
+        using var f = new Fixture();
+        await f.Login();
+        var original = f.Store.Value;
+        f.Handler.DelayRefresh = true;
+        var refresh = f.Auth.RefreshAsync();
+        await f.Handler.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var waiter = f.Auth.RefreshAsync();
+        f.Auth.Dispose();
+        f.Handler.Release.TrySetResult();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => refresh);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiter);
+        Assert.Same(original, f.Store.Value);
+    }
+
+    [Fact]
     public async Task Refresh_rotates_credentials_without_extending_absolute_session()
     {
         using var f = new Fixture();

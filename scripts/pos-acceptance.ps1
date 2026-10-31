@@ -1,7 +1,7 @@
 #requires -Version 7.4
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('Prepare','Record','Defect','Resolve','Report')][string]$Action,
+    [Parameter(Mandatory)][ValidateSet('Prepare','Record','Defect','Resolve','Report','Worklist')][string]$Action,
     [string]$AcceptanceId,[string]$RunId,[string]$PilotId,
     [string]$InstallDirectory=(Join-Path $env:LOCALAPPDATA 'NexaConnect/DraftTerminal'),
     [string]$CaseId,[ValidateSet('passed','failed','blocked')][string]$Status,[string]$EvidenceId,
@@ -15,6 +15,7 @@ $root=Split-Path $PSScriptRoot -Parent
 . "$PSScriptRoot/first-draft-terminal-helpers.ps1"
 . "$PSScriptRoot/first-draft-uat-helpers.ps1"
 . "$PSScriptRoot/pos-acceptance-helpers.ps1"
+. "$PSScriptRoot/pos-acceptance-worklist.ps1"
 function Read-PosJson([string]$Path){
     $safe=Assert-TerminalPath $Path
     if((Get-Item -LiteralPath $safe).Length -gt 4MB){throw 'Acceptance input exceeds its bound.'}
@@ -88,6 +89,9 @@ try{
     if($record.id -cne $AcceptanceId){throw 'Acceptance ownership mismatch.'}
     $valid=$false;$fresh=$false
     try{$live=Get-InstalledBinding $record.binding.runId $record.binding.pilotId $record.installDirectory;Assert-PosAcceptanceSnapshotEqual $record.binding $live.snapshot;$valid=$true;$fresh=$live.qrCandidateFresh}catch{}
+    if($Action -ceq 'Worklist'){
+        Get-PosAcceptanceWorklist $record $valid $fresh|ConvertTo-Json -Depth 12;return
+    }
     if($Action -ceq 'Report'){
         $report=Get-PosAcceptanceReport $record $valid $fresh
         $report|ConvertTo-Json -Depth 12|Set-Content (Assert-TerminalPath "$directory/report.json")

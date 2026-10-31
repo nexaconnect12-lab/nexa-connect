@@ -22,6 +22,43 @@ the deployment decision. Existing [production requirements](Deployment-Guide.md)
 [migration runner](../../src/Tools/NexaConnect.DataMigration/README.md) and owning
 service rollout instructions remain authoritative for runtime grants and data transitions.
 
+## Temporary Oracle cloud test target (31 October 2026)
+
+The user selected an **Oracle Cloud Always Free VM** to evaluate for temporary hosting.
+This is the next testing target; the retained local Windows/QR/POS pilot stays unchanged.
+It does not establish production readiness or cancel future dedicated-server/production
+hosting decisions. No Oracle account/resource, DNS record or public listener was created.
+
+| Planned subdomain | Purpose | Status |
+| --- | --- | --- |
+| `test.usenexaconnect.com` | Staff/customer-management portal | User will reserve; DNS/TLS pending |
+| `order-test.usenexaconnect.com` | Guest table-QR ordering | User will reserve; DNS/TLS pending |
+| `auth-test.usenexaconnect.com` | Public authentication/OIDC issuer | User will reserve; DNS/TLS pending |
+
+These are subdomains of the existing Cloudflare-registered domain, not additional domain
+purchases. Final routing/client redirect URLs must be explicitly configured and validated;
+reserving names alone creates no deployment. Authentication does not imply public exposure
+of Keycloak administration. Guest ingress must retain its guest-only boundary.
+
+Before provisioning, confirm the account's current Always Free entitlement and regional
+capacity. Oracle's [current Free Tier documentation](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier.htm)
+lists an A1 allowance of two OCPUs and 12 GB RAM for Always Free tenancies; actual console
+eligibility/quotas must be checked, and this is not a measured NexaConnect sizing guarantee.
+Validate ARM64 support for every required runtime/container image and budget the complete
+application, PostgreSQL, identity, broker, cache, media/safety processing and OS overhead.
+Follow [Oracle resource limits and idle-reclamation policy](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm)
+and keep independent backups. Trial credits and paid resources must not be mistaken for
+Always Free eligibility.
+
+Next prerequisites: Oracle account/home region; available Always Free shape; OS/architecture;
+CPU/RAM/boot and data storage; public address and firewall access; measured resource fit;
+separate staging data/credentials; encrypted off-VM backup destination; and confirmed
+Cloudflare DNS control. Do not share passwords, private keys, API tokens or payment details.
+Use fresh test data and publicly trusted HTTPS, then verify OIDC, guest-only routing,
+iPhone/Android ordering and native POS connectivity before broader testing. Existing Phase6
+artifact tooling requires a separately confirmed Linux x64/ARM64 container host and does not
+provision the Oracle VM. Production rollout and billing choices remain separate.
+
 ## 1. Confirm the target and isolation boundary
 
 **Confirmed domain (26 October 2026):** the user purchased `usenexaconnect.com` through

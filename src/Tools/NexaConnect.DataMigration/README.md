@@ -1,5 +1,13 @@
 # NexaConnect Data Migration
 
+Catalog9 adds menu_version and one append-only details audit table: current **Catalog31/full221**, compatibility0.44.0. Existing metadata and references are preserved; matched legacy writers advance versions. Standalone default remains0.38.0; select0.44.0 explicitly. See [details persistence/recovery](../../../docs/Database/Menu-Details.md).
+
+Catalog8 adds availability_version and one append-only availability audit table: **Catalog30/full220**, minimum compatibility0.43.0. Existing flags are preserved; metadata edits must use matching writers. Standalone default remains0.38.0; select0.43.0 explicitly. See [storage/rollback](../../../docs/Database/Menu-Availability.md).
+
+Catalog7 adds two branch menu-organization snapshot/audit tables (Catalog29/full219 at introduction), compatibility0.42.0. The standalone default remains0.38.0; select0.42.0 explicitly. Empty7→6→7 works; retained layout/audit refuses downgrade. See [storage](../../../docs/Database/Menu-Organization.md).
+
+Catalog6 adds two menu-photo selection/audit tables: Catalog27, full catalog217, compatibility0.41.0. Explicitly supply0.41.0; the standalone default remains0.38.0. Empty6→5→6 works; retained photo history refuses downgrade. See [schema and recovery](../../../docs/Database/Menu-Photos.md).
+
 POS25 adds one drawer-history index, no tables (full catalog215), minimum compatibility0.40.0. Explicitly select0.40.0 for this target; the launcher default remains0.38.0. Populated index-only25→24→25 preserves history; earlier POS24 history still blocks dropping its tables. Authorization stays16. See [history deployment](../../../docs/Deployment/POS-UX8C-Drawer-History.md).
 
 POS24 adds three append-only drawer intent/outcome/audit tables; Authorization16 backfills separate manager/manual and cashier/cash-sale/read permissions. Compatibility0.39.0 is required explicitly for these targets. The full catalog now has215tables. Empty POS24 downgrade/reapply is supported; retained intent history blocks downgrade. Disable endpoints before rollback and retain original history. See [storage](../../../docs/Database/Drawer-Intents.md) and [rollout](../../../docs/Deployment/POS-UX8A-Drawer-Authority.md).

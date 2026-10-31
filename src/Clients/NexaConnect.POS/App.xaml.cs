@@ -1,6 +1,4 @@
-using System.IO.Pipes;
 using System.IO;
-using System.Text;
 using System.Windows;
 using Microsoft.Win32;
 
@@ -10,9 +8,14 @@ public partial class App : Application
 {
     private const string MutexName = "NexaConnect.POS.SingleInstance";
     private const string CallbackPipeName = "NexaConnect.POS.Callback";
-    private Mutex? _mutex;
-    private bool _ownsMutex;
+    private PosSingleInstance? instance;
     private PosAuthentication? _authentication;
+    private readonly CancellationTokenSource lifetime = new();
+    private Task callbackListener = Task.CompletedTask;
+    private PosLifecycleTrace lifecycle = PosLifecycleTrace.Disabled;
+    private bool workspaceShutdownRequested;
+
+    public App() => ShutdownMode = ShutdownMode.OnMainWindowClose;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -36,9 +39,8 @@ public partial class App : Application
             catch (Exception) { Shutdown(2); }
             return;
         }
-        _mutex = new Mutex(true, MutexName, out bool ownsMutex);
-        _ownsMutex = ownsMutex;
-        if (!ownsMutex)
+        instance = PosSingleInstance.TryAcquire(MutexName);
+        if (instance is null)
         {
             if (e.Args.Length > 0)
             {
@@ -77,6 +79,8 @@ public partial class App : Application
             // Check retained scope read-only before creating or replacing session metadata.
             LocalPosDatabase.ValidateExistingScope(configuration);
             string storageDirectory = configuration.GetStorageDirectory();
+            lifecycle = new PosLifecycleTrace(Path.Combine(storageDirectory,"diagnostics"));
+            lifecycle.Record(PosLifecycleStage.Startup);
             _authentication = new PosAuthentication(configuration);
             var scope = LocalPosScope.From(configuration);
             window = new MainWindow(
@@ -103,13 +107,30 @@ public partial class App : Application
                 "Terminal setup required", MessageBoxButton.OK, MessageBoxImage.Warning);
             Shutdown(); return;
         }
-        MainWindow = window;
-        _ = ListenForCallbacksAsync(_authentication, CancellationToken.None);
-        window.Show();
+        OpenWorkspace(window, _authentication);
         if (e.Args.Length > 0)
         {
             _ = _authentication.HandleCallbackAsync(e.Args[0]);
         }
+    }
+
+    // Also exercised by the isolated process fixture, without real onboarding/registry I/O.
+    internal void OpenWorkspace(Window window, PosAuthentication authentication,
+        string pipeName = CallbackPipeName, PosLifecycleTrace? trace = null)
+    {
+        _authentication = authentication;
+        lifecycle=trace??lifecycle;
+        if(window is MainWindow staff)staff.Lifecycle=lifecycle;
+        window.Closed+=WorkspaceClosed;
+        MainWindow = window;
+        callbackListener = PosCallbackListener.RunAsync(pipeName, async (callback, ct) =>
+        {
+            // Pipe I/O never runs on the dispatcher. Only authentication/UI state does.
+            await Dispatcher.InvokeAsync(() => authentication.HandleCallbackAsync(callback, ct),
+                System.Windows.Threading.DispatcherPriority.Normal, ct).Task.Unwrap().ConfigureAwait(false);
+        }, lifetime.Token);
+        window.Show();
+        lifecycle.Record(PosLifecycleStage.WorkspaceOpen);
     }
 
     private static void EnsureProtocolRegistration()
@@ -128,55 +149,33 @@ public partial class App : Application
         root.SetValue("URL Protocol", string.Empty);
     }
 
-    protected override void OnExit(ExitEventArgs e)
+    private void WorkspaceClosed(object? sender, EventArgs e)
     {
-        _authentication?.Dispose();
-        if (_ownsMutex) _mutex?.ReleaseMutex();
-        _mutex?.Dispose();
-        base.OnExit(e);
+        if(workspaceShutdownRequested)return;
+        workspaceShutdownRequested=true;
+        // The actual staff workspace owns lifetime even if another window replaced MainWindow.
+        lifecycle.Record(PosLifecycleStage.WindowClosed);
+        if(!Dispatcher.HasShutdownStarted)Shutdown();
     }
 
-    private static async Task ListenForCallbacksAsync(
-        PosAuthentication authentication,
-        CancellationToken cancellationToken)
+    protected override void OnExit(ExitEventArgs e)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        lifecycle.Record(PosLifecycleStage.ApplicationExit,PosLifecycleOutcome.Begin);
+        try
         {
-            try
-            {
-                using var server = new NamedPipeServerStream(
-                    CallbackPipeName,
-                    PipeDirection.In,
-                    1,
-                    PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
-                await server.WaitForConnectionAsync(cancellationToken);
-                using var reader = new StreamReader(server, Encoding.UTF8);
-                var callback = new StringBuilder(capacity: 256);
-                while (callback.Length <= 4096)
-                {
-                    int value = reader.Read();
-                    if (value < 0 || value == '\n')
-                    {
-                        break;
-                    }
-
-                    callback.Append((char)value);
-                }
-
-                if (callback.Length <= 4096 && callback.Length > 0)
-                {
-                    await authentication.HandleCallbackAsync(callback.ToString().TrimEnd('\r'));
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
-            catch (IOException)
-            {
-                // A second instance can disappear while forwarding its callback.
-            }
+            lifecycle.Cancel(PosLifecycleStage.ApplicationCancellation,lifetime);
+            _ = callbackListener.ContinueWith(task => _ = task.Exception,
+                CancellationToken.None,TaskContinuationOptions.OnlyOnFaulted,TaskScheduler.Default);
+            lifecycle.Step(PosLifecycleStage.AuthenticationFence,()=>_authentication?.StopForShutdown());
+            lifecycle.Background(PosLifecycleStage.AuthenticationDispose,()=>_authentication?.Dispose());
+            lifecycle.Step(PosLifecycleStage.InstanceRelease,()=>instance?.Dispose());
+            lifecycle.Drain();
+        }
+        finally
+        {
+            base.OnExit(e);
+            lifecycle.Record(PosLifecycleStage.ApplicationExit);
+            lifecycle.Flush();
         }
     }
 
@@ -184,9 +183,10 @@ public partial class App : Application
     {
         try
         {
-            using var client = new NamedPipeClientStream(".", CallbackPipeName, PipeDirection.Out);
+            if (callback.Length > 4096) return;
+            using var client = new System.IO.Pipes.NamedPipeClientStream(".", CallbackPipeName, System.IO.Pipes.PipeDirection.Out);
             client.Connect(2000);
-            using var writer = new StreamWriter(client, Encoding.UTF8) { AutoFlush = true };
+            using var writer = new StreamWriter(client, System.Text.Encoding.UTF8) { AutoFlush = true };
             writer.WriteLine(callback);
         }
         catch (TimeoutException)

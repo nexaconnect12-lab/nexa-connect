@@ -5,7 +5,12 @@ and hardware acceptance remain separate and pending.
 
 ## Use the overview
 
-Sign in and open **Terminal & sync → Terminal setup overview**. It projects current input
+The installed UX10 follow-up moves the overview to **Terminal & sync → Overview**, with separate
+Input & devices, Cash drawer and Sync & recovery inner tabs and independent scrolling. Its
+rollout status is tracked in [UX10](POS-UX10-Windows11-Cashier.md#terminal-sections-follow-up).
+
+Sign in and open **Terminal & sync → Overview → Terminal setup overview**. Earlier releases
+retain the single-page layout until updated. The overview projects current input
 mode, density, display roles, receipt layout, printer selection/detection and scanner mode.
 It adds no setup wizard that silently changes settings. Defaults remain keyboard/mouse,
 Standard density, Standard paper/Ask each time and scanner opt-in off at startup.

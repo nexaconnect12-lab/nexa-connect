@@ -31,7 +31,8 @@ public sealed record PilotOptions(string PublicOrigin,string ListenAddress,strin
         if(target.Length>200||target.Contains('%')||target.Contains('?')||target.Contains('\\'))return false;
         return method switch
         {
-            "GET"=>target is "/order" or "/order/" or "/bff/guest/qr/context" or "/bff/guest/qr/menu" or "/bff/guest/qr/requests"
+            "GET"=>target is "/order" or "/order/" or "/bff/guest/qr/context" or "/bff/guest/qr/menu" or "/bff/guest/qr/menu-organization" or "/bff/guest/qr/requests"
+                || Regex.IsMatch(target,"\\A/bff/guest/qr/menu/[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}/photo\\z")
                 || Regex.IsMatch(target,"\\A/assets/[A-Za-z0-9_-]+\\.(?:js|css|woff2|png|svg)\\z"),
             "POST"=>target is "/bff/guest/qr/sessions" or "/bff/guest/qr/quote" or "/bff/guest/qr/requests"
                 || Regex.IsMatch(target,"\\A/bff/guest/qr/requests/[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}/confirm-price\\z"),

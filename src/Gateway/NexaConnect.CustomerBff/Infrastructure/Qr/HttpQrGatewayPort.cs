@@ -43,6 +43,7 @@ public sealed class HttpQrGatewayPort(HttpClient restaurant, IHttpClientFactory 
         var request = operation switch
         {
             "menu" => new HttpRequestMessage(HttpMethod.Get, "api/order/v1/guest/qr/menu"),
+            "organization"=>new HttpRequestMessage(HttpMethod.Get,"api/order/v1/guest/qr/menu-organization"),
             "quote" => new HttpRequestMessage(HttpMethod.Post, "api/order/v1/guest/qr/quote") { Content = JsonContent.Create(cart) },
             _ => throw new ArgumentException("Invalid guest operation.")
         };

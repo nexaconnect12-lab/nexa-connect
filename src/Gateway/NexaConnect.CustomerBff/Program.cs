@@ -19,6 +19,7 @@ var mediaUploadOrigin = MediaConnectionPolicy.ValidateOrigin(builder.Configurati
 builder.Services.AddOptions<NexaConnect.CustomerBff.Controllers.QrGuestOptions>().Bind(builder.Configuration.GetSection("QrGuest"))
     .Validate(o => !o.Enabled || NexaConnect.CustomerBff.Controllers.QrGuestOptions.ValidOrigin(o.PublicOrigin), "QrGuest:PublicOrigin must be an exact HTTPS origin.").ValidateOnStart();
 builder.Services.AddSingleton(new NexaConnect.Infrastructure.Http.BoundedRequestGate(TimeProvider.System));
+builder.Services.AddKeyedSingleton("menu-photos",new NexaConnect.Infrastructure.Http.BoundedRequestGate(TimeProvider.System,perKey:240,global:1000));
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Qr.QrGatewayService>();
 builder.Services.AddHttpClient("QrGuestOrder", client =>
 { client.BaseAddress = new Uri(builder.Configuration["Services:Order"] ?? throw new InvalidOperationException("Services:Order is required.")); client.Timeout = TimeSpan.FromSeconds(15); })
@@ -166,6 +167,19 @@ builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICus
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.CustomerCashCorrection>();
 builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerCashCorrectionPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerCashCorrectionPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Gallery.CustomerGalleryService>();
+builder.Services.AddScoped<CustomerMenuPhotos>();
+builder.Services.AddScoped<CustomerMenuOrganization>();
+builder.Services.AddScoped<CustomerMenuAvailability>();
+builder.Services.AddScoped<CustomerMenuDetails>();
+builder.Services.AddScoped<ICustomerMenuDetailsPort,HttpCustomerMenuDetailsPort>();
+foreach(var pair in new[]{("MenuDetailsCatalog","Catalog"),("MenuDetailsDirectory","PlatformDirectory")})
+    builder.Services.AddHttpClient(pair.Item1,c=>{c.BaseAddress=new Uri(builder.Configuration[$"Services:{pair.Item2}"]??throw new InvalidOperationException("Menu details dependency required."));c.Timeout=TimeSpan.FromSeconds(15);}).ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<ICustomerMenuAvailabilityPort,HttpCustomerMenuAvailabilityPort>();
+builder.Services.AddHttpClient("MenuAvailabilityCatalog",c=>{c.BaseAddress=new Uri(builder.Configuration["Services:Catalog"]??"https://catalog.invalid/");c.Timeout=TimeSpan.FromSeconds(15);}).ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<ICustomerMenuOrganizationPort,HttpCustomerMenuOrganizationPort>();
+builder.Services.AddHttpClient("MenuOrganizationCatalog",c=>{c.BaseAddress=new Uri(builder.Configuration["Services:Catalog"]??"https://catalog.invalid/");c.Timeout=TimeSpan.FromSeconds(15);}).ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation();
+builder.Services.AddScoped<ICustomerMenuPhotoPort,HttpCustomerMenuPhotoPort>();
+builder.Services.AddHttpClient("MenuPhotoCatalog",c=>{c.BaseAddress=new Uri(builder.Configuration["Services:Catalog"]??throw new InvalidOperationException("Services:Catalog is required."));c.Timeout=TimeSpan.FromSeconds(15);}).ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<CustomerBarcodeService>();
 builder.Services.AddScoped<ICustomerBarcodePort,HttpCustomerBarcodePort>();
 builder.Services.AddHttpClient("BarcodeCatalog",client=>{client.BaseAddress=new Uri(builder.Configuration["Services:Catalog"]??throw new InvalidOperationException("Services:Catalog is required."));client.Timeout=TimeSpan.FromSeconds(15);})

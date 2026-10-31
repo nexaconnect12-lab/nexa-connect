@@ -1,6 +1,35 @@
 # NexaConnect POS
 
+[UX18 acceptance guidance](../../../docs/Deployment/POS-UX18-Cashier-Acceptance.md) adds read-only `scripts/pos-acceptance.ps1 -Action Worklist` over the current installed-target pack. No native update is required; actual cashier/device observations and defect retests remain pending.
+
+[UX17 shutdown diagnostics](../../../docs/Deployment/POS-UX17-Shutdown-Diagnostics.md) adds actual-workspace exit ownership, immediate authentication/cancellation fences, independent background client cleanup and bounded local lifecycle JSON logs. Closed-window optional callbacks cannot revive the workspace; display notifications no longer wait on its dispatcher. Original recovery/preferences and service contracts remain. The matching verified local pilot is installed and a controlled startup-authentication close/reopen check passes; historical diagnosis and real operator acceptance remain separate.
+
+[UX16 flat presentation](../../../docs/Deployment/POS-UX16-Flat-Cashier.md) refines the staff cashier surface with square panels, a contrasting navigation rail, restrained corners, table/row separators and adjacent Category/Station filters. Names/handlers, original operations, Standard defaults, optional Touch/input settings, customer projection and protected recovery remain unchanged. The matching verified local package is installed; actual operator/device acceptance remains pending.
+
+UX14 menu edits appear through existing **Refresh menu** and fresh quote validation. Names/prices/preparation stations update for new work; captured accepted-order, payment, receipt and protected recovery snapshots remain original. No new native tender or device capability. See [menu editor integration](../../../docs/Deployment/POS-UX14-Menu-Details.md).
+
+UX13 labels unavailable menu tiles **Sold out** and retains the existing disabled/add-to-cart guards. Refresh menu observes manager availability changes; prices, cart and original accepted-order/payment recovery remain separate. See [availability workflow](../../../docs/Deployment/POS-UX13-Menu-Availability.md).
+
+UX12 uses staff-window application shutdown, cancellable bounded current-user callback IPC
+and an explicitly acquired single-instance mutex. Authentication disposal cancels pending work
+without deleting original owner/recovery, and late optional responses cannot revive closed UI.
+Run `scripts/test-pos-acceptance.ps1 -ShutdownOnly` for hidden-process tests with temporary
+protected financial recovery. See [UX12 rollout and limits](../../../docs/Deployment/POS-UX12-Shutdown-Restart.md).
+
+UX11 loads optional scoped category metadata after Refresh menu, preserves original financial PosMenuItem objects and combines category/text/station filters. Clear filters resets all three; barcode lookup remains independent. Invalid/unavailable metadata falls back to all items and late responses are fenced; privacy/menu transitions clear category labels. No layout enters local recovery. See [UX11 setup/acceptance](../../../docs/Deployment/POS-UX11-Menu-Organization.md).
+
+Menu photos load optionally after Refresh menu through Catalog branch menu.read, up to200/four concurrent, decoded192px in memory with60-second expiry and privacy-generation fences. Photos clear on lock/sign-out/reload/receipt privacy transitions and never change PosMenuItem/quote/cart/tender snapshots. No disk image cache or Media permission is required. See [configuration and acceptance](../../../docs/Deployment/Menu-Photos.md).
+
+The [terminal-sections follow-up](../../../docs/Deployment/POS-UX10-Windows11-Cashier.md#terminal-sections-follow-up)
+groups Terminal & sync into Overview (initial), Input & devices, Cash drawer and Sync & recovery.
+Each scrolls independently; setup shortcuts choose their target section and section changes
+hide stale touch input. Selecting a tab submits no setup, hardware or financial action.
+
+[UX10 Windows 11-inspired workspace](../../../docs/Deployment/POS-UX10-Windows11-Cashier.md) adds labeled left navigation, neutral templates/menu tiles and header Lock using existing session logic. Native WPF and all eight workflow handlers remain; current selectors use a non-editable ComboBox template. Standard density/keyboard operation remain defaults, with independent touch/keyboard opt-ins. The matching local package is installed; synthetic preview and actual installed operator/accessibility acceptance remain distinct.
+
 [UX9 acceptance](../../../docs/Deployment/POS-UX9-Acceptance.md) adds `test-pos-acceptance.ps1` for isolated source regressions and `pos-acceptance.ps1` for seventeen installed-target operator cases/defects/retests. No native binaries, authentication policy or physical driver changes. Automated fixture results and real equipment/operator evidence stay separate.
+
+Use `scripts/test-pos-acceptance.ps1 -SessionExpiryOnly` for bounded hidden-window tests of the real timer/Resume flow with synthetic expired tokens, refresh400/401/503, same-user refresh and cancelled/wrong/original-user callbacks. Temporary DPAPI and SQLite recovery are checked for retained ownership and exact pending financial state; no real browser, Keycloak, business API or device command is used. The full Windows fixture also runs this coverage.
 
 [UX8D pilot rollout](../../../docs/Deployment/POS-UX8D-Pilot-Acceptance.md) documents installation of matching history-capable backend/native packages while preserving scoped recovery/preferences. Native factory remains DisabledDrawerDriver; history-only server opt-in does not enable opening controls. Operator acceptance is separate.
 

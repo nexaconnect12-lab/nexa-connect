@@ -9,8 +9,31 @@ public interface IQrMenuPort
     Task<IReadOnlyList<CatalogMenuItem>> MenuAsync(Guid organization, Guid branch, CancellationToken ct);
 }
 
-public sealed class QrMenuService(IQrMenuPort port, IBranchPricingPort policies, TimeProvider time)
+public interface IQrMenuPhotoPort { Task<byte[]?> PhotoAsync(Guid organization,Guid branch,Guid product,CancellationToken ct); }
+public interface IQrMenuOrganizationPort { Task<QrMenuOrganization> OrganizationAsync(Guid organization,Guid branch,CancellationToken ct); }
+public sealed class QrMenuService(IQrMenuPort port, IBranchPricingPort policies, TimeProvider time, IQrMenuPhotoPort? photos=null,IQrMenuOrganizationPort? organization=null)
 {
+    public async Task<QrMenuOrganization> OrganizationAsync(string capability,CancellationToken ct)
+    {
+        var context=await ContextAsync(capability,ct);
+        var layout=organization is null?new QrMenuOrganization([],[]):await organization.OrganizationAsync(context.OrganizationId,context.BranchId,ct);
+        var products=(await Items(context,ct)).Select(x=>x.ProductId).ToHashSet();
+        await Revalidate(capability,context,ct);
+        var items=layout.Items.Where(x=>products.Contains(x.ProductId)).ToArray();
+        var used=items.Where(x=>x.CategoryId.HasValue).Select(x=>x.CategoryId!.Value).ToHashSet();
+        return new(layout.Categories.Where(x=>used.Contains(x.Id)).ToArray(),items);
+    }
+    public async Task<byte[]?> PhotoAsync(string capability,Guid product,CancellationToken ct)
+    {
+        var context=await ContextAsync(capability,ct);
+        var items=await Items(context,ct);
+        if(product==Guid.Empty||!items.Any(i=>i.ProductId==product))return null;
+        var png=photos is null?null:await photos.PhotoAsync(context.OrganizationId,context.BranchId,product,ct);
+        await Revalidate(capability,context,ct);
+        if(!(await Items(context,ct)).Any(i=>i.ProductId==product))return null;
+        if(png is {Length:>524288})throw new HttpRequestException("Menu image exceeded bounds.");
+        return png;
+    }
     public async Task<QrMenu> MenuAsync(string capability, CancellationToken ct)
     {
         var context = await ContextAsync(capability, ct);

@@ -1,5 +1,13 @@
 # NexaConnect Restaurant POS Architecture
 
+UX14 Catalog-owned name/price/preparation-station edits apply to fresh menu reads and new commercial validation. They never move accepted Kitchen tickets or reprice accepted Order/payment/receipt history. Details CAS is independent of availability/photo/category/barcode versions. Legacy writer changes invalidate stale editor drafts. See [details decision](Decisions/ADR-061-safe-menu-details-editing.md).
+
+UX13 manual branch/product selling availability belongs to Catalog, separate from Inventory quantities. Fresh QR quotes, staff acceptance and POS placement validate the current flag; already accepted orders and their original recovery remain captured. Quoted requests can remain pending until rejection or availability restoration. An order validated before a concurrent flag change may proceed. See [availability decision](Decisions/ADR-060-branch-menu-availability.md).
+
+UX11 category/placement metadata belongs to Catalog and changes only browsing presentation. POS/category/search filters preserve the original cart, item prices, scanner behavior and custody. Guest scope/membership checks still precede ordering, while optional layout errors fall back to complete menus. Catalog7 adds no financial/stock transition or new permission. See [ADR-059](Decisions/ADR-059-menu-organization.md).
+
+Menu photos are optional presentation data: Catalog owns branch/product approval and versioned references; Media owns processed files. Guest photos require a live visit and menu membership; staff/POS delivery retains branch menu.read. Image selection never changes item pricing, quotes, cart, payment or recovery. See [ADR-058](Decisions/ADR-058-approved-menu-photos.md).
+
 UX8D separates history-only server enablement from opening authority: bounded own-cashier
 list/review can run with `HistoryEnabled=true` and `Enabled=false`, preserving all live
 read authorization and disabled native hardware. Matched pilot activation and operator

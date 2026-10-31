@@ -16,6 +16,7 @@ internal sealed class PosDisplayCoordinator : IDisposable
     private CustomerDisplayWindow? customer;
     private bool placing;
     private bool closing;
+    private volatile bool disposed;
     private StaffFullscreen? staffFullscreen;
     private sealed record StaffFullscreen(ScreensaverPlacement Placement,DisplayBounds Bounds,WindowStyle Style,
         ResizeMode Resize,WindowState State,double MinWidth,double MinHeight);
@@ -122,10 +123,17 @@ internal sealed class PosDisplayCoordinator : IDisposable
         finally { customer = null; closing = false; }
     }
     private void CustomerClosed(object? sender, EventArgs e) { if (!closing) { customer = null; Trip(); } }
-    private void Changing(object? sender, EventArgs e) => staff.Dispatcher.Invoke(() => { if (Active||staffFullscreen is not null) Trip(); });
+    private void Changing(object? sender, EventArgs e)
+    {
+        if(disposed||staff.Dispatcher.HasShutdownStarted)return;
+        try {_ = staff.Dispatcher.BeginInvoke(DispatcherPriority.Send,new Action(()=>{
+            if(!disposed&&!staff.Dispatcher.HasShutdownStarted&&(Active||staffFullscreen is not null))Trip();
+        }));}
+        catch(InvalidOperationException){ /* Dispatcher shutdown raced the notification. */ }
+    }
     private void Trip()
     {
-        if (topology.Blocked) return;
+        if (disposed||topology.Blocked) return;
         topology.Block();
         // Hide before any fallback placement, then expose only the neutral safety view.
         staff.Opacity = 0;
@@ -164,8 +172,8 @@ internal sealed class PosDisplayCoordinator : IDisposable
     }
     public void Dispose()
     {
-        Microsoft.Win32.SystemEvents.DisplaySettingsChanging -= Changing;
-        source.RemoveHook(WindowMessage);
-        CloseCustomer();
+        if(disposed)return;disposed=true;
+        try {Microsoft.Win32.SystemEvents.DisplaySettingsChanging -= Changing;}
+        finally {try {source.RemoveHook(WindowMessage);}finally {CloseCustomer();}}
     }
 }

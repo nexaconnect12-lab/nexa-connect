@@ -1,5 +1,9 @@
 # Order Service
 
+UX11 adds a separate guest menu-organization GET: live guest context and current product membership bound the private Catalog projection; only used categories/current product IDs reach the guest. Existing QrGuestCatalog workload/correlation and typed mappings remain. Prices, fingerprints and all order/payment contracts stay unchanged. Service nexaconnect-order uses safe QR shopping/dependency events; see [API/debugging](../../../docs/API/Menu-Organization.md).
+
+Guest menu photos validate live capability and product membership before/after bounded Catalog image retrieval using the existing exact Order workload. Optional images use separate request budgets and never enter pricing/quote/order contracts. Service nexaconnect-order propagates correlation and emits safe QR menu photo dependency events. See [API/debugging](../../../docs/API/Menu-Photos.md).
+
 The [additive local POS sandbox profile](../../../docs/Deployment/POS-Mixed-Omise-Sandbox.md)
 can enable existing `CardCheckout:EnableOmiseTestCheckout` alongside manual checkout/QR.
 No route, grant, migration or workflow primitive changes. Existing live authorization,

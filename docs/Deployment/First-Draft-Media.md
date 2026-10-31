@@ -1,5 +1,7 @@
 # Local first-draft product-image uploads
 
+The menu upload UUID field is replaced by a branch/product-name picker with existing-image reuse, preview and explicit public-menu approval. Original Media ownership is retained; Catalog6 is required for assignment and guest/POS display. See [current manager workflow and rollout](Menu-Photos.md).
+
 [Branch PromptPay PNG](POS-Branch-PromptPay-QR.md) is a separate live branch-configuration workflow. It uses the same Media storage/scanner/CSP origin but does not require broad organization Media grants. Do not upload a bank QR as a Catalog photo or screensaver asset; its purpose-specific original PNG delivery preserves dimensions.
 
 The optional `-EnableMedia` profile adds the existing Media service to a local Windows

@@ -6,20 +6,28 @@
     <Thickness x:Key="PosButtonPadding">12,6</Thickness>
     <Thickness x:Key="PosFieldPadding">8</Thickness>
     <Thickness x:Key="PosCardPadding">16</Thickness>
+    <SolidColorBrush x:Key="PosCanvas" Color="#F1F3F5" />
+    <SolidColorBrush x:Key="PosDivider" Color="#D8DEE5" />
+    <SolidColorBrush x:Key="PosNavigationCanvas" Color="#1C2936" />
+    <SolidColorBrush x:Key="PosNavigationInk" Color="#F1F5F9" />
+    <SolidColorBrush x:Key="PosNavigationHover" Color="#304254" />
+    <SolidColorBrush x:Key="PosInk" Color="#17212F" />
     <SolidColorBrush x:Key="Brand" Color="#14532D" />
     <Style TargetType="Button">
       <Setter Property="MinHeight" Value="{DynamicResource PosControlHeight}" />
       <Setter Property="Padding" Value="{DynamicResource PosButtonPadding}" />
       <Setter Property="Margin" Value="0,0,8,8" />
       <Setter Property="Background" Value="White" />
-      <Setter Property="BorderBrush" Value="#D3DDD6" />
-      <Setter Property="Foreground" Value="#172A22" />
+      <Setter Property="BorderBrush" Value="#CCD4DF" />
+      <Setter Property="Foreground" Value="{StaticResource PosInk}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="Surface" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" Padding="{TemplateBinding Padding}">
-              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <Border x:Name="Surface" CornerRadius="2" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" RecognizesAccessKey="True" />
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
@@ -32,10 +40,16 @@
               <Trigger Property="IsEnabled" Value="False">
                 <Setter TargetName="Surface" Property="Opacity" Value="0.45" />
               </Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.75" /></Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
+    </Style>
+    <Style x:Key="MenuTile" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#DCE3EC" />
     </Style>
     <Style x:Key="Primary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
       <Setter Property="Background" Value="{StaticResource Brand}" />
@@ -45,10 +59,10 @@
     <Style TargetType="TextBox">
       <Setter Property="MinHeight" Value="{DynamicResource PosControlHeight}" />
       <Setter Property="Background" Value="White" />
-      <Setter Property="Foreground" Value="#172A22" />
+      <Setter Property="Foreground" Value="{StaticResource PosInk}" />
       <Setter Property="Template">
         <Setter.Value><ControlTemplate TargetType="TextBox">
-          <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
+          <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="2">
             <ScrollViewer x:Name="PART_ContentHost" />
           </Border>
           <ControlTemplate.Triggers><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.55" /></Trigger></ControlTemplate.Triggers>
@@ -57,7 +71,8 @@
       <Setter Property="Padding" Value="{DynamicResource PosFieldPadding}" />
       <Setter Property="Margin" Value="0,4,0,14" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="BorderBrush" Value="#D3DDD6" />
+      <Setter Property="BorderBrush" Value="#CCD4DF" />
+      <Setter Property="BorderThickness" Value="1" />
       <Style.Triggers>
         <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="BorderBrush" Value="#0369A1" /><Setter Property="BorderThickness" Value="2" /></Trigger>
         <Trigger Property="Validation.HasError" Value="True"><Setter Property="BorderBrush" Value="#B91C1C" /></Trigger>
@@ -68,34 +83,113 @@
       <Setter Property="Margin" Value="0,4,0,14" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
       <Setter Property="Background" Value="White" />
-      <Setter Property="BorderBrush" Value="#D3DDD6" />
+      <Setter Property="BorderBrush" Value="{StaticResource PosDivider}" />
+      <Setter Property="Padding" Value="{DynamicResource PosFieldPadding}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBox">
+            <Grid>
+              <ToggleButton Focusable="False" IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" ClickMode="Press">
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType="ToggleButton">
+                    <Border Background="White" BorderBrush="#CCD4DF" BorderThickness="1" CornerRadius="2">
+                      <TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="12" Foreground="#475569" />
+                    </Border>
+                  </ControlTemplate>
+                </ToggleButton.Template>
+              </ToggleButton>
+              <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" IsHitTestVisible="False"
+                                HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,4,32,4" />
+              <Border x:Name="ComboFocus" IsHitTestVisible="False" BorderBrush="Transparent" BorderThickness="2" CornerRadius="2" />
+              <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False">
+                <Border Background="White" BorderBrush="#CCD4DF" BorderThickness="1" CornerRadius="2" Margin="0,4,0,0" MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                  <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="3">
+                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                  </ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="ComboFocus" Property="BorderBrush" Value="#0369A1" /></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
     <Style TargetType="ComboBoxItem"><Setter Property="MinHeight" Value="{DynamicResource PosControlHeight}"/><Setter Property="Padding" Value="{DynamicResource PosButtonPadding}"/></Style>
     <Style TargetType="ListBoxItem"><Setter Property="MinHeight" Value="{DynamicResource PosControlHeight}"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/></Style>
+    <Style x:Key="CashierNavigation" TargetType="TabControl">
+      <Setter Property="TabStripPlacement" Value="Left" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TabControl">
+            <Grid KeyboardNavigation.TabNavigation="Local">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <Border x:Name="NavigationSurface" Background="{StaticResource PosNavigationCanvas}" BorderThickness="0" CornerRadius="0" Padding="6" Margin="0,0,16,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="True">
+                  <TabPanel x:Name="HeaderPanel" IsItemsHost="True" KeyboardNavigation.TabIndex="1" VerticalAlignment="Top" />
+                </ScrollViewer>
+              </Border>
+              <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Column="1" ContentSource="SelectedContent"
+                                KeyboardNavigation.TabIndex="2" Margin="0" />
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
     <Style TargetType="TabItem">
       <Setter Property="Padding" Value="{DynamicResource PosButtonPadding}" />
       <Setter Property="MinHeight" Value="{DynamicResource PosControlHeight}" />
-      <Setter Property="Margin" Value="0,0,8,8" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Foreground" Value="#172A22" />
       <Setter Property="Template">
         <Setter.Value><ControlTemplate TargetType="TabItem">
-          <Border x:Name="TabSurface" Background="White" BorderBrush="#D3DDD6" BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}">
-            <ContentPresenter x:Name="TabLabel" TextElement.Foreground="#52655A" ContentSource="Header" RecognizesAccessKey="True" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          <Grid>
+            <Border x:Name="TabSurface" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="2" Padding="10,10">
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <TextBlock x:Name="NavigationGlyph" Text="{TemplateBinding Tag}" Foreground="{StaticResource PosNavigationInk}" FontFamily="Segoe MDL2 Assets" FontSize="16" VerticalAlignment="Center" />
+                <TextBlock x:Name="TabLabel" Grid.Column="1" Margin="8,0,0,0" Foreground="{StaticResource PosNavigationInk}" Text="{TemplateBinding Header}" TextWrapping="Wrap" VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+            <Border x:Name="SelectedMarker" Width="3" Height="20" Background="White" CornerRadius="0" HorizontalAlignment="Left" Visibility="Collapsed" />
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TabSurface" Property="Background" Value="{StaticResource PosNavigationHover}" /></Trigger>
+            <Trigger Property="IsSelected" Value="True"><Setter TargetName="TabSurface" Property="Background" Value="{StaticResource Brand}" /><Setter TargetName="TabLabel" Property="Foreground" Value="White" /><Setter TargetName="NavigationGlyph" Property="Foreground" Value="White" /><Setter TargetName="SelectedMarker" Property="Visibility" Value="Visible" /></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TabSurface" Property="BorderBrush" Value="#7DD3FC" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45" /></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="TerminalSectionTab" TargetType="TabItem">
+      <Setter Property="MinHeight" Value="{DynamicResource PosControlHeight}" />
+      <Setter Property="Padding" Value="{DynamicResource PosButtonPadding}" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="Template">
+        <Setter.Value><ControlTemplate TargetType="TabItem">
+          <Border x:Name="SectionSurface" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="2" Padding="{TemplateBinding Padding}">
+            <ContentPresenter x:Name="SectionLabel" TextElement.FontWeight="SemiBold" ContentSource="Header" RecognizesAccessKey="True" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
           <ControlTemplate.Triggers>
-            <Trigger Property="IsSelected" Value="True"><Setter TargetName="TabSurface" Property="Background" Value="#14532D" /><Setter TargetName="TabLabel" Property="TextElement.Foreground" Value="White" /></Trigger>
-            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TabSurface" Property="BorderBrush" Value="#15803D" /></Trigger>
-            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TabSurface" Property="BorderBrush" Value="#0369A1" /><Setter TargetName="TabSurface" Property="BorderThickness" Value="3" /></Trigger>
+            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="SectionSurface" Property="Background" Value="#EAF0F5" /></Trigger>
+            <Trigger Property="IsSelected" Value="True"><Setter TargetName="SectionSurface" Property="Background" Value="White" /><Setter TargetName="SectionSurface" Property="BorderBrush" Value="#CCD4DF" /><Setter TargetName="SectionLabel" Property="TextElement.Foreground" Value="{StaticResource Brand}" /></Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="SectionSurface" Property="BorderBrush" Value="#0369A1" /></Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate></Setter.Value>
       </Setter>
     </Style>
     <Style x:Key="Card" TargetType="Border">
       <Setter Property="Background" Value="White" />
-      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="CornerRadius" Value="0" />
       <Setter Property="Padding" Value="{DynamicResource PosCardPadding}" />
-      <Setter Property="BorderBrush" Value="#DFE6DF" />
+      <Setter Property="BorderBrush" Value="#DCE3EC" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style x:Key="Heading" TargetType="TextBlock">
@@ -109,8 +203,9 @@
     <Style TargetType="DataGrid">
       <Setter Property="ScrollViewer.PanningMode" Value="Both" />
       <Setter Property="RowHeight" Value="{DynamicResource PosControlHeight}" /><Setter Property="ColumnHeaderHeight" Value="{DynamicResource PosControlHeight}" />
-      <Setter Property="GridLinesVisibility" Value="Horizontal" /><Setter Property="HorizontalGridLinesBrush" Value="#DFE6DF" />
-      <Setter Property="AlternatingRowBackground" Value="#F4F6F3" /><Setter Property="BorderBrush" Value="#D3DDD6" />
+      <Setter Property="GridLinesVisibility" Value="Horizontal" /><Setter Property="HorizontalGridLinesBrush" Value="#E3E7EC" />
+      <Setter Property="AlternatingRowBackground" Value="#F7F8FA" /><Setter Property="BorderBrush" Value="{StaticResource PosDivider}" />
     </Style>
+    <Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#EDF0F3"/><Setter Property="Foreground" Value="{StaticResource PosInk}"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Padding" Value="{DynamicResource PosButtonPadding}"/><Setter Property="BorderBrush" Value="{StaticResource PosDivider}"/><Setter Property="BorderThickness" Value="0,0,0,1"/></Style>
     <Style TargetType="TextBlock"><Setter Property="Typography.NumeralAlignment" Value="Tabular" /></Style>
 </ResourceDictionary>

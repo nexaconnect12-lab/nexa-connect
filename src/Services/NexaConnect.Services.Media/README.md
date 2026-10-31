@@ -1,5 +1,7 @@
 # Media service
 
+MenuPhotoDelivery serves only same-organization ready Catalog/product processed thumbnails to the exact Catalog workload, reencoding metadata-free PNG at most512px/512KiB and rechecking lifecycle/version/key after storage access. Original ownership and all upload/safety/deletion rules remain unchanged. Service nexaconnect-media emits safe Menu photo boundary events with shared correlation. See [API/debugging](../../../docs/API/Menu-Photos.md).
+
 Branch PromptPay uses dedicated upload/completion/readiness routes with live branch configuration.manage, independent of organization-wide Media rights. Cashier delivery requires live branch menu.read. Services:Restaurant and existing Media workload credentials validate owners; generic upload/completion cannot bypass purpose authority. Static PNG is bounded to 2 MiB/64–2048 pixels and delivered losslessly with at most a 60-second lease; no gallery-reader capability or photo variant. Shared correlation and safe PromptPay events use nexaconnect-media. See [API](../../../docs/API/Branch-PromptPay-QR.md) and [setup](../../../docs/Deployment/POS-Branch-PromptPay-QR.md).
 
 UX4 adds `GalleryReaders`, purpose-separated protected 24-hour capabilities and a bounded

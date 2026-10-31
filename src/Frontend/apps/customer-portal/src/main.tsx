@@ -1,3 +1,8 @@
+import {MenuManagementPanel} from "./MenuManagementPanel";
+import {MenuDetailsPanel} from "./MenuDetailsPanel";
+import {MenuAvailabilityPanel} from "./MenuAvailabilityPanel";
+import {MenuOrganizationPanel} from "./MenuOrganizationPanel";
+import {MenuPhotoPanel} from "./MenuPhotoPanel";
 import { EndOfDayPanel } from "./EndOfDayPanel";
 import { SalesReportPanel } from "./SalesReportPanel";
 import { CashCloseReportPanel } from "./CashCloseReportPanel";
@@ -10,7 +15,7 @@ import { QrEntryPanel } from "./QrEntryPanel";
 import { QrReviewPanel } from "./QrReviewPanel";
 import { QrGuestEntry, isQrGuestEntry } from "./QrGuestEntry";
 import { currentSection, isKitchenEntry, signInToCustomer } from "./navigation";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { PaymentReviewPanel } from "./PaymentReviewPanel";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -68,7 +73,6 @@ type Branch = {
 type FeatureResponse = { items?: unknown[]; message?: string };
 type Configuration = { branchId:string; dineInEnabled:boolean; takeawayEnabled:boolean; requireTableForDineIn:boolean; serviceChargePercent:number; taxPercent:number; taxInclusive:boolean; concurrencyVersion:number };
 type Dashboard = { completedOrders:number; grossSales:number; netPaid:number; refunded:number; netSales:number; currency?:string; latestGlobalCheckpointUpdatedAtUtc?:string };
-type MediaAsset = { id:string; originalFileName:string; contentType:string; sizeBytes:number; processingStatus:string; uploadedAtUtc:string; ownerService:string; concurrencyVersion:number };
 type ActivityRecord={eventId:string;sourceService:string;actorSubjectId:string;action:string;resourceType:string;resourceId:string;outcome:string;occurredAtUtc:string;projectedAtUtc:string};
 type ActivityPage={items:ActivityRecord[];nextCursor?:string};
 const api = createApiClient({
@@ -96,6 +100,7 @@ function ContextPicker({
   tenant,
   onChange,
   onChanging,
+  beforeChanging,
   onPendingChange,
   disabled,
 }: {
@@ -103,6 +108,7 @@ function ContextPicker({
   tenant?: Tenant;
   onChange: (v: Tenant) => void;
   onChanging?: () => void;
+  beforeChanging?: () => boolean;
   onPendingChange?: (pending: boolean) => void;
   disabled?: boolean;
 }) {
@@ -123,6 +129,7 @@ function ContextPicker({
         label: `${x.organizationName} \u00b7 ${x.applicationCode}`,
       }))}
       onChange={async (value) => {
+        if(beforeChanging&&!beforeChanging())return;
         const [organizationId, applicationCode] = value.split("|");
         setError(undefined);
         onChanging?.();
@@ -262,14 +269,14 @@ function BranchesPanel() {
 function BranchPicker({value,onChange}:{value?:string;onChange:(value:string)=>void}) { const branches=useRequest<Branch[]>("/bff/customer/operational-branches?capability=reports"); return <Select style={{minWidth:280}} loading={!branches.data&&!branches.error} value={value} placeholder="All branches" allowClear options={branches.data?.map(branch=>({value:branch.branchId,label:`${branch.name} (${branch.code})`}))} onChange={onChange}/>; }
 function ConfigurationPanel(){const branches=useRequest<Branch[]>("/bff/customer/branches"),[branchId,setBranchId]=useState<string>(),state=useRequest<Configuration>(branchId?`/bff/customer/configuration/branches/${branchId}`:undefined),[message,setMessage]=useState<string>();useEffect(()=>{const first=branches.data?.[0];if(!branchId&&first)setBranchId(first.branchId)},[branches.data,branchId]);const save=async(values:Omit<Configuration,"branchId"|"concurrencyVersion">)=>{if(!branchId||!state.data)return;try{await api.request(`/bff/customer/configuration/branches/${branchId}`,{method:"PUT",body:{...values,expectedVersion:state.data.concurrencyVersion}});setMessage("Configuration saved.");state.reload()}catch(error){setMessage(normalizeError(error).message)}};return <><Typography.Title level={2}>Product configuration</Typography.Title><Select style={{minWidth:320,marginBottom:16}} value={branchId} options={branches.data?.map(branch=>({value:branch.branchId,label:branch.name}))} onChange={setBranchId}/>{state.error&&<Alert type="error" message={state.error}/>} {state.data&&<Card><Form key={state.data.concurrencyVersion} layout="vertical" initialValues={state.data} onFinish={save}><Form.Item name="dineInEnabled" label="Dine-in" valuePropName="checked"><Switch/></Form.Item><Form.Item name="takeawayEnabled" label="Takeaway" valuePropName="checked"><Switch/></Form.Item><Form.Item name="requireTableForDineIn" label="Require table for dine-in" valuePropName="checked"><Switch/></Form.Item><Form.Item name="serviceChargePercent" label="Service charge (%)"><InputNumber min={0} max={100} precision={2}/></Form.Item><Form.Item name="taxPercent" label="Tax (%)"><InputNumber min={0} max={100} precision={2}/></Form.Item><Form.Item name="taxInclusive" label="Menu prices include tax" valuePropName="checked"><Switch/></Form.Item><Typography.Paragraph>Service charge applies to the subtotal before tax. Tax also applies to service charge. Accepted orders retain their original pricing.</Typography.Paragraph><Button type="primary" htmlType="submit">Save configuration</Button></Form></Card>}{message&&<Alert style={{marginTop:16}} message={message} type={message==="Configuration saved."?"success":"error"}/>}</>}
 function DashboardPanel(){const[branchId,setBranchId]=useState<string>(),state=useRequest<Dashboard>(branchId?`/bff/customer/dashboard?branchId=${branchId}`:undefined);return <><Typography.Title level={2}>Product dashboards</Typography.Title><BranchPicker value={branchId} onChange={value=>setBranchId(value)}/>{state.error&&<Alert type="error" message={state.error}/>} {state.data&&<><Descriptions bordered style={{marginTop:16}}><Descriptions.Item label="Completed orders">{state.data.completedOrders}</Descriptions.Item><Descriptions.Item label="Gross sales">{state.data.currency??""} {state.data.grossSales}</Descriptions.Item><Descriptions.Item label="Refunded in range">{state.data.currency??""} {state.data.refunded}</Descriptions.Item><Descriptions.Item label="Net sales">{state.data.currency??""} {state.data.netSales}</Descriptions.Item><Descriptions.Item label="Net paid">{state.data.currency??""} {state.data.netPaid}</Descriptions.Item></Descriptions><Alert style={{marginTop:16}} type="info" message={`Latest global projector checkpoint: ${state.data.latestGlobalCheckpointUpdatedAtUtc??"No projector checkpoint yet"}`}/></>}</>}
-function MediaPanel(){const state=useRequest<MediaAsset[]>("/bff/customer/media"),[file,setFile]=useState<File>(),[ownerId,setOwnerId]=useState(""),[message,setMessage]=useState<string>();const upload=async()=>{if(!file||!ownerId)return;try{const bytes=new Uint8Array(await crypto.subtle.digest("SHA-256",await file.arrayBuffer())),hash=Array.from(bytes).map(v=>v.toString(16).padStart(2,"0")).join(""),checksum=btoa(String.fromCharCode(...bytes));const session=await api.request<{asset:MediaAsset;uploadUrl:string}>("/bff/customer/media/uploads",{method:"POST",body:{ownerService:"catalog",ownerType:"product",ownerId,fileName:file.name,contentType:file.type,sizeBytes:file.size,checksumSha256:hash}});const put=await fetch(session.uploadUrl,{method:"PUT",headers:{"Content-Type":file.type,"x-amz-checksum-sha256":checksum},body:file});if(!put.ok)throw new Error("Object upload failed.");await api.request(`/bff/customer/media/${session.asset.id}/complete`,{method:"POST",body:{expectedVersion:session.asset.concurrencyVersion}});setMessage("Upload completed; thumbnail and display variants are processing.");state.reload()}catch(e){setMessage(normalizeError(e).message)}};const download=async(asset:MediaAsset,variant?:"thumbnail"|"display")=>{try{const path=variant?`/bff/customer/media/${asset.id}/variants/${variant}/download`:`/bff/customer/media/${asset.id}/download`,value=await api.request<{downloadUrl:string}>(path);location.assign(value.downloadUrl)}catch(e){setMessage(normalizeError(e).message)}};const remove=async(asset:MediaAsset)=>{await api.request(`/bff/customer/media/${asset.id}?expectedVersion=${asset.concurrencyVersion}`,{method:"DELETE"});state.reload()};return <><Typography.Title level={2}>Media management</Typography.Title><Card title="Upload product image"><Space direction="vertical"><Input placeholder="Catalog product UUID" value={ownerId} onChange={e=>setOwnerId(e.target.value)}/><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0])}/><Button type="primary" disabled={!file||!ownerId} onClick={upload}>Upload</Button></Space></Card>{message&&<Alert style={{marginTop:16}} message={message}/>}<Table style={{marginTop:16}} rowKey="id" loading={!state.data&&!state.error} dataSource={state.data} columns={[{title:"File",dataIndex:"originalFileName"},{title:"Type",dataIndex:"contentType"},{title:"Owner",dataIndex:"ownerService"},{title:"Size (bytes)",dataIndex:"sizeBytes"},{title:"Status",dataIndex:"processingStatus",render:value=><Tag>{value}</Tag>},{title:"Uploaded",dataIndex:"uploadedAtUtc"},{title:"Actions",render:(_,asset)=><Space wrap><Button disabled={asset.processingStatus!=="ready"} onClick={()=>download(asset)}>Original</Button><Button disabled={asset.processingStatus!=="ready"} onClick={()=>download(asset,"thumbnail")}>Thumbnail</Button><Button disabled={asset.processingStatus!=="ready"} onClick={()=>download(asset,"display")}>Display</Button><Button danger onClick={()=>remove(asset)}>Delete</Button></Space>}]}/>{state.error&&<Alert type="error" message={state.error}/>}</>}
+function MediaPanel(){return <Alert message="Manage menu images in Menu management → Image. Screensaver galleries remain below."/>;}
 function ActivityPanel(){const[items,setItems]=useState<ActivityRecord[]>([]),[next,setNext]=useState<string>(),[submitted,setSubmitted]=useState<Record<string,string>>({}),[loading,setLoading]=useState(false),[error,setError]=useState<string>(),[form]=Form.useForm();const load=async(filters:Record<string,string>,cursor?:string,append=false)=>{setLoading(true);try{const query=new URLSearchParams(filters);if(cursor)query.set("cursor",cursor);const page=await api.request<ActivityPage>(`/bff/customer/activity?${query}`);setItems(current=>append?[...current,...page.items]:page.items);setNext(page.nextCursor);setSubmitted(filters);setError(undefined)}catch(e){setError(normalizeError(e).message)}finally{setLoading(false)}};useEffect(()=>{void load({})},[]);return <><Typography.Title level={2}>Activity projection preview</Typography.Title><Alert type="warning" message="This non-authoritative preview is empty by default until trusted service events are delivered. Do not use it as evidence that no activity occurred."/><Card style={{marginTop:16}}><Form form={form} layout="inline" onFinish={values=>load(Object.fromEntries(Object.entries(values).filter(([,v])=>v)) as Record<string,string>)}><Form.Item name="actorSubjectId" label="Actor"><Input allowClear/></Form.Item><Form.Item name="action" label="Action"><Input allowClear/></Form.Item><Button type="primary" htmlType="submit">Filter</Button></Form></Card>{error&&<Alert style={{marginTop:16}} type="error" message={error}/>}<Table style={{marginTop:16}} loading={loading} pagination={false} rowKey="eventId" dataSource={items} columns={[{title:"When",dataIndex:"occurredAtUtc"},{title:"Service",dataIndex:"sourceService"},{title:"Actor",dataIndex:"actorSubjectId"},{title:"Action",dataIndex:"action"},{title:"Resource",render:(_,item)=>`${item.resourceType}: ${item.resourceId}`},{title:"Outcome",dataIndex:"outcome",render:value=><Tag>{value}</Tag>}]} />{next&&<Button style={{marginTop:16}} loading={loading} onClick={()=>load(submitted,next,true)}>Load more</Button>}</>}
 function FeaturePanel({
   section,
 }: {
   section: Exclude<
     PortalSection,
-    "profile" | "products" | "users" | "configuration" | "branches" | "dashboards" | "reports" | "media" | "activity" | "payment-reviews" | "kitchen" | "cash-close-reports" | "end-of-day"
+    "profile" | "products" | "users" | "menu-management" | "menu-images" | "menu-organization" | "menu-availability" | "menu-details" | "configuration" | "branches" | "dashboards" | "reports" | "media" | "activity" | "payment-reviews" | "kitchen" | "cash-close-reports" | "end-of-day"
   >;
 }) {
   const state = useRequest<FeatureResponse>(scopedFeaturePath(section));
@@ -295,22 +302,26 @@ function App() {
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   // Remove scoped content before the anchor begins a potentially slow redirect.
-  const beginSignOut = () => flushSync(() => setSigningOut(true));
+  const leaveGuard=useRef<(()=>boolean)>();
+  const registerLeaveGuard=useCallback((guard:(()=>boolean)|undefined)=>{leaveGuard.current=guard;},[]);
+  const beginSignOut = (event:React.MouseEvent<HTMLElement>) => {if(leaveGuard.current&&!leaveGuard.current()){event.preventDefault();return;}flushSync(() => setSigningOut(true));};
   const tenantGeneration = useRef(0);
   const [section, setSection] = useState<PortalSection>(currentSection);
+  const sectionRef=useRef(section);sectionRef.current=section;
   const contextProps = {
+    beforeChanging:()=>leaveGuard.current?.()??true,
     onChange: setTenant,
     onChanging: () => {
       tenantGeneration.current++;
       // Kitchen clears immediately; other workflows retain their existing
       // state until a protected workspace selection succeeds.
-      if (section === "kitchen") setTenant(undefined);
+      if (section === "kitchen"||section === "menu-management") setTenant(undefined);
     },
     onPendingChange: setWorkspaceBusy,
     disabled: workspaceBusy,
   };
   useEffect(() => {
-    const changed = () => setSection(currentSection());
+    const changed = () => {const next=currentSection();if(next===sectionRef.current)return;if(leaveGuard.current&&!leaveGuard.current()){history.replaceState(null,"",`#${sectionRef.current}`);return;}sectionRef.current=next;setSection(next);};
     window.addEventListener("hashchange", changed);
     window.addEventListener("popstate", changed);
     return () => {
@@ -343,6 +354,11 @@ function App() {
     products: "Enabled products",
     users: "Customer users & memberships",
     configuration: "Product configuration",
+    "menu-organization": "Menu categories",
+    "menu-availability": "Menu availability",
+    "menu-details": "Menu item editor",
+    "menu-management":"Menu management",
+    "menu-images":"Menu images",
     branches: "Branches & locations",
     dashboards: "Product dashboards",
     reports: "Reports",
@@ -353,10 +369,13 @@ function App() {
     "cash-close-reports": "Cash-close report",
     "end-of-day": "End-of-day draft",
   };
-  const nav = sections.filter(key=>(key!=="qr-requests"&&key!=="payment-reviews"&&key!=="kitchen"&&key!=="cash-close-reports"&&key!=="end-of-day")||tenant?.applicationCode==="nexa_connect").map((key) => ({
+  const nav = sections.filter(key=>!["menu-details","menu-availability","menu-organization","menu-images"].includes(key)).filter(key=>(key!=="menu-management"&&key!=="menu-details"&&key!=="menu-availability"&&key!=="menu-organization"&&key!=="qr-requests"&&key!=="payment-reviews"&&key!=="kitchen"&&key!=="cash-close-reports"&&key!=="end-of-day")||tenant?.applicationCode==="nexa_connect").map((key) => ({
     key,
     label: labels[key],
     onSelect: () => {
+      if(key===sectionRef.current)return;
+      if(leaveGuard.current&&!leaveGuard.current())return;
+      sectionRef.current=key;
       location.hash = key;
       setSection(key);
     },
@@ -401,6 +420,11 @@ function App() {
         />
       </>
     );
+  else if(section === "menu-management") panel=tenant.applicationCode==="nexa_connect"?<MenuManagementPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} organizationId={tenant.organizationId} registerLeaveGuard={registerLeaveGuard}/>:<Alert message="Menu management requires the NexaConnect workspace."/>;
+  else if(section === "menu-images") panel=tenant.applicationCode==="nexa_connect"?<MenuPhotoPanel key={`${tenant.organizationId}|${tenant.applicationCode}`}/>:<Alert message="Menu images require the NexaConnect workspace."/>;
+  else if(section === "menu-details") panel=tenant.applicationCode==="nexa_connect"?<MenuDetailsPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} organizationId={tenant.organizationId}/>:<Alert message="Menu editing requires the NexaConnect workspace."/>;
+  else if(section === "menu-availability") panel=tenant.applicationCode==="nexa_connect"?<MenuAvailabilityPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} organizationId={tenant.organizationId}/>:<Alert message="Menu availability requires the NexaConnect workspace."/>;
+  else if(section === "menu-organization") panel=tenant.applicationCode==="nexa_connect"?<MenuOrganizationPanel key={`${tenant.organizationId}|${tenant.applicationCode}`} organizationId={tenant.organizationId}/>:<Alert message="Menu categories require the NexaConnect workspace."/>;
   else if (section === "users") panel = <MembershipsPanel />;
   else if (section === "configuration") panel = <React.Fragment key={`${tenant.organizationId}|${tenant.applicationCode}`}><ConfigurationPanel/>{tenant.applicationCode==="nexa_connect"&&<><PromptPayQrPanel/><ProductBarcodePanel/><QrEntryPanel/></>}</React.Fragment>;
   else if (section === "qr-requests") panel = tenant.applicationCode==="nexa_connect"?<QrReviewPanel key={`${tenant.organizationId}|${tenant.applicationCode}`}/>:<Alert message="QR requests require the NexaConnect workspace."/>;
