@@ -5,6 +5,7 @@ wrapped header actions, current-section context and a keyboard skip link to the 
 Pass `title`, optional `description`, navigation `items`, `selectedKey`, optional
 `headerActions` and page content. Navigation callbacks preserve the owning portal's existing
 hash routes. The drawer closes on selection and can be dismissed without selecting anything.
+Set `showWorkspaceHeading={false}` to omit the repeated title/description/session-badge row while retaining the content frame and shell controls (Customer Portal uses this). It defaults to `true` for existing consumers. `WorkspaceFrame` also accepts optional `showHeading`, defaulting to `true`.
 Selecting a section moves keyboard focus to the main landmark after the drawer closes;
 dismissing the drawer uses its normal focus restoration.
 

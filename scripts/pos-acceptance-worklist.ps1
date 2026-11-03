@@ -34,8 +34,10 @@ function Get-PosAcceptanceWorklist($Record,[bool]$BindingValid,[bool]$QrCandidat
             if($matches.Count){$next=@{caseId=$matches[0].id;action=$action};break}
         }
     }else{$next=@{caseId=$null;action='repair-binding'}}
-    return @{version=1;kind='operator-worklist';acceptanceId=$report.acceptanceId;target=$report.target;
-        bindingValid=$BindingValid;qrCandidateFresh=$QrCandidateFresh;next=$next;cases=$items;
+    $work=@{version=$report.version;kind='operator-worklist';acceptanceId=$report.acceptanceId;target=$report.target;
+        bindingValid=$BindingValid;qrCandidateFresh=$report.qrCandidateFresh;next=$next;cases=$items;
         operatorCasesComplete=$report.operatorCasesComplete;observationsRecorded=$false;
         currentSourceVerified=$false;releaseReady=$false;productionVerified=$false}
+    if($report.version -ceq 2){$work.targetKind='recovery-lab';$work.qrCandidateApplicable=$false}
+    return $work
 }

@@ -1,5 +1,8 @@
 # NexaConnect Customer BFF
 
+GET `/bff/customer/media-library` and `/assets/{asset}/thumbnail` derive protected selected-tenant/stable subject and recheck current Directory membership. Bounded JSON/PNG forwarding uses dedicated redirect-disabled `MediaLibraryDirectory`/`MediaLibraryMedia` clients with shared correlation and URI logging removed. Existing Services addresses/session/Media authority apply; no new setting or guest route. Query service `nexaconnect-customer-bff` / `Media library BFF`; see [contract/bounds/debugging](../../../docs/API/Media-Library.md).
+
+
 UX14 exposes protected /bff/customer/menu-details routes with CustomerSession, subject-bound tenant membership, CSRF and bounded bodies/responses. MenuDetailsCatalog/Directory reuse Services:Catalog/PlatformDirectory, disable redirects and propagate correlation. Existing nexaconnect-customer-bff safe status/category logs and debugging queries are documented in [details API](../../../docs/API/Menu-Details.md).
 
 UX13 adds /bff/customer/menu-availability management with existing CustomerSession, selected-tenant membership and CSRF writes. The MenuAvailabilityCatalog client uses Services:Catalog, disables redirects and propagates validated correlation; bounds/errors are documented in [API/diagnostics](../../../docs/API/Menu-Availability.md). No guest or workload management route is added.

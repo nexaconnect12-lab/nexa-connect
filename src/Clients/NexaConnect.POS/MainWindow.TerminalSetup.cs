@@ -14,6 +14,36 @@ public partial class MainWindow
     private DateTimeOffset? printerCheckedAtUtc,displayCheckedAtUtc;
     private Task<string[]>? printerDiscoveryTask;
     private CancellationTokenSource? setupCancellation;
+    private CancellationTokenSource? serviceCheckCancellation;
+    private bool checkingServiceAvailability;
+
+    private async void CheckServices_Click(object sender,RoutedEventArgs e)
+    {
+        if(busy||checkingServiceAvailability||reauthenticationRequired||displaySafetyBlocked)return;
+        int generation=receiptSessionGeneration;string? subject=_authentication.CurrentToken?.Subject;
+        using var cancellation=CancellationTokenSource.CreateLinkedTokenSource(windowCancellation.Token);
+        serviceCheckCancellation=cancellation;checkingServiceAvailability=true;CheckServicesButton.IsEnabled=false;
+        ServiceAvailabilityText.Text="Checking identity, menu, order and payment connectivity…";
+        try
+        {
+            var checks=await terminalDiagnostics.CheckAsync(cancellation.Token);
+            if(!windowCancellation.IsCancellationRequested&&generation==receiptSessionGeneration&&subject==_authentication.CurrentToken?.Subject&&!reauthenticationRequired&&!displaySafetyBlocked)
+            {
+                terminalServiceChecks=checks;ServiceAvailabilityText.Text=PosTerminalDiagnostics.Summary(checks);
+                RenderTerminalOverview();
+            }
+        }
+        catch
+        {
+            if(!windowCancellation.IsCancellationRequested&&generation==receiptSessionGeneration&&subject==_authentication.CurrentToken?.Subject&&!reauthenticationRequired&&!displaySafetyBlocked)
+                ServiceAvailabilityText.Text="Service checks unavailable. Try again; no order or payment was submitted.";
+        }
+        finally
+        {
+            serviceCheckCancellation=null;checkingServiceAvailability=false;
+            if(!windowCancellation.IsCancellationRequested)CheckServicesButton.IsEnabled=!busy&&!reauthenticationRequired&&!displaySafetyBlocked;
+        }
+    }
 
     private async Task<string[]> DiscoverPrintersBoundedAsync(CancellationToken ct)
     {
@@ -38,10 +68,12 @@ public partial class MainWindow
         if(terminalServiceChecks.Length==0)terminalServiceChecks=terminalDiagnostics.Initial();
         TerminalSetupList.ItemsSource=TerminalSetup.Rows(SetupFacts(),terminalServiceChecks);
         TerminalSetupControls.IsEnabled=!busy&&IsSignedIn()&&!displaySafetyBlocked;
+        CheckServicesButton.IsEnabled=!busy&&!checkingServiceAvailability&&!reauthenticationRequired&&!displaySafetyBlocked;
     }
     private void ClearSetupDiagnostics()
     {
-        setupCancellation?.Cancel();terminalServiceChecks=terminalDiagnostics.Initial();
+        setupCancellation?.Cancel();serviceCheckCancellation?.Cancel();terminalServiceChecks=terminalDiagnostics.Initial();
+        ServiceAvailabilityText.Text="Service availability not checked. Choose Check services before starting work.";
         discoveredPrinterNames=null;printerCheckedAtUtc=null;printerDiscoveryFailed=false;
         TerminalSetupStatus.Text="Run explicit checks to refresh detection. Hardware acceptance is still untested.";
     }
@@ -60,6 +92,7 @@ public partial class MainWindow
             await Task.WhenAll(printers,services);
             if(!PrintSessionCurrent(generation,subject))return;
             RecordPrinterDiscovery(await printers);terminalServiceChecks=await services;
+            ServiceAvailabilityText.Text=PosTerminalDiagnostics.Summary(terminalServiceChecks);
             TerminalSetupStatus.Text="Checks complete. Detected means Windows/HTTP responded; actual output, scanner, display privacy and business access remain untested.";
             StatusText.Text="Terminal setup checks complete. Review the overview for results and untested items.";
         }

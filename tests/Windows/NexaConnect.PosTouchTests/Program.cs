@@ -65,8 +65,10 @@ internal static partial class Program
                     SessionStartedAtUtc: DateTimeOffset.UtcNow, SessionExpiresAtUtc: DateTimeOffset.UtcNow.AddHours(1), Subject: "fixture", Authority: config.Authority));
             Invoke(window, "UpdateOperationalState");
             window.Show(); Pump(window);
+            VerifySessionDisplayLayout(window);
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
             VerifyCashierNavigation(window);
+            VerifyQrReview(window, config, args.Contains("--qr-review-preview"));
             VerifyMenuPhotoPresentation(window);
             VerifyMenuOrganization(window,config);
             VerifyMenuAvailability(window);
@@ -88,7 +90,7 @@ internal static partial class Program
                 Require(inputMode.IsChecked == true, "failed save restores the previously selected mode");
                 Require(((TextBlock)window.FindName("InputModeStatusText")).Text.Contains("previous mode"), "failed save has visible guidance");
             }
-            tabs.SelectedIndex = 4; Pump(window); // Shift & cash, no network use case.
+            ((TabItem)window.FindName("ShiftCashTab")).IsSelected = true; Pump(window);
             var field = (TextBox)window.FindName("MovementAmountTextBox");
             foreach (var size in new[] { new Size(1000, 680), new Size(1280, 850), new Size(1536, 864) })
             {
@@ -245,6 +247,14 @@ internal static partial class Program
         for(int i=0;i<60&&(bool)typeof(MainWindow).GetField("busy",Private)!.GetValue(window)!;i++){Pump(window);Thread.Sleep(5);}
         Pump(window);
         Require(list.Items.Cast<TerminalSetupRow>().Where(r=>r.Area.StartsWith("Service:")).All(r=>r.Status==TerminalReadiness.Untested),"late diagnostic responses cannot restore cleared results");
+        var serviceText=(TextBlock)window.FindName("ServiceAvailabilityText");
+        Invoke(window,"CheckServices_Click",window,new RoutedEventArgs());Pump(window);
+        Require(serviceText.Text.Contains("Menu: responding")&&serviceText.Text.Contains("HTTP reachability only"),"header retry reports response availability without business readiness");
+        handler.Hold=true;Invoke(window,"CheckServices_Click",window,new RoutedEventArgs());Pump(window);
+        Require(!((Button)window.FindName("CheckServicesButton")).IsEnabled,"duplicate service checks are disabled while pending");
+        Invoke(window,"ClearReceiptView");handler.Release();
+        for(int i=0;i<60&&(bool)typeof(MainWindow).GetField("checkingServiceAvailability",Private)!.GetValue(window)!;i++){Pump(window);Thread.Sleep(5);}
+        Require(serviceText.Text.StartsWith("Service availability not checked"),"late header checks cannot restore results after privacy clearing");
     }
     private static void VerifyPromptPayProof(MainWindow window,PosClientConfiguration config)
     {
@@ -436,14 +446,14 @@ internal static partial class Program
                 }
                 if (args is ["--preview"] && size.Width == 960 && keyboard)
                     SavePreview(window, $".runstate/pos-ux3-{density}-preview.png");
-                tabs.SelectedIndex = 4; Pump(window);
+                ((TabItem)window.FindName("ShiftCashTab")).IsSelected = true; Pump(window);
                 Require(((ScrollViewer)((TabItem)window.FindName("ShiftCashTab")).Content).PanningMode == PanningMode.VerticalOnly, "stacked cash page supports vertical touch panning");
                 Require(Grid.GetRow((Border)window.FindName("CashReconciliationCard")) == (size.Width < 1100 ? 1 : 0), "cash panels stack at narrow width");
                 var amount = (TextBox)window.FindName("MovementAmountTextBox");
                 Invoke(window, "ShowTouchInput", amount); amount.BringIntoView(); Pump(window);
                 var amountBounds = amount.TransformToAncestor(viewport).TransformBounds(new Rect(amount.RenderSize));
                 Require(amountBounds.Top >= -1 && amountBounds.Bottom <= viewport.ActualHeight + 1, "cash amount remains reachable");
-                tabs.SelectedIndex = 2; Pump(window);
+                ((TabItem)window.FindName("OrdersTab")).IsSelected = true; Pump(window);
                 Require(ScrollViewer.GetPanningMode((DataGrid)window.FindName("OrdersGrid")) == PanningMode.Both, "Orders keeps two-axis panning for wide columns");
                 Require(((DataGrid)window.FindName("OrdersGrid")).RowHeight == PosDensityMetrics.For(density).ControlHeight, "Orders row density updates");
                 typeof(MainWindow).GetField("pendingOrder", Private)!.SetValue(window, new PosOrderResult(Guid.NewGuid(), PosOrderStatus.KitchenAccepted, 999999999.99m, "THB"));
@@ -472,6 +482,8 @@ internal static partial class Program
         public static int PhotoStatus=503,PhotoCalls;
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (request.RequestUri!.AbsolutePath.Contains("/qr-requests", StringComparison.Ordinal)) return QrReviewFixtureResponse(request, cancellationToken);
+            if (qrWorkspaceTesting && (request.RequestUri.AbsolutePath.EndsWith("/orders") || request.RequestUri.AbsolutePath.EndsWith("/receipt"))) return QrWorkspaceFixtureResponse(request, configuration);
             Require(request.Method == HttpMethod.Get, "presentation fixture must not issue financial commands");
             if(request.RequestUri!.AbsolutePath.EndsWith("/photo",StringComparison.Ordinal)){PhotoCalls++;return Task.FromResult(new HttpResponseMessage((System.Net.HttpStatusCode)PhotoStatus));}
             return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) {

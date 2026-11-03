@@ -1,5 +1,8 @@
 # Next-iteration Phase 4 — staff and customer Windows POS displays
 
+Current follow-up: the [customer-panels slice](POS-Cashier-Ready-And-Customer-Panels.md) renders approved customer advertising in the left half and public welcome/current-order content in the right. Existing role assignment, custody and display-safety rules remain. No-order headings use Welcome with applicable neutral/outcome message; locked views mask transaction details. The original implementation evidence below remains historical.
+
+
 Implemented in source on 21 October 2026 from `c496f8e`. The existing WPF staff window retains all
 role-checked operational actions. A second window displays an allow-listed projection of
 the same active transaction; it owns no checkout, service API, recovery store or permission.
@@ -57,8 +60,9 @@ access to staff hardware. Native driver/event timing needs actual hardware accep
 The customer contract excludes tokens, staff/actor identity, branch/terminal/Order UUIDs,
 bank references, raw errors, financial review data, refund details and unrelated receipt
 lookups. The customer window has no payment, navigation, unlock or authentication actions.
-Totals remain visible independently of the item viewport; very long orders need device
-readability testing. No automatic scrolling, customer input or image gallery is added.
+The current right panel scrolls for long orders; totals/readability need actual device
+verification. Customer input is not added. Advertising follows the separate approved-gallery
+policy described in the current follow-up above.
 
 Existing original checkout/settlement/cancellation keys, DPAPI/SQLite scope, write-before-send
 ordering, source-service authorization, optimistic concurrency and transaction/outbox boundaries

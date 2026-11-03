@@ -119,6 +119,11 @@ Order, combined table bill, guest payment or custody transfer is introduced.
 
 ## Refreshing source for the same QR pilot scope
 
+[UX22's normal-pilot launcher](POS-UX22-Local-Pilot-Startup.md) automates the owned rebuild,
+matching terminal installation and subsequent fresh same-scope QR-plan preparation below.
+Rebuild and QR activation remain separate explicit actions; the fresh QR6 candidate,
+certificate/network guards and new pending phone observations are still required.
+
 An already configured QR pilot may need updated POS binaries while its branch, issued QR
 entries and original financial state must be retained. Stop only its owned edge, then
 stop/rebuild the exact existing QR stack without `-NoBuild`:

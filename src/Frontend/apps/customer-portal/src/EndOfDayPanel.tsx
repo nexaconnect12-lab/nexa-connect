@@ -33,7 +33,7 @@ export function EndOfDayPanel({organizationId}:{organizationId:string}){
     finally{globalThis.clearTimeout(timer);if(generation.current===id)setBusy(false);}
   };
   return <Space direction="vertical" size="middle" style={{width:"100%"}}>
-    <Typography.Title level={2}>End-of-day reconciliation draft</Typography.Title>
+    
     <Alert type="info" message="Read-only draft" description="Select a completed date in the branch timezone. This view does not approve, lock or certify settlement. Source reads happen separately; reload after resolving issues."/>
     <Form onFinish={()=>void load()} layout="vertical"><Space wrap>
       <Form.Item label="Branch ID"><OperationalBranchPicker capability="day-close" label="End-of-day branch" value={branch} onChange={value=>{clear();setBranch(value);}}/></Form.Item>

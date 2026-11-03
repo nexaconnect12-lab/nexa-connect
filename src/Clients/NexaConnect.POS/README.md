@@ -1,5 +1,31 @@
 # NexaConnect POS
 
+[Cashier-ready/customer panels](../../../docs/Deployment/POS-Cashier-Ready-And-Customer-Panels.md) add a verified staff label/register/shift card on Shift & cash/Checkout, guarded cashier switch and a 50/50 approved customer-advertising/order display. Optional `Session:EnablePinUnlock` defaults true but requires explicit six-digit session enrollment after fresh full login; `Pos:ShopName` supplies bounded public text. PINs are memory-only, same-live-session unlock, not persistent or offline credentials. Expiry/restart/security locks use full authentication. Fingerprint/card readers are unavailable. No backend/schema/dependency change; matching activation and actual operator/device acceptance remain separate.
+
+
+[QR orders](../../../docs/Deployment/POS-QR-Orders-Workspace.md) consolidates review,
+awaiting payment and paid/receipt history. **Find by reference** is collapsed secondary
+lookup; the separate QR collection navigation entry is removed. Original accept/reject,
+preview/claim, Payment and receipt handlers remain authoritative. View changes cancel/fence
+reads and clear transient data without clearing protected financial recovery. The full
+source gate passed and the matching retained pilot is installed; operator acceptance remains pending.
+
+[QR requests](../../../docs/Deployment/POS-QR-Request-Review.md) adds a staff-only branch queue,
+item/total review, confirmed accept/reject, guest-price-review guidance and original-order
+navigation. The bounded native Order adapter uses existing bearer/tenant/correlation and
+live permissions. No schema, local persistent queue, guest token, payment capture or customer
+projection is added. Lock, tab exit and deactivation clear review data and fence late responses;
+uncertain decisions require reloading original requests. Portal manager review remains available.
+Service `nexaconnect-pos-client` logs only operation/status/correlation under `order.qr.review.*`.
+The matching retained local pilot is installed with preserved recovery; actual cashier/phone
+decisions and payment handoff remain pending in its fresh target-bound acceptance pack.
+
+[UX23](../../../docs/Deployment/POS-UX23-Background-Hosting.md) optionally supervises the normal backend graph outside the launcher. It changes no cashier/payment/session UI or recovery policy; UX22 Start delegates to the installed host and retains explicit original-payment verification. Close POS before host installation/shutdown; actual device/reboot acceptance stays separate.
+
+[UX22](../../../docs/Deployment/POS-UX22-Local-Pilot-Startup.md) adds a staff header service availability check/retry using existing anonymous probes. It works before sign-in, stays hidden under lock and rejects late privacy-generation replies. It never restarts services or retries financial operations; the separate normal-pilot launcher owns local maintenance.
+
+[UX21 recovery lab](../../../docs/Deployment/POS-UX21-Real-Identity-Recovery-Lab.md) runs a separate cash-only package using existing isolated-pilot storage and real test sign-in. Normal POS must close before lab Launch; its callback values are restored after lab closure. No normal installation replacement or native policy change is required.
+
 [UX20 isolated verification](../../../docs/Deployment/POS-UX20-Isolated-Recovery-Access.md) adds a combined recovery/access diagnostic runner and native history-outage clearing checks. It preserves the installed POS and operator pack; real identity, pending-payment and hardware observations remain separate.
 
 [UX18 acceptance guidance](../../../docs/Deployment/POS-UX18-Cashier-Acceptance.md) adds read-only `scripts/pos-acceptance.ps1 -Action Worklist` over the current installed-target pack. No native update is required; actual cashier/device observations and defect retests remain pending.

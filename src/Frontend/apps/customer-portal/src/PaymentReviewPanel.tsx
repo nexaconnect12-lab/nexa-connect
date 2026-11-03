@@ -76,7 +76,7 @@ export function PaymentReviewPanel() {
     finally {if(!signal.aborted){setNotice(message);setBusy(false);}}
   };
   return <Space direction="vertical" style={{width:"100%"}} size="middle">
-    <Typography.Title level={2}>Payment Reviews</Typography.Title>
+    
     <Alert type="info" message="Select an authorized branch. Access is checked again for each operation."/>
     <Form layout="inline" onFinish={load}>
       <Form.Item label="Branch UUID"><OperationalBranchPicker capability="payment-review" label="Payment review branch" value={branch} disabled={busy} onChange={value=>{setBranch(value);setRows([]);setLoaded(false);setCanResolve(false);clearDetail();setNotice(undefined);}}/></Form.Item>

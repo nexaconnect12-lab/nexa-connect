@@ -1,5 +1,7 @@
 # NexaConnect Observability
 
+The local-pilot `NexaConnect.LocalPilotTelemetry` tool also uses `CreateClientLoggerFactory` for fixed host-phase/attempt/QR-status/generated-correlation events, service `nexaconnect-local-pilot-host`. Optional local collector export remains off by default; the tool has no business request, identity or database access. See [UX23 operations](../../../docs/Deployment/POS-UX23-Background-Hosting.md).
+
 Shared operational telemetry for ASP.NET Core services. `AddNexaConnectObservability` configures structured JSON console logs, OpenTelemetry logs/traces/metrics, service/environment resource attributes, and optional OTLP export. `UseNexaConnectRequestLogging` adds safe request completion logs and propagates a validated `X-Correlation-ID`.
 
 The library deliberately does not log request/response bodies, query strings, authorization headers, cookies, tokens, or arbitrary headers. Services must not add secrets, payment data, or unrestricted personal data as log properties.

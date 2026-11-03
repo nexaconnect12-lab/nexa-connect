@@ -16,6 +16,17 @@ public sealed class PosTerminalDiagnostics : IDisposable
         client=new(handler??new HttpClientHandler{AllowAutoRedirect=false,UseCookies=false}){Timeout=TimeSpan.FromSeconds(4)};
     }
     public TerminalServiceCheck[] Initial()=>Endpoints().Select(e=>new TerminalServiceCheck(e.Name,!string.IsNullOrWhiteSpace(e.Url),TerminalReadiness.Untested,null,null)).ToArray();
+    public static string Summary(IEnumerable<TerminalServiceCheck> checks)
+    {
+        var values=checks.ToArray();
+        string State(TerminalService service)=>values.FirstOrDefault(c=>c.Service==service) switch
+        {
+            {Configured:true,Status:TerminalReadiness.Detected}=>"responding",
+            {Configured:true,Status:TerminalReadiness.Unavailable}=>"unavailable",
+            _=>"not checked"
+        };
+        return $"Identity: {State(TerminalService.Identity)} · Menu: {State(TerminalService.Catalog)} · Orders: {State(TerminalService.Order)} · Payments: {State(TerminalService.Payment)}. HTTP reachability only; access is checked per action. Retry an original order/payment explicitly.";
+    }
     public async Task<TerminalServiceCheck[]> CheckAsync(CancellationToken ct)
     {
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(ct);deadline.CancelAfter(TimeSpan.FromSeconds(6));

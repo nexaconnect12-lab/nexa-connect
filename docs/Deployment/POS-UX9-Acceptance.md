@@ -1,5 +1,7 @@
 # POS UX9 — end-to-end acceptance and recovery hardening
 
+[UX24](POS-UX24-Guided-Acceptance.md) uses this existing tracker/worklist for the current UX23 installed target. Its observations remain separate from older UX19/lab targets and automated source proof; confirmed corrections require regression and explicit retest.
+
 ## Delivered scope
 
 UX9 adds a repeatable automated POS regression command and a separate installed-release
@@ -78,6 +80,11 @@ The operator `session-expiry-fallback` case remains separate and is never marked
 this command. No installation, service refresh, real financial action or device output occurs.
 
 ## Prepare an installed-target pack
+
+[UX21](POS-UX21-Real-Identity-Recovery-Lab.md) adds a separate `-RecoveryLabId` Prepare mode
+with version2 lab-target records. It reuses these cases/events/defect/retest rules while binding
+the generated profile/package/reference/live services without a QR prerequisite. Version1
+installed-pilot records remain unchanged; evidence never transfers between targets.
 
 Use the retained run and current configured pilot IDs from `.runstate/qr9-current.json`:
 

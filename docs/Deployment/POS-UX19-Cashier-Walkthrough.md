@@ -1,5 +1,7 @@
 # POS UX19 — cashier walkthrough and confirmed-defect fixes
 
+This guide retains the historical UX19 target and observations. For the current supervised UX23 installation, follow [UX24](POS-UX24-Guided-Acceptance.md) and its existing new-target acceptance pack; do not copy the older IDs or passes below into that pack.
+
 ## Scope and status
 
 UX19 executes the existing [UX18 worklist](POS-UX18-Cashier-Acceptance.md) in small operator

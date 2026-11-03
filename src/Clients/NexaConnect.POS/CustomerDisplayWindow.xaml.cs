@@ -13,11 +13,11 @@ public partial class CustomerDisplayWindow : Window
     public void Present(CustomerDisplaySnapshot snapshot) => DataContext = snapshot;
     public void Screensaver(System.Windows.Media.Imaging.BitmapSource? image,string title,string caption,bool locked)
     {
-        bool show=locked&&image is not null;
+        bool show=image is not null;
         SaverImage.Source=show?image:null;SaverTitle.Text=show?title:"";SaverCaption.Text=show?caption:"";
         SaverTextPanel.Visibility=show&&(!string.IsNullOrWhiteSpace(title)||!string.IsNullOrWhiteSpace(caption))?Visibility.Visible:Visibility.Collapsed;
-        SaverView.Visibility=show?Visibility.Visible:Visibility.Collapsed;
-        TransactionView.Visibility=show?Visibility.Collapsed:Visibility.Visible;
+        SaverView.Visibility=Visibility.Visible;
+        TransactionView.Visibility=Visibility.Visible;
     }
     protected override void OnSourceInitialized(EventArgs e)
     {

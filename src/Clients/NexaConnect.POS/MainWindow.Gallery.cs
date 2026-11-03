@@ -103,7 +103,7 @@ public partial class MainWindow
         StaffGalleryTitle.Visibility=string.IsNullOrWhiteSpace(staff?.Title)?Visibility.Collapsed:Visibility.Visible;
         StaffGalleryCaption.Visibility=string.IsNullOrWhiteSpace(staff?.Caption)?Visibility.Collapsed:Visibility.Visible;
         RenderLockPrompt();
-        var customer=reauthenticationRequired&&!displaySafetyBlocked?PosGalleryPolicy.Slide(galleryBundle,true,now,galleryRotationEpoch):null;
+        var customer=!displaySafetyBlocked?PosGalleryPolicy.Slide(galleryBundle,true,now,galleryRotationEpoch):null;
         displays?.Screensaver(customer is not null&&galleryImages.TryGetValue(customer.AssetId,out var picture)?picture:null,customer?.Title??"",customer?.Caption??"",reauthenticationRequired&&!displaySafetyBlocked);
       }catch{ /* Media presentation cannot block lock/resume or financial recovery. */ }
     }

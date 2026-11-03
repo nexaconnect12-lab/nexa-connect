@@ -1,5 +1,8 @@
 # Phase 8 joined browser acceptance
 
+The current lifecycle harness opens **Menu management → Image** for its generated product upload, then uses **Media management** filename search and the Details list for confirmed deletion. The new shared-library slice updates these selectors; the joined real-stack test remains opt-in and must be executed with configured disposable credentials before claiming a new end-to-end upload result.
+
+
 UX15 routes the upload/refresh/delete workflow through **Menu management → Image**, with the shared branch/item selection. The test uses existing seeded data and does not approve a public menu assignment. It is opt-in and separate from mocked browser regression coverage.
 The updated real-stack path has not been executed for UX15; syntax validation alone is not
 joined acceptance. Seed the configured product in the configured authorized branch with a

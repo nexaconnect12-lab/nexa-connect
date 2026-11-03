@@ -74,7 +74,7 @@ public partial class MainWindow
     {
         // A presentation fault must never escape into a financial callback, undo
         // its durable recovery write, or change whether its network send happens.
-        try { displays?.Present(customerState.Visible(IsSignedIn(), reauthenticationRequired || displaySafetyBlocked)); }
+        try { displays?.Present(customerState.Visible(IsSignedIn(), reauthenticationRequired || displaySafetyBlocked) with { ShopName = _configuration.ShopName }); }
         catch { /* The coordinator fails closed; financial recovery stays independent. */ }
     }
     private void CustomerCartChanged()

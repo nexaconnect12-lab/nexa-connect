@@ -15,6 +15,10 @@ public partial class MainWindow
     {
         if (IsActive && OrdersTab.IsSelected && IsSignedIn() && !busy && !orderListLoading)
             await LoadOrdersAsync(orderListCursor, automatic: true);
+        if (IsActive && QrRequestsTab.IsSelected && QrReviewView.IsChecked == true && IsSignedIn() && !busy && !qrReviewLoading && QrRequestsGrid.SelectedItem is null)
+            await LoadQrRequestsAsync();
+        if (IsActive && QrRequestsTab.IsSelected && QrReviewView.IsChecked != true && IsSignedIn() && !busy && !qrAcceptedLoading && QrAcceptedGrid.SelectedItem is null)
+            await LoadQrAcceptedAsync(qrAcceptedCursor);
     }
 
     private void ClearOrderList()
@@ -33,7 +37,16 @@ public partial class MainWindow
         ClearBarcodeInput();
         UpdateScanControls();
         RenderWorkflow();
-        if (OrdersTab.IsSelected) await LoadOrdersAsync(null);
+        if (QrRequestsTab.IsSelected)
+        {
+            if (QrReviewView.IsChecked == true) await LoadQrRequestsAsync();
+            else await LoadQrAcceptedAsync(null);
+        }
+        else ClearQrRequests();
+        if (OrdersTab.IsSelected)
+        {
+            await LoadOrdersAsync(null);
+        }
         else ClearOrderList();
     }
 
@@ -41,7 +54,7 @@ public partial class MainWindow
     {
         if (!viewInitialized) return;
         ClearOrderList(); UpdateOrderListControls();
-        await LoadOrdersAsync(null);
+        if (OrdersTab.IsSelected) await LoadOrdersAsync(null);
     }
 
     private void OrdersSelection_Changed(object sender, SelectionChangedEventArgs e)

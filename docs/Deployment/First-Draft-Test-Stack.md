@@ -1,5 +1,9 @@
 # First-draft local test stack
 
+[UX23](POS-UX23-Background-Hosting.md) adds source-bound `Resume` for missing owned application processes without rebuilding, migrating or restarting pre-existing healthy dependencies. Its optional current-user scheduled host fences direct lifecycle maintenance until Stop/Remove; it never automatically retries orders or payments. Existing startup and volume ownership rules remain unchanged.
+
+[UX22 startup](POS-UX22-Local-Pilot-Startup.md) provides `scripts/local-pilot.ps1` for normal installed-pilot status, guarded same-publication recovery and explicit refresh. Successful Start records source/artifact inventories for every profile. NoBuild rejects missing/changed inventories; legacy QR bindings remain supported, while older non-QR runs require one build-enabled refresh. Stop/Start retain data and never pass operator acceptance.
+
 Optional -EnableBranchPromptPayQr on a stopped, build-enabled Start publishes Pos:UseBranchPromptPayQr=true and retains this Boolean on restart. It requires the Media profile, preserves existing Omise capability/secrets and does not seed a merchant image. Defaults stay false; matching packages and fresh source-bound evidence are required. See [PromptPay activation](POS-Branch-PromptPay-QR.md).
 
 Optional `-EnableOmiseTestCheckout` on a stopped, build-enabled Start adds sandbox card

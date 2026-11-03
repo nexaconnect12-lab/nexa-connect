@@ -141,7 +141,7 @@ public partial class MainWindow : Window
         sessionTimer.Start();
         orderListTimer.Tick += OrderListTimer_Tick;
         orderListTimer.Start();
-        Deactivated += (_, _) => { if (viewInitialized && OrdersTab.IsSelected) ClearOrderList(); };
+        Deactivated += (_, _) => { if (viewInitialized) { if (OrdersTab.IsSelected) ClearOrderList(); ClearQrRequests(); } };
         StatusText.Text = pendingCheckout is not null
             ? $"Original order {pendingCheckout.OrderId:D} needs verification. Sign in, then verify this order; do not collect again."
             : pendingCashReviewAttempt is null
@@ -165,6 +165,7 @@ public partial class MainWindow : Window
 
     private async void SignIn_Click(object sender, RoutedEventArgs e)
     {
+        if (pinUnlockBusy) return;
         HideTouchInput();
         CardTokenBox.Clear();
         cardTokenRequired = false;
@@ -185,7 +186,7 @@ public partial class MainWindow : Window
         {
             StatusText.Text = "Opening secure sign-in…";
             if (touchFirst) OpenWindowsKeyboard();
-            await _authentication.SignInAsync(reauthenticationRequired, cancellation.Token);
+            await _authentication.SignInAsync(true, cancellation.Token);
             reauthenticationRequired = false;
             sessionLockMessage = null;
             lastOperatorActivityUtc = DateTimeOffset.UtcNow;
@@ -287,7 +288,7 @@ public partial class MainWindow : Window
         if (_authentication.CurrentToken is not {} token || !IsSignedIn()) return;
         int generation=receiptSessionGeneration;string? subject=token.Subject;
         try { SetBusy("Loading menu…"); menu.Clear(); var items=await _api.GetMenuAsync(token, _configuration.BranchId,windowCancellation.Token);if(!PrintSessionCurrent(generation,subject))return;foreach (var item in items) menu.Add(item); StationComboBox.ItemsSource = new[] { "All stations" }.Concat(menu.Select(item => item.PreparationStation).Distinct().OrderBy(value => value)).ToArray(); StationComboBox.SelectedIndex = 0; StatusText.Text = $"Loaded {menu.Count} menu items.";menuPhotoRequested=true;_=LoadMenuPhotosAsync();_=LoadMenuOrganizationAsync(); }
-        catch (Exception exception) { if(PrintSessionCurrent(generation,subject))StatusText.Text = exception is PosApiException api ? api.Message : "Menu could not be loaded. Check the Catalog service."; }
+        catch (Exception exception) { if(PrintSessionCurrent(generation,subject)){StatusText.Text = exception is PosApiException api ? api.Message : "Menu could not be loaded. Check the Catalog service.";ServiceAvailabilityText.Text="Menu unavailable. Choose Check services / retry, then Refresh menu. No order or payment was retried.";} }
         finally { UpdateOperationalState(); }
     }
 
@@ -1198,6 +1199,8 @@ public partial class MainWindow : Window
         ClearMenuPhotos();
         ClearMenuOrganization();
         ClearOrderList();
+        ClearQrRequests();
+        qrReviewOrderNavigation = null;
         QrCollectionDetailsText.Text = "";
         QrReferenceTextBox.Clear();
         receiptSessionGeneration++;
@@ -1335,6 +1338,7 @@ public partial class MainWindow : Window
 
     private void SignOut_Click(object sender, RoutedEventArgs e)
     {
+        if (pinUnlockBusy) return;
         CardTokenBox.Clear();
         if (HasRetainedWork())
         {
@@ -1415,6 +1419,7 @@ public partial class MainWindow : Window
         DensityPicker.IsEnabled = signedIn && !displaySafetyBlocked;
         PrinterSetupControls.IsEnabled = signedIn && !displaySafetyBlocked;
         UpdateOrderListControls();
+        UpdateQrRequestControls();
         ApplyDisplaysButton.IsEnabled = DisableCustomerDisplayButton.IsEnabled = signedIn && !displaySafetyBlocked;
         StaffDisplayPicker.IsEnabled = CustomerDisplayPicker.IsEnabled = signedIn && !displaySafetyBlocked;
         LoadReceiptButton.IsEnabled = signedIn;
@@ -1559,6 +1564,7 @@ public partial class MainWindow : Window
         PosTokenSet? token = _authentication.CurrentToken;
         if (reauthenticationRequired || token is null)
         {
+            RenderCashierReady();
             return;
         }
 
@@ -1571,7 +1577,7 @@ public partial class MainWindow : Window
         if (PosSessionPolicy.IsIdleExpired(lastOperatorActivityUtc, now,
             TimeSpan.FromMinutes(_configuration.SessionIdleTimeoutMinutes)))
         {
-            LockSession("Paused after inactivity. Authenticate to resume your original workspace.");
+            LockSession("Paused after inactivity. Authenticate to resume your original workspace.", true);
             return;
         }
         bool shouldRefresh = PosSessionPolicy.ShouldRefresh(token, now,
@@ -1621,17 +1627,17 @@ public partial class MainWindow : Window
     private void LockWorkspace_Click(object sender, RoutedEventArgs e)
     {
         if (!reauthenticationRequired && _authentication.CurrentToken is not null)
-            LockSession("Workspace paused. Authenticate to resume your original workspace.");
+            LockSession("Workspace paused. Authenticate to resume your original workspace.", true);
     }
 
-    private void LockSession(string message)
+    private void LockSession(string message, bool allowQuickUnlock = false)
     {
         if(windowCancellation.IsCancellationRequested)return;
         HideTouchInput();
         // Hide and disable immediately, even while an already-started command is completing.
         // That command retains its original recovery identity and is never replayed by locking.
         reauthenticationRequired = true;
-        try { _authentication.RequireInteractiveSignIn(); }
+        try { if (allowQuickUnlock) _authentication.LockForQuickUnlock(); else _authentication.RequireInteractiveSignIn(); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException
             or System.Security.Cryptography.CryptographicException)
         {
@@ -1655,7 +1661,7 @@ public partial class MainWindow : Window
             PosSessionPolicy.IsIdleExpired(lastOperatorActivityUtc, now,
                 TimeSpan.FromMinutes(_configuration.SessionIdleTimeoutMinutes)))
         {
-            LockSession("Paused after inactivity. Authenticate to resume your original workspace.");
+            LockSession("Paused after inactivity. Authenticate to resume your original workspace.", true);
             return false;
         }
         lastOperatorActivityUtc = now;
@@ -1775,6 +1781,7 @@ public partial class MainWindow : Window
                 promptPayQrTimer.Stop();promptPayQrTimer.Tick-=PromptPayQrTick;
                 sessionTimer.Stop();sessionTimer.Tick-=SessionTimer_Tick;
                 orderListTimer.Stop();orderListTimer.Tick-=OrderListTimer_Tick;
+                ClearQrRequests();
                 galleryTimer.Stop();galleryTimer.Tick-=GalleryTick;
                 _authentication.StatusChanged-=OnStatusChanged;
             });

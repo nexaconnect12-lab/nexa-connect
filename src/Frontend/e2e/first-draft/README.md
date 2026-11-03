@@ -1,5 +1,15 @@
 # Local draft identity/session smoke
 
+`recovery-lab.mjs` runs only through `scripts/test-pos-recovery-lab.ps1 -LabId <id> -ConfirmTestResources`
+against a separately generated [UX21 recovery lab](../../../../docs/Deployment/POS-UX21-Real-Identity-Recovery-Lab.md).
+Fresh browser contexts exercise real authorization-code/PKCE, provider userinfo, refresh,
+scoped access decisions and original-cashier session revocation. The harness intercepts its
+own custom-scheme callback without launching POS or registering the protocol. Passwords and
+tokens remain in process memory; exported evidence contains bounded outcomes, not response
+bodies or browser captures. The wrapper also cuts/restores only the owned lab Order process.
+These checks create no financial transactions or operator observations and do not prove
+native interactive recovery, response loss after commit, hardware acceptance or production readiness.
+
 Slice 6 adds manager-resumed mode, run by checkout with -VerifyReleaseRecovery after its quiesced isolated database/configuration restore drill. Fresh PKCE reads retained receipts/review and replays the original settlement after original-stack resumption. Clone application startup and Windows/PDF behavior are not claimed. See [release guide](../../../../docs/Deployment/First-Draft-Release.md).
 
 Slice 5 adds `test-first-draft-checkout.ps1 -ConfirmDisposableInfrastructure -VerifyManagerFlow`.

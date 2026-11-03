@@ -1,5 +1,8 @@
 # Branch-approved screensaver gallery v1
 
+The portal now uses the shared [product-photo library/picker](Media-Library.md) for staff/customer slide candidates. Picking a photo changes only the draft; these existing approved-gallery writes, readiness and role boundaries remain unchanged.
+
+
 ## Gallery-only readers (POS UX4)
 
 `POST /api/media/v1/customer/organizations/{org}/branches/{branch}/screensaver-gallery/readers`

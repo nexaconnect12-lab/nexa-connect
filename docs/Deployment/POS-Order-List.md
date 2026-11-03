@@ -1,11 +1,20 @@
 # Windows POS order list
 
+The [QR orders workspace](POS-QR-Orders-Workspace.md) also reuses this API for QR-only open
+and paid views, with original-order selection and explicit collection/receipt actions.
+The all-branch Orders tab and its source/status filters remain available.
+
+Use **QR orders → Pending review** or portal QR review to accept a pending guest proposal
+first. In the unified workspace, **View original order** switches to its Awaiting payment or
+Paid / history view without claiming or paying. The all-branch Orders tab remains an
+alternative entry; the original versioned Order workflow and collection guards remain shared.
+
 QR8 adds active-window current-page refresh and a specific collection-blocker footer. Rows clear on deactivation/tab exit as well as lock/sign-out; refresh does not claim/pay or count as cashier activity. See [QR8](QR8-Usability.md).
 
 Windows POS includes **Orders** for all persisted Orders in its configured organization,
 restaurant and branch. It removes the need to copy an accepted QR Order UUID from a phone.
 This page uses the staff [branch order-history API](../API/Branch-Order-List.md); guest
-requests remain in the manager's QR request queue until staff accepts them.
+requests remain in the staff QR request queue until staff accepts them in POS or the portal.
 
 ## Cashier steps
 

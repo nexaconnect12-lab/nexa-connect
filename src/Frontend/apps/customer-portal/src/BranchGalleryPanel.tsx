@@ -1,24 +1,25 @@
 import {useEffect,useRef,useState} from "react";
-import {Alert,Button,Card,Checkbox,Input,InputNumber,Select,Space,Typography} from "antd";
+import {Alert,Button,Card,Checkbox,Input,InputNumber,Space,Typography} from "antd";
 import {createApiClient} from "@nexaconnect/api-client";
 import {OperationalBranchPicker} from "./OperationalBranchPicker";
 import {signInToCustomer} from "./navigation";
+import {MediaPhotoPicker} from "./MediaPhotoPicker";
+import {MenuPhoto} from "./MenuPhoto";
 
 type Slide={assetId:string;title:string;caption:string};
 type Gallery={organizationId:string;branchId:string;version:number;staff:Slide[];customer:Slide[];secondsPerSlide:number};
-type Asset={id:string;originalFileName:string;processingStatus:string;ownerService:string;ownerType:string};
 const api=createApiClient({onUnauthorized:signInToCustomer});
 export function BranchGalleryPanel(){
-  const [branch,setBranch]=useState(""),[gallery,setGallery]=useState<Gallery>(),[assets,setAssets]=useState<Asset[]>([]);
+  const [branch,setBranch]=useState(""),[gallery,setGallery]=useState<Gallery>(),[pickerRole,setPickerRole]=useState<"staff"|"customer">();
   const [busy,setBusy]=useState(false),[approved,setApproved]=useState(false),[notice,setNotice]=useState<string>();
   const pending=useRef<AbortController>();
   useEffect(()=>()=>pending.current?.abort(),[]);
-  const clear=(value:string)=>{pending.current?.abort();setBranch(value);setGallery(undefined);setAssets([]);setNotice(undefined);setApproved(false);};
+  const clear=(value:string)=>{pending.current?.abort();setBranch(value);setGallery(undefined);setPickerRole(undefined);setNotice(undefined);setApproved(false);};
   const load=async()=>{
     const controller=new AbortController();pending.current?.abort();pending.current=controller;setBusy(true);setGallery(undefined);setNotice(undefined);setApproved(false);
     try{
-      const [selection,media]=await Promise.all([api.request<Gallery>(`/bff/customer/screensaver-gallery/branches/${branch}`,{signal:controller.signal}),api.request<Asset[]>("/bff/customer/media",{signal:controller.signal})]);
-      if(!controller.signal.aborted){setGallery(selection);setAssets(media.filter(a=>a.processingStatus==="ready"&&a.ownerService==="catalog"&&a.ownerType==="product"));}
+      const selection=await api.request<Gallery>(`/bff/customer/screensaver-gallery/branches/${branch}`,{signal:controller.signal});
+      if(!controller.signal.aborted){setGallery(selection);setPickerRole(undefined);}
     }catch{if(!controller.signal.aborted)setNotice("Gallery unavailable or access denied. Check your workspace and permissions.");}
     finally{if(!controller.signal.aborted)setBusy(false);}
   };
@@ -40,18 +41,18 @@ export function BranchGalleryPanel(){
       <label>Seconds per slide <InputNumber aria-label="Seconds per slide" min={5} max={60} value={gallery.secondsPerSlide} disabled={busy} onChange={v=>{setGallery({...gallery,secondsPerSlide:v??10});setApproved(false);}}/></label>
       {(["staff","customer"] as const).map(role=><Card key={role} title={`${role==="staff"?"Staff":"Customer"} screensaver`}>
         {gallery[role].map((slide,index)=><Space key={slide.assetId} wrap style={{marginBottom:12}}>
-          <Typography.Text>{assets.find(a=>a.id===slide.assetId)?.originalFileName??"Unavailable asset (remove before saving)"}</Typography.Text>
+          <MenuPhoto src={`/bff/customer/media-library/assets/${slide.assetId}/thumbnail`} name={`${role} slide ${index+1}`}/>
+          <Typography.Text>{slide.title||`Photo ${index+1}`}</Typography.Text>
           <Input aria-label={`${role} slide ${index+1} title`} placeholder="Public product name" maxLength={80} value={slide.title} disabled={busy} onChange={e=>change(role,gallery[role].map((s,i)=>i===index?{...s,title:e.target.value}:s))}/>
           <Input aria-label={`${role} slide ${index+1} caption`} placeholder="Public promotional text" maxLength={160} value={slide.caption} disabled={busy} onChange={e=>change(role,gallery[role].map((s,i)=>i===index?{...s,caption:e.target.value}:s))}/>
           <Button disabled={busy||index===0} onClick={()=>{const copy=[...gallery[role]];[copy[index-1],copy[index]]=[copy[index]!,copy[index-1]!];change(role,copy);}}>Move up</Button>
           <Button disabled={busy} onClick={()=>change(role,gallery[role].filter((_,i)=>i!==index))}>Remove</Button>
         </Space>)}
-        <Select<string | null> virtual={false} aria-label={`Add ${role} image`} placeholder={`Add ${role} image`} style={{width:"100%"}} value={null} disabled={busy||gallery[role].length>=6}
-          options={assets.filter(a=>!gallery[role].some(s=>s.assetId===a.id)).map(a=>({value:a.id,label:a.originalFileName}))}
-          onChange={value=>{if(value)change(role,[...gallery[role],{assetId:value,title:"",caption:""}]);}}/>
+        <Button aria-label={`Add ${role} image`} disabled={busy||gallery[role].length>=6} onClick={()=>setPickerRole(role)}>Choose from photo library</Button>
       </Card>)}
       <Checkbox checked={approved} disabled={busy} onChange={e=>setApproved(e.target.checked)}>I approve these images and text for public display at this branch.</Checkbox>
       <Button type="primary" disabled={busy||!approved} onClick={()=>void save()}>Approve gallery</Button>
     </Space>}
+    <MediaPhotoPicker open={!!gallery&&!!pickerRole} excludedIds={gallery&&pickerRole?gallery[pickerRole].map(s=>s.assetId):[]} onCancel={()=>setPickerRole(undefined)} onChoose={photo=>{if(gallery&&pickerRole&&!busy&&gallery[pickerRole].length<6&&!gallery[pickerRole].some(s=>s.assetId===photo.id))change(pickerRole,[...gallery[pickerRole],{assetId:photo.id,title:"",caption:""}]);setPickerRole(undefined);}}/>
   </Card>;
 }

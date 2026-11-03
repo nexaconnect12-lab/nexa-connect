@@ -16,7 +16,7 @@ try
 {
     string run = Environment.GetEnvironmentVariable("NEXACONNECT_DRAFT_RUN") ?? "";
     string path = Environment.GetEnvironmentVariable("NEXACONNECT_DRAFT_REFERENCE") ?? "";
-    if (args.Length != 1 || args[0] is not ("--confirm" or "--media-access") || !System.Text.RegularExpressions.Regex.IsMatch(run,"^[a-f0-9]{32}$") ||
+    if (args.Length != 1 || args[0] is not ("--confirm" or "--media-access" or "--recovery-lab-access") || !System.Text.RegularExpressions.Regex.IsMatch(run,"^[a-f0-9]{32}$") ||
         Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") != "Development" ||
         !Path.GetFullPath(path).EndsWith(Path.Combine(".runstate", "first-draft", run, "reference.json"), StringComparison.OrdinalIgnoreCase))
         throw new InvalidOperationException();
@@ -38,6 +38,29 @@ try
         await using var authorization = Source("authorization");
         await new DraftMediaAccessProvisioner(authorization).EnsureAsync(state.OrganizationId, manager, CancellationToken.None);
         Console.WriteLine("Local manager Media access prepared; existing denials/revocations preserved."); return 0;
+    }
+    if (args[0] == "--recovery-lab-access")
+    {
+        stage="recovery-lab-access";
+        if(!state.Completed || Environment.GetEnvironmentVariable("NEXACONNECT_DRAFT_RECOVERY_LAB")!=run)
+            throw new InvalidOperationException();
+        if(state.RecoveryLabAccessCompleted){Console.WriteLine("Recovery lab access already provisioned; no grants changed.");return 0;}
+        using var labTimeout=new CancellationTokenSource(TimeSpan.FromMinutes(1));
+        await using var labPlatformDb=Source("platform");await using var labAuthDb=Source("authorization");
+        var labPlatform=new PlatformDirectoryManagementService(new PostgresPlatformDirectoryManagementRepository(labPlatformDb));
+        var labAssignments=new AuthorizationAssignmentService(new PostgresAuthorizationAssignmentRepository(labAuthDb));
+        foreach(var name in new[]{"lab-cashier-other","lab-wrong-branch"})
+        {
+            string subject=Environment.GetEnvironmentVariable("NEXACONNECT_DRAFT_SUBJECT_"+name)??"";
+            if(!Guid.TryParse(subject,out _) || state.Subjects.TryGetValue(name,out var prior)&&prior!=subject)throw new InvalidOperationException();
+            await labPlatform.ChangeMembershipAsync(state.OrganizationId,subject,new(subject,"active"),"recovery-lab:"+run,labTimeout.Token);
+            bool wrong=name=="lab-wrong-branch";
+            await labAssignments.AssignAsync(new(subject,state.OrganizationId,wrong?state.DeniedRestaurantId:state.RestaurantId,
+                wrong?state.DeniedBranchId:state.BranchId,"cashier"),"recovery-lab:"+run,labTimeout.Token);
+            state.Subjects[name]=subject;Save();
+        }
+        state.RecoveryLabAccessCompleted=true;Save();
+        Console.WriteLine("Recovery lab identities assigned through owning services; no financial transactions seeded.");return 0;
     }
     // Completed runs are deliberately a no-op: never replenish sold stock, reactivate access, or overwrite edited reference data.
     if (state.Completed) { Console.WriteLine("Draft reference already provisioned; no data changed."); return 0; }
@@ -95,6 +118,7 @@ catch(Exception error) { Console.Error.WriteLine(JsonSerializer.Serialize(new{se
 sealed class Reference
 {
  public string RunId {get;set;}="";public bool Completed{get;set;}
+ public bool RecoveryLabAccessCompleted{get;set;}
  public Guid OrganizationId{get;set;}public Guid OtherOrganizationId{get;set;}public Guid RestaurantId{get;set;}
  public Guid BranchId{get;set;}public Guid DeniedRestaurantId{get;set;}public Guid DeniedBranchId{get;set;}public Guid StoreId{get;set;}public Guid TerminalId{get;set;}
  public Guid[] Products{get;set;}=[];public Dictionary<string,string> Subjects{get;set;}=[];

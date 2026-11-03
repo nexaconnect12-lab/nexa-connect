@@ -8,6 +8,72 @@ namespace NexaConnect.UnitTests;
 public sealed class PosAuthenticationTests
 {
     [Fact]
+    public async Task Pin_unlock_restores_only_original_live_session_without_identity_calls_or_work_changes()
+    {
+        using var f = new Fixture(); var original = await f.Login();
+        f.Auth.SetRetainedWorkGuard(() => true);
+        f.Auth.EnrollSessionPin("826491"); int requests = f.Handler.Requests;
+        f.Auth.LockForQuickUnlock();
+        Assert.True(f.Auth.CanQuickUnlock); Locked(f);
+        Assert.True(f.Auth.TryResumeWithSessionPin("826491"));
+        Assert.Same(original, f.Auth.CurrentToken); Assert.Same(original, f.Store.Value);
+        Assert.Equal(requests, f.Handler.Requests); Assert.False(f.Auth.RequiresInteractiveSignIn);
+        Assert.Equal(original.SessionExpiresAtUtc, f.Auth.CurrentToken!.SessionExpiresAtUtc);
+    }
+    [Fact]
+    public async Task Five_failed_pins_remove_capability_and_restart_never_restores_it()
+    {
+        using var f = new Fixture(); await f.Login(); f.Auth.EnrollSessionPin("826491"); f.Auth.LockForQuickUnlock();
+        for (int i = 0; i < 5; i++) Assert.False(f.Auth.TryResumeWithSessionPin("000000"));
+        Assert.False(f.Auth.CanQuickUnlock); Assert.False(f.Auth.TryResumeWithSessionPin("826491")); Locked(f);
+        using var restart = new Fixture(f.Store);
+        Assert.False(restart.Auth.CanQuickUnlock); Assert.False(restart.Auth.HasSessionPin); Locked(restart);
+    }
+    [Theory]
+    [InlineData(6)]
+    [InlineData(660)]
+    public async Task Access_and_absolute_expiry_require_full_login_even_with_correct_pin(int minutes)
+    {
+        using var f = new Fixture(); var token = await f.Login(); f.Auth.EnrollSessionPin("826491"); f.Auth.LockForQuickUnlock();
+        f.Auth.QuickUnlockClock = new FixedClock(token.SessionStartedAtUtc!.Value.AddMinutes(minutes));
+        Assert.False(f.Auth.CanQuickUnlock); Assert.False(f.Auth.TryResumeWithSessionPin("826491")); Locked(f);
+    }
+    [Fact]
+    public async Task Security_lock_supersedes_pin_and_late_refresh_cannot_restore_authority()
+    {
+        using var f = new Fixture(); await f.Login(); f.Auth.EnrollSessionPin("826491");
+        f.Handler.DelayRefresh = true; var refresh = f.Auth.RefreshAsync(); await f.Handler.Started.Task;
+        f.Auth.LockForQuickUnlock(); Assert.True(f.Auth.CanQuickUnlock);
+        f.Auth.RequireInteractiveSignIn(); f.Handler.Release.TrySetResult();
+        var late = await refresh; Assert.Same(f.Store.Value, late); Assert.Empty(late.AccessToken);
+        Assert.False(f.Auth.TryResumeWithSessionPin("826491")); Locked(f);
+    }
+    [Fact]
+    public async Task Pin_enrollment_requires_recent_full_login_and_is_cleared_by_login_logout_and_shutdown()
+    {
+        using var f = new Fixture(); Assert.Throws<InvalidOperationException>(() => f.Auth.EnrollSessionPin("826491"));
+        var token = await f.Login(); f.Auth.EnrollSessionPin("826491");
+        f.Auth.QuickUnlockClock = new FixedClock(token.SessionStartedAtUtc!.Value.AddMinutes(3));
+        Assert.False(f.Auth.CanEnrollSessionPin); Assert.Throws<InvalidOperationException>(() => f.Auth.EnrollSessionPin("826491"));
+        f.Auth.QuickUnlockClock = TimeProvider.System;
+        await f.Login(); Assert.False(f.Auth.HasSessionPin);
+        f.Auth.EnrollSessionPin("826491"); f.Auth.SignOut(); Assert.False(f.Auth.HasSessionPin);
+        await f.Login(); f.Auth.EnrollSessionPin("826491"); f.Auth.LockForQuickUnlock(); f.Auth.Dispose(); Assert.False(f.Auth.CanQuickUnlock);
+    }
+    [Fact]
+    public async Task Disabled_pin_setting_and_wrong_cashier_never_unlock_original_work()
+    {
+        using var f = new Fixture(); await f.Login(); f.Auth.EnrollSessionPin("826491"); f.Auth.LockForQuickUnlock();
+        f.Handler.Subject = "cashier-b"; var signIn = f.Auth.SignInAsync(true); await f.Callback(f.Uri!);
+        await Assert.ThrowsAsync<PosSessionResumeException>(() => signIn);
+        Assert.False(f.Auth.CanQuickUnlock); Locked(f);
+        var config = PosCheckoutIntegrationTests.Configuration() with { EnablePinUnlock = false };
+        using var disabled = new PosAuthentication(config, new Handler(), new Store());
+        Assert.False(disabled.CanEnrollSessionPin); Assert.False(disabled.CanQuickUnlock);
+    }
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider { public override DateTimeOffset GetUtcNow() => now; }
+
+    [Fact]
     public async Task Shutdown_cancels_pending_signin_without_deleting_original_owner()
     {
         using var f = new Fixture();

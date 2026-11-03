@@ -1,5 +1,47 @@
 # Next iteration: phases, checklist and implementation prompts
 
+3 November 2026: [cashier-ready/customer panels](../Deployment/POS-Cashier-Ready-And-Customer-Panels.md) implement a staff identity/status card, navigation-only Start sale, guarded full-auth cashier switching, equal approved-advertising/welcome-or-order customer panels and optional same-live-session PIN unlock. PIN enrollment is process-only after fresh full login, never a persistent/offline credential. Fingerprint and RFID/card authentication remain blocked on verified hardware/protocol/enrollment design. No backend/schema change; matching activation and actual operator/device acceptance remain separate.
+
+
+3 November 2026: the user chooses an iOS Photos-inspired shared media direction: thumbnail grid by default, switchable details and contextual popup selection across editors. The [first product-photo library slice](../Deployment/Media-Library.md) implements server-paged browsing/private previews and shared menu/screensaver selection while preserving explicit approval. Batch upload, metadata/lifecycle extensions, other formats and further app consumers remain in the [expansion roadmap](Product-Expansion-Roadmap.md); existing acceptance gates and backlog items are retained.
+
+
+**Unified Windows POS QR orders** consolidates Pending review, Awaiting payment and Paid /
+history, with secondary **Find by reference** lookup. It reuses existing request, branch-order,
+collection and receipt contracts, retains explicit acceptance/payment and original recovery,
+and keeps all-branch Orders and manager portal review. No migration/grant/provider change.
+The full source-bound gate passed and the matching retained pilot is installed with preserved
+state; fresh operator acceptance remains pending. The next slice is guided unified QR acceptance and
+recovery hardening against the installed target. See
+[workspace and rollout](../Deployment/POS-QR-Orders-Workspace.md).
+
+**Initial Windows POS QR request review and acceptance — historical release** added a staff-only queue, explicit reviewed
+accept/reject decisions, guest-price-consent guidance and navigation to the original accepted
+order through existing Order-owned APIs. Portal manager review remains. No schema/grant change;
+its source gate passed and it was installed with preserved state. The unified workspace above
+now supersedes its separate navigation and installed target; its acceptance pack remains historical.
+See [implementation and rollout](../Deployment/POS-QR-Request-Review.md).
+
+**UX24 — guided operator acceptance and targeted fixes** recorded the following observations on the preceding UX23 installed target using its seventeen-case pack. That target is now superseded by the installed native QR review update; its results remain historical. Eight operator-confirmed cases pass: cashier sign-in/resume, idle-lock/resume, original cash settlement, PDF receipt/reprint, print-cancellation recovery, original manual-PromptPay settlement, Omise sandbox settlement and QR cash collection, including retained custody and no duplicate collection. Nine cases remain pending. The stopped Omise token helper was restarted before the operator reported the sandbox account working. The QR order appeared after staff accepted the pending guest request; the operator then confirmed the QR cash test working. Reproduced defects use the existing fix/resolve/retest loop. Physical printer output remains separate. No speculative runtime change or new tracker is added. See [UX24](../Deployment/POS-UX24-Guided-Acceptance.md).
+
+2 November 2026: recorded the [product expansion roadmap](Product-Expansion-Roadmap.md) before UX24: extended Media Management, Promotions/Discounts, cashier biometric/card login, generic-QR safe table assignment, offline commerce/synchronization, AI insights, operational alerts and website/delivery integrations. It includes the initial codebase assessment, five implementation phases, slice gates, ownership/reuse, security/test requirements and unresolved business/hardware/provider decisions. These are planned extensions; UX24 acceptance remains the current milestone. Recording this backlog changes no application behavior or earlier roadmap item.
+
+**UX23 — background-service reliability and restart recovery** adds normal-pilot current-user scheduled hosting, optional sign-in startup, binding-checked exited-process recovery and explicit maintenance/shutdown. Healthy dependencies, DPAPI and original financial recovery remain owned by their existing components. Job/worker proofs, activation, actual Windows reboot and operator acceptance remain separate. See [UX23](../Deployment/POS-UX23-Background-Hosting.md).
+
+2 November 2026: UX23 is activated in the retained normal scope after the corrected full gate and isolated real-host recovery fixture pass. Twelve backend processes and fresh trusted QR run under the limited current-user scheduler; POS is reopened and the cashier menu is available. Nine checked local files and 159 checked business tables are preserved at the pre-interactive checkpoint. Automatic sign-in startup stays off. A new seventeen-case operator pack is pending; actual Windows reboot, phone/device and cashier observations remain separate from activation and release readiness.
+
+**UX22 — reliable normal-pilot startup and service recovery** adds a normal installation-bound launcher, live process/listener checks, explicit same-publication recovery, source-guarded rebuild and same-scope fresh QR activation. Cashier header diagnostics provide explicit reachability retry without repeating financial work. Implementation verification/activation and operator observations remain separate. See [UX22](../Deployment/POS-UX22-Local-Pilot-Startup.md).
+
+**UX21 — real-identity recovery lab** adds a fresh owned first-draft stack, real disposable
+accounts, a separate isolated POS package, controlled faults, callback restoration and
+version2 lab targets in the existing tracker. Normal pilot observations remain independent;
+preparation/automation never passes operator cases. See [UX21](../Deployment/POS-UX21-Real-Identity-Recovery-Lab.md).
+
+UX21 is prepared and its real-identity/service checks pass. After user-confirmed POS closure,
+the controlled signed-out lab startup/normal-close cycle passed with callback values restored
+and two checked normal-profile files unchanged. Actual lab operator cases remain pending;
+the normal pilot's nine passed/six pending/two blocked results are preserved.
+
 **UX20 — isolated recovery and access-control verification** adds a source-bound serial
 runner for existing POS/native/HTTP regressions and disposable PostgreSQL/RabbitMQ cashier
 and Order recovery fixtures. Synthetic identities and added native history-outage clearing

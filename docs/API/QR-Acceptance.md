@@ -1,5 +1,11 @@
 # QR4 staff acceptance and guest price review
 
+Windows POS [QR requests](../Deployment/POS-QR-Request-Review.md) reuses these customer
+routes directly with bearer authentication and configured tenant headers. It sends the same
+original UUID/version and retains server-side branch authority and guest consent. Portal
+cookies/CSRF apply only to BFF calls; no new native route or permission is added. Accepted-order
+navigation is separate from QR collection/payment and never collects automatically.
+
 See [ADR047](../Architecture/Decisions/ADR-047-atomic-qr-acceptance.md),
 [storage](../Database/QR-Acceptance.md) and [operations](../Deployment/QR4-Acceptance.md).
 Existing QR1–QR3 cookie, scope, bounds, CSRF and tenant protections apply.

@@ -128,8 +128,9 @@ test("customer signs in, selects an authorized tenant, and completes the Media l
   }
 
   await page.reload();
-  await openMenuImage(page,product.name);
-  await page.getByLabel('Search uploaded images').fill(fileName);
+  await page.getByRole('menuitem',{name:'Media management',exact:true}).click();
+  await page.getByLabel('Search photo library').fill(fileName);
+  await page.getByLabel('Photo library view').getByText('Details',{exact:true}).click();
   const row = page.getByRole("row").filter({ hasText: fileName });
   await expect(row.getByText("ready", { exact: true })).toBeVisible();
   const deleted = page.waitForResponse(
@@ -137,6 +138,7 @@ test("customer signs in, selects an authorized tenant, and completes the Media l
       && response.request().method() === "DELETE",
   );
   await row.getByRole("button", { name: "Delete" }).click();
+  await page.getByRole('button',{name:'Delete',exact:true}).last().click();
   expect((await deleted).ok()).toBeTruthy();
   createdAssetId = undefined;
   await expect(row).toHaveCount(0);
@@ -174,5 +176,5 @@ async function openMenuImage(page,name){
   await page.getByLabel('Search managed menu items').fill(name);
   await page.getByRole('button',{name:`Manage ${name}`,exact:true}).click();
   await page.getByRole('tab',{name:'Image',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Refresh images',exact:true})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'Choose from photo library',exact:true})).toBeEnabled();
 }

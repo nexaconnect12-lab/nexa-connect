@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Tools\NexaConnect.LocalPilotTelemetry\NexaConnect.LocalPilotTelemetry.csproj" />
     <ProjectReference Include="..\..\..\src\BuildingBlocks\NexaConnect.Infrastructure\NexaConnect.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.POS\NexaConnect.Services.POS.csproj" />
     <ProjectReference Include="..\..\..\src\Services\NexaConnect.Services.Order\NexaConnect.Services.Order.csproj" />
@@ -53,6 +54,9 @@
   <ItemGroup>
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PendingCheckout.cs" Link="POS\PendingCheckout.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosApiClient.cs" Link="POS\PosApiClient.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosApiClient.QrRequests.cs" Link="POS\PosApiClient.QrRequests.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosQrReviewState.cs" Link="POS\PosQrReviewState.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosQrWorkspacePolicy.cs" Link="POS\PosQrWorkspacePolicy.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosApiClient.MenuPhotos.cs" Link="POS\PosApiClient.MenuPhotos.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosApiClient.MenuOrganization.cs" Link="POS\PosApiClient.MenuOrganization.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosMenuOrganizationView.cs" Link="POS\PosMenuOrganizationView.cs" />
@@ -61,6 +65,8 @@
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosTokenSet.cs" Link="POS\PosTokenSet.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosSessionPolicy.cs" Link="POS\PosSessionPolicy.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosAuthentication.cs" Link="POS\PosAuthentication.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosAuthentication.QuickUnlock.cs" Link="POS\PosAuthentication.QuickUnlock.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\PosSessionPin.cs" Link="POS\PosSessionPin.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\WindowsTokenStore.cs" Link="POS\WindowsTokenStore.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Pkce.cs" Link="POS\Pkce.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\SettlementAttempt.cs" Link="POS\SettlementAttempt.cs" />

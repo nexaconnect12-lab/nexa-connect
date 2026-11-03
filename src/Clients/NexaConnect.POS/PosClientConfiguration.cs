@@ -26,10 +26,14 @@ public sealed record PosClientConfiguration(
     string PaymentApi = "",
     string MediaApi = "",
     bool UseIsolatedLocalPilotStorage = false,
-    bool UseBranchPromptPayQr = false)
+    bool UseBranchPromptPayQr = false,
+    string ShopName = "NexaConnect",
+    bool EnablePinUnlock = true)
 {
     public void ValidateCheckout()
     {
+        if (string.IsNullOrWhiteSpace(ShopName) || ShopName.Length > 80 || ShopName.Any(char.IsControl))
+            throw new InvalidDataException("Pos:ShopName requires a public shop name up to 80 characters.");
         if (ClientId != "nexaconnect-pos" || RedirectUri != "nexaconnect-pos://oauth/callback")
             throw new InvalidDataException("The POS public client and registered callback must match the installed protocol.");
         foreach (var (name, value) in new[] { ("Authority", Authority), ("PosApi", PosApi), ("OrderApi", OrderApi), ("CatalogApi", CatalogApi) }
@@ -117,7 +121,9 @@ public sealed record PosClientConfiguration(
             services.TryGetProperty("PaymentApi", out var payment) ? payment.GetString() ?? "" : "",
             services.TryGetProperty("MediaApi", out var media) ? media.GetString() ?? "" : "",
             root.GetProperty("Pos").TryGetProperty("UseIsolatedLocalPilotStorage", out var isolated) && isolated.GetBoolean(),
-            root.GetProperty("Pos").TryGetProperty("UseBranchPromptPayQr",out var branchQr)&&branchQr.GetBoolean());
+            root.GetProperty("Pos").TryGetProperty("UseBranchPromptPayQr",out var branchQr)&&branchQr.GetBoolean(),
+            root.GetProperty("Pos").TryGetProperty("ShopName",out var shopName) ? shopName.GetString() ?? "" : "NexaConnect",
+            session.ValueKind != JsonValueKind.Object || !session.TryGetProperty("EnablePinUnlock",out var pinEnabled) || pinEnabled.GetBoolean());
         configuration.ValidateCheckout();
         return configuration;
     }

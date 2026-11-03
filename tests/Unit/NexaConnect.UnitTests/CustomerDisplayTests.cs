@@ -7,6 +7,15 @@ namespace NexaConnect.UnitTests;
 
 public sealed class CustomerDisplayTests
 {
+    [Fact]
+    public void Transaction_activity_selects_working_then_welcome_without_retaining_completed_lines()
+    {
+        var state = new CustomerDisplayState(); Assert.False(state.Visible(true,false).IsWorking);
+        state.Cart("THB", [new("Meal",1,80)]); Assert.True(state.Visible(true,false).IsWorking);
+        state.Complete(); var idle = state.Visible(true,false) with {ShopName="Our shop"};
+        Assert.False(idle.IsWorking); Assert.Equal("Welcome",idle.DisplayHeading); Assert.Equal("Our shop",idle.ShopName);
+        Assert.Empty(idle.Lines); Assert.Null(idle.Total);
+    }
     private static PosOrderPricing Pricing => new(1, 7, false, 10, 100, 100, 10, 7.7m, 117.7m);
     private static PosOrderQuote Quote => new(new string('A', 64), Pricing, [new(Guid.NewGuid(), "Meal", 50, 2)]);
 
@@ -90,7 +99,7 @@ public sealed class CustomerDisplayTests
     [Fact]
     public void Customer_contract_is_an_explicit_data_allow_list_without_commands_or_identifiers()
     {
-        Assert.Equal(new[] { "Currency", "Heading", "Lines", "Message", "ServiceCharge", "Subtotal", "Tax", "Tender", "Total", "TotalLabel" },
+        Assert.Equal(new[] { "Currency", "DisplayHeading", "Heading", "IsWorking", "Lines", "Message", "ServiceCharge", "ShopName", "Subtotal", "Tax", "Tender", "Total", "TotalLabel" },
             typeof(CustomerDisplaySnapshot).GetProperties().Where(p => p.GetMethod is { IsStatic: false }).Select(p => p.Name).Order().ToArray());
         Assert.Equal(new[] { "LineTotal", "Name", "Quantity", "UnitPrice" }, typeof(CustomerDisplayLine).GetProperties().Select(p => p.Name).Order().ToArray());
         Assert.All(typeof(CustomerDisplayState).GetConstructors(), c => Assert.Empty(c.GetParameters()));

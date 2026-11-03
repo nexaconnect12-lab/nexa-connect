@@ -1,5 +1,16 @@
 # QR6 — integrated verification and phone-test candidate
 
+UX23 adds mandatory `local-host-guards` and `local-host-isolation` checks. The Windows
+isolation check temporarily registers current-user fixture tasks, verifies job termination,
+scheduled-worker survival and exact logon-trigger ownership, then removes them. It stores
+no Windows password and performs no PC reboot or retained-pilot mutation. The separate
+real scheduled-host installer/recovery fixture requires POS closed and produces its own
+receipt; it is not inferred from this QR6 gate. See [UX23 verification](POS-UX23-Background-Hosting.md#telemetry-and-verification).
+
+UX22's gate runs `local-pilot-guards` and `local-pilot-qr-guards` for normal/lab separation,
+source/artifact recovery checks and same-scope fresh QR-plan creation. These pure checks do
+not start the retained pilot or pass phone/operator cases. See [startup and activation](POS-UX22-Local-Pilot-Startup.md).
+
 UX8D requires `drawer-profile-guards` and at least91 HTTP cases in a fresh candidate. See [history-only pilot activation](POS-UX8D-Pilot-Acceptance.md). Previous receipts remain historical.
 
 UX8C raises required coverage to1332unit/90HTTP and four drawer-owning cases, including history scope/pagination/read-only behavior and index downgrade/reapply. Windows checks include selection without UUID, unchanged journal/device state and stale-result clearing. POS25 is in the schema inventory. Fresh candidate evidence is required; physical/pilot acceptance is not implied. See [UX8C](POS-UX8C-Drawer-History.md).

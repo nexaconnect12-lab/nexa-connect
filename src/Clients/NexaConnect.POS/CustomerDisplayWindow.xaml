@@ -5,15 +5,18 @@
         ShowInTaskbar="False" ShowActivated="False" Focusable="False"
         Background="#F4F6F3" Foreground="#172A22" FontFamily="Segoe UI" FontSize="20">
   <Grid IsHitTestVisible="False" Focusable="False">
-  <Grid x:Name="TransactionView" Margin="32">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="2"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Border Grid.Column="1" Background="#A5B8AB"/>
+  <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+  <Grid x:Name="TransactionView" Margin="24">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <StackPanel>
-      <TextBlock Text="NexaConnect" Foreground="#14532D" FontSize="26" FontWeight="SemiBold" />
-      <TextBlock Text="{Binding Heading}" FontSize="40" FontWeight="Bold" TextWrapping="Wrap" Margin="0,24,0,12" />
+      <TextBlock x:Name="CustomerShopName" Text="{Binding ShopName}" Foreground="#14532D" FontSize="26" TextWrapping="Wrap" FontWeight="SemiBold" />
+      <TextBlock Text="{Binding DisplayHeading}" FontSize="32" FontWeight="Bold" TextWrapping="Wrap" Margin="0,24,0,12" />
       <TextBlock x:Name="CustomerMessage" Text="{Binding Message}" TextWrapping="Wrap" Margin="0,0,0,24" />
     </StackPanel>
-    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Focusable="False">
       <ItemsControl ItemsSource="{Binding Lines}">
+        <ItemsControl.Style><Style TargetType="ItemsControl"><Setter Property="Grid.Row" Value="1"/></Style></ItemsControl.Style>
         <ItemsControl.ItemTemplate>
           <DataTemplate>
             <Border Padding="16" Margin="0,0,0,12" Background="White" CornerRadius="8">
@@ -29,7 +32,6 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
-    </ScrollViewer>
     <StackPanel Grid.Row="2">
       <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
         <DataTrigger Binding="{Binding Total}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
@@ -43,8 +45,10 @@
       <TextBlock x:Name="CustomerTenderText" Text="{Binding Tender}" Margin="0,12,0,0" TextWrapping="Wrap" />
     </StackPanel>
   </Grid>
-  <Border x:Name="SaverView" Visibility="Collapsed" Background="#13251B">
+  </ScrollViewer>
+  <Border x:Name="SaverView" Grid.Column="0" Background="#13251B">
     <Grid ClipToBounds="True">
+      <TextBlock Text="{Binding ShopName}" Foreground="White" FontSize="30" TextWrapping="Wrap" Margin="24" VerticalAlignment="Center" HorizontalAlignment="Center"/>
       <Image x:Name="SaverImage" Stretch="UniformToFill" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
       <Border x:Name="SaverTextPanel" Background="#D910251A" Padding="24" Margin="24" VerticalAlignment="Bottom">
         <StackPanel TextElement.Foreground="White">

@@ -1,7 +1,7 @@
 #requires -Version 7.4
 [CmdletBinding()]
 param(
-    [ValidateSet('Validate','Start','Status','Stop','StopService','Reset','Restart')][string]$Action='Validate',
+    [ValidateSet('Validate','Start','Status','Stop','StopService','Reset','Restart','Resume')][string]$Action='Validate',
     [string]$RunId,
     [ValidateSet('cash_manual','promptpay_manual')][string]$PaymentMethod='cash_manual',
     [string]$QrImagePath,
@@ -20,6 +20,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'first-draft-promptpay-helpers.ps1')
 . (Join-Path $PSScriptRoot 'first-draft-drawer-helpers.ps1')
 . (Join-Path $PSScriptRoot 'payment-review-joined-helpers.ps1')
+. (Join-Path $PSScriptRoot 'local-pilot-helpers.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $catalog=Get-DraftServiceCatalog $root -IncludeMedia:$EnableMedia
 $compatibility=($catalog.Values | Sort-Object { [version]$_.minimumApplicationVersion })[-1].minimumApplicationVersion
@@ -42,6 +43,11 @@ if (-not $RunId) {
     $RunId=[Guid]::NewGuid().ToString('N')
 }
 $run=Get-DraftRunDirectory $root $RunId
+$hostPointer=Join-Path $root ".runstate/local-pilot/$RunId/host-current.json"
+if($Action -ne 'Status' -and (Test-Path -LiteralPath $hostPointer)){
+    $hostOwner=Get-Content -LiteralPath $hostPointer -Raw|ConvertFrom-Json
+    if($hostOwner.runId -cne $RunId -or $hostOwner.hostId -cnotmatch '^[a-f0-9]{32}$' -or $env:NEXACONNECT_LOCAL_PILOT_HOST_ID -cne $hostOwner.hostId){throw 'This graph is supervised. Stop and remove its owned local-pilot host before direct lifecycle maintenance.'}
+}
 $statePath=Join-Path $run 'state.json'
 $secretPath=Join-Path $run 'secrets.clixml'
 $compose=Get-DraftComposeArguments $root $RunId
@@ -327,6 +333,39 @@ try {
         Write-Output "Owned draft $Service stopped for interruption testing."
         return
     }
+    if($Action -eq 'Resume') {
+        if($state.status -notin @('Ready','Stopped') -or -not $state.provisionedBranch){throw 'Resume requires a provisioned retained publication.'}
+        $current=& node (Join-Path $PSScriptRoot 'release/source.mjs')
+        if($LASTEXITCODE -ne 0){throw 'Resume source inventory failed.'}
+        Assert-LocalPilotPublished $state ($current|ConvertFrom-Json -AsHashtable) (Get-DraftQrPilotArtifactHash $run)
+        $snapshot=@(Get-LocalPilotProcessSnapshot $run $state)
+        if(@($snapshot|Where-Object status -in @('changed-owner','unresponsive')).Count){throw 'Resume refused a foreign or live non-listening process; no healthy process was stopped.'}
+        $missing=@($snapshot|Where-Object status -eq 'stopped'|ForEach-Object service)
+        if(-not $missing.Count){Write-Output 'Owned graph already running; no process restarted.';return}
+        $started=@()
+        try{
+            Invoke-OwnedCompose @('up','-d','--wait','--wait-timeout',$(if($state.Contains('mediaEnabled') -and $state.mediaEnabled){'900'}else{'180'}))
+            foreach($entry in (@{postgres=5432;keycloak=8080;rabbitmq=5672;redis=6379}+$(if($state.Contains('mediaEnabled') -and $state.mediaEnabled){@{minio=9000;clamav=3310}}else{@{}})).GetEnumerator()){
+                $published=& docker @compose port $entry.Key $entry.Value
+                if($LASTEXITCODE -ne 0 -or $state.infrastructure[$entry.Key] -ne (ConvertFrom-ReviewJoinedPort $published)){throw 'Resume infrastructure port differs.'}
+            }
+            Set-Configurations
+            foreach($name in @('Authorization','Reporting','PlatformDirectory','Restaurant','Catalog','Inventory','Kitchen','Payment','POS','Order','Media','Bff')){
+                if($name -in $missing){$started+=@($name);Start-DraftApp $name}
+            }
+            Wait-Bindings
+            foreach($name in @('PlatformDirectory','Restaurant','Catalog','Inventory','Kitchen','Payment','POS','Order')){
+                if($name -in $started){Stop-DraftApp $name;$configurations[$name].Outbox__Enabled='true';$configurations[$name].Outbox__BatchSize='100';Start-DraftApp $name}
+            }
+            $state.status='Ready';Save-State
+            Write-Output "Owned graph resumed: $($started.Count) missing services; existing healthy services retained. No rebuild, migration or financial command."
+        }catch{
+            # A partial failure must never tear down pre-existing healthy dependencies.
+            foreach($name in $started){try{Stop-DraftApp $name}catch{Write-Warning 'Newly started process cleanup requires review.'}}
+            throw
+        }
+        return
+    }
     if($Action -eq 'Restart') {
         if($state.status -ne 'Ready'){throw 'Restart requires a Ready draft.'}
         if($state.Contains('qrPilotOrigin')){
@@ -341,6 +380,10 @@ try {
         return
     }
     if($state.processes.Count){throw 'Draft has recorded application processes; Stop before Start.'}
+    $publicationJson=& node (Join-Path $PSScriptRoot 'release/source.mjs')
+    if($LASTEXITCODE -ne 0){throw 'Published source inventory failed.'}
+    $publicationSource=$publicationJson|ConvertFrom-Json -AsHashtable
+    if($NoBuild){Assert-LocalPilotPublished $state $publicationSource (Get-DraftQrPilotArtifactHash $run)}
     $qrPilotSource=$null
     if($state.Contains('qrPilotOrigin')){
         $current=& node (Join-Path $PSScriptRoot 'release/source.mjs');if($LASTEXITCODE -ne 0){throw 'QR pilot source inventory failed.'};$qrPilotSource=$current|ConvertFrom-Json
@@ -448,6 +491,10 @@ try {
         $state.qrPilotSource=$qrPilotSource
         $state.qrPilotArtifacts=Get-DraftQrPilotArtifactHash $run
     }
+    $publicationAfter=& node (Join-Path $PSScriptRoot 'release/source.mjs')
+    if($LASTEXITCODE -ne 0 -or ($publicationAfter|ConvertFrom-Json -AsHashtable|ConvertTo-Json -Depth 8 -Compress) -cne ($publicationSource|ConvertTo-Json -Depth 8 -Compress)){throw 'Source changed during publication/startup.'}
+    $state.publishedSource=$publicationSource
+    $state.publishedArtifacts=Get-DraftQrPilotArtifactHash $run
     $state.status='Ready';Save-State
     Write-Output "Draft Ready. RunId=$RunId Portal=$($state.urls.Bff)"
     if($state.provisionedBranch){Write-Output 'Retained branch/menu/role setup is provisioned; live workflow access remains authoritative.'}

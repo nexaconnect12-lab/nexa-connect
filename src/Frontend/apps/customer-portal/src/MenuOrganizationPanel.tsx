@@ -34,7 +34,7 @@ export function MenuOrganizationPanel({organizationId,embedded}:{organizationId:
  const layout={categories,items:placements};const ordered=orderedMenu(products,layout);const validNames=categories.every(c=>c.name.trim().length>0&&c.name.length<=80)&&new Set(categories.map(c=>c.name.trim().toLocaleLowerCase())).size===categories.length;
  const panelStatus=useMenuPanelState(embedded,loaded&&(JSON.stringify(layout)!==baseline||!!name),busy);
  useEffect(()=>{if(embedded)void load();},[embedded?.branch,embedded?.product]);
- return <>{!embedded&&<><Typography.Title level={2}>Menu categories</Typography.Title><Typography.Paragraph>Arrange categories and menu items for this branch. Prices, availability and existing orders are unchanged. Items without a category appear under Uncategorized.</Typography.Paragraph>
+ return <>{!embedded&&<><Typography.Paragraph>Arrange categories and menu items for this branch. Prices, availability and existing orders are unchanged. Items without a category appear under Uncategorized.</Typography.Paragraph>
   <Space wrap><OperationalBranchPicker capability="catalog" label="Menu organization branch" value={branch} onChange={clear}/><Button disabled={!branch||busy} onClick={()=>void load()}>Load menu organization</Button></Space></>}
   {notice&&<Alert role="status" message={notice} style={{marginTop:16}}/>}
   {loaded&&<><Card title="Category display order" style={{marginTop:16}}><Space wrap><Input aria-label="New category name" placeholder="New category name" maxLength={80} disabled={busy} value={name} onChange={e=>setName(e.target.value)}/><Button disabled={busy||!name.trim()||categories.length>=50} onClick={add}>Add category</Button></Space>

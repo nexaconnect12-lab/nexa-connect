@@ -40,7 +40,7 @@ export function MenuAvailabilityPanel({organizationId,embedded}:{organizationId:
  },expected);
  const panelStatus=useMenuPanelState(embedded,false,busy);
  useEffect(()=>{if(embedded)void load();},[embedded?.branch,embedded?.product]);
- return <>{!embedded&&<><Typography.Title level={2}>Menu availability</Typography.Title>
+ return <>{!embedded&&<>
   <Typography.Paragraph>Mark individual items available or sold out for this branch. Refresh POS and phone menus after saving. This does not change stock quantities, prices, accepted orders or payments.</Typography.Paragraph>
   <Space wrap><OperationalBranchPicker capability="catalog" label="Availability branch" value={branch} onChange={clear}/><Button disabled={!branch||busy} onClick={()=>void load()}>Load availability</Button></Space></>}
   {notice&&<Alert role="status" message={notice} style={{marginTop:16}}/>}

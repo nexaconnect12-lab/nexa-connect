@@ -1,5 +1,11 @@
 # Phase 5 — approved media gallery and distinct screensavers
 
+The [cashier/customer-panel refinement](POS-Cashier-Ready-And-Customer-Panels.md) now keeps valid approved customer media in the left half during idle and transaction modes, with welcome/order details on the right. The locked staff screensaver remains fullscreen. Playlist selection, authorization, leases, expiry/revocation and fallback are unchanged; no Media API/schema change is added.
+
+
+The current portal uses **Choose from photo library** for staff/customer slide selection, with a default thumbnail-grid popup and optional details. See [shared picker workflow](Media-Library.md). Playlist limits, readiness and explicit approval/save below remain unchanged.
+
+
 The retained local draft can now explicitly enable the complete Media graph with `-EnableMedia`; use [local Media setup](First-Draft-Media.md). POS gallery configuration and physical acceptance remain separate.
 
 Implemented in source on 23 October 2026 on top of the retained Phase 4 working tree.
@@ -33,12 +39,12 @@ ownership/lease decisions; [the API contract](../API/Screensaver-Gallery.md) def
 6. Start POS on its private staff screen and assign Phase 4 monitor roles. While signed in
    or locked with a valid UX4 gallery reader, its independent timer refreshes once a minute.
    See [UX4 rollout](POS-UX4-Locked-Gallery.md). Leave POS untouched
-   for the automatic five-minute idle lock (there is no manual Lock button): staff
+   for automatic idle lock, or use the current header Lock action: staff
    sees its playlist across the assigned monitor with authentication controls initially hidden.
    Tap/click or press a key to reveal a centered panel, then choose Resume/Authenticate
    separately. Escape or Back to screensaver hides the panel and remains locked; it stays
-   visible during authentication so cancellation is available. Customer sees its own full-display playlist with optional public captions,
-   no transaction or unlock controls. Images preserve aspect ratio and crop edges to fill.
+   visible during authentication so cancellation is available. Customer sees its own playlist in the left half with optional public captions,
+   with masked transaction details on the right and no unlock controls. Images preserve aspect ratio and crop edges to fill.
    Gallery activity does not count as staff activity. Only original-operator
    authentication resumes work; slideshow clicks do not authenticate.
 

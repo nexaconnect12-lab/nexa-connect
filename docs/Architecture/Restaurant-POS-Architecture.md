@@ -1,5 +1,22 @@
 # NexaConnect Restaurant POS Architecture
 
+The [cashier/customer panel refinement](../Deployment/POS-Cashier-Ready-And-Customer-Panels.md) retains original cashier custody and financial workflows. Optional session-only PIN unlock can restore only a suspended, same-cashier live token; it creates no offline authority or server credential registry. Customer advertising and order/welcome content share equal panels without widening the allow-listed projection. See [ADR-064](Decisions/ADR-064-pos-session-pin-and-customer-panels.md); hardware authentication remains a separate unimplemented integration.
+
+
+The [shared product-photo library](../Deployment/Media-Library.md) now provides private thumbnail-grid/details browsing and contextual menu/gallery pickers. Picking a candidate does not change Catalog menu approval or Restaurant playlist authority, and bank QR purpose remains separate. [ADR-063](Decisions/ADR-063-shared-photo-library.md) adds bounded Media/BFF read contracts without a schema, financial or native POS workflow change.
+
+
+The [combined native QR workspace](../Deployment/POS-QR-Orders-Workspace.md) presents request
+review, awaiting payment and paid history together. It does not combine their transactions:
+acceptance still admits the original request to preparation, collection still establishes
+original cashier/shift custody and explicit manual settlement, and receipt reads do neither.
+
+Windows POS [QR review](../Deployment/POS-QR-Request-Review.md) is another staff entry to
+the existing Order-owned request/acceptance use cases, not a second ordering aggregate.
+Live scoped authority, version checks, guest-price consent and durable Inventory/Kitchen
+handoff are shared with portal review. Native acceptance never captures payment; original
+accepted-order collection retains existing cashier/shift/currency/recovery guards.
+
 UX14 Catalog-owned name/price/preparation-station edits apply to fresh menu reads and new commercial validation. They never move accepted Kitchen tickets or reprice accepted Order/payment/receipt history. Details CAS is independent of availability/photo/category/barcode versions. Legacy writer changes invalidate stale editor drafts. See [details decision](Decisions/ADR-061-safe-menu-details-editing.md).
 
 UX13 manual branch/product selling availability belongs to Catalog, separate from Inventory quantities. Fresh QR quotes, staff acceptance and POS placement validate the current flag; already accepted orders and their original recovery remain captured. Quoted requests can remain pending until rejection or availability restoration. An order validated before a concurrent flag change may proceed. See [availability decision](Decisions/ADR-060-branch-menu-availability.md).

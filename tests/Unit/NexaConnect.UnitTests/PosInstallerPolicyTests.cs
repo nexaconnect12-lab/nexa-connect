@@ -28,6 +28,20 @@ public sealed class PosInstallerPolicyTests : IDisposable
         return file;
     }
     [Fact]
+    public void Managed_profile_accepts_public_shop_name_and_can_disable_pin_unlock()
+    {
+        string file=Profile(Hosted());
+        var json=System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(file))!;
+        json["Session"]!["EnablePinUnlock"]=false; json["Pos"]!["ShopName"]="Fixture shop";
+        File.WriteAllText(file,json.ToJsonString());
+        var config=PosInstallationPolicy.ReadProfile(file);
+        Assert.False(config.EnablePinUnlock);Assert.Equal("Fixture shop",config.ShopName);
+    }
+    [Theory]
+    [InlineData("")][InlineData("shop\nname")]
+    public void Public_shop_label_rejects_missing_or_control_character_values(string name) =>
+        Assert.Throws<InvalidDataException>(() => (Hosted() with {ShopName=name}).ValidateCheckout());
+    [Fact]
     public void First_install_requires_no_existing_state_and_does_not_create_it()
     {
         string recovery = Path.Combine(directory, "absent");

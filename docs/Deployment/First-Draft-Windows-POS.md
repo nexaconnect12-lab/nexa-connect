@@ -1,5 +1,12 @@
 # Windows first-draft terminal (slice 4)
 
+The native [cashier-ready/customer-panels slice](POS-Cashier-Ready-And-Customer-Panels.md) adds an optional session-only PIN, guarded identity/status card and 50/50 approved customer advertising/order view. Existing configurations gain defaults for `Session:EnablePinUnlock` and public `Pos:ShopName`; no migration or reader SDK is introduced. Source implementation is separate from matching package activation and operator/device acceptance.
+
+
+[UX23 supervision](POS-UX23-Background-Hosting.md) optionally owns normal-pilot backends independently of a launcher terminal. The POS remains interactive and uses the same protected current-user recovery; host installation/stop requires POS closed. Actual Windows reboot and financial/device observations are separate.
+
+Use [UX22 normal-pilot startup](POS-UX22-Local-Pilot-Startup.md) to check or restore the installed local test environment before opening POS. The staff header's Check services / retry performs anonymous reachability checks only; original order/payment recovery is always retried explicitly. Direct terminal Launch below verifies the native package but does not start backend services.
+
 [UX17 shutdown diagnostics](POS-UX17-Shutdown-Diagnostics.md) hardens controlled blocking/faulting cleanup and adds safe bounded lifecycle logs. Keep original recovery when investigating an unseen POS process; a closed window or completed log event alone does not prove OS-process exit. Source and installed/operator evidence remain separate.
 
 [UX16 flat cashier presentation](POS-UX16-Flat-Cashier.md) refines the Windows 11-inspired staff theme and reduces menu-filter height. Existing handlers, privacy/recovery and optional input/density choices remain. Source verification, matching installation and actual equipment/operator acceptance are separate.
@@ -116,6 +123,21 @@ belong to the current Windows user/device. Missing runtime, corrupt state, wrong
 failed protection must block activation/use; never delete recovery to make a test pass.
 Resetting the backend run does not clear terminal recovery. Finish/reconcile work first.
 
+## Menu unavailable after a local stack stops
+
+An open POS window and `state.json` marked `Ready` do not prove that its backend processes
+are still running. If Refresh menu fails or leaves no items, check the **configured run**
+with `scripts/first-draft-stack.ps1 -Action Status -RunId <run-id>` and verify Catalog and
+its Authorization, Platform Directory and Restaurant dependencies. Do not re-provision reference data,
+delete recovery or create replacement orders to repair service reachability.
+
+Close POS before a retained-stack rebuild. A source-changed QR-enabled run requires the
+[same-scope refresh procedure](QR7-Pilot.md#refreshing-source-for-the-same-qr-pilot-scope);
+do not bypass its source/artifact guards or reuse old QR acceptance as current proof.
+Preserve scope, credentials, certificates, database state and local recovery, then verify
+an authenticated cashier menu read returns actual items. Backend restoration alone does
+not activate a newly bound QR HTTPS edge or pass an operator acceptance case.
+
 ## Recovery and receipt behavior
 
 The existing client persists original checkout and settlement identities before sending,
@@ -173,7 +195,7 @@ steps and backend checks do not count as WPF/device acceptance:
 | --- | --- |
 | Launch/sign-in and cancel sign-in | One primary window; PKCE returns through installed callback; cancel/late callback cannot install credentials |
 | Active use past access-token expiry | Silent renewal preserves work; no token or password appears in logs |
-| Five-minute idle lock, restart while locked and fresh login | Receipt clears; authenticated controls lock; protected checkout/shift survives; interactive login required |
+| Five-minute idle lock, restart while locked and fresh login | Receipt clears; controls lock; protected checkout/shift survives; enrolled live-session PIN may resume ordinary idle lock, while restart requires full login |
 | Checkout interruption before/after send and lost response | Restart offers original Order/payment identity; verify it, never collect again or create a replacement |
 | Install an update while pending work exists | Same scope passes read-only preflight; original command survives restart; another scope fails |
 | Cash and fictional PromptPay | Exact server bill, cash/change shown; PromptPay needs explicit fictional receipt/reference confirmation |

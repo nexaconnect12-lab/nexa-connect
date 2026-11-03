@@ -33,7 +33,7 @@ export function CashCloseReportPanel(){
   };
   const span=Date.parse(to+"Z")-Date.parse(from+"Z");
   return <Space direction="vertical" size="middle" style={{width:"100%"}}>
-    <Typography.Title level={2}>Cash-close report</Typography.Title>
+    
     <Alert type="info" message="Read-only snapshots of closed cash sessions. Delivery can lag or be incomplete. Capture and projection times describe each row; they do not prove the store is fully synchronized. Use POS Cash Review for current decisions."/>
     <Form layout="vertical" onFinish={()=>void load()}>
       <Space wrap>

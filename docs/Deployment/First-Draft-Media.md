@@ -1,5 +1,8 @@
 # Local first-draft product-image uploads
 
+The [shared photo library](Media-Library.md) is the current browse/select UI: default thumbnail grid, optional details, server search/pages and popup selection in menu/gallery editors. New photo upload remains **Menu management → Image**. The optional Media profile and all upload/scanning/storage prerequisites below are unchanged; the library adds no schema or configuration.
+
+
 The menu upload UUID field is replaced by a branch/product-name picker with existing-image reuse, preview and explicit public-menu approval. Original Media ownership is retained; Catalog6 is required for assignment and guest/POS display. See [current manager workflow and rollout](Menu-Photos.md).
 
 [Branch PromptPay PNG](POS-Branch-PromptPay-QR.md) is a separate live branch-configuration workflow. It uses the same Media storage/scanner/CSP origin but does not require broad organization Media grants. Do not upload a bank QR as a Catalog photo or screensaver asset; its purpose-specific original PNG delivery preserves dimensions.
@@ -108,12 +111,13 @@ branch must return 403. These read-only checks cover the manager's exact restaur
 they do not save a gallery or prove delivery to POS. Restaurant resolves the active owning
 restaurant before the existing branch permission check, without adding any grant.
 
-For manual testing open the retained PC staff portal's `/#media`, sign in as
-`draft-store-manager`, select the NexaConnect workspace and enter an existing Catalog
-product UUID. Local reference product IDs are in the protected run's `reference.json`
-`products` array; these are not order UUIDs. Select JPEG/PNG/WebP up to 10 MiB, upload,
-refresh until processing is Ready and verify Original/Thumbnail/Display. No public
-`usenexaconnect.com` DNS or deployment is activated by this profile.
+For manual testing sign in to the retained PC staff portal as `draft-store-manager`,
+select the NexaConnect workspace and open **Menu management**. Select the branch, load
+its menu, choose the item by name and open **Image**. Upload JPEG/PNG/WebP up to 10 MiB;
+wait for processing, then choose the ready photo through **Choose from photo library**.
+Inspect the preview, explicitly approve and save. **Media management** provides the shared
+grid/details browser and confirmed lifecycle actions. Product UUID entry is no longer
+needed. No public `usenexaconnect.com` DNS or deployment is activated by this profile.
 
 Original readiness and asynchronous variant readiness are separate. Allow the worker to
 finish both variants before checking Thumbnail/Display; the automated runner polls their

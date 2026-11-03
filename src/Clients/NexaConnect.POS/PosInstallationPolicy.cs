@@ -29,8 +29,8 @@ internal static class PosInstallationPolicy
         {
             ["Identity"] = ["Authority", "ClientId", "RedirectUri", "Scopes"],
             ["Services"] = ["PosApi", "OrderApi", "CatalogApi", "PaymentApi", "MediaApi"],
-            ["Session"] = ["IdleTimeoutMinutes", "AbsoluteTimeoutHours", "TokenRefreshLeadSeconds"],
-            ["Pos"] = ["OrganizationId", "RestaurantId", "BranchId", "StoreId", "TerminalId", "Currency", "PaymentMethod", "EnableOmiseTestCheckout", "PromptPayQrImagePath", "UseBranchPromptPayQr"]
+            ["Session"] = ["IdleTimeoutMinutes", "AbsoluteTimeoutHours", "TokenRefreshLeadSeconds", "EnablePinUnlock"],
+            ["Pos"] = ["OrganizationId", "RestaurantId", "BranchId", "StoreId", "TerminalId", "Currency", "PaymentMethod", "EnableOmiseTestCheckout", "PromptPayQrImagePath", "UseBranchPromptPayQr", "ShopName"]
         };
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var section in json.RootElement.EnumerateObject())

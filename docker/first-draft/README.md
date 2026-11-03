@@ -1,5 +1,11 @@
 # Local first-draft infrastructure
 
+[UX23](../../docs/Deployment/POS-UX23-Background-Hosting.md) adds a current-user scheduled graph owner and missing-process Resume without a topology change. Resume verifies the retained published ports and exact source/artifacts, starts missing consumers/producers with existing outbox sequencing and cleans only its new starts on failure. Direct mutations are fenced while supervision is installed. No container, database, credential or volume owner changes.
+
+[UX22](../../docs/Deployment/POS-UX22-Local-Pilot-Startup.md) composes the existing lifecycle for normal-pilot startup and same-publication recovery. All successful publications now bind source/artifacts before NoBuild reuse; no container topology, secrets or volume ownership changes. Recovery labs retain their separate launcher.
+
+[UX21](../../docs/Deployment/POS-UX21-Real-Identity-Recovery-Lab.md) creates a fresh owned first-draft project for real-identity recovery testing. Generated lab-only realm lifetimes/accounts and isolated POS storage do not change retained projects. Lifecycle/reset ownership checks remain authoritative.
+
 The optional branch PromptPay profile reuses existing Media/storage/scanner services without Compose topology, schema or secret changes. Activate through the stopped draft stack with -EnableBranchPromptPayQr after Media is enabled; preserve retained state and recovery. See [operator guide](../../docs/Deployment/POS-Branch-PromptPay-QR.md).
 
 Optional local Omise sandbox selection reuses these owned databases/broker and adds no

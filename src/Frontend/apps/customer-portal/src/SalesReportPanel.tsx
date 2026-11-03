@@ -45,7 +45,7 @@ export function SalesReportPanel({organizationId}:{organizationId:string}) {
   };
   const observation=completeness?.observation;
   return <Space direction="vertical" size="middle" style={{width:"100%"}}>
-    <Typography.Title level={2}>Sales report</Typography.Title>
+    
     <Form layout="vertical" onFinish={()=>void load()}>
       <Space wrap>
         <Form.Item label="Branch ID"><OperationalBranchPicker capability="reports" label="Sales branch" value={branch} onChange={value=>{clear();setBranch(value);}}/></Form.Item>

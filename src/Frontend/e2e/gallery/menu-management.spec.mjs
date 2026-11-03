@@ -1,10 +1,12 @@
 import {test,expect} from '@playwright/test';
+import {fulfillPhotoLibrary,libraryPhoto,pickPhoto} from './photo-library-fixture.mjs';
 const org='11111111-1111-1111-1111-111111111111',branch='22222222-2222-2222-2222-222222222222',product='33333333-3333-3333-3333-333333333333',other='55555555-5555-5555-5555-555555555555',asset='44444444-4444-4444-4444-444444444444';
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=','base64');
 async function setup(page,{conflict=false,delay=false,failedPreview=false}={}){
  const state={writes:[],release:()=>{},items:[{productId:product,name:'Soup',unitPrice:107,currency:'THB',preparationStation:'kitchen',available:true,version:3},{productId:other,name:'Rice',unitPrice:20,currency:'THB',preparationStation:'kitchen',available:true,version:2}],layout:{organizationId:org,branchId:branch,categories:[],items:[],version:0}};
  await page.route('**/bff/customer/**',async route=>{
   const req=route.request(),path=new URL(req.url()).pathname;let json={};
+  if(await fulfillPhotoLibrary(route,[libraryPhoto(asset,'Soup.png')]))return;
   if(path.endsWith('/me'))json={subjectId:'manager'};
   else if(path.endsWith('/access'))json={organizations:[{organizationId:org,organizationName:'Test restaurant',applicationCode:'nexa_connect'},{organizationId:other,organizationName:'Other restaurant',applicationCode:'nexa_connect'}]};
   else if(path.endsWith('/tenant'))json={organizationId:org,applicationCode:'nexa_connect'};
@@ -45,10 +47,10 @@ test('availability save never replaces the metadata concurrency version',async({
  const state=await setup(page);await page.getByRole('tab',{name:'Availability',exact:true}).click();await page.getByRole('button',{name:'Mark sold out Soup'}).click();await page.getByRole('button',{name:'Confirm availability'}).click();await expect(page.getByText(/Availability saved/)).toBeVisible();await page.getByRole('tab',{name:'Details',exact:true}).click();await nameInput(page).fill('Soup revised');await saveDetails(page);await expect(page.getByRole('button',{name:'Manage Soup revised'})).toBeVisible();expect(state.writes.map(w=>w.body.expectedVersion)).toEqual([9,3]);
 });
 test('image preview and explicit approval cannot transfer to another item',async({page})=>{
- const state=await setup(page);await page.getByRole('tab',{name:'Image',exact:true}).click();await expect(page.getByText('Bank QR.png')).toHaveCount(0);await page.getByRole('button',{name:'Use for selected item',exact:true}).click();await page.getByRole('checkbox',{name:/I approve/}).check();page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Manage Rice'}).click();await expect(page.getByText('Image for Rice',{exact:true})).toBeVisible();await expect(page.getByRole('checkbox',{name:/I approve/})).not.toBeChecked();await expect(page.getByRole('button',{name:'Save menu image'})).toBeDisabled();expect(state.writes).toHaveLength(0);
+ const state=await setup(page);await page.getByRole('tab',{name:'Image',exact:true}).click();await expect(page.getByText('Bank QR.png')).toHaveCount(0);await pickPhoto(page,'Soup.png');await page.getByRole('checkbox',{name:/I approve/}).check();page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Manage Rice'}).click();await expect(page.getByText('Image for Rice',{exact:true})).toBeVisible();await expect(page.getByRole('checkbox',{name:/I approve/})).not.toBeChecked();await expect(page.getByRole('button',{name:'Save menu image'})).toBeDisabled();expect(state.writes).toHaveLength(0);
 });
 test('failed image preview still blocks approval inside unified workspace',async({page})=>{
- await setup(page,{failedPreview:true});await page.getByRole('tab',{name:'Image',exact:true}).click();await page.getByRole('button',{name:'Use for selected item',exact:true}).click();await expect(page.getByRole('checkbox',{name:/I approve/})).toBeDisabled();
+ await setup(page,{failedPreview:true});await page.getByRole('tab',{name:'Image',exact:true}).click();await pickPhoto(page,'Soup.png');await expect(page.getByRole('checkbox',{name:/I approve/})).toBeDisabled();
 });
 test('category drafts guard navigation and save only organization',async({page})=>{
  const state=await setup(page);await page.getByRole('tab',{name:'Categories & order'}).click();await page.getByLabel('New category name').fill('Meals');await page.getByRole('button',{name:'Add category',exact:true}).click();page.once('dialog',dialog=>dialog.dismiss());await page.getByRole('tab',{name:'Details',exact:true}).click();await expect(page.getByLabel('Category 1 name')).toHaveValue('Meals');await page.getByRole('button',{name:'Save menu organization'}).click();await expect(page.getByText(/Menu categories saved/)).toBeVisible();expect(state.writes).toHaveLength(1);expect(state.writes[0].path).toContain('/menu-organization/');await page.getByRole('tab',{name:'Details',exact:true}).click();await expect(nameInput(page)).toHaveValue('Soup');

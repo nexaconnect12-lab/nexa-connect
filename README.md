@@ -1,5 +1,25 @@
 # NexaConnect
 
+[Cashier-ready and customer panels](docs/Deployment/POS-Cashier-Ready-And-Customer-Panels.md) add a staff identity/status card, optional session-only six-digit PIN resume and a 50/50 approved-advertising/welcome-or-order customer display. Full OIDC remains authoritative; reader authentication is not implemented. No service/schema change; matching activation and operator/hardware acceptance remain separate.
+
+
+[Shared photo library](docs/Deployment/Media-Library.md) adds a default thumbnail grid, switchable details list and contextual popup picker for menu images and approved screensaver galleries. Selection remains a draft until the owning editor previews/approves/saves. This first product-photo slice preserves existing storage, safety and permissions; the retained local pilot is activated and fresh operator acceptance remains pending.
+
+
+[Unified POS QR orders](docs/Deployment/POS-QR-Orders-Workspace.md) combines Pending review, Awaiting payment and Paid / history, with secondary reference lookup. Acceptance and payment remain explicit and separate. The full source gate passed and the matching retained pilot is installed; fresh operator acceptance remains pending.
+
+[Windows POS QR review](docs/Deployment/POS-QR-Request-Review.md) adds cashier review, explicit accept/reject and original-order navigation using the existing Order-owned workflow. The matching retained local pilot is installed; portal manager review remains available and fresh operator acceptance is pending.
+
+[POS UX24](docs/Deployment/POS-UX24-Guided-Acceptance.md) runs the existing installed-target operator checklist on the supervised pilot, with explicit observations and confirmed-defect regression/retest. Guided acceptance is in progress; source tests and historical passes do not certify this target.
+
+The [next product expansion roadmap](docs/Planning/Product-Expansion-Roadmap.md) records eight planned modules/extensions with a codebase assessment, five phases and decision gates. Existing UX24 acceptance and current runtime behavior are retained; this is a planning record.
+
+[POS UX23](docs/Deployment/POS-UX23-Background-Hosting.md) adds current-user scheduled background hosting, guarded exited-service recovery, explicit maintenance/shutdown and optional sign-in startup. It preserves DPAPI ownership and original business recovery; Windows reboot and operator acceptance remain separate.
+
+[POS UX22](docs/Deployment/POS-UX22-Local-Pilot-Startup.md) adds guarded normal-pilot startup/recovery, explicit same-scope refresh and QR rebinding, plus safe cashier service status/retry controls. Source/artifact and ownership checks preserve original recovery; reachability and operator acceptance remain separate.
+
+[POS UX21](docs/Deployment/POS-UX21-Real-Identity-Recovery-Lab.md) prepares a disposable real-Keycloak recovery environment, separate POS profile and scoped test accounts. Controlled faults and independent lab evidence preserve the normal pilot; one POS runs per Windows account with guarded callback restoration.
+
 [POS UX20](docs/Deployment/POS-UX20-Isolated-Recovery-Access.md) combines isolated POS regressions and generated database/broker recovery fixtures under one source-bound diagnostic receipt. It requires verified cleanup and preserves installed operator results; real identity/device acceptance remains separate.
 
 [POS UX18](docs/Deployment/POS-UX18-Cashier-Acceptance.md) adds a read-only guided worklist over the existing seventeen-case acceptance pack. Prerequisites, expected results and defect/retest priorities guide actual cashier testing; observations and release readiness remain separate.

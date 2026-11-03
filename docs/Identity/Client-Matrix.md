@@ -1,5 +1,28 @@
 # Keycloak Client Matrix
 
+Windows POS now supports optional [session-only PIN resume](POS-Session-PIN.md) after explicit enrollment within two minutes of full sign-in. Eligible idle/manual lock suspends an unchanged live token privately while public/persisted token state remains the identity marker. Original subject/authority, access and absolute expiry constrain resume; restart/security/expiry/five failures/full-sign-in paths require full authentication. No Keycloak registration/grant/mapper or persistent staff credential changes. UserInfo preferred_username is optional bounded staff presentation, not authority.
+
+
+The shared [photo-library routes](../API/Media-Library.md) reuse CustomerSession, subject-bound selected workspace and live Directory membership, plus existing organization `media.asset.read` before/after Media reads. Existing manage rights still govern upload/delete; menu/gallery approval retains branch authority. No new realm role, client, secret or permission is added, and cashier/guest capabilities do not grant the staff library.
+
+
+Native [QR request review](../Deployment/POS-QR-Request-Review.md) reuses the existing
+`nexaconnect-pos` PKCE token and Order customer-role routes. Live branch `order.read` governs
+the queue and `order.place` governs accept/reject. No Keycloak client, role, grant, secret or
+login flow changes; native calls do not reuse portal cookies or guest capabilities.
+
+[UX23 local supervision](../Deployment/POS-UX23-Background-Hosting.md) uses a limited
+interactive Task Scheduler principal for the same Windows user/SID that owns the pilot's
+DPAPI credentials and recovery. It stores no Windows password and does not run as SYSTEM
+or before that user signs in. This changes no Keycloak client, realm role, claim, workload
+credential or cashier authentication flow; the host coordination ID is not a permission token.
+
+The [UX21 lab](../Deployment/POS-UX21-Real-Identity-Recovery-Lab.md) reuses the public
+`nexaconnect-pos` authorization-code/PKCE client in a generated local realm, with five scoped
+test identities and lab-only short access/SSO lifetimes. No production client, cashier
+password grant or global session policy is added. Normal and lab POS run sequentially per
+Windows account; the launcher guards restoration of the shared callback registration.
+
 Branch PromptPay reuses the exact nexaconnect-media-service workload policy for active THB owner validation in Restaurant. No new identity client, role, secret or broad ServiceWorkload grant. Managers use live restaurant.configuration.manage; cashiers read approved delivery through catalog.menu.read. Gallery reader capabilities and guest sessions are not accepted. See [contract](../API/Branch-PromptPay-QR.md).
 
 UX4 reuses `nexaconnect-media-service` for dedicated internal gallery delegation in Restaurant,
@@ -36,8 +59,8 @@ The existing original-operator lock/resume boundary remains. See
 [gallery authority](../API/Screensaver-Gallery.md).
 
 Windows POS Phase 1 resolves its operator through the configured authority's authenticated
-UserInfo endpoint after PKCE redemption/refresh, retaining only subject/authority alongside
-existing protected session metadata. Locked resume forces `prompt=login` and rejects a
+UserInfo endpoint after PKCE redemption/refresh, retaining subject/authority and an optional
+bounded preferred_username staff label alongside existing protected session metadata. The staff full-sign-in path always forces `prompt=login`, including initial sign-in and after local sign-out, and rejects a
 different operator. The public `nexaconnect-pos` client, `openid` scope and callback are
 unchanged; no secret, grant or mapper is added. See [ADR-038](../Architecture/Decisions/ADR-038-pos-authenticated-resume.md)
 and [upgrade/verification prerequisites](../Deployment/Next-Iteration-Phase-1.md).
@@ -104,7 +127,7 @@ Portal boundary: `nexaconnect-web-bff` is the current Customer Portal session bo
 
 The WPF POS client opens Keycloak in the system browser and receives the authorization response through the exact `nexaconnect-pos://oauth/callback` custom scheme. Its installer or device-enrollment procedure must register that scheme for the deployed executable; do not use a wildcard or a second redirect URI. Callback forwarding is restricted to the current Windows user, bounded in size, and state-validated for a single sign-in attempt. The POS client registration explicitly emits the stable Keycloak `sub` in access tokens; memberships and product role assignments must use that value rather than `preferred_username`.
 
-POS browser sign-in has a client-side three-minute wait limit and an explicit Cancel sign-in action. Cancelled/superseded callbacks cannot install credentials; cashier shift/payment state is retained. During operator activity the client renews its five-minute access token one minute before expiry, replaces rotated refresh credentials in Windows-protected storage, and never extends the recorded ten-hour absolute session boundary. Five minutes without key, click, or touch input locks authenticated actions. Idle and absolute locks replace the online token set with a persisted nonsecret lock marker, preserve operational recovery across restart, and require interactive Keycloak authentication with `prompt=login`. Rejected refresh uses the same locked state, while a transient failure retries only while the current access token remains valid. These client controls do not weaken Keycloak's 30-minute SSO idle or ten-hour maximum session limits.
+POS browser sign-in has a client-side three-minute wait limit and an explicit Cancel sign-in action. Cancelled/superseded callbacks cannot install credentials; cashier shift/payment state is retained. During operator activity the client renews its five-minute access token one minute before expiry, replaces rotated refresh credentials in Windows-protected storage, and never extends the recorded ten-hour absolute session boundary. Five minutes without key, click, or touch input locks authenticated actions. Idle and absolute locks replace the ordinary online token set with a persisted nonsecret lock marker and preserve operational recovery across restart. Eligible idle/manual lock may additionally allow explicitly enrolled session-only PIN restoration of a still-live original token as described above; all restart/expiry/security fallback uses interactive Keycloak authentication with `prompt=login`. Rejected refresh uses the same locked state, while a transient failure retries only while the current access token remains valid. These client controls do not weaken Keycloak's 30-minute SSO idle or ten-hour maximum session limits.
 
 The Cash Review workspace reuses this same `nexaconnect-pos` user token. Authorization migration 7 provisions `pos.cash-review.read`/`resolve` for tenant-admin and store-manager assignments and read only for accountant assignments. No new Keycloak client, confidential secret, direct-access grant, or additional token audience is required.
 

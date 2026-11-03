@@ -10,8 +10,10 @@ public sealed record CustomerDisplayLine(string Name, int Quantity, decimal Unit
 public sealed record CustomerDisplaySnapshot(string Heading, string Message,
     IReadOnlyList<CustomerDisplayLine> Lines, string Currency = "", decimal? Subtotal = null,
     decimal? ServiceCharge = null, decimal? Tax = null, decimal? Total = null,
-    string TotalLabel = "", string Tender = "")
+    string TotalLabel = "", string Tender = "", string ShopName = "NexaConnect")
 {
+    public bool IsWorking => Lines.Count > 0 || Total is not null;
+    public string DisplayHeading => IsWorking ? Heading : "Welcome";
     public static CustomerDisplaySnapshot Welcome { get; } = new("Welcome", "Thank you for visiting.", []);
     public static CustomerDisplaySnapshot Paused { get; } = new("Please wait", "Your cashier will be with you shortly.", []);
 }

@@ -1,5 +1,9 @@
 # QR3 pending guest requests
 
+Windows POS [QR review](../Deployment/POS-QR-Request-Review.md) is an additional staff client
+of the existing scoped queue and rejection routes. It preserves the ten-row/hasMore bounds,
+live authorization and original version/reason contract. Portal manager review remains available.
+
 QR4 extends these QR3 contracts with price_review/accepted states, original Order ID/
 status, versioned staff acceptance and guest price confirmation. Current QR binaries
 require Order22 even with QR features off. QR3 alone retains proposal semantics below;

@@ -168,6 +168,11 @@ builder.Services.AddScoped<NexaConnect.CustomerBff.Application.DayClose.Customer
 builder.Services.AddHttpClient<NexaConnect.CustomerBff.Application.DayClose.ICustomerCashCorrectionPort,NexaConnect.CustomerBff.Infrastructure.DayClose.HttpCustomerCashCorrectionPort>(c=>{c.BaseAddress=new Uri(builder.Configuration["Services:POS"]??"https://pos.invalid/");c.Timeout=TimeSpan.FromSeconds(30);}).AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Gallery.CustomerGalleryService>();
 builder.Services.AddScoped<CustomerMenuPhotos>();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Media.CustomerMediaLibrary>();
+builder.Services.AddScoped<NexaConnect.CustomerBff.Application.Media.ICustomerMediaLibraryPort,NexaConnect.CustomerBff.Infrastructure.Media.HttpCustomerMediaLibraryPort>();
+foreach(var dependency in new[]{("MediaLibraryMedia","Media"),("MediaLibraryDirectory","PlatformDirectory")})
+    builder.Services.AddHttpClient(dependency.Item1,client=>{client.BaseAddress=new Uri(builder.Configuration[$"Services:{dependency.Item2}"]??throw new InvalidOperationException("Media library dependency is required."));client.Timeout=TimeSpan.FromSeconds(15);})
+        .ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler{AllowAutoRedirect=false}).RemoveAllLoggers().AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<CustomerMenuOrganization>();
 builder.Services.AddScoped<CustomerMenuAvailability>();
 builder.Services.AddScoped<CustomerMenuDetails>();

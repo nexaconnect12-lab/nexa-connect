@@ -1,5 +1,8 @@
 # NexaConnect frontend foundations
 
+The Customer Portal [photo-library slice](../../docs/Deployment/Media-Library.md) reuses Ant Design for a default thumbnail grid, details view and contextual menu/gallery popup. Existing upload and explicit approval flows remain separate; no second UI framework is introduced.
+
+
 UX15 adds **Menu management**: one branch picker, search and item list with Details, Image, Availability and Categories & order sections. Independent saves retain their CSRF/version/permission checks; draft/busy guards cover selection, navigation, workspace, sign-out and unload. Media management retains screensaver galleries; menu images are selected in the unified workspace. Standalone editor deep links remain compatibility routes without shared-workspace guards. See [workflow and verification](../../docs/Deployment/POS-UX15-Menu-Management.md).
 
 UX14 adds **Menu item editor**: branch/name selection, existing item drafts, before/after review and explicit confirmation, with re-review after field changes. Currency is retained; conflict/uncertainty requires reload and branch/workspace switches discard stale drafts. Four gallery browser cases cover the workflow. See [details workflow and limits](../../docs/Deployment/POS-UX14-Menu-Details.md).

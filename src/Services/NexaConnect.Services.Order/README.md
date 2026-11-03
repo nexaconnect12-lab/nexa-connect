@@ -1,5 +1,11 @@
 # Order Service
 
+Windows POS now calls the existing customer QR queue/accept/reject routes directly with its
+bearer and configured tenant headers; portal review remains available. Order retains all
+live `order.read`/`order.place`, version, guest-price consent and original-order/audit/outbox
+rules. No route, grant, schema or server workflow change is introduced. See
+[native review and verification](../../../docs/Deployment/POS-QR-Request-Review.md).
+
 UX11 adds a separate guest menu-organization GET: live guest context and current product membership bound the private Catalog projection; only used categories/current product IDs reach the guest. Existing QrGuestCatalog workload/correlation and typed mappings remain. Prices, fingerprints and all order/payment contracts stay unchanged. Service nexaconnect-order uses safe QR shopping/dependency events; see [API/debugging](../../../docs/API/Menu-Organization.md).
 
 Guest menu photos validate live capability and product membership before/after bounded Catalog image retrieval using the existing exact Order workload. Optional images use separate request budgets and never enter pricing/quote/order contracts. Service nexaconnect-order propagates correlation and emits safe QR menu photo dependency events. See [API/debugging](../../../docs/API/Menu-Photos.md).

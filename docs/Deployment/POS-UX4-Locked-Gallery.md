@@ -1,5 +1,8 @@
 # POS UX4 — continuous locked screensaver playback
 
+The [customer-panel follow-up](POS-Cashier-Ready-And-Customer-Panels.md) retains the gallery-only locked-reader and expiry rules while showing approved customer ads in the left half during all modes. Staff locking remains fullscreen; right-side customer transaction details are masked on lock. Optional session-PIN resume does not expand gallery capability or service permissions.
+
+
 Implemented and activated in the retained local pilot on 28 October 2026. Human/device
 acceptance remains separate and pending as described below.
 

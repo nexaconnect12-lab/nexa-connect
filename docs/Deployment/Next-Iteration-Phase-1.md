@@ -1,5 +1,8 @@
 # Next-iteration phase 1 — POS idle lock and authenticated resume
 
+Current follow-up: [ADR-064](../Architecture/Decisions/ADR-064-pos-session-pin-and-customer-panels.md) adds optional explicitly enrolled session-only PIN resume for eligible idle/manual locks. Full OIDC remains required for restart, expiry, security locks and fallback; original work/cashier guards remain. The Phase 1 record below describes the original browser-authenticated baseline; read the [current PIN policy](../Identity/POS-Session-PIN.md) for the bounded exception.
+
+
 Implemented in the working tree on 21 October 2026 against starting commit `929cc76`.
 This is source/build verification, not a published replacement for the first-draft package.
 See [ADR-038](../Architecture/Decisions/ADR-038-pos-authenticated-resume.md) and

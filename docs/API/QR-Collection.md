@@ -1,5 +1,10 @@
 # QR5 cashier collection
 
+The [unified native QR orders workspace](../Deployment/POS-QR-Orders-Workspace.md) adds
+another presentation entry to these unchanged preview/claim routes. Review acceptance,
+collection and settlement remain separate explicit actions. No route, payload, permission,
+idempotency identity or protected recovery format changes.
+
 Windows POS can choose an eligible original Order from the
 [branch order list](Branch-Order-List.md) instead of manual reference entry. That staff
 GET is read-only; its readiness hint does not replace the preview/claim routes below or

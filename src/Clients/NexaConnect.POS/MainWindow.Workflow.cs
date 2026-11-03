@@ -12,6 +12,7 @@ public partial class MainWindow
     private void RenderWorkflow()
     {
         if (!viewInitialized) return;
+        RenderCashierReady();
         bool visible = !reauthenticationRequired && !displaySafetyBlocked;
         WorkflowDock.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         if (!visible) { nextDestination = CashierDestination.None; return; }

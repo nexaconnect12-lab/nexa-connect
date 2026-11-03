@@ -12,10 +12,11 @@ function Get-PosAcceptanceHash($Value) {
         [Text.Encoding]::UTF8.GetBytes(($Value|ConvertTo-Json -Depth 20 -Compress)))).ToLowerInvariant()
 }
 function Assert-PosAcceptanceRecord($Record) {
-    if($Record.version -cne 1 -or $Record.kind -cne 'installed-pos-operator-observations'){throw 'Unsupported POS acceptance record.'}
+    $lab=$Record.version -ceq 2 -and $Record.kind -ceq 'recovery-lab-operator-observations'
+    if(-not $lab -and ($Record.version -cne 1 -or $Record.kind -cne 'installed-pos-operator-observations')){throw 'Unsupported POS acceptance record.'}
     Assert-UatId $Record.id
-    foreach($key in @('runId','releaseId','pilotId')){Assert-UatId $Record.binding[$key]}
-    foreach($key in @('activeManifestHash','packageManifestHash','configurationHash','backendArtifacts','qrActivationHash','profileHash')){
+    foreach($key in $(if($lab){@('runId','releaseId','labId')}else{@('runId','releaseId','pilotId')})){Assert-UatId $Record.binding[$key]}
+    foreach($key in $(if($lab){@('labManifestHash','packageManifestHash','configurationHash','backendArtifacts','referenceHash')}else{@('activeManifestHash','packageManifestHash','configurationHash','backendArtifacts','qrActivationHash','profileHash')})){
         if($Record.binding[$key] -cnotmatch '^[a-f0-9]{64}$'){throw 'Invalid installed binding.'}
     }
     if($Record.events -isnot [array] -or $Record.events.Count -gt 256){throw 'POS observation limit exceeded.'}
@@ -67,10 +68,14 @@ function Get-PosAcceptanceReport($Record,[bool]$BindingValid,[bool]$QrCandidateF
     if(-not $BindingValid){$blockers+='installed-binding-invalid'}
     if(@($defects.Values|Where-Object status -CEQ 'open').Count){$blockers+='open-defects'}
     # Explicit allowlist: neither private binding paths/endpoints nor arbitrary record fields are exported.
-    return @{version=1;acceptanceId=$Record.id;kind='operator-attestations';bindingValid=$BindingValid;
-        target=@{runId=$Record.binding.runId;releaseId=$Record.binding.releaseId;pilotId=$Record.binding.pilotId};
+    $lab=$Record.version -ceq 2
+    $target=if($lab){@{runId=$Record.binding.runId;releaseId=$Record.binding.releaseId;labId=$Record.binding.labId}}else{@{runId=$Record.binding.runId;releaseId=$Record.binding.releaseId;pilotId=$Record.binding.pilotId}}
+    $report=@{version=$Record.version;acceptanceId=$Record.id;kind='operator-attestations';bindingValid=$BindingValid;
+        target=$target;
         cases=@($cases.Values);defects=@($defects.Values);blockers=$blockers;operatorCasesComplete=($blockers.Count -eq 0);
         qrCandidateFresh=$QrCandidateFresh;currentSourceVerified=$false;releaseReady=$false;productionVerified=$false}
+    if($lab){$report.qrCandidateFresh=$false;$report.qrCandidateApplicable=$false;$report.targetKind='recovery-lab'}
+    return $report
 }
 function Write-PosAcceptanceRecord([string]$Directory,$Record) {
     Assert-PosAcceptanceRecord $Record
@@ -80,7 +85,9 @@ function Write-PosAcceptanceRecord([string]$Directory,$Record) {
     [IO.File]::Move($temporary,$target,$true)
 }
 function Assert-PosAcceptanceSnapshotEqual($Expected,$Actual) {
-    foreach($key in @('runId','releaseId','pilotId','activeManifestHash','packageManifestHash','configurationHash','backendArtifacts','qrActivationHash','profileHash')){
+    $lab=$Expected.Contains('labId')
+    if($lab -ne $Actual.Contains('labId')){throw 'Acceptance target types differ.'}
+    foreach($key in $(if($lab){@('runId','releaseId','labId','labManifestHash','packageManifestHash','configurationHash','backendArtifacts','referenceHash')}else{@('runId','releaseId','pilotId','activeManifestHash','packageManifestHash','configurationHash','backendArtifacts','qrActivationHash','profileHash')})){
         if($Expected[$key] -cne $Actual[$key]){throw 'Installed POS acceptance target changed.'}
     }
 }

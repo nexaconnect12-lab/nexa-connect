@@ -1,10 +1,12 @@
 import {test,expect} from '@playwright/test';
+import {fulfillPhotoLibrary,libraryPhoto,pickPhoto} from './photo-library-fixture.mjs';
 const org='11111111-1111-1111-1111-111111111111',branch='22222222-2222-2222-2222-222222222222',product='33333333-3333-3333-3333-333333333333',asset='44444444-4444-4444-4444-444444444444';
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=','base64');
 async function setup(page,{conflict=false,failedPreview=false}={}){
  const state={writes:[]};
  await page.route('**/bff/customer/**',async route=>{
   const request=route.request(),path=new URL(request.url()).pathname;let json={};
+  if(await fulfillPhotoLibrary(route,[libraryPhoto(asset,'Rice.png')]))return;
   if(path.endsWith('/me'))json={subjectId:'operator'};
   else if(path.endsWith('/access'))json={organizations:[{organizationId:org,organizationName:'Test restaurant',applicationCode:'nexa_connect'}]};
   else if(path.endsWith('/tenant'))json={organizationId:org,applicationCode:'nexa_connect'};
@@ -23,7 +25,7 @@ async function setup(page,{conflict=false,failedPreview=false}={}){
  await page.goto('/#menu-images');await page.getByLabel('Menu image branch').selectOption(branch);await page.getByRole('button',{name:'Load menu and images'}).click();await page.getByRole('button',{name:'Rice bowl',exact:true}).click();
  return state;
 }
-async function choose(page){await page.getByRole('button',{name:'Use for selected item',exact:true}).click();}
+async function choose(page){await pickPhoto(page,'Rice.png');}
 test('product names and existing image list replace UUID typing; preview and approval are required',async({page})=>{
  const state=await setup(page);expect(await page.locator('input[placeholder*="UUID"]').count()).toBe(0);
  await expect(page.getByText('Bank QR.png')).toHaveCount(0);await choose(page);

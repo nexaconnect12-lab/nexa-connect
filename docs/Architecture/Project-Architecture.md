@@ -1,5 +1,49 @@
 # NexaConnect Project Architecture
 
+## Cashier session quick unlock and customer panels
+
+[ADR-064](Decisions/ADR-064-pos-session-pin-and-customer-panels.md) adds a native session-lifetime PIN verifier and private suspended credential slot only for eligible manual/idle lock. Public token access and persisted storage remain locked markers; same-operator/access/absolute validity and five-failure exhaustion constrain restoration. Full authentication clears enrollment; restart/expiry/security transitions cannot use PIN. No server credential owner, API, schema, grant or offline authority is added. A staff-ready card navigates existing workflows; customer 50/50 advertising/order panels retain approved-gallery leases and private immutable projection boundaries. Fingerprint/card support remains unimplemented. See [identity](../Identity/POS-Session-PIN.md) and [workflow](../Deployment/POS-Cashier-Ready-And-Customer-Panels.md).
+
+
+## Shared product-photo library
+
+[ADR-063](Decisions/ADR-063-shared-photo-library.md) adds a Media-owned paginated read port and private processed-thumbnail route behind a live-membership Customer BFF application port. Organization/product purpose filters and repeated Media read authorization preserve isolation; redirect-disabled correlated clients suppress filename/query logging. The shared React grid/details library and popup return draft candidates to menu/gallery editors, retaining their separate preview/approval/CAS transactions. No new persistence owner, schema, permission, storage provider or guest route. See [API](../API/Media-Library.md) and [workflow/limits](../Deployment/Media-Library.md).
+
+
+## Native QR request review
+
+The [unified QR orders workspace](../Deployment/POS-QR-Orders-Workspace.md) now composes
+review, paginated open QR orders and paid/receipt history in one native destination. The
+secondary reference lookup reuses original preview/claim; collection stays explicit and
+paid history cannot enable it. Independent view generations/cursors fence late responses
+and clear private state on view/privacy transitions. Existing list/receipt/collection
+contracts and owners remain; there is no new server workflow, schema or permission.
+
+Windows POS now offers branch-scoped QR review alongside the manager portal. Its bounded
+bearer/correlated adapter translates existing Order transport contracts into ephemeral
+cashier view data; UI confirmation is not authority. Existing live `order.read`/`order.place`,
+versioned acceptance/rejection, guest-price consent, atomic acceptance/audit/outbox and owning
+Inventory/Kitchen recovery remain in Order. No BFF proxy, new route, grant, schema or local
+transaction queue is introduced. Lock/deactivation/tab exit invalidate late responses and
+clear private review data. Original-order navigation cannot claim/collect or project review
+data onto the customer screen. The matching unified workspace is installed in the retained
+pilot with preserved state; fresh operator acceptance remains pending. See
+[cashier flow and verification](../Deployment/POS-QR-Request-Review.md).
+
+## Planned product expansion
+
+The [expansion roadmap](../Planning/Product-Expansion-Roadmap.md) records future Media, promotions, biometric/card authentication, QR allocation, offline synchronization, insights, alerts and online/delivery scope against current owners. It retains ADR-005 boundaries, existing commercial snapshots/idempotency and the proposed status of branch-edge authority. New rule/credential/alert/insight ownership and external SDK/provider choices require design review; the roadmap does not implement services, APIs, migrations, authentication or topology. UX24 operator acceptance remains separate.
+
+## Supervised Windows local pilot (UX23)
+
+[ADR-062](Decisions/ADR-062-current-user-pilot-supervision.md) keeps local test credentials/recovery under the same Windows account and uses an interactive limited Task Scheduler worker, with demand startup by default and optional owner-logon trigger. [UX23](../Deployment/POS-UX23-Background-Hosting.md) adds binding-checked missing-process Resume, bounded durable retry, maintenance fencing and owned graceful shutdown; healthy dependencies and original financial idempotency are retained. LocalPilotTelemetry reuses the shared structured JSON/OTLP log foundation. No new business service, API, schema, permission or domain ownership. Job-isolation proof and actual restart/reboot/operator acceptance remain distinct.
+
+## Normal local-pilot startup (UX22)
+
+[UX22](../Deployment/POS-UX22-Local-Pilot-Startup.md) composes existing owned first-draft lifecycle, immutable native installation and QR7 activation. Explicit normal installation/reference scope excludes recovery labs. All successful stack publications retain source/artifact inventories; NoBuild resumes only matching inputs, with owned process/listener checks before recovery. Explicit rebuild and fresh same-scope QR activation preserve original financial data and independent historical observations. Staff-only native service availability reuses anonymous correlated probes, clears on privacy transitions and cannot restart services or retry payments. No API, schema, permission or bounded-context ownership changes.
+
+[UX21](../Deployment/POS-UX21-Real-Identity-Recovery-Lab.md) adds operational composition of an owned generated stack, real PKCE identities, isolated native profile and guarded faults. Existing runtime mutex/callback policy remains sequential per Windows account; the launcher restores only its own registration. Version2 lab evidence binds package/reference/live backend separately from version1 QR-pilot evidence. Service ownership and production contracts/policies remain unchanged.
+
 [UX20](../Deployment/POS-UX20-Isolated-Recovery-Access.md) composes existing isolated verification producers with checked receipts, source binding and cleanup. Child fixture configuration is separated from inherited retained-stack settings; generated loopback resources and simulated identities do not establish real OIDC/operator acceptance. No application/service/data boundary changes.
 
 [UX18](../Deployment/POS-UX18-Cashier-Acceptance.md) projects the existing installed acceptance record into allow-listed grouped guidance and next actions. Worklist reuses live binding checks and creates no observation or report; invalid binding selects repair rather than a case. No runtime, service, schema or identity boundary changes; source/release evidence remains separate.

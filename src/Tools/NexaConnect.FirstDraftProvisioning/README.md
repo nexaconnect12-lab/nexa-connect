@@ -1,5 +1,11 @@
 # First-draft provisioning
 
+The owned [UX21 lab](../../../docs/Deployment/POS-UX21-Real-Identity-Recovery-Lab.md) invokes
+`--recovery-lab-access` after reference setup with an explicit matching lab marker. It adds
+another lab-branch cashier and a denied-branch cashier through existing Platform Directory
+membership and Authorization assignment use cases/runtime logins. Completed setup preserves
+revocations and seeds no financial transactions. Original provisioning/Media paths are unchanged.
+
 Optional Media provisioning invokes `--media-access` after completed reference setup: only two explicit organization Media permissions for the active retained local manager, through Authorization Infrastructure. Existing denies/revocations are preserved; no cashier, role or financial grant is added. See [local Media profile](../../../docs/Deployment/First-Draft-Media.md).
 
 Reference-only Development CLI for the owned Windows draft stack. Invoke through

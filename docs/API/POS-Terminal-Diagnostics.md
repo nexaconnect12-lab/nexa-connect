@@ -1,5 +1,7 @@
 # POS terminal support report v1
 
+UX22 adds a staff header summary/retry over these same anonymous probes, including before sign-in. It changes no report field, API route or permission. Privacy fences clear late results; reachability never automatically retries a business operation. See [UX22](../Deployment/POS-UX22-Local-Pilot-Startup.md).
+
 This is a client-exported JSON file, not a server endpoint. UX7 reuses configured service
 origins for anonymous header-only reachability checks; no business API contract, permission,
 token, schema or financial command changes. See [operations](../Deployment/POS-UX7-Terminal-Setup.md).

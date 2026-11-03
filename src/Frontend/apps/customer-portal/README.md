@@ -1,5 +1,26 @@
 # NexaConnect Customer Portal
 
+Inner pages omit the repeated Customer Portal title/description/session-badge banner. The navbar supplies the inner-page title; duplicate inner-page titles are removed. Subsection headings, workspace-selection instructions, the dedicated Kitchen display title and guest ordering titles remain. Sidebar branding, workspace selection and account/navigation controls remain in the portal shell. This additional title removal is a source change; no tests or local pilot activation were run, as requested.
+
+The banner refinement is activated in retained release
+`ade7b169a6b44f2294c7eb157859dc7c` on 3 November 2026, with QR pilot
+`34e95e37cc1a4c0dbddc56dad04cf43f` and supervised host
+`5f0eaad11ffa43eaa36abc0d95aacd35` (automatic sign-in startup off). Candidate
+`8e7c7ceb-924a-4bef-a892-1b9f43bb2c3e` passes the full source-bound gate, including
+1,446 unit, seven architecture, 147 HTTP, 99 frontend unit and 161 browser cases,
+native fixtures and 14+4 owning cases with cleanup; ten UI-foundation cases also pass.
+Both dependency audits report zero vulnerabilities. Nine protected local files and 159
+business tables remain unchanged, along with configuration, credentials and certificates.
+Read-only real-manager portal checks confirm the banner is absent; 13 current photos load
+in grid/details and the menu picker cancels correctly; cashier menu and trusted portal/QR
+reachability pass, guest Kitchen access is denied, and POS reopens responsively. No business
+mutation is issued by these checks. Fresh operator pack
+`2bde82cc87344b8086697a33083f6816` has a valid binding and fresh QR candidate with all 17
+cases pending. This does not establish operator, physical-device or production acceptance.
+
+**Media management → Photo library** defaults to a thumbnail grid, with Details, filename search, server pagination, explicit download and confirmed delete. `MediaLibrary` and `MediaPhotoPicker` are reused by **Menu management → Image** and staff/customer screensaver editors. Popup confirmation changes only the draft; preview, explicit public approval and owning save remain mandatory. New product uploads stay in the menu Image editor; batch uploads/metadata editing/other formats remain planned. See [workflow and limits](../../../../docs/Deployment/Media-Library.md).
+
+
 Configuration → PromptPay QR — manually verified provides branch-scoped PNG preview/upload, separate explicit approval and removal. Live configuration.manage is enforced by owning services; branch discovery uses promptpay-qr. Context change discards the draft, writes require BFF CSRF and uncertain writes require reload without automatic retry. PNG safety does not verify bank/payee; managers approve independently. See [operator guide](../../../../docs/Deployment/POS-Branch-PromptPay-QR.md).
 
 UX6 adds **Configuration → Product barcodes**: select an authorized branch/menu product,
@@ -8,7 +29,7 @@ context changes discard editable proof and uncertain/rejected saves require relo
 retry. PUT uses protected BFF tenant/CSRF. Collisions/sharing remain Catalog-owned. See
 [setup/acceptance](../../../../docs/Deployment/POS-UX6-Barcode-Scanning.md).
 
-Use [the optional local Media profile](../../../../docs/Deployment/First-Draft-Media.md) to test the existing product-image upload form through real storage/scanning/processing. Uploads do not yet add QR menu photos. The local test runner records bounded results without browser traces or signed URLs.
+Use [the optional local Media profile](../../../../docs/Deployment/First-Draft-Media.md) to test the existing product-image upload form through real storage/scanning/processing. Uploads require explicit menu-image selection and branch approval before QR/POS menu display. The local test runner records bounded results without browser traces or signed URLs.
 
 QR8 adds friendly request/collection labels and 15-second mounted, visible/focused read refresh with serialization, cancellation and 20-second timeouts. Guest unknown outcomes retain the original in-memory submission identity for explicit retry; no automatic acceptance/payment or browser persistence. See [QR8](../../../../docs/Deployment/QR8-Usability.md).
 

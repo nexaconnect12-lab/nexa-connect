@@ -51,7 +51,7 @@ export function MenuManagementPanel({organizationId,registerLeaveGuard}:{organiz
  const selected=items.find(i=>i.productId===product),blocked=loading||panelState.busy;
  const ordered=orderedMenu(items,layout??{categories:[],items:[]});
  const content=tab==="details"?<MenuDetailsPanel organizationId={organizationId} embedded={scope}/>:tab==="image"?<MenuPhotoPanel embedded={scope}/>:tab==="availability"?<MenuAvailabilityPanel organizationId={organizationId} embedded={scope}/>:<MenuOrganizationPanel organizationId={organizationId} embedded={scope}/>;
- return <><Typography.Title level={2}>Menu management</Typography.Title><Typography.Paragraph>Select a branch and menu item once. Details, images, availability and organization have separate explicit saves; accepted orders and payments remain unchanged.</Typography.Paragraph>
+ return <><Typography.Paragraph>Select a branch and menu item once. Details, images, availability and organization have separate explicit saves; accepted orders and payments remain unchanged.</Typography.Paragraph>
   <Space wrap><OperationalBranchPicker capability="catalog" label="Menu management branch" value={branch} onChange={changeBranch} disabled={blocked}/><Button disabled={!branch||blocked} onClick={()=>void load()}>Load menu</Button></Space>
   {notice&&<Alert role="status" message={notice} style={{marginTop:16}}/>}
   <Input aria-label="Search managed menu items" placeholder="Find menu items by name" value={search} onChange={e=>setSearch(e.target.value)} style={{marginTop:16}}/>

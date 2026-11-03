@@ -11,11 +11,11 @@ export interface NavigationItem {
 }
 
 /** Presentation-only frame reusable by later focused views; no routes or grants. */
-export function WorkspaceFrame({ title, description, actions, children }: {
-  title: string; description?: string; actions?: ReactNode; children: ReactNode;
+export function WorkspaceFrame({ title, description, actions, children, showHeading = true }: {
+  title: string; description?: string; actions?: ReactNode; children: ReactNode; showHeading?: boolean;
 }) {
   return <section className="nexa-frame" aria-label={title}>
-    <div className="nexa-frame-heading"><div><h1>{title}</h1>{description && <p>{description}</p>}</div>{actions}</div>
+    {showHeading && <div className="nexa-frame-heading"><div><h1>{title}</h1>{description && <p>{description}</p>}</div>{actions}</div>}
     <div className="nexa-frame-content">{children}</div>
   </section>;
 }
@@ -23,13 +23,14 @@ export function WorkspaceFrame({ title, description, actions, children }: {
 export interface PortalLayoutProps {
   title: string;
   description?: string;
+  showWorkspaceHeading?: boolean;
   items: readonly NavigationItem[];
   selectedKey?: string;
   headerActions?: ReactNode;
   children: ReactNode;
 }
 
-export function PortalLayout({ title, description, items, selectedKey, headerActions, children }: PortalLayoutProps) {
+export function PortalLayout({ title, description, showWorkspaceHeading = true, items, selectedKey, headerActions, children }: PortalLayoutProps) {
   const can = useAuthorizationUi();
   const [navigationOpen, setNavigationOpen] = useState(false);
   const main = useRef<HTMLElement>(null);
@@ -57,7 +58,7 @@ export function PortalLayout({ title, description, items, selectedKey, headerAct
         <div className="nexa-topbar-actions">{headerActions}</div>
       </header>
       <main id="workspace-content" className="nexa-main" tabIndex={-1} ref={main}>
-        <WorkspaceFrame title={title} description={description} actions={<Tag className="nexa-session-badge">Authenticated workspace</Tag>}>{children}</WorkspaceFrame>
+        <WorkspaceFrame title={title} description={description} showHeading={showWorkspaceHeading} actions={<Tag className="nexa-session-badge">Authenticated workspace</Tag>}>{children}</WorkspaceFrame>
       </main>
     </div>
     <Drawer title={`${title} navigation`} placement="left" width={320} open={navigationOpen}

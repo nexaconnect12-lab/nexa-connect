@@ -1,5 +1,8 @@
 # Approved menu photos
 
+The shared [photo-library browse/thumbnail API](Media-Library.md) supplies the current popup candidate picker. Confirming its candidate does not invoke these menu-selection writes; branch preview and explicit approval/save remain mandatory.
+
+
 Catalog owns the primary image selection per organization, branch and menu product. Media owns the original file, processing lifecycle and variants. A ready Catalog/product image may be reused for another menu product in the same organization; its immutable Media owner does not change. Saving explicitly approves that image for public menu display at this branch. Screensaver and bank QR selections are independent.
 
 ## Staff API

@@ -25,14 +25,15 @@ async function setup(page, name, { fail = false, hold = false, role = "platform-
     } });
     return route.fulfill({ status: 404, json: { title: "No preview fixture" } });
   });
-  return { state, owner, title: owner ? "Product Owner" : "Customer Portal" };
+  return { state, owner, title: owner ? "Product Owner" : "Organization profile" };
 }
 
 test("desktop shell preserves separate session boundaries and keyboard skip navigation", async ({ page }, info) => {
   const { state, title, owner } = await setup(page, info.project.name);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
-  await expect(page.getByText("Authenticated workspace", { exact: true })).toBeVisible();
+  await expect(page.getByText("Authenticated workspace", { exact: true })).toHaveCount(owner ? 1 : 0);
+  if (!owner) await expect(page.getByRole('heading', { name: 'Customer Portal', exact: true })).toHaveCount(0);
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Skip to workspace" })).toBeFocused();
   await page.keyboard.press("Enter");

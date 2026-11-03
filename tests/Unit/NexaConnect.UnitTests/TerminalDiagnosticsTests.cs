@@ -10,6 +10,15 @@ public sealed class TerminalDiagnosticsTests
     private static PosClientConfiguration Configuration()=>new("https://identity.test/realms/private-realm","nexaconnect-pos","nexaconnect-pos://oauth/callback","openid",
         "https://pos.test/private/","https://order.test/",Guid.NewGuid(),Guid.NewGuid(),"THB","cash_manual",null,Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),CatalogApi:"https://catalog.test/");
     private static TerminalSetupFacts Facts()=>new(false,PosDisplayDensity.Standard,ReceiptPaper.Standard,false,null,null,false,2,false,false,false,false);
+    [Fact]public void Summary_distinguishes_missing_checks_from_unavailability_and_never_claims_payment_success()
+    {
+        Assert.Contains("Identity: not checked",PosTerminalDiagnostics.Summary([]));
+        var checks=new[]{new TerminalServiceCheck(TerminalService.Catalog,true,TerminalReadiness.Unavailable,null,DateTimeOffset.UtcNow),new TerminalServiceCheck(TerminalService.Payment,true,TerminalReadiness.Detected,401,DateTimeOffset.UtcNow)};
+        string summary=PosTerminalDiagnostics.Summary(checks);
+        Assert.Contains("Menu: unavailable",summary);Assert.Contains("Payments: responding",summary);
+        Assert.Contains("HTTP reachability only",summary);Assert.Contains("Retry an original order/payment explicitly",summary);
+        Assert.DoesNotContain("401",summary);Assert.DoesNotContain("paid",summary);
+    }
     [Theory][InlineData(101,TerminalReadiness.Unavailable)][InlineData(200,TerminalReadiness.Detected)][InlineData(401,TerminalReadiness.Detected)][InlineData(404,TerminalReadiness.Detected)][InlineData(302,TerminalReadiness.Unavailable)][InlineData(503,TerminalReadiness.Unavailable)]
     public async Task Anonymous_header_only_checks_do_not_follow_redirects_or_claim_business_health(int status,TerminalReadiness expected)
     {

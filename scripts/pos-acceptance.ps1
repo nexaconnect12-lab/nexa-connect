@@ -3,6 +3,7 @@
 param(
     [Parameter(Mandatory)][ValidateSet('Prepare','Record','Defect','Resolve','Report','Worklist')][string]$Action,
     [string]$AcceptanceId,[string]$RunId,[string]$PilotId,
+    [string]$RecoveryLabId,
     [string]$InstallDirectory=(Join-Path $env:LOCALAPPDATA 'NexaConnect/DraftTerminal'),
     [string]$CaseId,[ValidateSet('passed','failed','blocked')][string]$Status,[string]$EvidenceId,
     [ValidateSet('financial','security','data-loss','unrecoverable','usability')][string]$Category,
@@ -16,6 +17,7 @@ $root=Split-Path $PSScriptRoot -Parent
 . "$PSScriptRoot/first-draft-uat-helpers.ps1"
 . "$PSScriptRoot/pos-acceptance-helpers.ps1"
 . "$PSScriptRoot/pos-acceptance-worklist.ps1"
+. "$PSScriptRoot/pos-recovery-lab-helpers.ps1"
 function Read-PosJson([string]$Path){
     $safe=Assert-TerminalPath $Path
     if((Get-Item -LiteralPath $safe).Length -gt 4MB){throw 'Acceptance input exceeds its bound.'}
@@ -72,11 +74,14 @@ function Get-InstalledBinding([string]$Draft,[string]$Pilot,[string]$Install){
     }finally{$lock.Dispose()}
 }
 if($Action -ceq 'Prepare'){
-    $binding=Get-InstalledBinding $RunId $PilotId $InstallDirectory
+    if($RecoveryLabId){
+        if($RunId -or $PilotId){throw 'RecoveryLabId selects its own target; do not mix target modes.'}
+        $binding=Get-PosRecoveryLabBinding $root $RecoveryLabId
+    }else{$binding=Get-InstalledBinding $RunId $PilotId $InstallDirectory}
     $AcceptanceId=[guid]::NewGuid().ToString('N')
     $directory=Assert-TerminalPath "$root/.runstate/pos-acceptance/$AcceptanceId"
     New-Item -ItemType Directory -Path $directory|Out-Null;Protect-DraftDirectory $directory
-    $record=@{version=1;id=$AcceptanceId;kind='installed-pos-operator-observations';installDirectory=(Assert-TerminalPath $InstallDirectory);binding=$binding.snapshot;events=@()}
+    $record=if($RecoveryLabId){@{version=2;id=$AcceptanceId;kind='recovery-lab-operator-observations';binding=$binding.snapshot;events=@()}}else{@{version=1;id=$AcceptanceId;kind='installed-pos-operator-observations';installDirectory=(Assert-TerminalPath $InstallDirectory);binding=$binding.snapshot;events=@()}}
     Write-PosAcceptanceRecord $directory $record
     Write-Output "POS acceptance prepared: $AcceptanceId (all 17 cases pending)"
     return
@@ -88,7 +93,10 @@ try{
     $record=Read-PosJson "$directory/record.json";Assert-PosAcceptanceRecord $record
     if($record.id -cne $AcceptanceId){throw 'Acceptance ownership mismatch.'}
     $valid=$false;$fresh=$false
-    try{$live=Get-InstalledBinding $record.binding.runId $record.binding.pilotId $record.installDirectory;Assert-PosAcceptanceSnapshotEqual $record.binding $live.snapshot;$valid=$true;$fresh=$live.qrCandidateFresh}catch{}
+    try{
+        $live=if($record.version -ceq 2){Get-PosRecoveryLabBinding $root $record.binding.labId}else{Get-InstalledBinding $record.binding.runId $record.binding.pilotId $record.installDirectory}
+        Assert-PosAcceptanceSnapshotEqual $record.binding $live.snapshot;$valid=$true;$fresh=$live.qrCandidateFresh
+    }catch{}
     if($Action -ceq 'Worklist'){
         Get-PosAcceptanceWorklist $record $valid $fresh|ConvertTo-Json -Depth 12;return
     }

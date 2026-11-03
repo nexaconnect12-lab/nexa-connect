@@ -14,7 +14,7 @@ remain operator acceptance; fresh POS and phone acceptance records contain pendi
 
 ## Manager workflow
 
-If menu photo settings return503 and image selection remains disabled, check Catalog's
+If menu photo settings return 503 and image selection remains disabled, check Catalog's
 safe `Menu photo dependency unavailable InvalidOperationException` events. The branch-scope
 adapter previously reset HttpClient.BaseAddress on every call; the second live authorization
 check failed before photo settings could load. The fix uses a configured absolute request
@@ -25,12 +25,12 @@ The adapter correction was subsequently verified and activated in release
 `147b1231138b4febb9cf7e9c0822f316`, with eight installed live-scope reads checked. That
 rollout is distinct from UX11's later source-only category implementation.
 
-1. Sign in to Customer Portal, select the restaurant workspace and open **Media management**.
-2. Under **Menu images**, choose **Menu image branch**, then **Load menu and images**.
-3. Click a menu item's name. Choose **Use for selected item** from the uploaded product image list, or choose a ready image by filename.
-4. For a new file, choose **Upload a new product image**, then **Upload for selected menu item**. JPEG/PNG/WebP up to10MiB follow existing checksums, malware/safety checks and variant processing. Wait for `ready`, click **Refresh images**, then select it. No UUID typing is needed.
-5. Check the preview, tick the public-menu approval and click **Save menu image**. To clear, choose **Remove image assignment**, approve and save. A conflict or uncertain response discards the editable version: select the product again to reload before saving.
-6. Refresh the guest QR menu and Windows POS menu. Photos appear alongside names/prices. Missing/deleted/unready photos leave the text menu usable. Screensaver approval and manual PromptPay bank QR configuration remain separate.
+1. Sign in to Customer Portal, select the restaurant workspace and open **Menu management**.
+2. Choose a branch, **Load menu**, select the item by name and open **Image**.
+3. Click **Choose from photo library**. The popup defaults to ready thumbnails; search/page or switch to Details. Select a photo and **Use selected photo**. Cancel does not change the draft.
+4. For a new file, use **Upload a new product image → Upload for selected menu item**. JPEG/PNG/WebP up to 10 MiB follow existing checksums, malware/safety checks and variant processing. Wait for ready, refresh the popup and select it. No UUID typing is needed.
+5. Check the branch/item preview, tick public-menu approval and **Save menu image**. To clear, choose **Remove image assignment**, approve and save. A conflict or uncertain response requires an authoritative reload before another save.
+6. Refresh the guest QR and Windows POS menus. Missing/deleted/unready photos leave text usable. Screensaver approval and manual PromptPay bank QR configuration remain separate. See [shared-library workflow and limits](Media-Library.md).
 
 ## Prerequisites and rollout
 

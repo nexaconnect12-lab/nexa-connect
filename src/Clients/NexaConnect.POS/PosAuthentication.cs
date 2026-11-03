@@ -10,7 +10,7 @@ using NexaConnect.Observability;
 
 namespace NexaConnect.POS;
 
-public sealed class PosAuthentication : IDisposable
+public sealed partial class PosAuthentication : IDisposable
 {
     private const int MaxCallbackLength = 4096;
     private readonly PosClientConfiguration _configuration;
@@ -81,6 +81,7 @@ public sealed class PosAuthentication : IDisposable
             _pkce = null;
             _callbackConsumed = 0;
             _tokenStore.Delete();
+            ClearQuickUnlock();
             CurrentToken = null;
             _requiresInteractiveSignIn = false;
         }
@@ -103,6 +104,7 @@ public sealed class PosAuthentication : IDisposable
             }
 
             expectedOperator = CurrentToken;
+            _quickUnlockToken = null;
             if (_hasRetainedWork() && !HasOperator(expectedOperator))
                 throw new PosSessionResumeException("Retained work has no verified cashier binding. Preserve recovery and request original-cashier reconciliation before upgrading or resuming.");
 
@@ -200,6 +202,8 @@ public sealed class PosAuthentication : IDisposable
                 if (_hasRetainedWork() && !HasOperator(CurrentToken))
                     throw new PosSessionResumeException("Retained work has no verified cashier binding. Preserve recovery and request reconciliation.");
                 _tokenStore.Save(token);
+                ClearQuickUnlock();
+                _lastFullLoginUtc = DateTimeOffset.UtcNow;
                 CurrentToken = token;
                 _requiresInteractiveSignIn = false;
                 completion.TrySetResult(token);
@@ -290,8 +294,9 @@ public sealed class PosAuthentication : IDisposable
     {
         lock (_sync)
         {
+            _quickUnlockToken = null;
             var marker = new PosTokenSet(string.Empty, null, DateTimeOffset.MinValue, "Bearer",
-                null, null, DateTimeOffset.UtcNow, CurrentToken?.Subject, CurrentToken?.Authority);
+                null, null, DateTimeOffset.UtcNow, CurrentToken?.Subject, CurrentToken?.Authority, CurrentToken?.DisplayName);
             CurrentToken = marker;
             _requiresInteractiveSignIn = true;
             _tokenStore.Save(marker);
@@ -357,7 +362,11 @@ public sealed class PosAuthentication : IDisposable
             || string.IsNullOrWhiteSpace(value.GetString()) || value.GetString()!.Length > 256
             || value.GetString()!.Any(char.IsControl))
             throw new InvalidDataException("The identity response did not establish a cashier.");
-        return token with { Subject = value.GetString(), Authority = _configuration.Authority.TrimEnd('/') };
+        string? displayName = null;
+        if (document.RootElement.TryGetProperty("preferred_username", out var name) && name.ValueKind == JsonValueKind.String
+            && name.GetString() is {} candidate && !string.IsNullOrWhiteSpace(candidate)
+            && candidate.Length <= 80 && !candidate.Any(char.IsControl)) displayName = candidate;
+        return token with { Subject = value.GetString(), Authority = _configuration.Authority.TrimEnd('/'), DisplayName = displayName };
     }
 
     private async Task<HttpResponseMessage> SendIdentityAsync(HttpRequestMessage request, string operation,
@@ -367,9 +376,16 @@ public sealed class PosAuthentication : IDisposable
         request.Headers.Add("X-Correlation-ID", correlation);
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var response = await _httpClient.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode) SafeEvent(operation, (int)response.StatusCode, correlation);
             return response;
+        }
+        catch (ObjectDisposedException error) when (cancellationToken.IsCancellationRequested || disposed)
+        {
+            // Shutdown may dispose HttpClient between the cancellation check and SendAsync.
+            // Treat this as cancellation, never a successful identity refresh or saved credential.
+            throw new OperationCanceledException("Identity request cancelled during shutdown.", error, cancellationToken);
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException)
         {
@@ -427,6 +443,7 @@ public sealed class PosAuthentication : IDisposable
         {
             if(disposed)return;
             disposed=true;
+            ClearQuickUnlock();
             _pending?.TrySetCanceled();_pending=null;_pkce=null;
         }
         _ = lifetime.CancelAsync().ContinueWith(task=>_ = task.Exception,

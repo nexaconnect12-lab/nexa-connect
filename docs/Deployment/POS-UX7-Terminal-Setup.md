@@ -1,5 +1,10 @@
 # POS UX7 — terminal setup and peripheral diagnostics
 
+[UX22](POS-UX22-Local-Pilot-Startup.md) reuses these probes in a staff-header service check,
+including before sign-in. This requires the matching newer POS package; the historical UX7
+installation evidence below is unchanged. Header retry never restarts services or repeats
+an order/payment, and privacy transitions clear late results.
+
 Implemented and activated in the retained local pilot on 29 October 2026. Actual operator
 and hardware acceptance remain separate and pending.
 

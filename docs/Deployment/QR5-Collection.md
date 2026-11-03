@@ -1,5 +1,10 @@
 # QR5 Windows cashier collection
 
+Current native source combines review and collection under [QR orders](POS-QR-Orders-Workspace.md).
+Choose **Awaiting payment → Load for payment**, or expand **Find by reference** for the
+same original-reference workflow described below. Paid / history offers receipt access,
+not another collection. Existing all-branch Orders collection remains supported.
+
 Current [QR6](QR6-Integration.md) pins patched Zod4.6.7, adds the owning seven-context/RabbitMQ journey and requires fresh dependency/financial verification. The 24 October four-case/failed-audit record below is historical for QR5 inputs; actual hosted/phone/release gates remain pending.
 
 QR5 implements original accepted QR Order collection and cash/manual PromptPay payment.
@@ -18,7 +23,7 @@ remain pending. No commit/push/deployment is implied by local verification.
 4. Sign in to Windows POS, open your shift, finish/reconcile any current checkout and
    empty the cart. In
    **Orders**, filter **QR orders**, select an awaiting-cashier row and choose **Load
-   selected QR order**. Alternatively, **QR collection** accepts the guest's `QR-...`
+   selected QR order**. Alternatively, **QR orders → Find by reference** accepts the guest's `QR-...`
    reference or original Order UUID through **Load original QR order**. Both check
    scope/readiness without side effects, then retain
    original operation before claiming. Pending/rejected/paid/other-branch references cannot

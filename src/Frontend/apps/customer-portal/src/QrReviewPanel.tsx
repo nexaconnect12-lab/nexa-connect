@@ -8,7 +8,7 @@ import {useVisibleRefresh} from "./useVisibleRefresh";
 import type {RequestView} from "./QrGuestRequests";
 const api=createApiClient({onUnauthorized:signInToCustomer});
 export function QrReviewPanel(){
- const [branch,setBranch]=useState("");return <><Typography.Title level={2}>QR requests</Typography.Title><OperationalBranchPicker capability="qr-requests" value={branch} onChange={setBranch} label="QR review branch"/>{branch&&<Queue key={branch} branch={branch}/>}</>;
+ const [branch,setBranch]=useState("");return <><OperationalBranchPicker capability="qr-requests" value={branch} onChange={setBranch} label="QR review branch"/>{branch&&<Queue key={branch} branch={branch}/>}</>;
 }
 function Queue({branch}:{branch:string}){
  const loading=useRef(false),deciding=useRef(false),revision=useRef(0),alive=useRef(true);

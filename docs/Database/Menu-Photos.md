@@ -1,5 +1,8 @@
 # Catalog menu photo selections
 
+The shared [photo-library read model](Media-Library.md) adds no migration or ownership change. Popup selection is a frontend draft until this existing Catalog approval transaction succeeds.
+
+
 Catalog migration6 (`0006_menu_photos`) requires matching application compatibility0.41.0. It adds `catalog_menu_photos` and append-only `catalog_menu_photo_audit`: Catalog27 tables, full catalog217. Other owning service versions remain unchanged. The migration launcher default remains0.38.0; explicitly supply0.41.0 for the new target.
 
 Selection primary key is organization/branch/product; a same-scope FK references Catalog's menu item. Asset UUID is an external Media reference, with no cross-database FK. Nullable asset means explicitly cleared; version is positive. Reads of existing products without a row return null/version0. Detailed local audit stores previous/current asset, version, actor, correlation and UTC time. UNIQUE scope/version and immutable update/delete trigger protect history.

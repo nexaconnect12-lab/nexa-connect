@@ -17,6 +17,8 @@ builder.Services.AddMemoryCache();builder.Services.AddHttpClient<IServiceWorkloa
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<BranchGalleryDelivery>();
 builder.Services.AddScoped<MenuPhotoDelivery>();
+builder.Services.AddScoped<MediaLibrary>();
+builder.Services.AddScoped<IMediaLibraryRepository,PostgresMediaAssetRepository>();
 builder.Services.AddSingleton<IMenuPhotoEncoder,MenuPhotoEncoder>();
 builder.Services.AddScoped<PromptPayQrDelivery>();
 builder.Services.AddScoped<PromptPayQrUploads>();

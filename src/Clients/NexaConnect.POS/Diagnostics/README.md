@@ -1,5 +1,7 @@
 # Terminal setup diagnostics
 
+UX22 reuses the same probes in the staff header's **Check services / retry**. Fixed summary text distinguishes identity/menu/order/payment response availability, never access or settlement success. Only explicit clicks check; duplicate checks are disabled, privacy changes cancel/clear, and identity/generation fences suppress late results. Checks can run signed out, but not under lock, display blocking or busy work. Menu failures guide retry without resubmitting orders or payments. No report fields or customer-display projections change. See [startup and recovery](../../../../docs/Deployment/POS-UX22-Local-Pilot-Startup.md).
+
 UX17 `PosLifecycleTrace` writes bounded local JSON-line lifecycle logs under the current terminal storage directory’s `diagnostics` subdirectory: service `nexaconnect-pos-client`, category `lifecycle`, numeric process/time metadata and fixed stage/outcome enums only. The exact eight-field allow-list excludes exception messages, identity, endpoints and business data. Up to 96 records/process and 64 KiB/file are allowed, with best-effort retention of eight matching files; writes are background/serialized, reject links and fail silently. ApplicationExit completion is not OS-process or financial completion evidence. No upload/export is added. See [paths, debugging and rollout](../../../../docs/Deployment/POS-UX17-Shutdown-Diagnostics.md).
 
 The terminal overview is the initial **Terminal & sync → Overview** inner section. Input,
