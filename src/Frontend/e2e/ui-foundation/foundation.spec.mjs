@@ -31,7 +31,7 @@ async function setup(page, name, { fail = false, hold = false, role = "platform-
 test("desktop shell preserves separate session boundaries and keyboard skip navigation", async ({ page }, info) => {
   const { state, title, owner } = await setup(page, info.project.name);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+  if (info.project.name === "product-owner") await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible(); else { await expect(page.getByLabel("Current section")).toHaveText("Organization profile"); await expect(page.getByRole("heading", { name: title, exact: true })).toHaveCount(0); }
   await expect(page.getByText("Authenticated workspace", { exact: true })).toHaveCount(owner ? 1 : 0);
   if (!owner) await expect(page.getByRole('heading', { name: 'Customer Portal', exact: true })).toHaveCount(0);
   await page.keyboard.press("Tab");
@@ -47,7 +47,7 @@ test("mobile navigation opens, selects a section and returns without page overfl
   await page.setViewportSize({ width: 390, height: 844 });
   const { owner, title } = await setup(page, info.project.name);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+  if (info.project.name === "product-owner") await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible(); else { await expect(page.getByLabel("Current section")).toHaveText("Organization profile"); await expect(page.getByRole("heading", { name: title, exact: true })).toHaveCount(0); }
   await page.getByRole("button", { name: "Open navigation" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -56,7 +56,7 @@ test("mobile navigation opens, selects a section and returns without page overfl
   await expect(page.getByRole("main")).toBeFocused();
   await expect(page.getByRole("link", { name: "Skip to workspace" })).not.toBeInViewport();
   if (owner) await expect(page.locator(".ant-statistic-title").filter({ hasText: /^Organizations$/ })).toBeVisible();
-  else await expect(page.getByRole("heading", { name: "Enabled products", exact: true })).toBeVisible();
+  else { await expect(page.getByLabel("Current section")).toHaveText("Enabled products"); await expect(page.getByRole("heading", { name: "Enabled products", exact: true })).toHaveCount(0); }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: info.outputPath("mobile.png"), fullPage: true });
 });
@@ -75,7 +75,7 @@ test("failed initial read provides a safe retry without any mutation", async ({ 
   await expect(page.getByRole("status")).toHaveCount(0);
   state.fail = false;
   await page.getByRole("button", { name: "Try again" }).click();
-  await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+  if (info.project.name === "product-owner") await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible(); else { await expect(page.getByLabel("Current section")).toHaveText("Organization profile"); await expect(page.getByRole("heading", { name: title, exact: true })).toHaveCount(0); }
   expect(state.mutations).toEqual([]);
 });
 
@@ -87,7 +87,7 @@ test("role-restricted owner section stays denied in the new shell", async ({ pag
     await expect(page.getByRole("menuitem", { name: "Users", exact: true })).toHaveCount(0);
     expect(state.requests.some(path => path.endsWith("/platform/users"))).toBe(false);
   } else {
-    await expect(page.getByRole("heading", { name: "Organization profile", exact: true })).toBeVisible();
+    await expect(page.getByLabel("Current section")).toHaveText("Organization profile"); await expect(page.getByRole("heading", { name: "Organization profile", exact: true })).toHaveCount(0);
     expect(state.requests.every(path => path.startsWith("/bff/customer"))).toBe(true);
   }
   expect(state.mutations).toEqual([]);

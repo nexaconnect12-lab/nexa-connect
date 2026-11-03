@@ -1,9 +1,9 @@
 # NexaConnect Customer Portal
 
-Inner pages omit the repeated Customer Portal title/description/session-badge banner. The navbar supplies the inner-page title; duplicate inner-page titles are removed. Subsection headings, workspace-selection instructions, the dedicated Kitchen display title and guest ordering titles remain. Sidebar branding, workspace selection and account/navigation controls remain in the portal shell. This additional title removal is a source change; no tests or local pilot activation were run, as requested.
+Inner pages omit the repeated Customer Portal title/description/session-badge banner. The navbar supplies the inner-page title; duplicate inner-page titles are removed. Subsection headings, workspace-selection instructions, the dedicated Kitchen display title and guest ordering titles remain. Sidebar branding, workspace selection and account/navigation controls remain in the portal shell. The additional inner-page title removal is now deployed in matching retained release `2b6baf12d93e4193b61d030d34bae33f` with the [cashier/customer update](../../../../docs/Deployment/POS-Cashier-Ready-And-Customer-Panels.md). Later release verification and read-only real-manager portal checks pass; the earlier remove-only edit itself was not tested or deployed at that time.
 
-The banner refinement is activated in retained release
-`ade7b169a6b44f2294c7eb157859dc7c` on 3 November 2026, with QR pilot
+The earlier banner-only refinement was activated in retained release
+`ade7b169a6b44f2294c7eb157859dc7c` on 3 November 2026 (historical binding, superseded by the later release above), with QR pilot
 `34e95e37cc1a4c0dbddc56dad04cf43f` and supervised host
 `5f0eaad11ffa43eaa36abc0d95aacd35` (automatic sign-in startup off). Candidate
 `8e7c7ceb-924a-4bef-a892-1b9f43bb2c3e` passes the full source-bound gate, including
@@ -14,8 +14,8 @@ business tables remain unchanged, along with configuration, credentials and cert
 Read-only real-manager portal checks confirm the banner is absent; 13 current photos load
 in grid/details and the menu picker cancels correctly; cashier menu and trusted portal/QR
 reachability pass, guest Kitchen access is denied, and POS reopens responsively. No business
-mutation is issued by these checks. Fresh operator pack
-`2bde82cc87344b8086697a33083f6816` has a valid binding and fresh QR candidate with all 17
+mutation is issued by these checks. The then-fresh operator pack
+`2bde82cc87344b8086697a33083f6816` had a valid binding and fresh QR candidate with all 17
 cases pending. This does not establish operator, physical-device or production acceptance.
 
 **Media management → Photo library** defaults to a thumbnail grid, with Details, filename search, server pagination, explicit download and confirmed delete. `MediaLibrary` and `MediaPhotoPicker` are reused by **Menu management → Image** and staff/customer screensaver editors. Popup confirmation changes only the draft; preview, explicit public approval and owning save remain mandatory. New product uploads stay in the menu Image editor; batch uploads/metadata editing/other formats remain planned. See [workflow and limits](../../../../docs/Deployment/Media-Library.md).

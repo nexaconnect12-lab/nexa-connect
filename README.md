@@ -1,6 +1,6 @@
 # NexaConnect
 
-[Cashier-ready and customer panels](docs/Deployment/POS-Cashier-Ready-And-Customer-Panels.md) add a staff identity/status card, optional session-only six-digit PIN resume and a 50/50 approved-advertising/welcome-or-order customer display. Full OIDC remains authoritative; reader authentication is not implemented. No service/schema change; matching activation and operator/hardware acceptance remain separate.
+[Cashier-ready and customer panels](docs/Deployment/POS-Cashier-Ready-And-Customer-Panels.md) add a staff identity/status card, optional session-only six-digit PIN resume and a 50/50 approved-advertising/welcome-or-order customer display. Full OIDC remains authoritative; reader authentication is not implemented. No service/schema change; the matching retained pilot is activated, with actual PIN/operator/hardware acceptance still pending.
 
 
 [Shared photo library](docs/Deployment/Media-Library.md) adds a default thumbnail grid, switchable details list and contextual popup picker for menu images and approved screensaver galleries. Selection remains a draft until the owning editor previews/approves/saves. This first product-photo slice preserves existing storage, safety and permissions; the retained local pilot is activated and fresh operator acceptance remains pending.

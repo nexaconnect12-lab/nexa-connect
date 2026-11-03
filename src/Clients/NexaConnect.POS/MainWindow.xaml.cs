@@ -180,8 +180,7 @@ public partial class MainWindow : Window
         SetBusy("Opening secure sign-in…");
         SignInButton.Content = "Cancel sign-in";
         SignInButton.IsEnabled = true;
-        ResumeButton.Content = "Cancel authentication";
-        ResumeButton.IsEnabled = true;
+        RenderUnlockChoice();
         try
         {
             StatusText.Text = "Opening secure sign-in…";
@@ -1542,8 +1541,7 @@ public partial class MainWindow : Window
         PublishCustomerDisplay();
         RenderGallery();
         LockStatusText.Text = sessionLockMessage ?? "Authenticate to resume the retained workspace.";
-        ResumeButton.Content = signInCancellation is null ? "Resume / Authenticate" : "Cancel authentication";
-        ResumeButton.IsEnabled = !busy || signInCancellation is not null;
+        RenderUnlockChoice();
         LockedSignOutButton.IsEnabled = !busy && !HasRetainedWork();
         RenderLockPrompt();
         RenderWorkflow();

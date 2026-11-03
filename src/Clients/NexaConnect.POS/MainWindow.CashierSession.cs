@@ -24,9 +24,7 @@ public partial class MainWindow
         SetSessionPinButton.Content = _authentication.HasSessionPin ? "Change session unlock PIN" : "Set session unlock PIN";
         SessionSecurityStatus.Text = $"Locks after {_configuration.SessionIdleTimeoutMinutes} minutes of inactivity. Full sign-in after {_configuration.SessionAbsoluteTimeoutHours} hours at most. "
             + "PIN unlock needs a still-valid session. Fingerprint and staff-card readers are not configured.";
-        PinUnlockButton.Visibility = _authentication.CanQuickUnlock ? Visibility.Visible : Visibility.Collapsed;
-        PinUnlockButton.IsEnabled = !busy && !pinUnlockBusy && signInCancellation is null;
-        if (pinUnlockBusy) { ResumeButton.IsEnabled = false; LockedSignOutButton.IsEnabled = false; }
+        RenderUnlockChoice();
         LockedCashierIdentity.Text = $"{OperatorLabel} · Register {_configuration.TerminalId.ToString("N")[..8]} · Original work retained";
     }
     private void StartSale_Click(object sender, RoutedEventArgs e)
@@ -48,7 +46,7 @@ public partial class MainWindow
     {
         if (busy || !IsSignedIn() || displaySafetyBlocked) return;
         if (!_authentication.CanEnrollSessionPin)
-        { StatusText.Text = "Lock, choose full Resume / Authenticate, then set the session PIN within two minutes."; return; }
+        { StatusText.Text = "Lock, choose full sign-in, then set the session PIN within two minutes."; return; }
         var first = new PosPinEntryWindow(this, "Choose a six-digit session PIN");
         if (first.ShowDialog() != true) return;
         string? pin = first.TakeValue();

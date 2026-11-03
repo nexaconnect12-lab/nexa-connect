@@ -17,6 +17,21 @@ internal static partial class Program
     {
         using (var fixture = new SessionFixture())
         {
+            ((Button)fixture.Window.FindName("LockWorkspaceButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            fixture.Resume("same-cashier"); fixture.Auth.EnrollSessionPin("826491");
+            ((Button)fixture.Window.FindName("LockWorkspaceButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            fixture.AssertLocked();
+            var pin=(Button)fixture.Window.FindName("PinUnlockButton");var signin=(Button)fixture.Window.FindName("ResumeButton");
+            Require(pin.Visibility==Visibility.Visible && Equals(pin.Content,"Unlock with PIN"),"available PIN is the primary unlock action");
+            Require(Equals(signin.Content,"Use full sign-in instead") && signin.Style==fixture.Window.FindResource("SessionSignInLink"),"full sign-in is a secondary link beside PIN");
+            typeof(PosAuthentication).GetProperty("QuickUnlockClock",Private)!.SetValue(fixture.Auth,new UnlockPresentationClock(DateTimeOffset.UtcNow.AddHours(25)));
+            fixture.Tick();
+            Require(pin.Visibility==Visibility.Collapsed && Equals(signin.Content,"Sign in to resume"),"expiry replaces PIN with a single sign-in action");
+            Require(signin.Style==fixture.Window.FindResource("Primary") && ((TextBlock)fixture.Window.FindName("UnlockGuidanceText")).Text.Contains("unavailable"),"required full sign-in is primary and explained");
+            fixture.AssertRecovery();
+        }
+        using (var fixture = new SessionFixture())
+        {
             var button = (Button)fixture.Window.FindName("LockWorkspaceButton");
             Require(button.IsEnabled, "signed-in cashier has a direct lock action");
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -77,6 +92,10 @@ internal static partial class Program
         Console.WriteLine("PASS: isolated session expiry/fallback — absolute expiry, unavailable refresh, 400/401 denial, backoff, restart lock, cancellation, wrong-cashier denial and original-cashier resume; synthetic identity and temporary DPAPI recovery only.");
     }
 
+    private sealed class UnlockPresentationClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
     private sealed class SessionFixture : IDisposable
     {
         private readonly string root = Path.Combine(Path.GetTempPath(), "NexaConnect-SessionExpiry", Guid.NewGuid().ToString("N"));
@@ -176,6 +195,8 @@ internal static partial class Program
                 "interaction exposes enabled resume authentication");
             resume.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Wait(() => authorizeUri is not null);
+            Require(Equals(resume.Content,"Cancel sign-in") && ((Button)Window.FindName("PinUnlockButton")).Visibility==Visibility.Collapsed,
+                "pending full sign-in offers cancellation without competing PIN action");
             var query = ParseSessionQuery(new Uri(authorizeUri!).Query);
             Require(query["prompt"] == "login" && query["code_challenge_method"] == "S256" && query["state"].Length > 20,
                 "fallback requests interactive PKCE sign-in");

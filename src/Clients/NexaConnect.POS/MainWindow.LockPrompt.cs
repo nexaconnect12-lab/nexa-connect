@@ -6,6 +6,21 @@ namespace NexaConnect.POS;
 public partial class MainWindow
 {
     private readonly LockPromptState lockPrompt=new();
+    private void RenderUnlockChoice()
+    {
+        bool signingIn = signInCancellation is not null;
+        bool offerPin = !signingIn && _authentication.CanQuickUnlock;
+        PinUnlockButton.Visibility = offerPin ? Visibility.Visible : Visibility.Collapsed;
+        PinUnlockButton.IsEnabled = offerPin && !busy && !pinUnlockBusy;
+        ResumeButton.Content = signingIn ? "Cancel sign-in" : offerPin ? "Use full sign-in instead" : "Sign in to resume";
+        ResumeButton.Style = (Style)FindResource(offerPin ? "SessionSignInLink" : "Primary");
+        ResumeButton.IsEnabled = !pinUnlockBusy && (!busy || signingIn);
+        if (pinUnlockBusy) LockedSignOutButton.IsEnabled = false;
+        UnlockGuidanceText.Text = signingIn ? "Complete sign-in in your browser, or cancel to return."
+            : pinUnlockBusy ? "Checking PIN…"
+            : offerPin ? "Use your six-digit PIN to unlock this cashier's current session."
+            : "PIN unlock is unavailable for this session. Sign in again to resume your saved work.";
+    }
     private void RenderLockPrompt(bool focus=false)
     {
         bool changed=lockPrompt.SetLocked(reauthenticationRequired&&!displaySafetyBlocked);
