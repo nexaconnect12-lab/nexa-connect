@@ -1,6 +1,14 @@
 # NexaConnect
 
-[Cashier-ready and customer panels](docs/Deployment/POS-Cashier-Ready-And-Customer-Panels.md) add a staff identity/status card, optional session-only six-digit PIN resume and a 50/50 approved-advertising/welcome-or-order customer display. Full OIDC remains authoritative; reader authentication is not implemented. No service/schema change; the matching retained pilot is activated, with actual PIN/operator/hardware acceptance still pending.
+[Original-payment refund selection](docs/Deployment/POS-Refund-Payment-Selection.md)
+lets staff review an original captured card payment by order/receipt details, with an
+advisory balance and explicit confirmation before the existing authorized refund command.
+Payment retains financial limits, reservation and uncertain-operation recovery. This
+matching Order/POS update is installed in the retained pilot, with original data and PINs preserved; fresh operator/provider acceptance remains pending.
+
+[Compact cashier workspace](docs/Deployment/POS-Compact-Cashier-Workspace.md) reduces routine header/help text, expands the responsive menu and consolidates the visible checkout total. Secondary tools remain reachable and recovery warnings remain prominent. The matching compact release is installed in the retained pilot with existing business/PIN/recovery state preserved; fresh operator and physical-device acceptance remain pending.
+
+[Persistent cashier PIN](docs/Identity/POS-Session-PIN.md) keeps one personal PIN until changed/reset/revoked and privately renews short-lived credentials before online same-cashier unlock. Matching POS26/Authorization17 and compatibility0.45.0 are activated in the retained local pilot, with existing business/recovery data preserved; fresh PIN/operator acceptance remains pending. Full OIDC remains required at restart/logout/security or actual provider-session expiry. Existing [cashier-ready and 50/50 customer panels](docs/Deployment/POS-Cashier-Ready-And-Customer-Panels.md) retain display/custody behavior; hardware authentication remains unimplemented.
 
 
 [Shared photo library](docs/Deployment/Media-Library.md) adds a default thumbnail grid, switchable details list and contextual popup picker for menu images and approved screensaver galleries. Selection remains a draft until the owning editor previews/approves/saves. This first product-photo slice preserves existing storage, safety and permissions; the retained local pilot is activated and fresh operator acceptance remains pending.

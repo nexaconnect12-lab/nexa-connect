@@ -1,6 +1,8 @@
 # NexaConnect Data Migration
 
-Catalog9 adds menu_version and one append-only details audit table: current **Catalog31/full221**, compatibility0.44.0. Existing metadata and references are preserved; matched legacy writers advance versions. Standalone default remains0.38.0; select0.44.0 explicitly. See [details persistence/recovery](../../../docs/Database/Menu-Details.md).
+POS26 adds two cashier credential/audit tables; Authorization17 backfills use and tenant-admin manage grants. Current full catalog223tables, compatibility0.45.0. The standalone default remains0.38.0: select0.45.0 explicitly. Empty26→25→26 is supported; retained credential/audit history blocks downgrade. Preserve the POS Data Protection key ring with database backups. See [storage](../../../docs/Database/Cashier-PIN.md).
+
+Catalog9 adds menu_version and one append-only details audit table: at introduction **Catalog31/full221**, compatibility0.44.0. Existing metadata and references are preserved; matched legacy writers advance versions. Standalone default remains0.38.0; select0.44.0 explicitly. See [details persistence/recovery](../../../docs/Database/Menu-Details.md).
 
 Catalog8 adds availability_version and one append-only availability audit table: **Catalog30/full220**, minimum compatibility0.43.0. Existing flags are preserved; metadata edits must use matching writers. Standalone default remains0.38.0; select0.43.0 explicitly. See [storage/rollback](../../../docs/Database/Menu-Availability.md).
 

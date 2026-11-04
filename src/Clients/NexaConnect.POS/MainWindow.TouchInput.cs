@@ -51,6 +51,7 @@ public partial class MainWindow
         string label = System.Windows.Automation.AutomationProperties.GetName(box);
         InputKeyboard.Configure(string.IsNullOrWhiteSpace(label) ? "Text entry" : label, AmountFields.Contains(box.Name));
         InputKeyboard.Visibility = Visibility.Visible;
+        OperationalSurface.MinHeight = 480; // Restore scroll extent before bringing the focused field above the keyboard.
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() => {
             if (touchTarget == box && InputKeyboard.Visibility == Visibility.Visible) box.BringIntoView();
         }));
@@ -60,6 +61,7 @@ public partial class MainWindow
     {
         touchTarget = null;
         InputKeyboard.Visibility = Visibility.Collapsed;
+        OperationalSurface.MinHeight = CheckoutTab.IsSelected ? 0 : 480;
     }
 
     private void EditTouchInput(string key)

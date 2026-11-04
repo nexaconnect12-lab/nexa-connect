@@ -9,6 +9,7 @@ internal static partial class Program
 {
     private static void VerifySessionDisplayLayout(MainWindow staff)
     {
+        ((TabItem)staff.FindName("ShiftCashTab")).IsSelected=true;
         Invoke(staff, "RenderWorkflow");
         Require(((FrameworkElement)staff.FindName("CashierReadyPanel")).Visibility == Visibility.Visible, "ready cashier card without a transaction");
         Require(((TextBlock)staff.FindName("CashierReadyIdentity")).Text.Contains("fixture"), "ready card identifies verified cashier");

@@ -9,7 +9,7 @@ $repoRoot=Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'first-draft-release-helpers.ps1')
 $id=[guid]::NewGuid().ToString();$run=Join-Path $repoRoot ".runstate/qr6/$id"
 New-Item -ItemType Directory -Path $run|Out-Null;Protect-DraftDirectory $run
-$checks=[ordered]@{};$passed=$false;$outputs=$null
+$checks=[ordered]@{};$passed=$false;$outputs=$null;$source=$null;$schemas=$null
 $prior=@{};foreach($key in @('NEXACONNECT_ENVIRONMENT','NEXACONNECT_POS_DPAPI_ACCEPTANCE','PLAYWRIGHT_JSON_OUTPUT_FILE')){$prior[$key]=[Environment]::GetEnvironmentVariable($key)}
 function Native([string]$Name,[string]$Command,[string[]]$Arguments){
     & $Command @Arguments *> (Join-Path $run "$Name.private.log")
@@ -32,8 +32,8 @@ try{
     $schemaJson=& node scripts/release/qr6.mjs catalog;if($LASTEXITCODE -ne 0){throw 'QR6 schema inventory failed.'};$schemas=$schemaJson|ConvertFrom-Json
     $env:NEXACONNECT_ENVIRONMENT='Testing';$env:NEXACONNECT_POS_DPAPI_ACCEPTANCE='1'
     Trx unit 'tests/Unit/NexaConnect.UnitTests' '' 1390
-    Trx architecture 'tests/Architecture/NexaConnect.ArchitectureTests' '' 7
-    Trx http 'tests/Integration/NexaConnect.IntegrationTests' 'FullyQualifiedName~MenuDetailsBoundaryTests|FullyQualifiedName~CustomerMenuDetailsBoundaryTests|FullyQualifiedName~MenuAvailabilityBoundaryTests|FullyQualifiedName~CustomerMenuAvailabilityBoundaryTests|FullyQualifiedName~MenuOrganizationBoundaryTests|FullyQualifiedName~MenuPhotoBoundaryTests|FullyQualifiedName~MenuPhotoGuestBoundaryTests|FullyQualifiedName~QrPilotEdgeTests|FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests|FullyQualifiedName~OrderListBoundaryTests|FullyQualifiedName~MediaAuthenticatedHttpAcceptanceTests|FullyQualifiedName~MediaLibraryBoundaryTests|FullyQualifiedName~CustomerMediaLibraryBoundaryTests|FullyQualifiedName~GalleryReaderBoundaryTests|FullyQualifiedName~BarcodeBoundaryTests|FullyQualifiedName~PromptPayQrBoundaryTests|FullyQualifiedName~CustomerPromptPayQrBoundaryTests|FullyQualifiedName~DrawerIntentBoundaryTests' 147
+    Trx architecture 'tests/Architecture/NexaConnect.ArchitectureTests' '' 8
+    Trx http 'tests/Integration/NexaConnect.IntegrationTests' 'FullyQualifiedName~CashierPinBoundaryTests|FullyQualifiedName~MenuDetailsBoundaryTests|FullyQualifiedName~CustomerMenuDetailsBoundaryTests|FullyQualifiedName~MenuAvailabilityBoundaryTests|FullyQualifiedName~CustomerMenuAvailabilityBoundaryTests|FullyQualifiedName~MenuOrganizationBoundaryTests|FullyQualifiedName~MenuPhotoBoundaryTests|FullyQualifiedName~MenuPhotoGuestBoundaryTests|FullyQualifiedName~QrPilotEdgeTests|FullyQualifiedName~QrGuestBoundaryTests|FullyQualifiedName~QrGatewayTransportTests|FullyQualifiedName~QrRestaurantBoundaryTests|FullyQualifiedName~QrMenuBoundaryTests|FullyQualifiedName~QrMenuTransportTests|FullyQualifiedName~OrderListBoundaryTests|FullyQualifiedName~MediaAuthenticatedHttpAcceptanceTests|FullyQualifiedName~MediaLibraryBoundaryTests|FullyQualifiedName~CustomerMediaLibraryBoundaryTests|FullyQualifiedName~GalleryReaderBoundaryTests|FullyQualifiedName~BarcodeBoundaryTests|FullyQualifiedName~PromptPayQrBoundaryTests|FullyQualifiedName~CustomerPromptPayQrBoundaryTests|FullyQualifiedName~DrawerIntentBoundaryTests' 150
     Native hosting node @('--test','--test-reporter=tap','docker/pilot/hosting.test.mjs')
     $checks.hosting.count=CountResult tap (Join-Path $run 'hosting.private.log') 47
     Native candidate-guards node @('--test','--test-reporter=tap','scripts/release/qr6.test.mjs')
@@ -71,7 +71,7 @@ try{
     if($match.Count -ne 1){throw 'QR6 owning receipt was not uniquely identified.'}
     $receiptPath=[IO.Path]::GetFullPath($match[0]);$receipt=Get-Content -LiteralPath $receiptPath -Raw|ConvertFrom-Json
     $expected=Join-Path $repoRoot ".runstate/qr-entry/$($receipt.runId)/verification.json"
-    if($receipt.runId -cnotmatch '^[a-f0-9]{32}$' -or $receiptPath -cne [IO.Path]::GetFullPath($expected) -or $receipt.passed -ne $true -or $receipt.cleanupVerified -ne $true -or $receipt.brokerRecoveryVerified -ne $true -or $receipt.caseCount -lt 14 -or $receipt.productionVerified -ne $false){throw 'QR6 owning evidence is incomplete.'}
+    if($receipt.runId -cnotmatch '^[a-f0-9]{32}$' -or $receiptPath -cne [IO.Path]::GetFullPath($expected) -or $receipt.passed -ne $true -or $receipt.cleanupVerified -ne $true -or $receipt.brokerRecoveryVerified -ne $true -or $receipt.caseCount -lt 15 -or $receipt.productionVerified -ne $false){throw 'QR6 owning evidence is incomplete.'}
     Copy-Item -LiteralPath $receiptPath -Destination (Join-Path $run 'owning.json')
     $checks.owning=@{passed=$true;count=[int]$receipt.caseCount;cleanupVerified=$true;brokerRecoveryVerified=$true;evidenceSha256=(Get-FileHash -LiteralPath (Join-Path $run 'owning.json') -Algorithm SHA256).Hash.ToLowerInvariant()}
     Native drawer-authority-owning pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-pos-drawer-authority.ps1'),'-ConfirmDisposableInfrastructure')

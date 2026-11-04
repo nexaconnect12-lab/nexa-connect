@@ -18,7 +18,7 @@ internal static partial class Program
         using (var fixture = new SessionFixture())
         {
             ((Button)fixture.Window.FindName("LockWorkspaceButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            fixture.Resume("same-cashier"); fixture.Auth.EnrollSessionPin("826491");
+            fixture.Resume("same-cashier"); Require(fixture.Auth.EnrollSessionPinAsync("826491").GetAwaiter().GetResult(), "central simulator enrollment succeeds");
             ((Button)fixture.Window.FindName("LockWorkspaceButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             fixture.AssertLocked();
             var pin=(Button)fixture.Window.FindName("PinUnlockButton");var signin=(Button)fixture.Window.FindName("ResumeButton");
@@ -68,6 +68,9 @@ internal static partial class Program
         }
         using (var fixture = new SessionFixture())
         {
+            ((Button)fixture.Window.FindName("LockWorkspaceButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            fixture.Resume("same-cashier");
+            Require(fixture.Auth.EnrollSessionPinAsync("826491").GetAwaiter().GetResult(), "outage fixture enrolls a simulated central PIN");
             fixture.Identity.RefreshStatus = HttpStatusCode.ServiceUnavailable;
             fixture.SetToken(fixture.Token with { ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(30) });
             fixture.Tick();
@@ -78,6 +81,7 @@ internal static partial class Program
             fixture.SetToken(fixture.Token with { ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1) });
             typeof(MainWindow).GetField("nextTokenRefreshAttemptUtc", Private)!.SetValue(fixture.Window, DateTimeOffset.MinValue);
             fixture.Tick(); fixture.AssertLocked(); fixture.AssertRecovery();
+            Require(fixture.Auth.CanQuickUnlock, "transient active-refresh outage preserves PIN retry after access expiry");
         }
         using (var fixture = new SessionFixture())
         {
@@ -148,7 +152,7 @@ internal static partial class Program
             financialHash = HashData();
         }
         private PosAuthentication NewAuthentication() => (PosAuthentication)Activator.CreateInstance(typeof(PosAuthentication), Private, null,
-            [configuration, Identity, tokenStore, (Action<string>)(uri => authorizeUri = uri)], null)!;
+            [configuration, Identity, tokenStore, (Action<string>)(uri => authorizeUri = uri), new SessionPinPort()], null)!;
         public void SetToken(PosTokenSet value)
         {
             typeof(PosAuthentication).GetProperty("CurrentToken")!.SetValue(Auth, value);
@@ -229,6 +233,18 @@ internal static partial class Program
         public int Calls { get; private set; }
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         { Calls++; throw new InvalidOperationException("Session fixture must not call any business/device endpoint."); }
+    }
+    // Synthetic central service; no actual PIN or credential storage is touched by this fixture.
+    private sealed class SessionPinPort : ICashierPinPort
+    {
+        private string? value;
+        private long version;
+        private NexaConnect.Contracts.POS.CashierPinStatusV1 Status => new(value is null ? "unset" : "active", version, null);
+        public Task<NexaConnect.Contracts.POS.CashierPinStatusV1> StatusAsync(string token, CancellationToken ct) => Task.FromResult(Status);
+        public Task<NexaConnect.Contracts.POS.CashierPinResultV1> ChangeAsync(string token, string pin, string? current, long expected, CancellationToken ct)
+        { value=pin; version++; return Task.FromResult(new NexaConnect.Contracts.POS.CashierPinResultV1(true,Status)); }
+        public Task<NexaConnect.Contracts.POS.CashierPinResultV1> VerifyAsync(string token, string pin, long expected, CancellationToken ct)
+            => Task.FromResult(new NexaConnect.Contracts.POS.CashierPinResultV1(value==pin && version==expected,Status));
     }
     private sealed class SessionIdentityHandler : HttpMessageHandler
     {

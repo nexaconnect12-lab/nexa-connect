@@ -1,5 +1,7 @@
 # POS UX2 — cashier workflows and UI refinement
 
+The [compact cashier workspace](POS-Compact-Cashier-Workspace.md), now installed in the retained pilot, retains this workflow projection and original handlers while showing one pinned checkout total. Routine descriptions/session help collapse; attention, busy and recovery guidance remain visible at every height. Secondary menu/workspace controls move into explicit expandable sections. Earlier UX2 verification below remains historical evidence for its original layout.
+
 Current sizing follows [UX3 display density](POS-UX3-Display-Density.md): Standard uses
 36-DIP minimum controls/rows and Touch uses 52 DIP, independently of automatic keyboards.
 The fixed 48-DIP control sizing below records the original UX2 layout; application keyboard

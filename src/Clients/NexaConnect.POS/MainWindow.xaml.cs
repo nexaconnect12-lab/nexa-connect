@@ -127,6 +127,7 @@ public partial class MainWindow : Window
         }
         InitializeTouchInput();
         viewInitialized = true;
+        Loaded += (_, _) => { if (WindowState == WindowState.Normal) { Width = Math.Min(Width, SystemParameters.WorkArea.Width); Height = Math.Min(Height, SystemParameters.WorkArea.Height); } };
         InitializeMenuPhotos();
         System.Windows.Data.CollectionViewSource.GetDefaultView(menuTiles).Filter = value => value is MenuTile tile && MatchesMenuCategory(tile) && CashierPresentation.MatchesMenu(tile.Item.Name, tile.Item.PreparationStation, MenuSearchTextBox.Text, StationComboBox.SelectedItem as string);
         StationComboBox.ItemsSource = new[] { "All stations" };
@@ -141,7 +142,7 @@ public partial class MainWindow : Window
         sessionTimer.Start();
         orderListTimer.Tick += OrderListTimer_Tick;
         orderListTimer.Start();
-        Deactivated += (_, _) => { if (viewInitialized) { if (OrdersTab.IsSelected) ClearOrderList(); ClearQrRequests(); } };
+        Deactivated += (_, _) => { if (viewInitialized) { if (OrdersTab.IsSelected) ClearOrderList(); ClearQrRequests(); ClearRefundPaymentSelection(); } };
         StatusText.Text = pendingCheckout is not null
             ? $"Original order {pendingCheckout.OrderId:D} needs verification. Sign in, then verify this order; do not collect again."
             : pendingCashReviewAttempt is null
@@ -186,6 +187,9 @@ public partial class MainWindow : Window
             StatusText.Text = "Opening secure sign-in…";
             if (touchFirst) OpenWindowsKeyboard();
             await _authentication.SignInAsync(true, cancellation.Token);
+            // PIN-service failure must not invalidate successful full authentication.
+            try { await _authentication.LoadPinStatusAsync(cancellation.Token); }
+            catch (Exception) when (!cancellation.IsCancellationRequested) { }
             reauthenticationRequired = false;
             sessionLockMessage = null;
             lastOperatorActivityUtc = DateTimeOffset.UtcNow;
@@ -1195,6 +1199,7 @@ public partial class MainWindow : Window
 
     private void ClearReceiptView()
     {
+        ClearRefundPaymentSelection();
         ClearMenuPhotos();
         ClearMenuOrganization();
         ClearOrderList();
@@ -1220,22 +1225,49 @@ public partial class MainWindow : Window
     {
         if (!IsSignedIn() || busy || _authentication.CurrentToken is not { } token) return;
         if (pendingRefund is not null) { RefundStatusText.Text = "Verify the pending refund before another command."; return; }
+        if (refundPayment is not {} selected || RefundSelectionConfirmed.IsChecked != true)
+        { RefundStatusText.Text = "Choose and review the original payment, amount and reason first."; return; }
         if (!Guid.TryParse(RefundPaymentIntentIdTextBox.Text, out Guid intentId) || intentId == Guid.Empty
             || !decimal.TryParse(RefundAmountTextBox.Text, System.Globalization.NumberStyles.Number,
-                System.Globalization.CultureInfo.InvariantCulture, out decimal amount) || amount <= 0
+                System.Globalization.CultureInfo.InvariantCulture, out decimal amount) || amount <= 0 || decimal.Round(amount, 4) != amount
+            || intentId != selected.PaymentIntentId
             || RefundReasonComboBox.SelectedItem is not ComboBoxItem reasonItem || reasonItem.Tag is not string reason)
         { RefundStatusText.Text = "Enter a valid payment intent, positive THB amount, and reason."; return; }
-        pendingRefund = new(intentId, Guid.NewGuid(), amount, _configuration.Currency, reason);
-        _localStore.SavePendingRefund(pendingRefund);
         int generation = receiptSessionGeneration;
-        SetBusy("Issuing refund…");
+        SetBusy("Reviewing the original payment…");
         try
         {
+            var current = await _api.FindRefundPaymentAsync(token, intentId, false, windowCancellation.Token);
+            if (!PrintSessionCurrent(generation, token.Subject) || !ReferenceEquals(refundPayment, selected)
+                || RefundSelectionConfirmed.IsChecked != true || pendingRefund is not null) return;
+            if (current.OrderId != selected.OrderId || current.PaymentIntentId != intentId || amount > current.AvailableAmount)
+            { ClearRefundPaymentSelection(); RefundStatusText.Text = "The refundable balance changed. Choose and review the original payment again."; return; }
+            pendingRefund = new(intentId, Guid.NewGuid(), amount, _configuration.Currency, reason);
+            _localStore.SavePendingRefund(pendingRefund);
             PosPaymentRefund result = await _api.CreateRefundAsync(token, intentId, pendingRefund.OperationId, amount, reason);
             pendingRefund = pendingRefund with { RefundId = result.Id }; _localStore.SavePendingRefund(pendingRefund);
             if (PrintSessionCurrent(generation, token.Subject)) ShowRefund(result);
         }
-        catch (Exception) { RefundStatusText.Text = "Refund result is uncertain. Verify this pending operation; do not issue another refund."; }
+        catch (PosApiException error) when (pendingRefund is not null && error.StatusCode is 401 or 403)
+        {
+            // These definitive API authorization responses precede reservation/provider I/O.
+            // A failed local cleanup must retain the original operation rather than permit another.
+            try { _localStore.ClearPendingRefund(); pendingRefund = null; }
+            catch (Exception) { }
+            if (PrintSessionCurrent(generation, token.Subject))
+            {
+                ClearRefundPaymentSelection();
+                RefundStatusText.Text = pendingRefund is null
+                    ? "Refund was not authorized. Sign in with an authorized account and check its refund approval limit, then select the payment again."
+                    : "Refund was not authorized, but local recovery could not be cleared. Keep the original operation and contact support.";
+            }
+        }
+        catch (Exception)
+        {
+            if (PrintSessionCurrent(generation, token.Subject)) RefundStatusText.Text = pendingRefund is null
+                ? "Payment review unavailable. Refresh and review the payment before trying again. No refund was submitted."
+                : "Refund result is uncertain. Verify this pending operation; do not issue another refund.";
+        }
         finally { UpdateOperationalState(); }
     }
 
@@ -1258,6 +1290,7 @@ public partial class MainWindow : Window
         if (refund.Status is "completed" or "failed")
         {
             _localStore.ClearPendingRefund(); pendingRefund = null;
+            ClearRefundPaymentSelection();
             if (refund.Status == "completed") { _localStore.SaveLastRefund(refund.PaymentIntentId, refund.OperationId); lastRefund = new(refund.PaymentIntentId, refund.OperationId); }
         }
         if (refund.Receipt is { } receipt) { displayedRefundReceipt = receipt; displayedReceiptOrderId = null; PrintReceiptButton.IsEnabled = false; ShowPrintPreview(new("Refund receipt", receipt.Render())); PrintRefundButton.IsEnabled = true; }
@@ -1423,7 +1456,7 @@ public partial class MainWindow : Window
         StaffDisplayPicker.IsEnabled = CustomerDisplayPicker.IsEnabled = signedIn && !displaySafetyBlocked;
         LoadReceiptButton.IsEnabled = signedIn;
         PrintReceiptButton.IsEnabled = signedIn && displayedReceiptOrderId is not null;
-        RefundButton.IsEnabled = signedIn && pendingRefund is null;
+        RenderRefundSelectionControls();
         LoadRefundButton.IsEnabled = signedIn && (pendingRefund is not null || lastRefund is not null);
         PrintRefundButton.IsEnabled = signedIn && displayedRefundReceipt is not null;
         bool hasStoredSession = _authentication.CurrentToken is not null;
@@ -1605,10 +1638,13 @@ public partial class MainWindow : Window
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException)
         {
             if (windowCancellation.IsCancellationRequested) return;
+            // A manual/idle/security lock may already have superseded this active refresh.
+            // A late outage must not replace its private capability or weaken its security fence.
+            if (reauthenticationRequired) return;
             if (!ReferenceEquals(_authentication.CurrentToken, token) && !_authentication.RequiresInteractiveSignIn) return;
             nextTokenRefreshAttemptUtc = DateTimeOffset.UtcNow.AddSeconds(15);
             if (token.ExpiresAtUtc <= DateTimeOffset.UtcNow)
-                LockSession("The access token expired while identity was unavailable. Sign in again when connectivity returns; saved operational state is retained.");
+                LockSession("Paused because the access token expired while identity was unavailable. Retry PIN unlock when connectivity returns, or use full sign-in. Saved operational state is retained.", true);
         }
         catch (Exception)
         {

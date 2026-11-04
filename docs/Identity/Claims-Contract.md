@@ -1,5 +1,12 @@
 # Identity Claims Contract
 
+Persistent cashier PINs add live `pos.cashier-pin.use` (cashier/store-manager/tenant-admin)
+and organization-wide `pos.cashier-pin.manage` (tenant-admin only by default), owned by
+Authorization17/POS26. They add no Keycloak client, mapper, token claim or grant type.
+Authenticated subject and configured issuer bind the central credential; private renewal
+and online PIN verification do not extend provider or original session limits. See
+[PIN identity and failure policy](POS-Session-PIN.md).
+
 UX14 reuses catalog.menu.read/write with subject-bound selected-tenant Customer BFF membership, CSRF writes and live Catalog branch checks. No guest/workload management bypass, issuer/client/secret/role or financial approval change. Both outbound details clients disable redirects and propagate validated correlation. See [details API](../API/Menu-Details.md).
 
 UX13 reuses live branch catalog.menu.read/write and subject-bound Customer BFF membership/CSRF enforcement. Guest and workload identities gain no availability management bypass; no new role/client/secret/session policy is introduced. See [availability boundaries](../API/Menu-Availability.md).
@@ -42,7 +49,7 @@ owning services. General workload authorization remains unchanged. See
 
 Settlement original-event replay is now provided by [ADR-035](../Architecture/Decisions/ADR-035-audited-settlement-replay.md) and [the administrative runbook](../Deployment/Settlement-Replay.md). POS 23 adds two immutable audit tables; Reporting stays 22 and compatibility is 0.38.0 (201 tables, POS 52 / Reporting 19). Customer routes/permissions remain read-only; unknown original publication fields fail closed.
 
-Reporting 22 adds two owned immutable settlement projection/hash tables; the current catalog contains 221 tables (Reporting 19/POS 55). Settlement reporting reuses reporting.sales.read and pos.day-close.read with customer membership/scope revalidation; it adds no grant. Cutoff settlement event bindings were introduced at Reporting 22/POS 23 and compatibility 0.38.0; the current catalog requires compatibility 0.44.0 for Catalog 9 (POS remains 25). New POS publication is V2; original V1 history stays unchanged. See [settlement reporting](../API/Settlement-Reporting.md) and [operations](../Deployment/Settlement-Reporting.md).
+Reporting 22 adds two owned immutable settlement projection/hash tables; the current catalog contains 223 tables (Reporting 19/POS 57). Settlement reporting reuses reporting.sales.read and pos.day-close.read with customer membership/scope revalidation; it adds no grant. Cutoff settlement event bindings were introduced at Reporting 22/POS 23 and compatibility 0.38.0; the current catalog requires compatibility 0.45.0 for POS26/Authorization17 (Catalog remains9). New POS publication is V2; original V1 history stays unchanged. See [settlement reporting](../API/Settlement-Reporting.md) and [operations](../Deployment/Settlement-Reporting.md).
 
 Correction-aware retained checks add no permission or workload identity. Reporting sales read plus live owning financial reads cover exact manifests/seals; POS coordination keeps read/prepare/approve/finalize and configured amount posting limits separate. Customer bearer/correlation propagate through the existing adapters. See [contract](../API/Correction-Day-Evidence.md) and [operations](../Deployment/Correction-Day-Evidence.md).
 

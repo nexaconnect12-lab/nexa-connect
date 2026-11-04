@@ -27,6 +27,8 @@ public partial class MainWindow
     }
     private void RenderCheckoutPayments()
     {
+        CheckoutPaymentStatus.Visibility = pendingCheckout is not null || CardCheckout
+            ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
         if(pendingCheckout is not null)SelectCheckoutPayment(pendingCheckout.PaymentMethod);
         else if(!IsSignedIn())SelectCheckoutPayment(_configuration.PaymentMethod);
         if(!CardCheckout){if(CardTokenBox.Password.Length>0)CardTokenBox.Clear();cardTokenRequired=false;}

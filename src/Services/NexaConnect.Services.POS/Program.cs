@@ -11,6 +11,8 @@ using NexaConnect.Services.POS.Application.OrderSettlements;
 using NexaConnect.Services.POS.Application.CashReviews;
 using NexaConnect.Services.POS.Infrastructure.Messaging;
 using Npgsql;
+using System.Threading.RateLimiting;
+using NexaConnect.Services.POS.Application.CashierPins;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNexaConnectObservability("nexaconnect-pos");
@@ -27,6 +29,18 @@ builder.Services.AddNexaConnectApiAuthentication(builder.Configuration);
 builder.Services.AddNexaConnectDataProtection(builder.Configuration, builder.Environment, "pos");
 builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("POS")
     ?? throw new InvalidOperationException("ConnectionStrings:POS is required.")));
+builder.Services.AddSingleton(new CashierPinAuthority((builder.Configuration["Authentication:Authority"]
+    ?? throw new InvalidOperationException("Authentication:Authority required for cashier PIN ownership.")).TrimEnd('/')));
+builder.Services.AddScoped<ICashierPinRepository, PostgresCashierPinRepository>();
+builder.Services.AddScoped<ICashierPinProtector, CashierPinProtector>();
+builder.Services.AddScoped<CashierPins>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = 429;
+    options.AddPolicy("cashier-pins", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst("sub")?.Value ?? "anonymous",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<PosWorkloadTokenProvider>().AddNexaConnectCorrelationPropagation();
 builder.Services.AddHttpClient<RestaurantHierarchyClient>().AddNexaConnectCorrelationPropagation();
@@ -153,6 +167,7 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapGet("/health/live", () => Results.Ok(new { Status = "Healthy" })).AllowAnonymous();
 app.MapControllers();

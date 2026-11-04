@@ -1,23 +1,26 @@
 # Cashier ready panel, session PIN and customer advertising
 
+The persistent-PIN follow-up described in [identity/activation evidence](../Identity/POS-Session-PIN.md#retained-pilot-activation--3-november-2026) supersedes the session-only PIN policy below. It was first activated in release b84f38efc111407fb7ddd05dac646825 and is preserved by current refund-selector release 58831a86eec64c05abec726a49d0690b, retaining the compact layout and POS26/Authorization17 at compatibility0.45.0. Existing business/recovery data is preserved; fresh PIN/operator acceptance remains pending. Older release identifiers and test results below remain historical evidence for the earlier policy.
+
 This native WPF slice adds a staff-ready card and equal-width customer advertising/order panels. It preserves existing checkout, original-payment recovery, service authorization, display safety and approved-gallery ownership. The verified matching package is activated in the retained local pilot as recorded below; actual operator/PIN/hardware acceptance remains separate.
 
 ## Cashier workflow
 
-On **Shift & cash** or **Checkout** only, when not busy or processing a cart/pending transaction, the ready card shows the authenticated cashier label, shortened register identifier, shift/cash-session status and **Sign in / Open shift / Start sale** as appropriate. The label uses validated UserInfo `preferred_username`, with a shortened subject fallback. It stays on the staff screen. Start sale navigates to the existing sign-in, shift or checkout controls; it creates no sale automatically. Busy, locked, unsafe-display and working states retain their normal protected operational flow. QR/history/review tabs omit this card to keep their actions reachable on smaller staff screens.
+The [compact cashier workspace](POS-Compact-Cashier-Workspace.md), introduced in release 9ab9d05b76ab45d9b4a87e51a5c2f6ea, is retained by current refund-selector release 58831a86eec64c05abec726a49d0690b. It keeps the ready card on **Shift & cash** only and uses a compact cashier/session header during **Checkout**. Earlier PIN release b84f38efc111407fb7ddd05dac646825 showed the ready card on both pages; its activation and verification remain historical evidence for that earlier layout.
 
-The staff full-sign-in action always requests provider `prompt=login`, including initial sign-in and after local sign-out; it does not silently reuse browser SSO as a cashier switch. For quick resume, complete full sign-in, then choose **Set session unlock PIN** within two minutes. Enter and confirm six digits using the masked touch keypad or keyboard. Manual/idle lock hides work; wake the prompt and choose **Unlock with PIN** when offered. In the installed lock-choice refinement, **Use full sign-in instead** is a smaller underlined, keyboard-accessible fallback rather than a competing primary action. If PIN is unavailable, **Sign in to resume** becomes the primary action with an explanation; pending browser authentication exposes **Cancel sign-in**, with PIN hidden. During PIN verification both unlock choices are disabled. There is no preset/default PIN. Enrollment lasts only for the running authenticated session. Five consecutive failures, expired access/absolute session, restart or security lock require full sign-in. New full sign-in clears the PIN; enroll again explicitly. See [security and failure model](../Identity/POS-Session-PIN.md).
+In the current compact layout, on **Shift & cash** only, when not busy or processing a cart/pending transaction, the ready card shows the authenticated cashier label, shortened register identifier, shift/cash-session status and **Sign in / Open shift / Start sale** as appropriate. The label uses validated UserInfo `preferred_username`, with a shortened subject fallback. It stays on the staff screen. Start sale navigates to the existing sign-in, shift or checkout controls; it creates no sale automatically. Busy, locked, unsafe-display and working states retain their normal protected operational flow. Checkout and QR/history/review tabs omit this card to keep their actions reachable on smaller staff screens.
+
+The staff full-sign-in action always requests provider prompt=login. Full sign-in reloads the central cashier PIN; Terminal & sync → Overview → Set cashier PIN / Change cashier PIN asks privately for six digits within two minutes of full login, and changes require the current PIN. The PIN remains unchanged across future full logins until changed/reset/revoked. Manual/idle lock or an eligible active-refresh connectivity outage reaching access expiry offers primary Unlock with PIN and a smaller full-sign-in fallback. Unlock renews provider credentials privately and verifies the PIN online before exposing work, only while the renewed token remains live. Late ordinary refresh rotation stays private after an eligible lock; a late outage cannot replace that lock. Five wrong attempts impose a durable fifteen-minute lockout. Restart/security/logout and actual provider-session expiration still require full sign-in, without deleting enrollment. Temporary online failures leave work locked with retry. See the [complete security/failure model](../Identity/POS-Session-PIN.md).
 
 **Switch cashier** is available only after all retained work is resolved. An open shift or cash session, cart, pending checkout/order/refund/review or unresolved outbox blocks the switch. Lock is the pause mechanism for retained work; it does not release custody or replay a transaction. Fingerprint and staff-card readers are explicitly unconfigured; this slice supplies no tested hardware adapter or biometric/card enrollment.
 
-### Lock-choice presentation follow-up — installed
+### Historical lock-choice presentation follow-up — installed
 
 The simplified primary PIN/fallback sign-in choice is installed in follow-up release
 `38a23739c3824ef49989785208c86fb1`. The earlier display/PIN release
 `2b6baf12d93e4193b61d030d34bae33f` below is historical and retained its peer
 Resume/Authenticate control. The one-second session render refreshes availability as
-credentials expire. Enrollment, attempt limits, original-cashier binding and full-authentication
-policy are unchanged.
+credentials expire. This historical release retained session-only enrollment; current source policy is described above.
 
 Follow-up candidate `d47757ce-b860-49e0-845a-899c36650838` passes the full gate: 1,463 unit,
 seven architecture, 147 HTTP, 99 frontend unit and 161 browser cases, 14 owning persistence
@@ -54,16 +57,16 @@ The right panel scrolls for long orders; actual readability at the purchased 15.
 | Native setting | Default and validation |
 | --- | --- |
 | `Pos:ShopName` | `NexaConnect`; nonempty public text, at most 80 characters, no control characters |
-| `Session:EnablePinUnlock` | `true`; permits explicit session enrollment, does not supply a PIN |
+| `Session:EnablePinUnlock` | `true`; permits central personal PIN enrollment/use, does not supply a PIN |
 | `Session:IdleTimeoutMinutes` | Existing default 5, range 1–60 |
 | `Session:AbsoluteTimeoutHours` | Existing default 10, range 1–24; refresh/PIN never extend it |
 | `Session:TokenRefreshLeadSeconds` | Existing default 60, range 15–240 |
 
-The checked-in native `appsettings.json` includes the PIN-enable and shop-name defaults. These settings live in the native terminal configuration; this slice does not add a manager settings editor. Existing configurations remain compatible through defaults. There is no backend route, migration, permission, new dependency or supported-reader SDK. Retain current key rings, token/financial recovery, input/density/printer settings and approved galleries. Close active POS work before a matching package/service refresh; do not install an unverified or mismatched candidate.
+The checked-in native appsettings.json includes the PIN-enable and shop-name defaults. These settings remain terminal configuration; no manager settings editor is added. Persistent PINs additionally require the new POS-owned routes, POS26/Authorization17, live use/manage grants and durable POS Data Protection keys. Existing terminal configurations retain compatible defaults. No supported-reader SDK is added. Retain current key rings, token/financial recovery, input/density/printer settings and approved galleries. Close active POS work before a matching package/service refresh; do not install an unverified or mismatched candidate.
 
-Verify PIN validation, attempt exhaustion, enrollment timing, same-operator restoration, expiry/restart/security/full-sign-in fallback and persisted-marker privacy using the focused unit/native fixtures. Verify equal display split, approved-gallery lease/fallback and private projection separately. Full source verification and actual installed operator/physical-reader/display tests are distinct. Test results and activation identifiers must be recorded from executed runs, not inferred from this guide.
+Verify persistent PIN validation, durable lockout, current-PIN changes, recent enrollment, privately renewed same-operator restoration, expiry/restart/security/full-sign-in fallback and persisted-marker privacy using the focused unit/HTTP/PostgreSQL/native fixtures. Verify equal display split, approved-gallery lease/fallback and private projection separately. Full source verification and actual installed operator/physical-reader/display tests are distinct. Test results and activation identifiers must be recorded from executed runs, not inferred from this guide.
 
-## Executed source verification
+## Historical executed source verification
 
 The final POS build passes with zero warnings and zero errors. The focused unit selection
 passes 69 cases; the complete unit suite passes 1,463 with zero skipped after enabling the

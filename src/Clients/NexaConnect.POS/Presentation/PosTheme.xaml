@@ -3,6 +3,8 @@
     <sys:Double x:Key="PosBodyFontSize">14</sys:Double>
     <sys:Double x:Key="PosMenuWidth">160</sys:Double>
     <sys:Double x:Key="PosMenuHeight">108</sys:Double>
+    <sys:Double x:Key="PosMenuNameFontSize">16</sys:Double>
+    <sys:Double x:Key="PosMenuPriceFontSize">20</sys:Double>
     <Thickness x:Key="PosButtonPadding">12,6</Thickness>
     <Thickness x:Key="PosFieldPadding">8</Thickness>
     <Thickness x:Key="PosCardPadding">16</Thickness>
@@ -126,7 +128,7 @@
         <Setter.Value>
           <ControlTemplate TargetType="TabControl">
             <Grid KeyboardNavigation.TabNavigation="Local">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="164"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
               <Border x:Name="NavigationSurface" Background="{StaticResource PosNavigationCanvas}" BorderThickness="0" CornerRadius="0" Padding="6" Margin="0,0,16,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="True">
                   <TabPanel x:Name="HeaderPanel" IsItemsHost="True" KeyboardNavigation.TabIndex="1" VerticalAlignment="Top" />

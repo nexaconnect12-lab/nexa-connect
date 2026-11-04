@@ -1,0 +1,1 @@
+{"version":17,"name":"cashier_pin_permissions","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.45.0"}

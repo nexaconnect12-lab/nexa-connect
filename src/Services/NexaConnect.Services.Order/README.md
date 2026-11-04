@@ -1,5 +1,18 @@
 # Order Service
 
+The existing authenticated, no-store Order detail GET includes nullable original
+`paymentIntentId` for [POS refund selection](../../../docs/Deployment/POS-Refund-Payment-Selection.md).
+It retains live branch `order.read`/tenant checks and disclosure-safe 404; the field is
+not refund authority. Payment retains captured balance, permissions and refund operations.
+No list contract, persistence, migration or permission changes are needed. See the
+[detail/list contract](../../../docs/API/Branch-Order-List.md).
+
+For detail-read diagnosis, query `service.name=nexaconnect-order` with validated
+correlation and the fixed `Order detail authorization denied` boundary event. The response
+and logs expose no provider reference or refund authority; never add bodies or tokens to
+diagnostic output. Native discovery uses `payment.refund.selection`; receipt reads retain
+their existing `order.receipt.read` operation.
+
 Windows POS now calls the existing customer QR queue/accept/reject routes directly with its
 bearer and configured tenant headers; portal review remains available. Order retains all
 live `order.read`/`order.place`, version, guest-price consent and original-order/audit/outbox

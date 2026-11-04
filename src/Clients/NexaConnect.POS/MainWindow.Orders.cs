@@ -37,6 +37,7 @@ public partial class MainWindow
         ClearBarcodeInput();
         UpdateScanControls();
         RenderWorkflow();
+        if (!ReceiptsTab.IsSelected) ClearRefundPaymentSelection();
         if (QrRequestsTab.IsSelected)
         {
             if (QrReviewView.IsChecked == true) await LoadQrRequestsAsync();
@@ -119,6 +120,7 @@ public partial class MainWindow
         RefreshOrdersButton.IsEnabled = OrdersChannelFilter.IsEnabled = OrdersStateFilter.IsEnabled = enabled;
         MoreOrdersButton.IsEnabled = enabled && orderListState.NextCursor is not null;
         OrdersGrid.IsEnabled = enabled;
+        SelectRefundPaymentButton.IsEnabled = enabled && pendingRefund is null && OrdersGrid.SelectedItem is PosBranchOrder { Status: "Paid" };
         CollectSelectedQrButton.IsEnabled = orderListState.CanCollect((OrdersGrid.SelectedItem as PosBranchOrder)?.OrderId,
             IsSignedIn(), _activeShift is not null, busy || orderListLoading, pendingCheckout is not null || pendingOrder is not null,
             cart.Count != 0, _configuration.PaymentMethod != "card_omise_test", _configuration.Currency);

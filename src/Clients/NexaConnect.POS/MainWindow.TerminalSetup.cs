@@ -114,7 +114,7 @@ public partial class MainWindow
     private void OpenScannerSetup_Click(object sender,RoutedEventArgs e)
     {
         if(busy||!IsSignedIn()||displaySafetyBlocked)return;
-        CheckoutTab.IsSelected=true;ScanModeCheckBox.BringIntoView();
+        CheckoutTab.IsSelected=true;MenuOptionsExpander.IsExpanded=true;ScanModeCheckBox.BringIntoView();
         BarcodeScanStatus.Text="Enable scan entry, focus the barcode field, then explicitly scan/type and Add barcode. This navigation did not enable or submit anything.";
     }
     private void ExportTerminalSupport_Click(object sender,RoutedEventArgs e)

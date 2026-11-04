@@ -22,12 +22,14 @@ public sealed class OrdersController(IOrderApplicationService orders, IOrderTena
         new { error = "Use the authoritative quote and place workflow. Client-priced order creation is retired." });
 
     [HttpGet("{orderId:guid}")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<OrderResponse>> Get(Guid orderId, CancellationToken cancellationToken)
     {
         OrderAggregate? order = orders.Get(orderId);
         if (order is null) return NotFound();
-        return await HasCustomerAccessAsync(order.OrganizationId, order.BranchId, ProductPermissions.OrderRead, cancellationToken)
-            ? Ok(ToResponse(order)) : NotFound();
+        if (!await HasCustomerAccessAsync(order.OrganizationId, order.BranchId, ProductPermissions.OrderRead, cancellationToken))
+        { logger.LogWarning("Order detail authorization denied"); return NotFound(); }
+        return Ok(ToResponse(order));
     }
 
     [HttpPost("{orderId:guid}/manual-settlement")]
@@ -111,7 +113,7 @@ public sealed class OrdersController(IOrderApplicationService orders, IOrderTena
 
     private static OrderResponse ToResponse(OrderAggregate order) =>
         new(order.Id, order.OrganizationId, order.BranchId, order.Status.ToString(), order.TotalAmount, order.Currency,
-            order.Lines.Select(line => new OrderLineResponse(line.ProductId, line.Name, line.UnitPrice, line.Quantity, line.PreparationStation)).ToArray(), order.Pricing);
+            order.Lines.Select(line => new OrderLineResponse(line.ProductId, line.Name, line.UnitPrice, line.Quantity, line.PreparationStation)).ToArray(), order.Pricing, order.PaymentIntentId);
 }
 
 [ApiController]
@@ -209,7 +211,7 @@ public sealed record PlaceOrderRequest(Guid RestaurantId, Guid OrganizationId, G
 public sealed record PlaceOrderRequestLine(Guid ProductId, int Quantity);
 
 public sealed record OrderResponse(Guid OrderId, Guid OrganizationId, Guid BranchId, string Status, decimal TotalAmount,
-    string Currency, IReadOnlyCollection<OrderLineResponse> Lines, OrderPricing? Pricing = null);
+    string Currency, IReadOnlyCollection<OrderLineResponse> Lines, OrderPricing? Pricing = null, Guid? PaymentIntentId = null);
 public sealed record OrderLineResponse(Guid ProductId, string Name, decimal UnitPrice, int Quantity, string PreparationStation);
 public sealed record ConfirmManualTenderRequest(Guid OrganizationId, Guid BranchId, Guid TerminalId, Guid IdempotencyKey,
     string Method, decimal Amount, string Currency, bool ReceiptConfirmed, string? BankReference = null, Guid? CorrelationId = null);

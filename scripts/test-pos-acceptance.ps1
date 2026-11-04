@@ -28,8 +28,8 @@ try{
         Native guards pwsh @('-NoProfile','-File',"$PSScriptRoot/test-pos-acceptance-guards.ps1")
         Native unit dotnet @('test','tests/Unit/NexaConnect.UnitTests','--no-restore','-m:1','--logger','trx;LogFileName=unit.trx','--results-directory',$run,'--verbosity','quiet')
         $checks.unit.count=Read-DraftTestCounts (Join-Path $run 'unit.trx') 1332
-        Native http dotnet @('test','tests/Integration/NexaConnect.IntegrationTests','--no-restore','-m:1','--filter','FullyQualifiedName~DrawerIntentBoundaryTests|FullyQualifiedName~PromptPayQrBoundaryTests|FullyQualifiedName~CustomerPromptPayQrBoundaryTests|FullyQualifiedName~BarcodeBoundaryTests|FullyQualifiedName~OrderListBoundaryTests','--logger','trx;LogFileName=http.trx','--results-directory',$run,'--verbosity','quiet')
-        $checks.http.count=Read-DraftTestCounts (Join-Path $run 'http.trx') 49
+        Native http dotnet @('test','tests/Integration/NexaConnect.IntegrationTests','--no-restore','-m:1','--filter','FullyQualifiedName~CashierPinBoundaryTests|FullyQualifiedName~DrawerIntentBoundaryTests|FullyQualifiedName~PromptPayQrBoundaryTests|FullyQualifiedName~CustomerPromptPayQrBoundaryTests|FullyQualifiedName~BarcodeBoundaryTests|FullyQualifiedName~OrderListBoundaryTests','--logger','trx;LogFileName=http.trx','--results-directory',$run,'--verbosity','quiet')
+        $checks.http.count=Read-DraftTestCounts (Join-Path $run 'http.trx') 52
         Native windows-input dotnet @('run','--project','tests/Windows/NexaConnect.PosTouchTests','--verbosity','quiet')
         Native windows-print dotnet @('run','--project','tests/Windows/NexaConnect.PosPrintingTests','--verbosity','quiet')
     }

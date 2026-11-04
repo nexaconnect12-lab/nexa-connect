@@ -39,7 +39,7 @@ internal static partial class Program
         Directory.CreateDirectory(root);
         var config = new PosClientConfiguration("http://127.0.0.1:49199/realms/fixture", "nexaconnect-pos",
             "nexaconnect-pos://oauth/callback", "openid", "http://127.0.0.1:49199/", "http://127.0.0.1:49199/",
-            Guid.NewGuid(), Guid.NewGuid(), "THB", "cash_manual", null, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CatalogApi: "http://127.0.0.1:49199/", EnableOmiseTestCheckout:true);
+            Guid.NewGuid(), Guid.NewGuid(), "THB", "cash_manual", null, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CatalogApi: "http://127.0.0.1:49199/", PaymentApi: "http://127.0.0.1:49199/", EnableOmiseTestCheckout:true);
         var tokenStore = Activator.CreateInstance(typeof(MainWindow).Assembly.GetType("NexaConnect.POS.WindowsTokenStore")!,
             Private | BindingFlags.Public, null, [root], null)!;
         using var auth = (PosAuthentication)Activator.CreateInstance(typeof(PosAuthentication), Private, null,
@@ -68,6 +68,8 @@ internal static partial class Program
             VerifySessionDisplayLayout(window);
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
             VerifyCashierNavigation(window);
+            VerifyCompactCheckout(window);
+            VerifyRefundSelection(window, config);
             VerifyQrReview(window, config, args.Contains("--qr-review-preview"));
             VerifyMenuPhotoPresentation(window);
             VerifyMenuOrganization(window,config);
@@ -482,6 +484,7 @@ internal static partial class Program
         public static int PhotoStatus=503,PhotoCalls;
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (refundSelectionTesting) return RefundSelectionFixtureResponse(request, configuration, cancellationToken);
             if (request.RequestUri!.AbsolutePath.Contains("/qr-requests", StringComparison.Ordinal)) return QrReviewFixtureResponse(request, cancellationToken);
             if (qrWorkspaceTesting && (request.RequestUri.AbsolutePath.EndsWith("/orders") || request.RequestUri.AbsolutePath.EndsWith("/receipt"))) return QrWorkspaceFixtureResponse(request, configuration);
             Require(request.Method == HttpMethod.Get, "presentation fixture must not issue financial commands");

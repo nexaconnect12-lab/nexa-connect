@@ -8,68 +8,106 @@ namespace NexaConnect.UnitTests;
 public sealed class PosAuthenticationTests
 {
     [Fact]
-    public async Task Pin_unlock_restores_only_original_live_session_without_identity_calls_or_work_changes()
+    public async Task Persistent_pin_resumes_expired_access_without_extending_session_or_publishing_before_verification()
     {
         using var f = new Fixture(); var original = await f.Login();
-        f.Auth.SetRetainedWorkGuard(() => true);
-        f.Auth.EnrollSessionPin("826491"); int requests = f.Handler.Requests;
-        f.Auth.LockForQuickUnlock();
-        Assert.True(f.Auth.CanQuickUnlock); Locked(f);
-        Assert.True(f.Auth.TryResumeWithSessionPin("826491"));
-        Assert.Same(original, f.Auth.CurrentToken); Assert.Same(original, f.Store.Value);
-        Assert.Equal(requests, f.Handler.Requests); Assert.False(f.Auth.RequiresInteractiveSignIn);
-        Assert.Equal(original.SessionExpiresAtUtc, f.Auth.CurrentToken!.SessionExpiresAtUtc);
+        Assert.True(await f.Auth.EnrollSessionPinAsync("826491")); f.Auth.LockForQuickUnlock(); Locked(f);
+        // Expire only the suspended access token; the original refresh/absolute identity session remains live.
+        var suspended=typeof(PosAuthentication).GetField("_quickUnlockToken",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!;
+        suspended.SetValue(f.Auth,original with{ExpiresAtUtc=DateTimeOffset.UtcNow.AddSeconds(-1)});
+        Assert.True(f.Auth.CanQuickUnlock);
+        Assert.True(await f.Auth.TryResumeWithSessionPinAsync("826491"));
+        Assert.False(f.Auth.RequiresInteractiveSignIn); Assert.NotEqual(original.AccessToken, f.Auth.CurrentToken!.AccessToken);
+        Assert.Equal(original.SessionExpiresAtUtc, f.Auth.CurrentToken.SessionExpiresAtUtc);
+        Assert.Same(f.Auth.CurrentToken, f.Store.Value);
     }
     [Fact]
-    public async Task Five_failed_pins_remove_capability_and_restart_never_restores_it()
+    public async Task Pin_survives_full_login_logout_and_restart_but_never_authenticates_without_full_login()
     {
-        using var f = new Fixture(); await f.Login(); f.Auth.EnrollSessionPin("826491"); f.Auth.LockForQuickUnlock();
-        for (int i = 0; i < 5; i++) Assert.False(f.Auth.TryResumeWithSessionPin("000000"));
-        Assert.False(f.Auth.CanQuickUnlock); Assert.False(f.Auth.TryResumeWithSessionPin("826491")); Locked(f);
-        using var restart = new Fixture(f.Store);
-        Assert.False(restart.Auth.CanQuickUnlock); Assert.False(restart.Auth.HasSessionPin); Locked(restart);
+        using var f = new Fixture(); await f.Login(); Assert.True(await f.Auth.EnrollSessionPinAsync("826491"));
+        await f.Login(); Assert.True(f.Auth.HasSessionPin);
+        f.Auth.SignOut(); Assert.False(f.Auth.CanQuickUnlock); await f.Login(); Assert.True(f.Auth.HasSessionPin);
+        using var restarted = new Fixture(f.Store, f.Pins); Assert.False(restarted.Auth.CanQuickUnlock);
+        await restarted.Login(); Assert.True(restarted.Auth.HasSessionPin); restarted.Auth.LockForQuickUnlock();
+        Assert.True(await restarted.Auth.TryResumeWithSessionPinAsync("826491"));
+    }
+    [Fact]
+    public async Task Five_failed_attempts_survive_login_and_lock_the_pin_without_removing_enrollment()
+    {
+        using var f = new Fixture(); await f.Login(); await f.Auth.EnrollSessionPinAsync("826491"); f.Auth.LockForQuickUnlock();
+        for (int i=0;i<5;i++) Assert.False(await f.Auth.TryResumeWithSessionPinAsync("000000"));
+        Assert.True(f.Auth.HasSessionPin); await f.Login(); f.Auth.LockForQuickUnlock();
+        Assert.False(await f.Auth.TryResumeWithSessionPinAsync("826491")); Locked(f);
+    }
+    [Fact]
+    public async Task Absolute_expiry_and_provider_denial_require_full_login()
+    {
+        using var f = new Fixture(); var token = await f.Login(); await f.Auth.EnrollSessionPinAsync("826491"); f.Auth.LockForQuickUnlock();
+        f.Auth.QuickUnlockClock = new FixedClock(token.SessionExpiresAtUtc!.Value.AddSeconds(1));
+        Assert.False(await f.Auth.TryResumeWithSessionPinAsync("826491")); Locked(f);
+        f.Auth.QuickUnlockClock = TimeProvider.System; f.Handler.RefreshStatus = HttpStatusCode.BadRequest;
+        Assert.False(await f.Auth.TryResumeWithSessionPinAsync("826491")); Assert.False(f.Auth.CanQuickUnlock); Locked(f);
+    }
+    [Fact]
+    public async Task Security_lock_during_private_refresh_fences_late_unlock()
+    {
+        using var f = new Fixture(); await f.Login(); await f.Auth.EnrollSessionPinAsync("826491"); f.Auth.LockForQuickUnlock();
+        f.Handler.DelayRefresh = true; var resume = f.Auth.TryResumeWithSessionPinAsync("826491");
+        await f.Handler.Started.Task; Locked(f); f.Auth.RequireInteractiveSignIn(); f.Handler.Release.TrySetResult();
+        Assert.False(await resume); Locked(f);
+    }
+    [Fact]
+    public async Task Enrollment_requires_recent_login_and_current_pin_and_revocation_is_live()
+    {
+        using var f = new Fixture(); await Assert.ThrowsAsync<InvalidOperationException>(()=>f.Auth.EnrollSessionPinAsync("826491"));
+        var token=await f.Login(); Assert.True(await f.Auth.EnrollSessionPinAsync("826491"));
+        Assert.False(await f.Auth.EnrollSessionPinAsync("123456", "000000"));
+        Assert.True(await f.Auth.EnrollSessionPinAsync("123456", "826491"));
+        f.Auth.QuickUnlockClock = new FixedClock(token.SessionStartedAtUtc!.Value.AddMinutes(3));
+        Assert.False(f.Auth.CanEnrollSessionPin); f.Auth.QuickUnlockClock=TimeProvider.System;
+        f.Auth.LockForQuickUnlock(); f.Pins.Credential.Administer(f.Pins.Credential.Version,"revoke");
+        Assert.False(await f.Auth.TryResumeWithSessionPinAsync("123456")); Assert.False(f.Auth.CanQuickUnlock); Locked(f);
+    }
+    [Fact]
+    public async Task Wrong_cashier_or_network_outage_cannot_unlock_and_rotation_is_retained_for_retry()
+    {
+        using var f = new Fixture(); await f.Login(); await f.Auth.EnrollSessionPinAsync("826491"); f.Auth.LockForQuickUnlock();
+        f.Pins.Unavailable=true; await Assert.ThrowsAsync<HttpRequestException>(()=>f.Auth.TryResumeWithSessionPinAsync("826491")); Locked(f);
+        f.Pins.Unavailable=false; Assert.True(await f.Auth.TryResumeWithSessionPinAsync("826491"));
+        f.Auth.LockForQuickUnlock(); f.Handler.Subject="cashier-b";
+        Assert.False(await f.Auth.TryResumeWithSessionPinAsync("826491")); Locked(f);
     }
     [Theory]
-    [InlineData(6)]
-    [InlineData(660)]
-    public async Task Access_and_absolute_expiry_require_full_login_even_with_correct_pin(int minutes)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Late_successful_pin_response_cannot_unlock_after_security_lock_or_shutdown(bool shutdown)
     {
-        using var f = new Fixture(); var token = await f.Login(); f.Auth.EnrollSessionPin("826491"); f.Auth.LockForQuickUnlock();
-        f.Auth.QuickUnlockClock = new FixedClock(token.SessionStartedAtUtc!.Value.AddMinutes(minutes));
-        Assert.False(f.Auth.CanQuickUnlock); Assert.False(f.Auth.TryResumeWithSessionPin("826491")); Locked(f);
+        using var f=new Fixture(); await f.Login(); await f.Auth.EnrollSessionPinAsync("826491"); f.Auth.LockForQuickUnlock();
+        f.Pins.DelayVerify=true; var resume=f.Auth.TryResumeWithSessionPinAsync("826491");
+        await f.Pins.Started.Task.WaitAsync(TimeSpan.FromSeconds(3)); Locked(f);
+        if(shutdown) f.Auth.StopForShutdown(); else f.Auth.RequireInteractiveSignIn();
+        f.Pins.Release.TrySetResult();
+        if(shutdown) await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>resume); else Assert.False(await resume);
+        Locked(f);
     }
     [Fact]
-    public async Task Security_lock_supersedes_pin_and_late_refresh_cannot_restore_authority()
+    public async Task Token_expiry_during_pin_verification_keeps_both_public_and_persisted_authority_locked()
     {
-        using var f = new Fixture(); await f.Login(); f.Auth.EnrollSessionPin("826491");
-        f.Handler.DelayRefresh = true; var refresh = f.Auth.RefreshAsync(); await f.Handler.Started.Task;
-        f.Auth.LockForQuickUnlock(); Assert.True(f.Auth.CanQuickUnlock);
-        f.Auth.RequireInteractiveSignIn(); f.Handler.Release.TrySetResult();
-        var late = await refresh; Assert.Same(f.Store.Value, late); Assert.Empty(late.AccessToken);
-        Assert.False(f.Auth.TryResumeWithSessionPin("826491")); Locked(f);
+        using var f=new Fixture(); await f.Login(); await f.Auth.EnrollSessionPinAsync("826491"); f.Auth.LockForQuickUnlock();
+        f.Pins.DelayVerify=true; var resume=f.Auth.TryResumeWithSessionPinAsync("826491");
+        await f.Pins.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        f.Auth.QuickUnlockClock=new FixedClock(DateTimeOffset.UtcNow.AddMinutes(6)); f.Pins.Release.TrySetResult();
+        Assert.False(await resume); Locked(f);
     }
     [Fact]
-    public async Task Pin_enrollment_requires_recent_full_login_and_is_cleared_by_login_logout_and_shutdown()
+    public async Task Ordinary_refresh_finishing_after_manual_lock_retains_rotation_privately_until_pin_is_verified()
     {
-        using var f = new Fixture(); Assert.Throws<InvalidOperationException>(() => f.Auth.EnrollSessionPin("826491"));
-        var token = await f.Login(); f.Auth.EnrollSessionPin("826491");
-        f.Auth.QuickUnlockClock = new FixedClock(token.SessionStartedAtUtc!.Value.AddMinutes(3));
-        Assert.False(f.Auth.CanEnrollSessionPin); Assert.Throws<InvalidOperationException>(() => f.Auth.EnrollSessionPin("826491"));
-        f.Auth.QuickUnlockClock = TimeProvider.System;
-        await f.Login(); Assert.False(f.Auth.HasSessionPin);
-        f.Auth.EnrollSessionPin("826491"); f.Auth.SignOut(); Assert.False(f.Auth.HasSessionPin);
-        await f.Login(); f.Auth.EnrollSessionPin("826491"); f.Auth.LockForQuickUnlock(); f.Auth.Dispose(); Assert.False(f.Auth.CanQuickUnlock);
-    }
-    [Fact]
-    public async Task Disabled_pin_setting_and_wrong_cashier_never_unlock_original_work()
-    {
-        using var f = new Fixture(); await f.Login(); f.Auth.EnrollSessionPin("826491"); f.Auth.LockForQuickUnlock();
-        f.Handler.Subject = "cashier-b"; var signIn = f.Auth.SignInAsync(true); await f.Callback(f.Uri!);
-        await Assert.ThrowsAsync<PosSessionResumeException>(() => signIn);
-        Assert.False(f.Auth.CanQuickUnlock); Locked(f);
-        var config = PosCheckoutIntegrationTests.Configuration() with { EnablePinUnlock = false };
-        using var disabled = new PosAuthentication(config, new Handler(), new Store());
-        Assert.False(disabled.CanEnrollSessionPin); Assert.False(disabled.CanQuickUnlock);
+        using var f=new Fixture(); await f.Login(); await f.Auth.EnrollSessionPinAsync("826491");
+        f.Handler.DelayRefresh=true; var refresh=f.Auth.RefreshAsync(); await f.Handler.Started.Task;
+        f.Auth.LockForQuickUnlock(); f.Handler.Release.TrySetResult(); await refresh; Locked(f);
+        var suspended=(PosTokenSet)typeof(PosAuthentication).GetField("_quickUnlockToken",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.GetValue(f.Auth)!;
+        Assert.Equal("refresh-3",suspended.RefreshToken);
+        Assert.True(await f.Auth.TryResumeWithSessionPinAsync("826491"));
     }
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider { public override DateTimeOffset GetUtcNow() => now; }
 
@@ -404,16 +442,17 @@ public sealed class PosAuthenticationTests
         public Handler Handler { get; } = new();
         public PosAuthentication Auth { get; }
         public string? Uri { get; private set; }
-        public Fixture(Store? store = null)
+        public FakeCashierPinPort Pins { get; }
+        public Fixture(Store? store = null, FakeCashierPinPort? pins = null)
         {
-            Store = store ?? new Store();
-            Auth = new PosAuthentication(PosCheckoutIntegrationTests.Configuration(), Handler, Store, uri => Uri = uri);
+            Store = store ?? new Store(); Pins = pins ?? new();
+            Auth = new PosAuthentication(PosCheckoutIntegrationTests.Configuration(), Handler, Store, uri => Uri = uri, Pins);
         }
         public async Task<PosTokenSet> Login()
         {
             var attempt = Auth.SignInAsync();
             if (!attempt.IsCompleted) await Callback(Uri!);
-            return await attempt;
+            var result = await attempt; await Auth.LoadPinStatusAsync(); return result;
         }
         public Task Callback(string uri)
         {

@@ -1,6 +1,15 @@
 # NexaConnect Project Architecture
 
-[ADR-064](../../docs/Architecture/Decisions/ADR-064-pos-session-pin-and-customer-panels.md) adds session-only PIN resume for the same live cashier, a staff-ready card and equal customer advertising/order panels. Manual/idle lock persists only the existing identity marker and privately suspends credentials; expiry/restart/security paths require full OIDC. No persistent PIN registry, biometric/card adapter, new service/API/schema or offline authority. Customer output remains an allow-listed projection plus approved customer gallery. See [configuration/failure behavior](../../docs/Deployment/POS-Cashier-Ready-And-Customer-Panels.md).
+[POS original-payment refund selection](../../docs/Deployment/POS-Refund-Payment-Selection.md)
+composes existing paginated Paid orders, Order detail/receipt and Payment reads into a
+human-readable review. Order detail adds a nullable original payment reference; Payment
+retains live refund permissions, monetary limits, reservation and recovery. Selection
+is memory-only and privacy-fenced; cash/manual PromptPay refunds remain outside scope.
+No schema or new grant is introduced. The matching retained pilot is activated with preserved data/PIN/recovery state; fresh operator/provider acceptance remains pending.
+
+The [compact cashier workspace](../../docs/Deployment/POS-Compact-Cashier-Workspace.md) refines native presentation: a compact toolbar, bounded cart, width-fitted menu, collapsed secondary tools and one pinned visible total. Existing workflow handlers, online authority, item identity, PIN/custody and customer projection remain unchanged. Attention/busy guidance remains visible at short heights. No API/schema/configuration ownership change; the matched compact release is installed with preserved business/PIN/recovery state and fresh operator cases pending.
+
+[ADR-065](../../docs/Architecture/Decisions/ADR-065-persistent-cashier-pin.md) supersedes session-only PINs with POS-owned organization/issuer/cashier credentials (POS26, Authorization17, compatibility0.45.0). Protected verifiers, durable five-failure/fifteen-minute lockout, CAS and immutable audit support unchanged PINs across future logins. Native manual/idle or eligible connectivity-expiry resume privately renews provider credentials and verifies online before restoring still-live authority; original custody/max/session/security fences remain. Administrative reset/revoke is API-only, default tenant-admin; no reader/offline authority or provider-policy change. The matched retained pilot is activated with preserved business/recovery data and fresh operator cases pending; existing 50/50 customer projection/gallery behavior remains.
 
 
 The [shared photo library](../../docs/Deployment/Media-Library.md) adds private, paginated product-photo browsing and bounded same-origin PNG thumbnails behind Customer BFF. React menu/gallery editors share a default-grid/details popup picker; candidate selection does not approve or publish. Media keeps bytes/lifecycle, Catalog menu selection and Restaurant gallery approval. No schema/configuration change; batch uploads, metadata editing and other formats remain planned. See [ADR-063](../../docs/Architecture/Decisions/ADR-063-shared-photo-library.md).
@@ -28,9 +37,9 @@ UX17 adds native lifecycle diagnostics and independent non-UI cleanup, immediate
 
 UX16 refines the native cashier theme with flat surfaces, template-local dark-rail contrast and compact Category/Station filters. Existing WPF handlers, default Standard/keyboard input, optional Touch settings and protected business/session recovery remain unchanged. No service/data boundary changes. The matching local pilot is installed; actual operator/device acceptance remains pending. See [UX16](../../docs/Deployment/POS-UX16-Flat-Cashier.md).
 
-UX15 composes the existing Catalog-backed menu editors into one Customer Portal workspace with shared branch/item selection, isolated drafts and independent saves/approval. Version ownership and service boundaries are unchanged; Catalog9 / full221 / compatibility0.44.0 remain current. The retained local pilot is activated with twelve Ready services and a responsive matching POS; actual operator acceptance remains pending. See [UX15](../../docs/Deployment/POS-UX15-Menu-Management.md).
+UX15 composes the existing Catalog-backed menu editors into one Customer Portal workspace with shared branch/item selection, isolated drafts and independent saves/approval. Version ownership and service boundaries are unchanged; Catalog9 remains current; that slice introduced full221/compatibility0.44.0, while the persistent-PIN follow-up now requires full223/compatibility0.45.0. The retained local pilot is activated with twelve Ready services and a responsive matching POS; actual operator acceptance remains pending. See [UX15](../../docs/Deployment/POS-UX15-Menu-Management.md).
 
-UX14 adds Catalog9 details version/audit and a protected name/price/station editor with explicit review/confirmation. Row-locked CAS and legacy upsert version increments protect stale drafts; availability and accepted Order snapshots remain independent. Current Catalog31/full221, minimum compatibility0.44.0. See [ADR-061](../../docs/Architecture/Decisions/ADR-061-safe-menu-details-editing.md).
+UX14 adds Catalog9 details version/audit and a protected name/price/station editor with explicit review/confirmation. Row-locked CAS and legacy upsert version increments protect stale drafts; availability and accepted Order snapshots remain independent. At introduction, Catalog31/full221 and minimum compatibility0.44.0; the PIN follow-up adds two POS tables at compatibility0.45.0. See [ADR-061](../../docs/Architecture/Decisions/ADR-061-safe-menu-details-editing.md).
 
 UX13 adds Catalog-owned per-product availability CAS/audit (migration8, compatibility0.43.0), protected manager editing and native sold-out labels. Existing quote/acceptance checks use live availability; accepted snapshots and financial recovery remain unchanged. See [ADR-060](../../docs/Architecture/Decisions/ADR-060-branch-menu-availability.md).
 
@@ -718,7 +727,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned migrations exist for all 13 service databases and currently define 221 tables with service-owned indexes and constraints. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. Customer version 2 adds append-only audit that excludes profile fields while its version-1 outbox remains authoritative. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned migrations exist for all 13 service databases and currently define 223 tables with service-owned indexes and constraints. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. Customer version 2 adds append-only audit that excludes profile fields while its version-1 outbox remains authoritative. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Rules:
 

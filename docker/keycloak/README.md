@@ -1,5 +1,7 @@
 # NexaConnect Keycloak
 
+Persistent cashier PIN resume still respects actual Keycloak idle/max/revocation. This source change does not alter shared realm policy or refresh unattended while locked. Review and verify a bounded cashier-shift policy before promising long-break PIN resume; the development SSO idle limit can expire before the native ten-hour maximum. Keep restart/security full-login boundaries. See [PIN identity policy](../../docs/Identity/POS-Session-PIN.md).
+
 The development template gives `nexaconnect-media-service` an explicit access-token
 `nexaconnect-api` audience mapper. Media-enabled local draft startup adds the named mapper
 to its exact owned loopback realm only when missing, rejects conflicting mapper type/

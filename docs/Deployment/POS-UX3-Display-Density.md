@@ -1,5 +1,7 @@
 # POS UX3 — display density and responsive layouts
 
+The [compact cashier workspace](POS-Compact-Cashier-Workspace.md), now installed in the retained pilot, changes the staff minimum to960×520, fits tile widths to available menu space and keeps attention/busy guidance visible at every height. Its routine descriptions collapse independently of window height. Standard/Touch density and independent keyboard preferences remain intact. The original dimensions and responsive behavior below describe the earlier UX3 layout before compact activation; historical verification is unchanged.
+
 After installing the [terminal-sections follow-up](POS-UX10-Windows11-Cashier.md#terminal-sections-follow-up),
 use **Terminal & sync → Input & devices → Display density**. Earlier releases show density on the
 single Terminal & sync page. This location change does not reset saved density or keyboard preferences.
@@ -10,11 +12,11 @@ Display density is independent of the [optional automatic keyboard setting](POS-
 The defaults are **Standard density** and **touch-first off**. Changing either setting
 preserves the other, so all four combinations are supported.
 
-## Settings and behavior
+## Settings and original UX3 layout
 
-Sign in and open **Terminal & sync → Input settings → Display density**:
+Sign in and open **Terminal & sync → Input & devices → Display density**:
 
-| Density | Staff controls and rows | Body text | Menu tiles |
+| Density | Staff controls and rows | Body text | Original menu tiles before compact layout |
 | --- | --- | --- | --- |
 | Standard (default) | 36 DIP minimum | 14 DIP | 160 DIP wide, 108 DIP minimum high |
 | Touch | 52 DIP minimum | 16 DIP | 184 DIP wide, 136 DIP minimum high |
@@ -29,7 +31,7 @@ are allowed only while signed in, not busy, not locked and not display-safety-bl
 If saving fails, the selection returns to the previous density and visible retry/access
 guidance appears; both previous preferences remain active.
 
-The supported minimum staff window is now 960×640 logical units. Below 1100 logical units
+The original UX3 staff minimum was960×640 logical units; the current compact minimum is960×520, with dynamically fitted menu tiles as described in the compact guide. Below 1100 logical units
 wide, Shift & cash stacks the shift/setup card above reconciliation instead of squeezing
 both into columns. Checkout keeps menu and cart columns with wrapping density-sized menu
 tiles; Payment keeps its scrollable card and original pinned confirmation button. Orders

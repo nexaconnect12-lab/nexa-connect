@@ -23,6 +23,13 @@ release. Stop editing executable inputs while the gate runs: changed hashes or c
 fail the gate. `build-artifacts.json` records published draft service/POS binary and portal
 asset hashes. Child receipts record their scope and cleanup separately.
 
+The shared `scripts/release/source.mjs` inventory used by later release gates also binds
+tracked deletions explicitly. A removed tracked executable input contributes a deletion
+marker to the combined hash instead of failing inventory or silently disappearing; restoring
+the file changes that identity again. Present-file hashes still use Git clean filters, and
+unknown missing inputs fail closed. This permits removal of obsolete code while retaining
+source/package matching and the existing clean-release requirements.
+
 Required gates are:
 
 - Lifecycle, terminal, manager, release and UAT safety guards.

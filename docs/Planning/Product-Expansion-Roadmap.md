@@ -2,7 +2,7 @@
 
 ## Cashier/customer refinement — 3 November 2026
 
-The [current native slice](../Deployment/POS-Cashier-Ready-And-Customer-Panels.md) implements a ready identity/status card, guarded full-auth cashier switch, 50/50 approved customer advertising and welcome/order display, and optional session-lifetime six-digit PIN unlock. This is not completion of A1/A2 hardware credential enrollment: no fingerprint reader, RFID/card adapter, persistent PIN registry or offline identity authority is implemented. Session PIN restores only an already-live original cashier and expires on full-auth/security/restart boundaries. Existing hardware and biometric/card roadmap items remain open.
+The [current native slice](../Deployment/POS-Cashier-Ready-And-Customer-Panels.md) implements a ready identity/status card, guarded full-auth cashier switch and 50/50 approved customer advertising/welcome/order display. The [persistent cashier PIN follow-up](../Identity/POS-Session-PIN.md) adds a POS-owned registry and private online renewal/verification for the original cashier, with matching POS26/Authorization17 activated in the retained pilot and fresh PIN/operator acceptance pending. Enrollment survives future full logins until changed/reset/revoked; actual provider-session expiry/restart/security still requires full login. This does not complete A1/A2 hardware credential enrollment: fingerprint readers, RFID/card adapters and offline identity authority remain unimplemented.
 
 
 ## Shared photo-library direction — 3 November 2026

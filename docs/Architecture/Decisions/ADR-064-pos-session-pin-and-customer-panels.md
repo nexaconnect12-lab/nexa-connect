@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-11-03
 
+PIN lifetime/access-expiry decisions below are superseded by [ADR-065](ADR-065-persistent-cashier-pin.md). This records the earlier installed session-only implementation; customer display, custody and privacy decisions remain applicable.
+
 ## Context
 
 Cashiers need a visible ready identity/status and quick resume without repeated password typing. The customer screen should show approved advertising beside welcome/order details. Original cashier custody, locked recovery, online authority and customer privacy must remain intact. No supported fingerprint/card hardware or enrollment protocol is known.

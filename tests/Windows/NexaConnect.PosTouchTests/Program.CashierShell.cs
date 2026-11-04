@@ -44,6 +44,7 @@ internal static partial class Program
         tabs.SelectedIndex=0;
         window.Width=1280;window.Height=850;
         ((ScrollViewer)window.FindName("InputViewport")).ScrollToTop();Pump(window);
+        var more=(Expander)window.FindName("MenuOptionsExpander");more.IsExpanded=true;Pump(window);
         var picker=(ComboBox)window.FindName("StationComboBox");
         picker.ApplyTemplate();
         var popup=(Popup)picker.Template.FindName("PART_Popup",picker);
@@ -52,6 +53,7 @@ internal static partial class Program
         Require(popup.IsOpen && popup.Child is FrameworkElement child && child.ActualWidth>=picker.ActualWidth,
             "restyled selection popup opens with the field width");
         picker.IsDropDownOpen=false;Pump(window);
+        more.IsExpanded=false;
     }
     private static double Contrast(SolidColorBrush first,SolidColorBrush second)
     {

@@ -100,6 +100,17 @@ public sealed class RestaurantWorkflowCrossServiceTests : IClassFixture<Restaura
         OrderResponse persisted = (await orderRead.Content.ReadFromJsonAsync<OrderResponse>())!;
         Assert.Equal("Paid", persisted.Status);
         Assert.Equal(14.71m, persisted.TotalAmount);
+        Assert.NotNull(persisted.PaymentIntentId);
+        Assert.Equal(fixture.Payments.Intents.LastIntent?.Id, persisted.PaymentIntentId);
+        Assert.True(orderRead.Headers.CacheControl?.NoStore);
+        // The additive reference is disclosed only through the existing OrderRead boundary.
+        using var denied = new HttpRequestMessage(HttpMethod.Get, $"/api/order/v1/orders/{result.OrderId:D}");
+        denied.Headers.Authorization = new("Bearer", "customer-without-order-access");
+        denied.Headers.Add("X-Nexa-Organization-Id", RestaurantWorkflowServiceFixture.OrganizationId.ToString("D"));
+        denied.Headers.Add("X-Nexa-Application-Code", "nexa_connect");
+        using var deniedResponse = await order.SendAsync(denied);
+        Assert.Equal(HttpStatusCode.NotFound, deniedResponse.StatusCode);
+        Assert.DoesNotContain(persisted.PaymentIntentId.Value.ToString("D"), await deniedResponse.Content.ReadAsStringAsync());
 
         IReadOnlyCollection<InventoryStockItem> stock = (await inventory.GetFromJsonAsync<IReadOnlyCollection<InventoryStockItem>>(
             $"/api/inventory/v1/branches/{RestaurantWorkflowServiceFixture.BranchId:D}/stock"))!;
@@ -121,7 +132,7 @@ public sealed class RestaurantWorkflowCrossServiceTests : IClassFixture<Restaura
 
     private sealed record WorkflowResult(Guid OrderId, int Status, decimal TotalAmount, string Currency);
     private sealed record OrderResponse(Guid OrderId, Guid OrganizationId, Guid BranchId, string Status, decimal TotalAmount,
-        string Currency, IReadOnlyCollection<object> Lines);
+        string Currency, IReadOnlyCollection<object> Lines, Guid? PaymentIntentId);
 }
 
 public sealed class RestaurantWorkflowServiceFixture : IDisposable

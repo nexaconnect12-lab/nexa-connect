@@ -4,6 +4,12 @@ The [QR orders workspace](POS-QR-Orders-Workspace.md) also reuses this API for Q
 and paid views, with original-order selection and explicit collection/receipt actions.
 The all-branch Orders tab and its source/status filters remain available.
 
+The [original-payment refund selector](POS-Refund-Payment-Selection.md) source follow-up
+adds **Review for refund** for a selected Paid order and **Receipts → Choose paid order…**
+as its entry point. It reads the original captured card payment/receipt; selection does
+not submit a refund or broaden permissions. The matching Order/POS update is installed in the retained pilot with preserved state;
+fresh operator/provider acceptance remains pending.
+
 Use **QR orders → Pending review** or portal QR review to accept a pending guest proposal
 first. In the unified workspace, **View original order** switches to its Awaiting payment or
 Paid / history view without claiming or paying. The all-branch Orders tab remains an

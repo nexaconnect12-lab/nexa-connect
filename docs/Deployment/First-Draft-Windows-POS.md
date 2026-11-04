@@ -1,6 +1,6 @@
 # Windows first-draft terminal (slice 4)
 
-The native [cashier-ready/customer-panels slice](POS-Cashier-Ready-And-Customer-Panels.md) adds an optional session-only PIN, guarded identity/status card and 50/50 approved customer advertising/order view. Existing configurations gain defaults for `Session:EnablePinUnlock` and public `Pos:ShopName`; no migration or reader SDK is introduced. Source implementation is separate from matching package activation and operator/device acceptance.
+The native [cashier-ready/customer-panels slice](POS-Cashier-Ready-And-Customer-Panels.md) adds a guarded identity/status card and 50/50 approved customer advertising/order view. The [persistent cashier PIN follow-up](../Identity/POS-Session-PIN.md) is activated in the matched retained pilot with POS26/Authorization17 at compatibility0.45.0; existing business/recovery data is preserved and fresh PIN/operator acceptance remains pending. Existing configurations retain defaults for `Session:EnablePinUnlock` and public `Pos:ShopName`; the persistent PIN adds owning-service migrations but no reader SDK. Source implementation is separate from matching package activation and operator/device acceptance.
 
 
 [UX23 supervision](POS-UX23-Background-Hosting.md) optionally owns normal-pilot backends independently of a launcher terminal. The POS remains interactive and uses the same protected current-user recovery; host installation/stop requires POS closed. Actual Windows reboot and financial/device observations are separate.

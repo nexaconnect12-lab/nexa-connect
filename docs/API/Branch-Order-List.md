@@ -1,5 +1,21 @@
 # Branch order history and POS selection
 
+## Original payment lookup
+
+The existing `GET /api/order/v1/orders/{orderId}` response includes nullable
+`paymentIntentId`, the original provider intent retained by Order (null for manual
+settlement). This additive field does not authorize a refund or expose provider references.
+The detail GET is no-store and retains existing workload/customer access: customers require
+matching organization/application headers and a live original-branch `order.read` decision;
+missing resources or denied customer access return 404. Other detail fields are unchanged.
+The paginated list below does not add a payment field. The [POS refund selector](../Deployment/POS-Refund-Payment-Selection.md)
+reads the selected Paid order's detail and independently checks Payment and receipt scope.
+Order detail denial emits the fixed `Order detail authorization denied` event under
+`nexaconnect-order`; follow the validated correlation identifier without recording
+payment references, response bodies or authorization headers.
+
+## Branch list
+
 Order provides the authenticated staff read route:
 
 ```http

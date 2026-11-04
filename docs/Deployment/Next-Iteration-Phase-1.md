@@ -1,6 +1,6 @@
 # Next-iteration phase 1 — POS idle lock and authenticated resume
 
-Current follow-up: [ADR-064](../Architecture/Decisions/ADR-064-pos-session-pin-and-customer-panels.md) adds optional explicitly enrolled session-only PIN resume for eligible idle/manual locks. Full OIDC remains required for restart, expiry, security locks and fallback; original work/cashier guards remain. The Phase 1 record below describes the original browser-authenticated baseline; read the [current PIN policy](../Identity/POS-Session-PIN.md) for the bounded exception.
+Current follow-up: [ADR-065](../Architecture/Decisions/ADR-065-persistent-cashier-pin.md) adds persistent cashier PINs and private online renewal/verification for eligible idle/manual resume. Full OIDC remains required for restart, actual provider-session expiry, security locks and fallback; original work/cashier guards remain. Matching POS26/Authorization17 is activated in the retained pilot; fresh PIN/operator acceptance remains pending. The Phase 1 record below describes the original browser-authenticated baseline; read the [current PIN policy](../Identity/POS-Session-PIN.md) for the bounded exception.
 
 
 Implemented in the working tree on 21 October 2026 against starting commit `929cc76`.

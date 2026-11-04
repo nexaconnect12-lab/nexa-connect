@@ -1,5 +1,18 @@
 # Payment refunds
 
+The [POS original-payment selector](../Deployment/POS-Refund-Payment-Selection.md) uses
+existing authenticated GETs to show order/receipt numbers, item names, date, amount and
+an advisory refundable balance. Selection never submits a refund. POS rechecks the exact
+captured card payment before the original durable command; Payment's existing live
+create permission, financial limit, transactional reservation and operation idempotency
+remain authoritative. No Payment route, schema or response changes are introduced.
+
+For the newly started native command only, a definitive POST 401/403 precedes Payment
+reservation/provider I/O: POS clears its local pending operation if local cleanup succeeds
+and requires fresh selection/review after access is resolved. Cleanup failure retains the
+blocked original operation. Uncertain transport/results and Verify GET failures preserve
+the original operation and never trigger another provider command.
+
 POS UX5 prints completed provider-refund receipts through saved Windows queues and the
 shared Standard/80 mm layout. It reloads with existing live `payment.refund.read` before
 and after the dialog, checks the exact requested refund UUID, immutable content and original

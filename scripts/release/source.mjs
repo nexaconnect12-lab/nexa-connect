@@ -13,11 +13,15 @@ function git(root, args, input) {
 export function source(root = repository) {
   const revision = git(root, ['rev-parse', 'HEAD']).trim();
   const names = [...new Set(git(root, ['ls-files', '-co', '--exclude-standard', '-z']).split('\0').filter(f => f && !f.endsWith('.md')))].sort();
-  if (!/^[a-f0-9]{40}$/.test(revision) || !names.length || names.some(f => /[\r\n]/.test(f) || !fs.existsSync(path.join(root, f)))) throw new Error('Invalid source inventory.');
+  const deleted = new Set(git(root, ['ls-files', '-d', '-z']).split('\0').filter(Boolean));
+  const present = names.filter(f => fs.existsSync(path.join(root, f)));
+  if (!/^[a-f0-9]{40}$/.test(revision) || !names.length || names.some(f => /[\r\n]/.test(f) || (!fs.existsSync(path.join(root, f)) && !deleted.has(f)))) throw new Error('Invalid source inventory.');
   // Git applies repository clean filters/attributes: identities survive checkout EOL differences.
-  const hashes = git(root, ['hash-object', '--stdin-paths'], names.join('\n') + '\n').trim().split(/\r?\n/);
-  if (hashes.length !== names.length || hashes.some(v => !/^[a-f0-9]{40}$/.test(v))) throw new Error('Invalid source hashes.');
-  return { version: 1, revision, dirty: git(root, ['status', '--porcelain']).length > 0, inputHash: sha(JSON.stringify(names.map((p, i) => [p, hashes[i]]))), fileCount: names.length };
+  const hashes = present.length ? git(root, ['hash-object', '--stdin-paths'], present.join('\n') + '\n').trim().split(/\r?\n/) : [];
+  if (hashes.length !== present.length || hashes.some(v => !/^[a-f0-9]{40}$/.test(v))) throw new Error('Invalid source hashes.');
+  const byName = new Map(present.map((p, i) => [p, hashes[i]]));
+  // Tracked deletions are explicit inputs, never silently ignored or treated as missing artifacts.
+  return { version: 1, revision, dirty: git(root, ['status', '--porcelain']).length > 0, inputHash: sha(JSON.stringify(names.map(p => [p, byName.get(p) ?? 'deleted']))), fileCount: names.length };
 }
 export function sameSource(a, b) {
   return !!a && !!b && a.version === 1 && b.version === 1 && a.revision === b.revision && a.inputHash === b.inputHash && a.dirty === b.dirty && typeof a.dirty === 'boolean';

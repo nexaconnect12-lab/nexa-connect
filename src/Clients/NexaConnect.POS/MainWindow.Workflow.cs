@@ -22,6 +22,9 @@ public partial class MainWindow
         nextDestination = hint.Destination;
         WorkflowTitle.Text = busy ? "Working…" : hint.Title;
         WorkflowDescription.Text = busy ? "Wait for the current action to finish. Do not repeat it." : hint.Description;
+        // Routine help is secondary; uncertainty/recovery and in-progress instructions stay visible at every size.
+        WorkflowDescription.Visibility = hint.Attention || busy ? Visibility.Visible : Visibility.Collapsed;
+        SessionGuidanceText.Visibility = hint.Attention ? Visibility.Visible : Visibility.Collapsed;
         WorkflowTitle.Foreground = new SolidColorBrush(hint.Attention ? Color.FromRgb(146, 64, 14) : Color.FromRgb(20, 83, 45));
         WorkflowNextButton.Content = hint.Action;
         WorkflowNextButton.IsEnabled = !busy;
@@ -33,6 +36,7 @@ public partial class MainWindow
         WorkflowAmountLabel.Text = amount.Label;
         WorkflowAmount.Text = amount.Value;
         if (!busy) BusyProgress.Visibility = Visibility.Collapsed;
+        UpdateResponsiveLayout();
     }
 
     private CashierDestination CurrentDestination() => CheckoutTab.IsSelected ? CashierDestination.Checkout

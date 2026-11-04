@@ -58,6 +58,10 @@ test('shared source binding detects source, dirty state and even packaging input
   git(['init', '-q']); fs.writeFileSync(path.join(d, '.gitattributes'), '*.cs text eol=lf\n'); fs.writeFileSync(path.join(d, 'sample.cs'), 'line\n'); git(['add', '.']); git(['-c','user.name=Fixture','-c','user.email=fixture@nexa.test','commit','-qm','Synthetic source fixture']);
   const clean = source(d); assert.equal(clean.dirty, false); assert(sameSource(clean, source(d)));
   fs.writeFileSync(path.join(d, 'sample.cs'), 'line\r\n'); assert.equal(source(d).inputHash, clean.inputHash);
+  fs.unlinkSync(path.join(d, 'sample.cs')); const removed = source(d);
+  assert.notEqual(removed.inputHash, clean.inputHash); assert.equal(removed.fileCount, clean.fileCount);
+  assert(sameSource(removed, source(d)));
+  fs.writeFileSync(path.join(d, 'sample.cs'), 'line\n'); assert.equal(source(d).inputHash, clean.inputHash);
   fs.writeFileSync(path.join(d, 'installer.iss'), 'new packaging'); assert.notEqual(source(d).inputHash, clean.inputHash); assert(!sameSource(clean, source(d)));
 });
 function artifacts(d) {

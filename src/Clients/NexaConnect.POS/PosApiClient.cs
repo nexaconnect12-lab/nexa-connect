@@ -119,9 +119,9 @@ public sealed partial class PosApiClient : IDisposable
         configuration.ValidateCheckout();
         _mediaHttpClient=new HttpClient(mediaHandler??new HttpClientHandler{AllowAutoRedirect=false}){BaseAddress=new Uri(string.IsNullOrWhiteSpace(configuration.MediaApi)?configuration.OrderApi:configuration.MediaApi),Timeout=TimeSpan.FromSeconds(15)};
         _httpClient = new HttpClient(posHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.PosApi) };
-        _orderHttpClient = new HttpClient(orderHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.OrderApi) };
+        _orderHttpClient = new HttpClient(orderHandler ?? new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = new Uri(configuration.OrderApi) };
         _catalogHttpClient = new HttpClient(catalogHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(configuration.CatalogApi) };
-        _paymentHttpClient = new HttpClient(paymentHandler ?? new HttpClientHandler()) { BaseAddress = new Uri(
+        _paymentHttpClient = new HttpClient(paymentHandler ?? new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = new Uri(
             string.IsNullOrWhiteSpace(configuration.PaymentApi) ? configuration.OrderApi : configuration.PaymentApi) };
     }
 

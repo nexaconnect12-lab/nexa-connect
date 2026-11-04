@@ -41,6 +41,8 @@ public partial class MainWindow
         Resources["PosCardPadding"] = new Thickness(metrics.CardPadding);
         Resources["PosMenuWidth"] = metrics.MenuWidth;
         Resources["PosMenuHeight"] = metrics.MenuHeight;
+        Resources["PosMenuNameFontSize"] = displayDensity == PosDisplayDensity.Touch ? 18d : 16d;
+        Resources["PosMenuPriceFontSize"] = displayDensity == PosDisplayDensity.Touch ? 22d : 20d;
         DensityStatusText.Text = displayDensity == PosDisplayDensity.Touch
             ? "Touch density: larger controls and spacing. Automatic keyboards are controlled separately above."
             : "Standard density (default): efficient keyboard/mouse layout. Automatic keyboards are controlled separately above.";
@@ -64,9 +66,10 @@ public partial class MainWindow
         InputViewport.Margin = compact ? new Thickness(12, 8, 12, 8) : new Thickness(24);
         WorkflowDock.Margin = compact ? new Thickness(12, 0, 12, 8) : new Thickness(24, 0, 24, 8);
         WorkflowAmountColumn.Width = new GridLength(stack ? 180 : 230);
-        WorkflowDescription.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        SessionGuidanceText.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         WorkflowStatusScroll.MaxHeight = compact ? 48 : 54;
+        CheckoutCartColumn.Width = new GridLength(width < 1100 ? 280 : width < 1500 ? 330 : 380);
+        OperationalSurface.MinHeight = CheckoutTab.IsSelected && InputKeyboard.Visibility != Visibility.Visible ? 0 : 480;
+        UpdateMenuTileWidth();
         if (touchTarget is { } field && InputKeyboard.Visibility == Visibility.Visible)
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() => {
                 if (touchTarget == field && InputKeyboard.Visibility == Visibility.Visible) field.BringIntoView();

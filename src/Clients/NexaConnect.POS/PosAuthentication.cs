@@ -36,7 +36,12 @@ public sealed partial class PosAuthentication : IDisposable
 
     internal PosAuthentication(PosClientConfiguration configuration, HttpMessageHandler handler,
         IPosTokenStore tokenStore, Action<string>? launchBrowser = null)
+        : this(configuration, handler, tokenStore, launchBrowser, new HttpCashierPinPort(configuration)) { }
+
+    internal PosAuthentication(PosClientConfiguration configuration, HttpMessageHandler handler,
+        IPosTokenStore tokenStore, Action<string>? launchBrowser, ICashierPinPort pinPort)
     {
+        _pinPort = pinPort;
         _configuration = configuration;
         configuration.ValidateCheckout();
         _httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20), MaxResponseContentBufferSize = 1024 * 1024 };
@@ -203,7 +208,7 @@ public sealed partial class PosAuthentication : IDisposable
                     throw new PosSessionResumeException("Retained work has no verified cashier binding. Preserve recovery and request reconciliation.");
                 _tokenStore.Save(token);
                 ClearQuickUnlock();
-                _lastFullLoginUtc = DateTimeOffset.UtcNow;
+                _lastFullLoginUtc = QuickUnlockClock.GetUtcNow();
                 CurrentToken = token;
                 _requiresInteractiveSignIn = false;
                 completion.TrySetResult(token);
@@ -271,7 +276,16 @@ public sealed partial class PosAuthentication : IDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 if (disposed) throw new OperationCanceledException(cancellationToken);
                 if (!ReferenceEquals(CurrentToken, current))
+                {
+                    // An ordinary refresh may finish after an eligible idle/manual lock. Retain rotation
+                    // privately; never publish it or revive a security/full-login superseded capability.
+                    if (_requiresInteractiveSignIn && _pending is null && ReferenceEquals(_quickUnlockToken, current))
+                    {
+                        if (SameOperator(current, refreshed) && Resumable(refreshed)) _quickUnlockToken = refreshed;
+                        else RequireInteractiveSignIn();
+                    }
                     return CurrentToken ?? throw new PosReauthenticationRequiredException();
+                }
                 if (!SameOperator(current, refreshed))
                 {
                     RequireInteractiveSignIn();
@@ -454,7 +468,7 @@ public sealed partial class PosAuthentication : IDisposable
         StopForShutdown();
         if(Interlocked.Exchange(ref disposeStarted,1)!=0)return;
         // A refresh still releases its managed gate in finally; never dispose it underneath that continuation.
-        try {_httpClient.Dispose();}
+        try { _httpClient.Dispose(); if (_pinPort is IDisposable disposable) disposable.Dispose(); }
         finally {_loggerFactory.Dispose();}
     }
 

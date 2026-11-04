@@ -1,8 +1,19 @@
 # NexaConnect Project Architecture
 
+The [native refund selector](../Deployment/POS-Refund-Payment-Selection.md) reads existing
+Order history/detail/immutable receipts and Payment intent/refund history with validated
+correlations. An additive nullable Order-detail `paymentIntentId` identifies the original
+provider payment; no cross-context persistence or payment-list endpoint is introduced.
+Memory-only labels and confirmation clear at privacy/navigation boundaries. A fresh read
+precedes the saved original operation; Payment's authorization, monetary limit, row-lock
+reservation, idempotency and uncertain-status recovery remain authoritative. Cash/manual
+PromptPay refunds remain separate. No migration or new grant; the matching local pilot is activated with preserved state and fresh operator acceptance pending.
+
+The [compact cashier workspace](../Deployment/POS-Compact-Cashier-Workspace.md) changes only WPF composition and presentation visibility. Responsive tiles and a bounded cart reuse original menu/cart identity and monetary presentation; existing handlers retain admission, idempotency and recovery. Routine details move into explicit expandable sections, while attention/busy/status guidance remains visible. Checkout scrolls menu/cart independently; keyboard/form scrolling and customer privacy remain. No service/data/permission/session boundary change; the matched compact release is installed with preserved business/PIN/recovery state and fresh operator acceptance pending.
+
 ## Cashier session quick unlock and customer panels
 
-[ADR-064](Decisions/ADR-064-pos-session-pin-and-customer-panels.md) adds a native session-lifetime PIN verifier and private suspended credential slot only for eligible manual/idle lock. Public token access and persisted storage remain locked markers; same-operator/access/absolute validity and five-failure exhaustion constrain restoration. Full authentication clears enrollment; restart/expiry/security transitions cannot use PIN. No server credential owner, API, schema, grant or offline authority is added. A staff-ready card navigates existing workflows; customer 50/50 advertising/order panels retain approved-gallery leases and private immutable projection boundaries. Fingerprint/card support remains unimplemented. See [identity](../Identity/POS-Session-PIN.md) and [workflow](../Deployment/POS-Cashier-Ready-And-Customer-Panels.md).
+[ADR-065](Decisions/ADR-065-persistent-cashier-pin.md) makes POS the persistent cashier-PIN credential owner (POS26/Authorization17, compatibility0.45.0). Domain transitions enforce version/state/failure/lockout; Application checks live branch/store/terminal authorization; Infrastructure protects identity-bound verifiers and serializes credential/audit transactions. Native manual/idle unlock and eligible active-refresh connectivity-expiry resume privately renew at Keycloak, check original UserInfo and verify PIN online before publishing still-live credentials. Public access/disk stay locked markers until success; security/pending-login/shutdown/max fences reject late responses. PIN persists across future full logins; provider idle/max/revocation and original custody remain authoritative. Reset/revoke is API-only, tenant-admin by default; reader/offline authentication remains unimplemented. Existing staff-ready and 50/50 approved-customer-gallery projection boundaries remain. See [identity](../Identity/POS-Session-PIN.md) and [API](../API/Cashier-PIN.md). The matching retained pilot is activated with preserved business/recovery data; fresh operator/PIN/provider-policy acceptance remains separate.
 
 
 ## Shared product-photo library
@@ -854,7 +865,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 221 tables with service-owned indexes and constraints; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state, while Customer version 2 adds append-only audit that excludes profile fields and preserves its version-1 outbox. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned schema migrations exist for all 13 service databases. The migration catalog currently defines 223 tables with service-owned indexes and constraints; Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state, while Customer version 2 adds append-only audit that excludes profile fields and preserves its version-1 outbox. The scripts remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Database creation is a provisioning concern, not a service migration. Local Docker initialization creates the 13 catalog databases, one migration owner, and separate restricted runtime roles before service migrations are applied. Production uses the equivalent infrastructure-as-code and secret-management workflow.
 
@@ -977,7 +988,7 @@ Use .NET MAUI or React Native. Native clients use Authorization Code with PKCE a
 
 Use WPF or WinUI 3 when deep Windows hardware integration is required. Hardware adapters should be isolated behind interfaces for receipt printers, barcode scanners, cash drawers, customer displays, and payment terminals.
 
-The current WPF scaffold uses the system browser for Keycloak Authorization Code + PKCE S256, validates state on the `nexaconnect-pos://oauth/callback` custom-scheme callback, accepts each callback once, forwards bounded callbacks to the primary instance through a current-user-only named pipe, and protects the token set with Windows Data Protection. Active use silently rotates the short-lived access/refresh credentials without extending the ten-hour absolute boundary. Five minutes without key, click, or touch input locks authenticated actions; idle and absolute locks preserve operational recovery and force interactive Keycloak authentication. It includes shift open/close UI, cash-session and terminal-enrollment API contracts, sign-out/token clearing, hardware-adapter interfaces, durable local outbox primitives, and a local active-shift recovery reference. Production hardware drivers and operation-specific replay wiring remain deployment work. The installer must register the custom URI protocol.
+The current WPF scaffold uses the system browser for Keycloak Authorization Code + PKCE S256, validates state on the `nexaconnect-pos://oauth/callback` custom-scheme callback, accepts each callback once, forwards bounded callbacks to the primary instance through a current-user-only named pipe, and protects the token set with Windows Data Protection. Active use silently rotates the short-lived access/refresh credentials without extending the ten-hour absolute boundary. Five minutes without key, click, or touch input locks authenticated actions; idle and absolute locks preserve operational recovery. Eligible idle/manual or active-refresh connectivity-expiry locks use the central cashier PIN after private online renewal/verification; restart/security/actual provider-session expiry and the original absolute boundary require interactive Keycloak authentication. It includes shift open/close UI, cash-session and terminal-enrollment API contracts, sign-out/token clearing, hardware-adapter interfaces, durable local outbox primitives, and a local active-shift recovery reference. Production hardware drivers and operation-specific replay wiring remain deployment work. The installer must register the custom URI protocol.
 
 ### Self-service kiosk
 

@@ -28,7 +28,7 @@ internal sealed class PosPinEntryWindow : Window
         }
         panel.Children.Add(keys);
         var submit = new Button { Content = "Continue", MinHeight = 48, Margin = new Thickness(3), IsDefault = true };
-        submit.Click += (_, _) => { if (PosSessionPin.Valid(entry.Password)) { Value = entry.Password; entry.Clear(); DialogResult = true; } };
+        submit.Click += (_, _) => { if (entry.Password is { Length: 6 } pin && pin.All(char.IsAsciiDigit)) { Value = pin; entry.Clear(); DialogResult = true; } };
         panel.Children.Add(submit);
         panel.Children.Add(new Button { Content = "Cancel", MinHeight = 40, Margin = new Thickness(3), IsCancel = true });
         Content = panel; Loaded += (_, _) => entry.Focus(); Closed += (_, _) => entry.Clear();
