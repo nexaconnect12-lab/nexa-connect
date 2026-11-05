@@ -73,6 +73,25 @@ are copied into selection labels or new local storage.
 
 ## Diagnostics and verification
 
+The pending-refund feedback refinement is installed in a matching POS/pilot update. It puts `RefundStatusText` above the form's inner scroll area as a
+polite accessibility live region. **Verify pending refund** immediately shows progress
+there and in the main status bar; completion replaces progress in both locations.
+The read has a 20-second cancellation deadline and preserves the original operation on
+missing/denied, interrupted or unavailable results. A 404 deliberately means **not found
+or access denied**; it is not evidence that another refund can safely be issued, or proof
+of the original attempt's provider/reservation outcome. Ask an
+authorized manager to review the original operation. Verification never submits a refund
+or automatically discards an unresolved local operation. Late success/error messages are
+fenced by the original receipt-session generation and subject after privacy transitions.
+
+The native fixture covers 401/403/404/503, a processing result, interruption, late errors,
+visible status outside the inner scroll area and unchanged durable pending recovery.
+
+Pending verification uses the existing by-operation GET with client operation
+`payment.refund.read`; selection discovery uses `payment.refund.selection` as below.
+Follow its validated correlation and HTTP status through `nexaconnect-pos-client` and
+the owning `nexaconnect-payment` service without logging response bodies or provider data.
+
 Use service `nexaconnect-pos-client`, fixed operation `payment.refund.selection`, validated
 `CorrelationId` and HTTP status to follow Order/Payment reads. Receipt reads retain
 `order.receipt.read`. Local discovery/validation failures emit the fixed event
@@ -97,11 +116,13 @@ attestations must not be transferred to the new source/installed target.
 
 ## Retained pilot activation
 
+This original-selector snapshot is historical and is superseded by the [pending-refund feedback activation](#pending-refund-feedback-activation) below.
+
 The corrected source-bound candidate is `9be05e70-6f1a-4fab-ae60-d4b723cf3a20`, with
 binding `91bc4636ad43d0ced9a61a92aa8d2ef2f6ef0339ed5fb79b3fb6b3264f102602`.
 
-Corrected release `58831a86eec64c05abec726a49d0690b` is installed on run `c30b628ab23141f389119daa565f894f`. QR pilot
-`5a5b83eb861c4830882af0647df8ed9a` and independent scheduler host `69b1328c1d274387ab249d98dd903b62` are running;
+Corrected release `58831a86eec64c05abec726a49d0690b` was installed on run `c30b628ab23141f389119daa565f894f`. QR pilot
+`5a5b83eb861c4830882af0647df8ed9a` and independent scheduler host `69b1328c1d274387ab249d98dd903b62` were running;
 automatic startup at Windows sign-in remains off. The exact installed executable reopened
 and responds. The source-bound gate passed, including 1,500 unit tests, eight architecture
 checks, 150 HTTP, 99 frontend unit and 161 browser cases, native checks and 15 owning/four
@@ -114,8 +135,31 @@ The corrected read-only refund smoke checks three Order details and verifies one
 card payment with no unselectable-receipt mismatch and zero refund commands. PIN metadata
 remains active at version 1; this does not attest a real PIN unlock or successful refund.
 
-Fresh acceptance `c6f24e3bb2e24908b5e8b160d96c20e5` is bound to this installed target, with all
+The then-fresh acceptance `c6f24e3bb2e24908b5e8b160d96c20e5` was bound to that installed target, with all
 17 operator cases pending; no historical pass was transferred. Source/installation checks
 are separate from operator, provider, physical-device and production readiness. Detailed
 local receipts are retained in `.runstate/pos-refund-selection-corrected-activation/` and
 `.runstate/pos-refund-selection-current.json`.
+
+## Pending-refund feedback activation
+
+Release `2707248d6f6b4ecaa449ffefefbf3305` is installed on retained run `c30b628ab23141f389119daa565f894f`.
+Candidate `064ddd9e-fa74-44b2-bbdc-4a46537ec9af` has binding
+`aad118625867c4b26de8828bb3cf738ec447eee9dc72a0290831792a7e4ee703`. QR pilot `f283f0235e724cf3a411d6837249e910` and independent scheduler
+host `a86bafdb2c9c4151a2ad3d3acbe4dc4c` are running; automatic startup at Windows sign-in remains off.
+The exact installed POS reopened and responds. The source-bound release gate passes,
+including 1,500 unit/8 architecture/150 HTTP boundary/99 frontend/161 browser cases,
+native fixtures and disposable owning/recovery fixtures with cleanup.
+
+The update preserves 9 checked local files, 161 business tables, five stable
+Authorization tables, existing role grants and two original key files. Credentials,
+configuration, URLs and certificates remain unchanged. Read-only cashier card/receipt/
+refund-history, PIN, menu, manager portal and trusted HTTPS checks pass. No retained-pilot
+order, payment, refund, PIN or media mutation was sent. The unresolved saved operation
+was not discarded or resubmitted; a missing/access-denied lookup still requires manager
+review and is not proof of its original financial outcome.
+
+Fresh acceptance `721d384c86dd42b28dba456e9c22cc68` is bound to this target, with all 17 operator
+cases pending. Source/native simulation does not attest the operator or provider outcome.
+Detailed receipts are retained in `.runstate/pos-refund-verification-activation/` and
+`.runstate/pos-refund-verification-current.json`.

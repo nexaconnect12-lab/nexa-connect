@@ -2,7 +2,7 @@
 
 Each cashier has one personal six-digit PIN per organization and configured identity issuer, unchanged until explicitly changed, reset or revoked. Enrollment is central in POS; the PIN is entered privately on the staff POS. It is not a shared register password or an offline sign-in credential. Full OIDC/PKCE with authenticated UserInfo establishes identity and requests `prompt=login`. See [ADR-065](../Architecture/Decisions/ADR-065-persistent-cashier-pin.md).
 
-The [current refund-selector installation](../Deployment/POS-Refund-Payment-Selection.md#retained-pilot-activation) retains the compact layout and existing active PIN credential. An enrolled cashier sees **Change cashier PIN** in Overview; **Set cashier PIN** is for an unset credential. The original PIN-introduction activation below remains historical evidence.
+The [current refund-selector installation](../Deployment/POS-Refund-Payment-Selection.md#pending-refund-feedback-activation) retains the compact layout and existing active PIN credential. An enrolled cashier sees **Change cashier PIN** in Overview; **Set cashier PIN** is for an unset credential. The original PIN-introduction activation below remains historical evidence.
 
 ## Cashier setup
 
@@ -46,7 +46,7 @@ The original PIN package was activated as recorded below and is now superseded b
 
 ## Retained pilot activation — 3 November 2026
 
-This is the historical PIN introduction. Compact release 9ab9d05b76ab45d9b4a87e51a5c2f6ea subsequently retained its PIN policy; current refund-selector release 58831a86eec64c05abec726a49d0690b supersedes those installed targets while preserving the existing active credential. See [current refund-selector activation](../Deployment/POS-Refund-Payment-Selection.md#retained-pilot-activation) for current release/host/acceptance evidence. Its read-only PIN smoke reports active/version 1; it does not attest an operator PIN unlock.
+This is the historical PIN introduction. Compact release 9ab9d05b76ab45d9b4a87e51a5c2f6ea subsequently retained its PIN policy; current refund-selector release 2707248d6f6b4ecaa449ffefefbf3305 supersedes those installed targets while preserving the existing active credential. See [current refund-selector activation](../Deployment/POS-Refund-Payment-Selection.md#pending-refund-feedback-activation) for current release/host/acceptance evidence. Its read-only PIN smoke reports active/version 1; it does not attest an operator PIN unlock.
 
 After user-confirmed POS closure, release `b84f38efc111407fb7ddd05dac646825` was installed on retained run `c30b628ab23141f389119daa565f894f`. The matching service refresh applied POS26/Authorization17 and verified runtime grants. QR pilot `bd70476310ba4f92902c472618af7e58` and supervisor `a13287c05cce461099524175028a38b8` were active; the current-user supervisor ran independently under the Windows scheduler, with automatic Windows sign-in startup off. The callback targeted the installed executable, and POS independently reopened from that exact release path and responded.
 

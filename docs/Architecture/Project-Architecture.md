@@ -1,5 +1,11 @@
 # NexaConnect Project Architecture
 
+The native pending-refund feedback source refinement bounds its existing original-operation
+GET to 20 seconds and keeps results outside the clipped form. Both result surfaces check
+the original receipt generation/subject before publication. Missing/access-denied and
+unavailable results preserve recovery; there is no new command, API or financial owner.
+Matching local activation preserves existing recovery; fresh operator acceptance remains pending. See [client diagnostics](../Deployment/POS-Refund-Payment-Selection.md#diagnostics-and-verification).
+
 The [native refund selector](../Deployment/POS-Refund-Payment-Selection.md) reads existing
 Order history/detail/immutable receipts and Payment intent/refund history with validated
 correlations. An additive nullable Order-detail `paymentIntentId` identifies the original

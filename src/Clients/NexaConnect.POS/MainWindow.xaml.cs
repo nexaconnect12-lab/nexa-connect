@@ -1278,10 +1278,43 @@ public partial class MainWindow : Window
             ? new(pending.PaymentIntentId, pending.OperationId) : lastRefund;
         if (reference is null) { RefundStatusText.Text = "No saved refund operation is available."; return; }
         int generation = receiptSessionGeneration;
-        SetBusy("Verifying refund…");
-        try { var result = await _api.GetRefundByOperationAsync(token, reference.PaymentIntentId, reference.OperationId); if (PrintSessionCurrent(generation, token.Subject)) ShowRefund(result); }
-        catch (Exception) { RefundStatusText.Text = "Refund is not yet verifiable. Do not issue another refund."; }
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(windowCancellation.Token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(20));
+        SetBusy("Verifying saved refund…");
+        RefundStatusText.Text = "Verifying saved refund…";
+        try
+        {
+            var result = await _api.GetRefundByOperationAsync(token, reference.PaymentIntentId, reference.OperationId, deadline.Token);
+            if (!PrintSessionCurrent(generation, token.Subject)) return;
+            ShowRefund(result);
+            StatusText.Text = RefundStatusText.Text;
+        }
+        catch (PosApiException error)
+        {
+            if (PrintSessionCurrent(generation, token.Subject)) ReportRefundVerification(error.StatusCode switch
+            {
+                401 => "Sign in again to verify the saved refund. Its recovery is retained; do not issue another refund.",
+                403 or 404 => "Saved refund not found or access denied. Ask an authorized manager to review the original operation. No new refund was sent.",
+                _ => "Payment service could not verify the saved refund. Retry verification; do not issue another refund."
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            if (PrintSessionCurrent(generation, token.Subject)) ReportRefundVerification(
+                "Refund verification timed out or was interrupted. Retry verification; do not issue another refund.");
+        }
+        catch (Exception)
+        {
+            if (PrintSessionCurrent(generation, token.Subject)) ReportRefundVerification(
+                "Refund verification could not finish. Review the original operation; do not issue another refund.");
+        }
         finally { UpdateOperationalState(); }
+    }
+
+    private void ReportRefundVerification(string message)
+    {
+        RefundStatusText.Text = message;
+        StatusText.Text = message;
     }
 
     private void ShowRefund(PosPaymentRefund refund)

@@ -1,5 +1,10 @@
 # NexaConnect Project Architecture
 
+Pending-refund verification feedback is activated in the matching local pilot:
+visible results, a bounded read deadline and privacy-fenced success/error presentation.
+Missing/access-denied responses retain original recovery and do not authorize another
+command. Payment's existing authority, routes and data ownership are unchanged.
+
 [POS original-payment refund selection](../../docs/Deployment/POS-Refund-Payment-Selection.md)
 composes existing paginated Paid orders, Order detail/receipt and Payment reads into a
 human-readable review. Order detail adds a nullable original payment reference; Payment

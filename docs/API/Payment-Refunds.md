@@ -1,5 +1,11 @@
 # Payment refunds
 
+POS verification reads the saved original operation only. Its pending-feedback
+refinement distinguishes sign-in, missing/access-denied and dependency/interruption
+results without discarding recovery. A disclosure-safe 404 does not authorize a new
+refund. No refund API, authorization or persistence change is introduced by this UI fix;
+see [client feedback and timing](../Deployment/POS-Refund-Payment-Selection.md#diagnostics-and-verification).
+
 The [POS original-payment selector](../Deployment/POS-Refund-Payment-Selection.md) uses
 existing authenticated GETs to show order/receipt numbers, item names, date, amount and
 an advisory refundable balance. Selection never submits a refund. POS rechecks the exact
