@@ -5,8 +5,10 @@ printer controls are under **Terminal & sync → Input & devices → Receipt pri
 releases place them directly on the Terminal & sync page; the workflow below is otherwise unchanged.
 
 Implemented and installed in the retained local pilot on 28 October 2026. Saved-PDF
-inspection and actual printer acceptance remain pending. The purchased printer's model,
-connection, driver and exact printable area are still unconfirmed.
+inspection and actual printer acceptance remain pending. On 5 November 2026 the user
+confirmed PAISHUO **POS806UF**, paper notation `79.5|0.5mm`; earlier supplied connection
+is USB. Confirm paper tolerance, installed Windows driver/queue and exact printable area
+on the device. The connected DK/DRAWER cable does not enable POS drawer opening.
 
 ## Configure and use
 

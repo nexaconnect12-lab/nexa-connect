@@ -53,3 +53,11 @@ RabbitMQ probes execute as the broker user (`gosu rabbitmq rabbitmq-diagnostics`
 Redis requires a generated password, persists append-only data and backs the explicitly configured Customer BFF session cache. Development still uses memory when no session connection is configured. The run's BFF key ring persists separately under its published content root. Only the Windows owner and SYSTEM can access the run directory; secrets are current-user DPAPI encrypted. Do not share run directories or raw logs. See the runbook for safe evidence and reset behavior.
 
 Requires Docker Compose supporting `extends` and `!reset` (verified with the local Docker Desktop installation), PowerShell 7.4+, Windows DPAPI, .NET 10 and the documented frontend runtime. This local-only setup does not provide WAN/offline operation, production TLS/backup/alert certification or physical printer acceptance.
+[Physical POS LAN preparation](../../docs/Deployment/POS-Physical-Device-Onboarding.md)
+optionally selects `pos-lan.compose.yaml` only for an explicitly new, separate pilot plan.
+It fixes that container's external Keycloak hostname/proxy headers while keeping infrastructure
+ports loopback and admin local. The staff-only TLS edge is a separate Windows tool; existing
+normal/QR pilots do not select this override. No retained issuer or data migration is performed.
+The validated `NEXACONNECT_POS_PILOT_ORIGIN` is supplied and restored by the shared Compose
+environment helper during both stack lifecycle and standalone provisioning; it is not an
+ambient variable that callers must leave set after Start.

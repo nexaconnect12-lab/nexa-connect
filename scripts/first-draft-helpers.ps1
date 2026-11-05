@@ -105,8 +105,10 @@ function Get-DraftComposeArguments([string]$RepositoryRoot,[string]$RunId) {
     # Explicit empty env-file prevents Compose from importing the repository .env.
     $media=@();$stateFile=Join-Path (Get-DraftRunDirectory $RepositoryRoot $RunId) 'state.json'
     if(Test-Path -LiteralPath $stateFile){$profile=Get-Content -LiteralPath $stateFile -Raw|ConvertFrom-Json -AsHashtable;if($profile.Contains('mediaEnabled') -and $profile.mediaEnabled -isnot [bool]){throw 'Invalid Media profile selection.'};if($profile.Contains('mediaEnabled') -and $profile.mediaEnabled){$media=@('-f',(Join-Path $RepositoryRoot 'docker/first-draft/media.compose.yaml'))}}
+    $physical=@()
+    if((Test-Path -LiteralPath $stateFile) -and $profile.Contains('physicalPosPilot')){$physical=@('-f',(Join-Path $RepositoryRoot 'docker/first-draft/pos-lan.compose.yaml'))}
     return @('compose','--env-file',(Join-Path (Get-DraftRunDirectory $RepositoryRoot $RunId) 'compose.env'),
-        '-f',(Join-Path $RepositoryRoot 'docker/first-draft/compose.yaml'))+$media+@('-p',"nexa-draft-$RunId")
+        '-f',(Join-Path $RepositoryRoot 'docker/first-draft/compose.yaml'))+$media+$physical+@('-p',"nexa-draft-$RunId")
 }
 function Protect-DraftDirectory([string]$Directory) {
     if (-not $IsWindows) { throw 'The first-draft host requires Windows and current-user DPAPI.' }
@@ -120,7 +122,14 @@ function Save-DraftSecrets([string]$Path,$Secrets) {
 function Read-DraftSecrets([string]$Path) {
     return (Import-Clixml -LiteralPath $Path | ConvertFrom-SecureString -AsPlainText) | ConvertFrom-Json -AsHashtable
 }
-function Set-DraftComposeEnvironment($Secrets,[string]$RunId,[int]$BffPort,$Infrastructure=@{}) {
+function Set-DraftComposeEnvironment($Secrets,[string]$RunId,[int]$BffPort,$Infrastructure=@{},[string]$StaffPilotOrigin) {
+    if($StaffPilotOrigin){
+        Assert-DraftQrPilotOrigin $StaffPilotOrigin
+        $staffIp=$null
+        if(-not [Net.IPAddress]::TryParse(([uri]$StaffPilotOrigin).Host,[ref]$staffIp) -or $staffIp.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork){throw 'Staff pilot origin requires private IPv4.'}
+        $staffBytes=$staffIp.GetAddressBytes()
+        if(-not($staffBytes[0] -eq 10 -or ($staffBytes[0] -eq 172 -and $staffBytes[1] -ge 16 -and $staffBytes[1] -le 31) -or ($staffBytes[0] -eq 192 -and $staffBytes[1] -eq 168))){throw 'Staff pilot origin requires private IPv4.'}
+    }
     $portNames=@{postgres='POSTGRES';keycloak='KEYCLOAK';rabbitmq='RABBITMQ';redis='REDIS'}
     if($Infrastructure.Contains('minio') -or $Infrastructure.Contains('clamav')){$portNames.minio='MINIO';$portNames.clamav='CLAMAV'}
     if($Infrastructure.Count){
@@ -133,6 +142,10 @@ function Set-DraftComposeEnvironment($Secrets,[string]$RunId,[int]$BffPort,$Infr
         if(($ports|Sort-Object -Unique).Count -ne $ports.Count){throw 'Draft infrastructure ports must be distinct.'}
     }
     $previous = @{}
+    if($StaffPilotOrigin){
+        $previous.NEXACONNECT_POS_PILOT_ORIGIN=[Environment]::GetEnvironmentVariable('NEXACONNECT_POS_PILOT_ORIGIN','Process')
+        $env:NEXACONNECT_POS_PILOT_ORIGIN=$StaffPilotOrigin
+    }
     if($Infrastructure.Contains('minio')){
         $name='NEXACONNECT_DRAFT_MEDIA_ORIGIN';$previous[$name]=[Environment]::GetEnvironmentVariable($name,'Process')
         [Environment]::SetEnvironmentVariable($name,"https://127.0.0.1:$BffPort",'Process')
@@ -166,8 +179,9 @@ function Ensure-DraftMediaAudience($State,$Secrets) {
     Assert-DraftRunId $State.runId
     $port=0
     if(-not [int]::TryParse([string]$State.infrastructure.keycloak,[ref]$port) -or $port -lt 1024 -or $port -gt 65535){throw 'Generated local identity port required.'}
+    $expectedAuthority=if($State.Contains('physicalPosPilot')){"$($State.physicalPosPilot.origin)/realms/$($State.realm)"}else{"http://127.0.0.1:$port/realms/$($State.realm)"}
     if($State.project -cne "nexa-draft-$($State.runId)" -or $State.realm -cne "nexa-review-it-$($State.runId)" -or
-       $State.authority -cne "http://127.0.0.1:$port/realms/$($State.realm)"){throw 'Owned local realm required for Media audience setup.'}
+       $State.authority -cne $expectedAuthority){throw 'Owned local realm required for Media audience setup.'}
     $base="http://127.0.0.1:$port"
     $admin=Invoke-RestMethod "$base/realms/master/protocol/openid-connect/token" -Method Post -Body @{grant_type='password';client_id='admin-cli';username='acceptance-admin';password=$Secrets.KEYCLOAK_ADMIN_PASSWORD}
     $headers=@{Authorization='Bearer '+$admin.access_token}

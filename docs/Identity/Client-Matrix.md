@@ -1,5 +1,12 @@
 # Keycloak Client Matrix
 
+The [physical POS LAN pilot](../Deployment/POS-Physical-Device-Onboarding.md) uses a
+separate fresh realm with a fixed canonical HTTPS issuer and the same `nexaconnect-pos`
+public client, scopes, custom callback and PKCE. No client secret reaches the device.
+Existing retained realms/cashier bindings are unchanged; trust and actual browser/PIN
+acceptance remain prerequisites. Keycloak admin/master routes stay local, and the new
+staff edge never broadens the guest phone listener. See [ADR-066](../Architecture/Decisions/ADR-066-isolated-physical-pos-lan-pilot.md).
+
 Windows POS supports optional [persistent cashier PIN resume](POS-Session-PIN.md). The central credential survives future full logins until changed/reset/revoked. Eligible idle/manual lock suspends credentials privately while public/persisted state remains the identity marker; explicit PIN resume privately renews at Keycloak and verifies the PIN online before restoring the original cashier. Provider idle/max/revocation and the original absolute deadline remain authoritative; restart/security/logout/actual provider expiry require full login. Five incorrect attempts impose a durable fifteen-minute PIN lockout. POS26/Authorization17 and compatibility0.45.0 are activated in the matched retained pilot; fresh operator/PIN acceptance remains pending. No Keycloak registration, grant or mapper changes. UserInfo preferred_username is bounded staff presentation, not identity authority.
 
 

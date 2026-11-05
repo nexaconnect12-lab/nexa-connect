@@ -1,5 +1,16 @@
 # NexaConnect Project Architecture
 
+[Physical POS onboarding](../../docs/Deployment/POS-Physical-Device-Onboarding.md) adds an
+explicit fresh-data first-draft LAN profile and `NexaConnect.PosPilotEdge`, separate from
+retained/guest pilots. Its fixed-IP TLS boundary forwards one realm and five staff APIs
+to owned loopback upstreams; owning authorization/financial recovery remain unchanged.
+Versioned private EXE/profile/public-CA bundles and device probes reuse existing installer
+custody guards. No schema/grant or automatic update. The separate backend is Ready/provisioned
+with development-PC trust checked; physical-device trust, installation and Keycloak acceptance
+remain pending. See [ADR-066](../../docs/Architecture/Decisions/ADR-066-isolated-physical-pos-lan-pilot.md).
+This staff tool rejects OTLP export pending separate identity-URL/scope redaction verification;
+shared structured JSON and validated correlation remain available.
+
 Pending-refund verification feedback is activated in the matching local pilot:
 visible results, a bounded read deadline and privacy-fenced success/error presentation.
 Missing/access-denied responses retain original recovery and do not authorize another

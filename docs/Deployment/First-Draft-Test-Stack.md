@@ -1,5 +1,16 @@
 # First-draft local test stack
 
+An explicit new-run-only `-PhysicalPosPlan` profile supports the separate
+[physical Windows POS LAN pilot](POS-Physical-Device-Onboarding.md). Use its dedicated
+launcher rather than converting a retained run. That profile alone selects the staff
+HTTPS edge, canonical HTTPS issuer and Keycloak Compose override; infrastructure and
+business upstreams remain loopback. It requires complete Start/Stop maintenance rather
+than partial Resume/Restart/StopService. Existing normal/QR profiles and the default
+loopback instructions below remain unchanged. The separate backend is now Ready/provisioned;
+physical-device checker/install and acceptance remain pending. For this optional profile,
+the shared Compose environment helper supplies/restores the validated staff origin separately
+for lifecycle and provisioning, rather than relying on Start to leave it in the caller.
+
 [UX23](POS-UX23-Background-Hosting.md) adds source-bound `Resume` for missing owned application processes without rebuilding, migrating or restarting pre-existing healthy dependencies. Its optional current-user scheduled host fences direct lifecycle maintenance until Stop/Remove; it never automatically retries orders or payments. Existing startup and volume ownership rules remain unchanged.
 
 [UX22 startup](POS-UX22-Local-Pilot-Startup.md) provides `scripts/local-pilot.ps1` for normal installed-pilot status, guarded same-publication recovery and explicit refresh. Successful Start records source/artifact inventories for every profile. NoBuild rejects missing/changed inventories; legacy QR bindings remain supported, while older non-QR runs require one build-enabled refresh. Stop/Start retain data and never pass operator acceptance.

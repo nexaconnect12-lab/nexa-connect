@@ -1,5 +1,20 @@
 # NexaConnect Project Architecture
 
+The [physical-device LAN pilot](../Deployment/POS-Physical-Device-Onboarding.md) is a new,
+explicitly isolated fresh-data first-draft topology on the development PC. A separate
+`nexaconnect-pos-pilot-edge` HTTPS tool admits the two configured private PCs, forwards
+restricted one-realm identity and bearer/capability staff routes to five loopback APIs,
+and preserves owning authorization/idempotency/financial boundaries. A new-run-only
+Compose override fixes the canonical Keycloak issuer; administration stays loopback.
+Immutable versioned onboarding bundles reuse the existing installer/custody model and
+export only public profile/canonical CA bytes. No database or grant changes, retained
+issuer migration, public distribution or automatic update. The separate backend is now
+Ready/provisioned with development-PC trust and canonical issuer reachability verified;
+physical-device installation/identity acceptance remain gated. [ADR-066](Decisions/ADR-066-isolated-physical-pos-lan-pilot.md)
+records the decision and trust/maintenance constraints.
+The staff tool retains shared JSON/correlation telemetry but rejects OTLP export configuration
+pending separate outbound identity-URL and hosting-scope redaction verification.
+
 The native pending-refund feedback source refinement bounds its existing original-operation
 GET to 20 seconds and keeps results outside the clipped form. Both result surfaces check
 the original receipt generation/subject before publication. Missing/access-denied and

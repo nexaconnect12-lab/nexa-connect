@@ -1,5 +1,15 @@
 # Next iteration phase 0 — baseline and execution assessment
 
+5 November 2026 delivered-equipment update (user-reported): both S200D displays are
+**1366×768**. Printer model is **PAISHUO POS806UF**, with paper width supplied as
+`79.5|0.5mm` (confirm whether this means 79.5 ± 0.5 mm; printable width is not established).
+The USB Type-A 2D barcode/QR reader is labelled **ROHS S26332**; ROHS is recorded as supplied,
+not treated as a verified manufacturer or SDK. The **4141P drawer connects to the printer's
+DK/DRAWER port**. This supersedes the earlier unknown resolution/model/connection below.
+Windows scaling, per-screen touch, printer driver/queue, scanner input mode/suffix and vendor
+drawer command/electrical compatibility remain unverified. No physical acceptance or
+drawer activation is implied; opening remains disabled pending verification.
+
 29 October 2026 equipment update: the user reports the purchased POS equipment is now
 available. Printer information supplied: PAISHUO, USB, 80 mm, 200 DPI. Exact model/Windows
 driver and drawer connection/protocol are unconfirmed; the drawer is not connected or its
@@ -100,8 +110,8 @@ These findings identify review targets; they are not a complete security certifi
 | E02 | Singapore test context | Server location, routing/upload speed, internet reliability and power arrangements unknown | Phase 6 capacity/connectivity |
 | E03 | Separate portal origins intended | Domain/DNS ownership, certificate method, identity origin and administrative access method unconfirmed | Phase 6 external access |
 | E04 | Off-server recovery required | Backup destination, retention, recovery time/data-loss objectives, alert recipient and maintenance owner unconfirmed | Phase 6 restore and phase 8 readiness |
-| E05 | Purchased S200D confirmed 28 October 2026: Windows 11, Intel Core i5 5th generation, 8 GB RAM, 128 GB SSD; 15.6-inch main staff screen and 11.6-inch extended customer screen; advertised touch dual-screen, Wi-Fi and Bluetooth. Seller website lists `1366x76.8 / 1920x1080`; user believes maximum may be `1920×1080`, unverified. POS has not arrived; actual delivered specifications cannot yet be checked | After delivery, confirm native/actual resolutions and main/customer assignment, Windows scaling/DPI, exact CPU, OS edition/architecture, touch support per screen, ports, GPU/display topology and mounting. `1366×768` is only a possible typo correction; seller-listed options/maximum are not confirmed delivered specifications or measured acceptance | Phases 4, 7 hardware verification; phase 9 |
-| E06 | Purchased bundle includes cash drawer, 80 mm roll-paper POS printer and barcode scanner; Microsoft Print to PDF remains the verified test target | Confirm peripheral models, connection interfaces, printer driver/protocol, drawer connection and scanner input mode. Physical integration remains separately scoped and unverified | Phase 9 PDF acceptance; separately scoped peripheral acceptance |
+| E05 | Delivered S200D: Windows 11, purchased specification Intel Core i5 5th generation, 8 GB RAM, 128 GB SSD; 15.6-inch staff and 11.6-inch customer displays. User confirms both displays 1366×768 on 5 November 2026; earlier seller 1920×1080 possibility is not the delivered resolution | Confirm Windows scaling/DPI, staff/customer assignment, per-screen touch, OS edition/architecture, exact CPU, display topology and disconnect/reconnect behavior on the device | Phases 4, 7 hardware verification; phase 9 |
+| E06 | Delivered PAISHUO POS806UF printer, paper notation `79.5|0.5mm`; USB Type-A 2D barcode/QR reader labelled ROHS S26332; PAISHUO 4141P drawer connected to printer DK/DRAWER port. Earlier printer details were USB/80 mm/200 DPI; Microsoft Print to PDF remains a separate test target | Confirm installed printer driver/queue, paper tolerance and printable area, scanner HID/keyboard or other interface and suffix, vendor-supported drawer command/electrical compatibility. Physical tests remain pending; drawer opening disabled | Phase 9 and separately scoped peripheral acceptance |
 | D01 | Idle screen lock, authenticated resume, no work discard | Prefer existing Keycloak interactive flow as the implementation starting point; mechanism/UX reviewed in phase 1. No new PIN, bypass or shared unlock credential approved | Phase 1 |
 | D02 | Gallery selection by authorized staff, approved product/menu assets | Select owning context and permission, playlist schema/version, refresh/capacity/withdrawal rules and fallback branding in phase 5 | Phase 5 |
 | D03 | Professional consistent UI | No logo/style reference confirmed. Provisional reuse: existing green `#14532d`, semantic colours, neutral surfaces, existing typography/frameworks; no claim of user-approved final visual design | Phase 2 rendered review |

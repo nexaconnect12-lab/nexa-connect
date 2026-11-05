@@ -1,5 +1,12 @@
 # NexaConnect
 
+[Physical POS onboarding](docs/Deployment/POS-Physical-Device-Onboarding.md) prepares a
+separate fresh-data LAN pilot on the development PC, a staff-only HTTPS edge and versioned
+private installer/profile transfer with read-only device checks. The retained normal/QR
+pilot remains intact. The separate backend is Ready/provisioned with development-PC trust
+verified; physical-device connectivity/trust, installation and acceptance remain pending.
+No public installation link or automatic update is claimed.
+
 [Original-payment refund selection](docs/Deployment/POS-Refund-Payment-Selection.md)
 lets staff review an original captured card payment by order/receipt details, with an
 advisory balance and explicit confirmation before the existing authorized refund command.

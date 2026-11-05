@@ -1,5 +1,12 @@
 # NexaConnect POS
 
+[Physical device onboarding](../../../docs/Deployment/POS-Physical-Device-Onboarding.md)
+prepares a dedicated terminal in a separate fresh-data LAN pilot and versioned private EXE
+transfer. The native client and installer retain existing HTTPS/public-client/custody checks;
+no credentials or protected recovery are copied from the development terminal. The separate
+backend is Ready/provisioned; account PC and CA installation are operator-confirmed, while
+physical-device checker/install and actual sign-in/device acceptance remain pending.
+
 Pending-refund feedback is installed in matching release 2707248d6f6b4ecaa449ffefefbf3305: verification
 shows its result above the inner form scroll and in the main status, with a 20-second
 deadline and privacy-fenced completion. Missing/access-denied records require manager

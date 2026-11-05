@@ -6,6 +6,7 @@ param(
     [ValidateSet('cash_manual','promptpay_manual')][string]$PaymentMethod='cash_manual',
     [string]$QrImagePath,
     [string]$QrPilotOrigin,
+    [string]$PhysicalPosPlan,
     [ValidateSet('PlatformDirectory','Authorization','Restaurant','Catalog','Inventory','Kitchen','Payment','POS','Reporting','Order','Media','Bff')][string]$Service='Kitchen',
     [switch]$ConfirmTestResources,
     [switch]$EnableMedia,
@@ -21,6 +22,8 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'first-draft-drawer-helpers.ps1')
 . (Join-Path $PSScriptRoot 'payment-review-joined-helpers.ps1')
 . (Join-Path $PSScriptRoot 'local-pilot-helpers.ps1')
+. (Join-Path $PSScriptRoot 'first-draft-terminal-helpers.ps1')
+. (Join-Path $PSScriptRoot 'physical-pos-pilot-helpers.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $catalog=Get-DraftServiceCatalog $root -IncludeMedia:$EnableMedia
 $compatibility=($catalog.Values | Sort-Object { [version]$_.minimumApplicationVersion })[-1].minimumApplicationVersion
@@ -195,6 +198,11 @@ function Set-Configurations {
         }
         foreach($entry in (Get-DraftOmiseServiceSettings $name $script:state $script:secrets).GetEnumerator()){$config[$entry.Key]=$entry.Value}
         foreach($entry in (Get-DraftDrawerServiceSettings $name $script:state).GetEnumerator()){$config[$entry.Key]=$entry.Value}
+        if($script:state.Contains('physicalPosPilot')){
+            $config.Authentication__RequireHttpsMetadata='true'
+            $config.WorkloadIdentity__RequireHttpsMetadata='true'
+            if($name -eq 'Bff'){$config.Bff__RequireHttpsMetadata='true'}
+        }
         $script:configurations[$name]=$config
     }
 }
@@ -238,6 +246,12 @@ if($newRun) {
     Assert-DraftPayment $PaymentMethod $QrImagePath
     if($QrPilotOrigin){Assert-DraftQrPilotOrigin $QrPilotOrigin}
     Protect-DraftDirectory $run
+    if($PhysicalPosPlan){
+        if(-not $EnableMedia -or $EnableOmiseTestCheckout -or $QrPilotOrigin){throw 'Physical POS pilot requires Media and manual tender, separate from QR/Omise loopback pilots.'}
+        $physicalPlan=Read-PhysicalPosPlan $PhysicalPosPlan
+        if($physicalPlan.runId -cne $RunId){throw 'Physical plan must own this fresh generated run.'}
+        Copy-Item -LiteralPath $PhysicalPosPlan -Destination (Join-Path $run 'physical-pos-plan.json')
+    }
     Set-Content -LiteralPath (Join-Path $run 'compose.env') -Value '# No repository environment import.'
     $secrets=@{}
     foreach($name in @('ADMIN_PASSWORD','MIGRATION_PASSWORD','RUNTIME_PASSWORD','KEYCLOAK_DB_PASSWORD','KEYCLOAK_ADMIN_PASSWORD','CLIENT_SECRET','READER_PASSWORD','RESOLVER_PASSWORD','SECONDMANAGER_PASSWORD','ACCOUNTANT_PASSWORD','RABBITMQ_PASSWORD','REDIS_PASSWORD','CERT_PASSWORD')){$secrets[$name]='Aa1!'+[Guid]::NewGuid().ToString('N')+[Guid]::NewGuid().ToString('N')}
@@ -249,12 +263,14 @@ if($newRun) {
     foreach($name in $catalog.Keys){$urls[$name]="http://127.0.0.1:$($free[$index])/";$index++}
     $urls.Bff="https://127.0.0.1:$($free[$catalog.Count])/"
     $state=@{runId=$RunId;project=$project;status='Starting';paymentMethod=$PaymentMethod;realm="nexa-review-it-$RunId";urls=$urls;processes=@{};infrastructure=@{postgres=$free[$catalog.Count+1];keycloak=$free[$catalog.Count+2];rabbitmq=$free[$catalog.Count+3];redis=$free[$catalog.Count+4]};authority='';applicationCompatibility=$compatibility;schemaTargets=$catalog;provisionedBranch=$false}
+    if($PhysicalPosPlan){$state.physicalPosPilot=@{origin=$physicalPlan.origin;planHash=(Get-FileHash (Join-Path $run 'physical-pos-plan.json')).Hash;certificateHash=(Get-FileHash $physicalPlan.certificatePath).Hash;privateKeyHash=(Get-FileHash $physicalPlan.privateKeyPath).Hash}}
     if($EnableMedia){$state.mediaEnabled=$true;$state.infrastructure.minio=$free[$catalog.Count+5];$state.infrastructure.clamav=$free[$catalog.Count+6]}
     if($QrPilotOrigin){$state.qrPilotOrigin=$QrPilotOrigin}
     Save-State
 } else {
     $state=Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json -AsHashtable
     if($state.runId -ne $RunId -or $state.project -ne $project -or $state.status -eq 'Reset'){throw 'Invalid or reset draft state.'}
+    if($PhysicalPosPlan){throw 'Physical pilot identity cannot be added to or replaced on a retained run.'}
     if($QrPilotOrigin -and (-not $state.Contains('qrPilotOrigin') -or $state.qrPilotOrigin -cne $QrPilotOrigin)){throw 'QR pilot origin cannot be added to or changed on a retained draft. Create a fresh isolated QR pilot run.'}
     $secrets=Read-DraftSecrets $secretPath
 }
@@ -283,6 +299,7 @@ if($state.Contains('mediaEnabled') -and $state.mediaEnabled){
     $compose=Get-DraftComposeArguments $root $RunId
 }
 Assert-DraftUrls $state.urls
+if($state.Contains('physicalPosPilot') -and $Action -notin @('Start','Status','Stop','Reset')){throw 'Use complete Start/Stop maintenance for this separate LAN pilot; partial service recovery is not supported.'}
 [void](Test-DraftBranchPromptPayEnabled $state)
 [void](Test-DraftDrawerHistoryEnabled $state)
 if($EnableDrawerHistory){Enable-DraftDrawerHistory $state $Action ([bool]$NoBuild);Save-State}
@@ -292,7 +309,8 @@ if($state.infrastructure.Count){
     $allPorts=@($state.urls.Values|ForEach-Object{([uri]$_).Port})+@($state.infrastructure.Values)
     if(($allPorts|Sort-Object -Unique).Count -ne $allPorts.Count){throw 'Application and infrastructure ports must be distinct.'}
 }
-$previous=Set-DraftComposeEnvironment $secrets $RunId ([uri]$state.urls.Bff).Port $state.infrastructure
+$staffPilotOrigin=if($state.Contains('physicalPosPilot')){[string]$state.physicalPosPilot.origin}else{''}
+$previous=Set-DraftComposeEnvironment $secrets $RunId ([uri]$state.urls.Bff).Port $state.infrastructure -StaffPilotOrigin $staffPilotOrigin
 foreach($entry in (Remove-DraftOmiseInputEnvironment).GetEnumerator()){$previous[$entry.Key]=$entry.Value}
 try {
     Assert-LocalDocker
@@ -315,6 +333,7 @@ try {
     if($Action -in @('Stop','Reset')) {
         if($Action -eq 'Reset' -and -not $ConfirmTestResources){throw 'Reset requires -ConfirmTestResources; only this draft project data is removed.'}
         foreach($name in @($state.processes.Keys)){Stop-DraftApp $name}
+        Stop-PhysicalPosEdge $state $run;Save-State
         if($Action -eq 'Reset') {
             Invoke-OwnedCompose @('down','--volumes','--remove-orphans')
             $remaining=@(& docker ps -aq --filter "label=com.docker.compose.project=$project")
@@ -416,7 +435,9 @@ try {
         if($LASTEXITCODE -ne 0){throw 'Infrastructure port lookup failed.'}
         if($state.infrastructure[$entry.Key] -ne (ConvertFrom-ReviewJoinedPort $published)){throw 'Owned infrastructure listener differs from its retained generated port.'}
     }
-    $state.authority="http://127.0.0.1:$($state.infrastructure.keycloak)/realms/$($state.realm)";Save-State
+    if($state.Contains('physicalPosPilot')){Start-PhysicalPosEdge $state $run $root ([bool]$NoBuild);$state.authority="$($state.physicalPosPilot.origin)/realms/$($state.realm)"}
+    else{$state.authority="http://127.0.0.1:$($state.infrastructure.keycloak)/realms/$($state.realm)"}
+    Save-State
     Wait-DraftHttp ($state.authority+'/.well-known/openid-configuration')
     if($state.Contains('mediaEnabled') -and $state.mediaEnabled){Ensure-DraftMediaAudience $state $secrets}
     foreach($name in (@('Catalog','Inventory','Kitchen','Order','POS','Payment','Reporting')+$(if($state.Contains('mediaEnabled') -and $state.mediaEnabled){@('Media')}else{@()}))) {
@@ -504,6 +525,7 @@ try {
         $state.status='Failed';Save-State
         # Preserve evidence/data for safe diagnosis; only owned application processes stop.
         foreach($name in @($state.processes.Keys)){try{Stop-DraftApp $name}catch{Write-Warning 'Owned process cleanup requires review.'}}
+        try{Stop-PhysicalPosEdge $state $run;Save-State}catch{Write-Warning 'Owned staff-edge cleanup requires review.'}
     }
     throw
 } finally {Restore-DraftEnvironment $previous}

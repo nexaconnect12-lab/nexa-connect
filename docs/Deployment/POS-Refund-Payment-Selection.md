@@ -163,3 +163,43 @@ Fresh acceptance `721d384c86dd42b28dba456e9c22cc68` is bound to this target, wit
 cases pending. Source/native simulation does not attest the operator or provider outcome.
 Detailed receipts are retained in `.runstate/pos-refund-verification-activation/` and
 `.runstate/pos-refund-verification-current.json`.
+
+## Invalid legacy local reference reconciliation
+
+On 2026-11-05, read-only manager diagnosis of the retained pilot established that its
+saved refund reference was a same-branch Paid manual-tender Order UUID, with no attached
+Payment intent. A read-only transaction in the owned local Payment database separately
+confirmed that the referenced intent, original operation and refunds against that reference
+were absent. This evidence is stronger than a disclosure-safe HTTP 404 alone. The screenshot
+also confirms that Verify displays its not-found/access-denied result; the remaining block
+is the saved invalid reference, not an unhandled button click.
+
+A one-off support reconciliation was applied after explicit POS-closure confirmation,
+against the exact protected terminal scope and original request. It is not a cashier cancel/reset feature or a new
+application API. POS must be closed before applying it. It refreshes the manager/Payment
+read-only evidence, rejects changed references or evidence older than five minutes, and
+creates a full SQLite backup before transactionally moving the original encrypted pending
+payload to an archival local-state key. It verifies unchanged unrelated state and outbox
+contents before commit. It submits no refund and changes no server business records,
+grants, credentials or original sale. Manager diagnostic sign-in can create normal identity
+session/audit records. Other genuine pending/unknown refunds must remain blocked
+for normal original-operation verification and Payment operations review.
+
+Synthetic tests passed for reference-mismatch rejection, encrypted archival, complete
+backup and unrelated-state/outbox preservation. The real read-only dry-run passed.
+The invalid local pending entry is now archived, with its original encrypted payload
+and full database backup retained. The existing release `2707248d6f6b4ecaa449ffefefbf3305`
+reopened and responds; independent services and the QR listener remain running. A separate
+read-only check after reopening verified the exact archived payload against the backup,
+absence of the blocking pending entry, and unchanged other local-state rows and outbox.
+No application update, server business mutation or financial command was made. Private
+support tooling/evidence remain under ignored `.runstate/`; this is not a general public
+recovery command. In the reopened POS, sign in and retest **Choose paid order**; that
+operator retest remains pending. Only captured-card payments are eligible here, and issuing
+a new refund still requires its existing live permissions, limits and explicit confirmation.
+
+If support reconciliation stops, retain its private evidence directory and backup. A
+failure writing the result receipt after SQLite commit can leave archival completed even
+when the helper reports failure; inspect the pending/archive keys before any retry.
+Do not restore the whole backup over newer POS work or treat this archive as a failed
+provider refund. Any rollback requires scoped support reconciliation with POS closed.

@@ -1,5 +1,15 @@
 # Windows POS private EXE candidate
 
+[Physical device onboarding](../../docs/Deployment/POS-Physical-Device-Onboarding.md)
+adds a separate fresh-data LAN profile and immutable transfer folders around this installer.
+`Test-DeviceOnboarding.ps1` runs on the intended Windows account with Windows PowerShell
+5.1+, requires `-ExpectedManifestSha256` obtained separately, verifies fixed bundle files and normal TLS/OIDC/API
+denial, and installs nothing. Bundles contain a canonical public CA, never private keys or
+DPAPI state. Updates can compare prior bundle custody/version; actual setup preflight remains
+authoritative. No automatic update or public download is introduced.
+Verify the manifest with Windows `Get-FileHash` and check the checker/CA hashes against it
+before executing that script or installing trust; the checker cannot authenticate itself.
+
 The Inno Setup definition is compiled by `scripts/package-pos-installer.ps1`. It embeds
 an offline ZIP of the actual self-contained win-x64 POS, with runtime/native dependencies.
 No appsettings, deployment endpoints, terminal identities, tokens or local state are shipped.

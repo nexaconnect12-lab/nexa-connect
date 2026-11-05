@@ -105,6 +105,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{07C2787E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaConnect.LocalPilotTelemetry", "src\Tools\NexaConnect.LocalPilotTelemetry\NexaConnect.LocalPilotTelemetry.csproj", "{96A6DC0F-FE72-430E-8F3C-3478055AF6AF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexaConnect.PosPilotEdge", "src\Tools\NexaConnect.PosPilotEdge\NexaConnect.PosPilotEdge.csproj", "{F9C861D9-4106-442D-A9DC-45CF167F86BB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -583,6 +585,18 @@ Global
 		{96A6DC0F-FE72-430E-8F3C-3478055AF6AF}.Release|x64.Build.0 = Release|Any CPU
 		{96A6DC0F-FE72-430E-8F3C-3478055AF6AF}.Release|x86.ActiveCfg = Release|Any CPU
 		{96A6DC0F-FE72-430E-8F3C-3478055AF6AF}.Release|x86.Build.0 = Release|Any CPU
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB}.Debug|x64.Build.0 = Debug|Any CPU
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB}.Debug|x86.Build.0 = Debug|Any CPU
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB}.Release|x64.ActiveCfg = Release|Any CPU
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB}.Release|x64.Build.0 = Release|Any CPU
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB}.Release|x86.ActiveCfg = Release|Any CPU
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -635,5 +649,6 @@ Global
 		{EBC7027E-CC23-4FE9-B7FC-4F019A959885} = {DCB6FCB8-FF92-AC57-0842-1F72A354D6B1}
 		{E86505B7-2B81-4D03-AD84-7527B92167E2} = {DCB6FCB8-FF92-AC57-0842-1F72A354D6B1}
 		{96A6DC0F-FE72-430E-8F3C-3478055AF6AF} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
+		{F9C861D9-4106-442D-A9DC-45CF167F86BB} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 	EndGlobalSection
 EndGlobal

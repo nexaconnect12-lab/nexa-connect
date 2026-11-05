@@ -1,5 +1,27 @@
 # Next iteration: phases, checklist and implementation prompts
 
+5 November 2026: [physical POS onboarding](../Deployment/POS-Physical-Device-Onboarding.md)
+implements new-pilot staff LAN ingress, dedicated public terminal profiles and source-bound
+versioned installer bundles with device probes and compatible-update guards. The operator
+chooses fresh test data on the development PC; original normal/QR data remains separate.
+The updated device report is 192.168.0.165, matching measured host 192.168.0.191/24.
+The separate LAN backend is Ready/provisioned. Account PC and both CA installations are
+operator-confirmed; development-PC Windows trust and canonical HTTPS identity checks pass.
+The corrected source-bound 0.8.0 installer/bundle is prepared; real development-PC HTTPS
+PKCE, menu/PIN/history reads and authorization boundaries pass without financial commands.
+Device checker/install, physical sign-in/trust and acceptance remain pending.
+Source/fixture tests pass, not live-device acceptance. No public
+installation URL, automatic update, Omise LAN enablement or drawer activation is claimed.
+
+5 November 2026: delivered POS equipment is user-confirmed: both displays **1366×768**,
+PAISHUO **POS806UF** printer (paper notation `79.5|0.5mm`), USB Type-A 2D reader labelled
+**ROHS S26332**, and **4141P** drawer connected to printer **DK/DRAWER**. See the
+[updated equipment baseline](Next-Iteration-Phase-0-Baseline.md). Next hardware checks are
+display assignment/scaling/privacy, Windows-driver receipt output, scanner input isolation,
+then vendor-confirmed drawer compatibility. Input mode/suffix, touch mapping, printable
+area and drawer command remain unverified. Physical opening stays disabled; this record
+does not install drivers, certify devices or change application behavior.
+
 3 November 2026: [cashier-ready/customer panels](../Deployment/POS-Cashier-Ready-And-Customer-Panels.md) implement a staff identity/status card, navigation-only Start sale, guarded full-auth cashier switching, equal approved-advertising/welcome-or-order customer panels and optional same-live-session PIN unlock. PIN enrollment is process-only after fresh full login, never a persistent/offline credential. Fingerprint and RFID/card authentication remain blocked on verified hardware/protocol/enrollment design. No backend/schema change; the matching retained pilot is activated with preserved state and fresh pending operator acceptance. Actual PIN/device verification remains separate.
 
 

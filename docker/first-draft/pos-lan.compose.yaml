@@ -1,0 +1,8 @@
+# Only selected by an explicitly new physical-POS pilot. Infrastructure still binds loopback.
+services:
+  keycloak:
+    environment:
+      KC_HOSTNAME: ${NEXACONNECT_POS_PILOT_ORIGIN:?Use the physical POS pilot launcher}
+      KC_HOSTNAME_ADMIN: http://127.0.0.1:${NEXACONNECT_DRAFT_KEYCLOAK_PORT:?Use the pilot launcher}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "false"
+      KC_PROXY_HEADERS: xforwarded

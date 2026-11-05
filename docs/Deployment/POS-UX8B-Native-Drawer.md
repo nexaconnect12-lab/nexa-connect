@@ -2,8 +2,11 @@
 
 ## Status and equipment gate
 
-The user selected software preparation because the exact PAISHUO printer model, 4141P drawer
-connection and vendor opening-test details are unavailable. Native coordination, the UX8A
+The user initially selected software preparation while printer and connection details were
+unavailable. On 5 November 2026 the user confirmed PAISHUO **POS806UF** and the **4141P**
+drawer connected to its **DK/DRAWER** port. Vendor opening-test details, supported driver
+command and electrical compatibility remain unverified; this is not device certification.
+Native coordination, the UX8A
 HTTP adapter, disabled manual controls and the guarded post-cash-payment hook are implemented
 in source. **Physical UX8B is not complete.** Production constructs only DisabledDrawerDriver;
 there is no enable switch, RAW command, pulse/pin/voltage selection or receipt-queue fallback.

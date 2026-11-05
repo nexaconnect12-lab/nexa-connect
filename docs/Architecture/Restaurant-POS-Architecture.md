@@ -1,5 +1,11 @@
 # NexaConnect Restaurant POS Architecture
 
+The [physical Windows POS pilot](../Deployment/POS-Physical-Device-Onboarding.md) uses
+a separately provisioned fresh-data branch/terminal and restricted staff HTTPS ingress.
+It does not copy original terminal recovery or change Order, Payment, POS custody or
+offline ownership. Manual tender, authenticated live authorization and original-operation
+verification remain authoritative; physical hardware and device acceptance are separate.
+
 Persistent personal cashier PIN credentials now belong to POS, with private online renewal before same-cashier unlock and unchanged original shift/payment custody. This does not implement offline sign-in, offline payment authority or new hardware readers; see [ADR-065](Decisions/ADR-065-persistent-cashier-pin.md) and [identity policy](../Identity/POS-Session-PIN.md).
 
 The [cashier/customer panel refinement](../Deployment/POS-Cashier-Ready-And-Customer-Panels.md) retains original cashier custody and financial workflows. Persistent PIN unlock privately renews and restores only the original cashier session after online verification, within provider and original absolute limits; it creates no offline authority. Customer advertising and order/welcome content share equal panels without widening the allow-listed projection. See [ADR-065](Decisions/ADR-065-persistent-cashier-pin.md); hardware authentication remains a separate unimplemented integration.
