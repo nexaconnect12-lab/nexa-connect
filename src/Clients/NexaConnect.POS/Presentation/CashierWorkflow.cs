@@ -19,13 +19,13 @@ public static class CashierWorkflow
         { CancellationStatus: "blocked" } => new("Reconcile the original order", "Cancellation needs review. Preserve the original order and do not collect again.", CashierDestination.Payment, "Open Payment", true),
         { PaymentPending: true, PaymentUncertain: true } => new("Verify the previous payment", "Do not collect again. Check the original payment attempt.", CashierDestination.Payment, "Open Payment", true),
         { PaymentPending: true } => new("Complete the current payment", "Review the exact amount and tender before confirming receipt.", CashierDestination.Payment, "Open Payment", true),
-        { CheckoutPending: true } => new("Verify the original order", "Continue the saved order; do not create a replacement.", CashierDestination.Checkout, "Open Checkout", true),
+        { CheckoutPending: true } => new("Verify the original order", "Continue the saved order; do not create a replacement.", CashierDestination.Checkout, "Open Menu", true),
         { ReviewPending: true } => new("Verify the cash-review decision", "Load Cash review to reconcile the saved decision.", CashierDestination.CashReview, "Open Cash review", true),
         { RefundPending: true } => new("Verify the original refund", "Load the saved refund before attempting another.", CashierDestination.Receipts, "Open Receipts", true),
         { ShiftOpen: false } => new("Open your shift", "Start in Shift & cash before selling or collecting a QR order.", CashierDestination.ShiftCash, "Open Shift & cash", true),
         { MovementsPending: true } => new("Cash movements need attention", "Review pending or rejected movements. Opening sync does not replay them.", CashierDestination.Terminal, "Open Terminal & sync", true),
         { CashRequired: true, CashOpen: false } => new("Open the cash session", "Enter the opening float in Shift & cash before sending a cash order.", CashierDestination.ShiftCash, "Open Shift & cash", true),
-        _ => new("Ready to sell", "Choose menu items or browse Orders to collect an accepted QR order.", CashierDestination.Checkout, "Open Checkout", false)
+        _ => new("Ready to sell", "Choose menu items or browse Orders to collect an accepted QR order.", CashierDestination.Checkout, "Open Menu", false)
     };
 
     public static (string Label, string Value) Amount(string cartEstimate, bool checkoutPending, decimal? unpaidAmount, string currency)

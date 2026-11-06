@@ -542,7 +542,7 @@ public partial class MainWindow : Window
         { if (line.Quantity > 1) line.Quantity--; else cart.Remove(line); RefreshCart(); }
     }
 
-    private void RefreshCart() { PricingBreakdownText.Text = "Review server pricing before confirming the order."; CartList.Items.Refresh(); UpdateCartTotal(); CustomerCartChanged(); UpdateOperationalState(); }
+    private void RefreshCart() { ClearCheckoutReview(); PricingBreakdownText.Text = "Review server pricing before confirming the order."; CartList.Items.Refresh(); UpdateCartTotal(); CustomerCartChanged(); UpdateOperationalState(); }
     private void MenuFilter_Changed(object sender, TextChangedEventArgs e) => RefreshMenuFilter();
     private void StationFilter_Changed(object sender, SelectionChangedEventArgs e) => RefreshMenuFilter();
     private void RefreshMenuFilter()
@@ -572,29 +572,20 @@ public partial class MainWindow : Window
         }
         try
         {
-            SetBusy(pendingCheckout is null ? "Sending order…" : "Verifying the original order…");
-            if (pendingCheckout is null)
+            if (pendingCheckout is null || pendingCheckout.NeedsPricingReview)
             {
-                var created = PendingCheckout.Create(_configuration,
-                    cart.Select(line => new CheckoutLine(line.ProductId, line.Quantity)).ToArray(), CheckoutMethod);
-                var quote = await _api.QuoteAsync(_authentication.CurrentToken, created);
-                customerState.Quote(quote, _configuration.Currency); PublishCustomerDisplay();
-                PricingBreakdownText.Text = quote.Pricing.Summary;
-                if (!ConfirmQuote(quote)) { CustomerCartChanged(); return; }
-                created = created with { PricingFingerprint = quote.Fingerprint };
-                _localStore.SavePendingCheckout(created); // Never send until confirmed recovery is durable.
-                pendingCheckout = created;
+                if (checkoutReview is not { } reviewed || !CheckoutReviewIsCurrent(reviewed))
+                {
+                    ClearCheckoutReview();
+                    await ReviewCheckoutAsync();
+                    return;
+                }
+                _localStore.SavePendingCheckout(reviewed.Checkout); // Save the accepted pricing fence before sending.
+                pendingCheckout = reviewed.Checkout;
+                ClearCheckoutReview();
+                SetBusy("Sending order…");
             }
-            if (pendingCheckout.NeedsPricingReview)
-            {
-                var quote = await _api.QuoteAsync(_authentication.CurrentToken, pendingCheckout);
-                customerState.Quote(quote, _configuration.Currency); PublishCustomerDisplay();
-                PricingBreakdownText.Text = quote.Pricing.Summary;
-                if (!ConfirmQuote(quote)) { customerState.Unconfirmed(); PublishCustomerDisplay(); return; }
-                var confirmed = pendingCheckout with { PricingFingerprint = quote.Fingerprint, NeedsPricingReview = false };
-                _localStore.SavePendingCheckout(confirmed);
-                pendingCheckout = confirmed;
-            }
+            else SetBusy("Verifying the original order…");
             string? cardToken = CardTokenBox.Password.Length == 0 ? null : CardTokenBox.Password;
             CardTokenBox.Clear();
             var result = await _api.PlaceOrderAsync(_authentication.CurrentToken, pendingCheckout, cardToken);
@@ -670,12 +661,8 @@ public partial class MainWindow : Window
                     ? $"{api.Message} Original checkout retained. Use Verify order; do not create another order."
                     : "Original checkout retained. Use Verify order to check its result; do not create another order.";
         }
-        finally { CardTokenBox.Clear(); UpdateOperationalState(); }
+        finally { if (checkoutReview is null) CardTokenBox.Clear(); UpdateOperationalState(); }
     }
-    private bool ConfirmQuote(PosOrderQuote quote) => ConfirmStaffAction(
-        string.Join("\n", quote.Lines.Select(l => $"{l.Quantity} × {l.Name} @ THB {l.UnitPrice:N2}"))
-        + "\n\n" + quote.Pricing.Summary + "\n\nConfirm this bill and send to the kitchen?",
-        "Confirm order pricing");
 
     private void CardToken_Changed(object sender, RoutedEventArgs e)
     {
@@ -722,10 +709,6 @@ public partial class MainWindow : Window
         try{attempt=ManualTenderIntent.Prepare(savedSettlement,currentOrder,currentIdempotencyKey,method,
             savedSettlement?.Method is not null?savedSettlement.ReceiptConfirmed:ReceiptConfirmedCheckBox.IsChecked.GetValueOrDefault(),bankReference);}
         catch(InvalidDataException){StatusText.Text="Original payment recovery differs from this order. Preserve recovery and reconcile; no confirmation was sent.";return;}
-        if (!ConfirmStaffAction(
-                settlementUncertain||savedSettlement?.Method is not null ? "Verify the previous payment attempt? Do not collect payment again."
-                : $"Confirm {currentOrder.Currency} {currentOrder.TotalAmount:N2} received by {(method == "cash" ? "cash" : "PromptPay")}?",
-                "Confirm payment")) return;
         if(!PrintSessionCurrent(paymentGeneration,paymentSubject)||_activeShift?.ShiftId!=paymentShift||pendingOrder?.OrderId!=currentOrder.OrderId||settlementIdempotencyKey!=currentIdempotencyKey)
         {StatusText.Text="Session or original order changed. Resume and verify the original payment; no confirmation was sent.";return;}
         var readiness=ManualTenderReadiness.Evaluate(method,cashSessionId is not null,PromptPayQrAvailable,
@@ -1198,6 +1181,7 @@ public partial class MainWindow : Window
 
     private void ClearReceiptView()
     {
+        ClearCheckoutReview();
         ClearRefundPaymentSelection();
         ClearMenuPhotos();
         ClearMenuOrganization();
@@ -1506,15 +1490,17 @@ public partial class MainWindow : Window
         QrReferenceTextBox.IsEnabled = signedIn && pendingCheckout is null;
         PlaceOrderButton.IsEnabled = CashierPresentation.CanAttemptOrder(
             signedIn, hasActiveShift, pendingOrder is not null, pendingCheckout is not null, cart.Count);
-        PlaceOrderButton.Content = pendingCheckout is null ? "Send order · Continue to payment" : "Verify original order";
+        if (checkoutReview is { } review && !CheckoutReviewIsCurrent(review)) ClearCheckoutReview();
+        PlaceOrderButton.Content = checkoutReview is not null ? "Send order · Continue to payment"
+            : pendingCheckout is null || pendingCheckout.NeedsPricingReview ? "Review order total" : "Verify original order";
         RenderCheckoutPayments();
         OmiseTestCardPanel.Visibility = CardCheckout ? Visibility.Visible : Visibility.Collapsed;
         CardTokenBox.IsEnabled = signedIn && hasActiveShift && !busy && CardCheckout
             && (pendingCheckout is null || cardTokenRequired);
-        if (pendingCheckout is not null && CardTokenBox.Password.Length > 0) PlaceOrderButton.Content = "Authorize original test card order";
+        if (pendingCheckout is { NeedsPricingReview: false } && CardTokenBox.Password.Length > 0) PlaceOrderButton.Content = "Authorize original test card order";
         PlaceOrderButton.ToolTip = pendingCheckout is null && CheckoutMethod == "cash_manual" && cashSessionId is null
-            ? "Open a THB cash session before sending. Selecting Send order will take you to Shift & cash."
-            : "Send the current order and continue to payment.";
+            ? "Open a THB cash session before sending. Reviewing the order will take you to Shift & cash."
+            : "Review the server price before sending an order, or verify the saved order.";
         OpenCashButton.IsEnabled = signedIn && hasActiveShift && cashSessionId is null;
         CloseCashButton.IsEnabled = signedIn && cashSessionId is not null
             && pendingOrder is null && pendingCheckout is null && !HasQueuedCashMovements(cashSessionId.Value);

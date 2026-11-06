@@ -1,10 +1,14 @@
 using System.Windows.Controls;
+using System.Windows;
 
 namespace NexaConnect.POS;
 
 public partial class MainWindow
 {
     private sealed record CheckoutPaymentChoice(string Method,string Label);
+    private sealed record CheckoutReview(PendingCheckout Checkout, PosOrderQuote Quote,
+        Guid? OriginalOrder, Guid? Shift, Guid? CashSession);
+    private CheckoutReview? checkoutReview;
     private bool renderingCheckoutPayment;
     private string CheckoutMethod => pendingCheckout?.PaymentMethod
         ?? (CheckoutPaymentPicker.SelectedItem as CheckoutPaymentChoice)?.Method ?? _configuration.PaymentMethod;
@@ -45,6 +49,43 @@ public partial class MainWindow
         if(!IsSignedIn()||busy||displaySafetyBlocked||pendingCheckout is not null||pendingOrder is not null)
         {SelectCheckoutPayment(pendingCheckout?.PaymentMethod ?? _configuration.PaymentMethod);return;}
         CardTokenBox.Clear();cardTokenRequired=false;
+        ClearCheckoutReview();
         CustomerCartChanged();UpdateOperationalState();
+    }
+
+    private void ClearCheckoutReview()
+    {
+        if (checkoutReview is null) return;
+        checkoutReview = null;
+        QuoteLinesScroll.Visibility = Visibility.Collapsed;
+        QuoteLinesText.Text = "";
+        PricingBreakdownText.Text = "Review server pricing before confirming the order.";
+    }
+
+    private bool CheckoutReviewIsCurrent(CheckoutReview review) =>
+        review.OriginalOrder == pendingCheckout?.OrderId && review.Checkout.PaymentMethod == CheckoutMethod
+        && review.Shift == _activeShift?.ShiftId && review.CashSession == cashSessionId;
+
+    private async Task ReviewCheckoutAsync()
+    {
+        if (_authentication.CurrentToken is not { } token) return;
+        var original = pendingCheckout;
+        var shift = _activeShift?.ShiftId;
+        var cash = cashSessionId;
+        int session = receiptSessionGeneration;
+        var checkout = original ?? PendingCheckout.Create(_configuration,
+            cart.Select(line => new CheckoutLine(line.ProductId, line.Quantity)).ToArray(), CheckoutMethod);
+        SetBusy("Loading server pricing…");
+        var quote = await _api.QuoteAsync(token, checkout);
+        var review = new CheckoutReview(checkout with { PricingFingerprint = quote.Fingerprint, NeedsPricingReview = false },
+            quote, original?.OrderId, shift, cash);
+        if (!PrintSessionCurrent(session, token.Subject) || !CheckoutReviewIsCurrent(review)) return;
+        checkoutReview = review;
+        QuoteLinesText.Text = string.Join("\n", quote.Lines.Select(line => $"{line.Quantity} × {line.Name} @ THB {line.UnitPrice:N2}"));
+        QuoteLinesScroll.Visibility = Visibility.Visible;
+        PricingBreakdownText.Text = quote.Pricing.Summary;
+        customerState.Quote(quote, _configuration.Currency);
+        PublishCustomerDisplay();
+        StatusText.Text = "Review the server total, then send the order.";
     }
 }

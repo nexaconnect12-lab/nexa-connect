@@ -198,6 +198,9 @@
                   <TextBlock Text="Paste a fresh token from the local HTTPS test helper. Leave blank to verify the original order. Do not enter card details or keys." TextWrapping="Wrap" Margin="0,8" />
                   <PasswordBox x:Name="CardTokenBox" MaxLength="100" PasswordChanged="CardToken_Changed" AutomationProperties.Name="Fresh Omise test token" Margin="0,0,0,12" />
                 </StackPanel>
+                <ScrollViewer x:Name="QuoteLinesScroll" MaxHeight="96" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                  <TextBlock x:Name="QuoteLinesText" FontSize="12" TextWrapping="Wrap" />
+                </ScrollViewer>
                 <TextBlock x:Name="PricingBreakdownText" Text="Review server pricing before confirming the order." FontSize="12" Foreground="#63756A" TextWrapping="Wrap" />
               </StackPanel>
             </Grid>

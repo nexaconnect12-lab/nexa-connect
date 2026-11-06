@@ -32,9 +32,11 @@ public partial class MainWindow
             ? Visibility.Collapsed : Visibility.Visible;
         PlaceOrderButton.Visibility = CheckoutTab.IsSelected ? Visibility.Visible : Visibility.Collapsed;
         PaidButton.Visibility = PaymentTab.IsSelected ? Visibility.Visible : Visibility.Collapsed;
-        var amount = CashierWorkflow.Amount(TotalText.Text, pendingCheckout is not null, pendingOrder?.TotalAmount, pendingOrder?.Currency ?? _configuration.Currency);
-        WorkflowAmountLabel.Text = amount.Label;
-        WorkflowAmount.Text = amount.Value;
+        var amount = checkoutReview is { } review
+            ? ("Order review · server total", CashierPresentation.Money(review.Quote.Pricing.TotalAmount, _configuration.Currency))
+            : CashierWorkflow.Amount(TotalText.Text, pendingCheckout is not null, pendingOrder?.TotalAmount, pendingOrder?.Currency ?? _configuration.Currency);
+        WorkflowAmountLabel.Text = amount.Item1;
+        WorkflowAmount.Text = amount.Item2;
         if (!busy) BusyProgress.Visibility = Visibility.Collapsed;
         UpdateResponsiveLayout();
     }
