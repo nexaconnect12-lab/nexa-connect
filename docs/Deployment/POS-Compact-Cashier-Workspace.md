@@ -1,5 +1,18 @@
 # Compact cashier workspace
 
+## Menu and payment follow-up
+
+The cashier navigation labels the cart and item workspace **Menu**. The cashier name and
+session status share one header row. Select **Review order total** to see the server-priced
+lines and total in Menu, then **Send order · Continue to payment**. Editing the cart
+or changing the checkout method discards the quote. An original order that needs repricing
+uses the same inline review with its original order identity.
+
+In **Payment**, **Confirm payment received** submits the original amount and tender
+without a modal prompt. PromptPay still requires verified proof and a reference.
+Uncertain payments use **Verify payment** on the original attempt. Refunds, cancellation,
+cash review and drawer authorization follow their own safeguards.
+
 ## Scope and status
 
 This update reduces routine text and expands menu browsing in the existing WPF POS. Compact release 9ab9d05b76ab45d9b4a87e51a5c2f6ea introduced this layout. It is superseded by the matching [refund-selector release](POS-Refund-Payment-Selection.md), with existing business/PIN/recovery state preserved and fresh operator/physical-device acceptance pending. No API, schema, permission, payment calculation, identity policy or financial recovery format changes are introduced.
@@ -13,7 +26,10 @@ This update reduces routine text and expands menu browsing in the existing WPF P
 - The cart column uses280/330/380DIP at window widths below1100/below1500/otherwise, giving the remaining width to the menu. The original cart-total text remains as an internal presentation source; the pinned workflow total is the single visible total. Existing quantity controls, payment selector and server pricing breakdown remain. Routine sandbox-capability text is hidden for manual checkout; sandbox and retained-method guidance remains when relevant.
 - Routine workflow explanations are collapsed. Payment uncertainty, retained-order/refund/cancellation, sync, prerequisite and busy guidance stays visible at all supported heights. The status area remains visible and scrollable; no business/recovery warning is converted into an automatically dismissed toast.
 
-The window starts at1280×700 and is capped to the primary work area on first load, with a960×520 minimum. Manual resizing remains available. Ordinary checkout uses independent menu/cart scrolling instead of a480-unit minimum page; keyboard/form views retain the original outer-scroll behavior. Standard input/density remains the default; optional touch input and Touch density remain independent preferences. Customer-display routing, approved advertising, PIN lock and original-cashier custody are unchanged.
+The cashier uses [borderless full-monitor placement](Next-Iteration-Phase-4.md#setup-and-recovery).
+Menu and cart have independent scrolling during ordinary sales, while keyboard and form
+views use the outer scroll area. Standard input and density are the defaults. Touch input
+and Touch density remain independent preferences.
 
 ## Verification and rollout
 

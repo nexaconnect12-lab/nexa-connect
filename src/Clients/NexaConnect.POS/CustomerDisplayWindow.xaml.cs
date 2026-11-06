@@ -11,6 +11,12 @@ public partial class CustomerDisplayWindow : Window
     internal CustomerDisplayWindow(IPosDisplayPlatform platform)
     { this.platform = platform; InitializeComponent(); DataContext = CustomerDisplaySnapshot.Welcome; }
     public void Present(CustomerDisplaySnapshot snapshot) => DataContext = snapshot;
+    internal void TableQr(System.Windows.Media.Imaging.BitmapSource? image, string? tableCode)
+    {
+        TableQrImage.Source = image;
+        TableQrCaption.Text = image is null ? "" : $"Table {tableCode}";
+        TableQrPanel.Visibility = image is null ? Visibility.Collapsed : Visibility.Visible;
+    }
     public void Screensaver(System.Windows.Media.Imaging.BitmapSource? image,string title,string caption,bool locked)
     {
         bool show=image is not null;

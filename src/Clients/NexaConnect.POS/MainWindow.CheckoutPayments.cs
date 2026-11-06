@@ -76,7 +76,7 @@ public partial class MainWindow
         var checkout = original ?? PendingCheckout.Create(_configuration,
             cart.Select(line => new CheckoutLine(line.ProductId, line.Quantity)).ToArray(), CheckoutMethod);
         SetBusy("Loading server pricing…");
-        var quote = await _api.QuoteAsync(token, checkout);
+        var quote = await _api.QuoteAsync(token, checkout, windowCancellation.Token);
         var review = new CheckoutReview(checkout with { PricingFingerprint = quote.Fingerprint, NeedsPricingReview = false },
             quote, original?.OrderId, shift, cash);
         if (!PrintSessionCurrent(session, token.Subject) || !CheckoutReviewIsCurrent(review)) return;

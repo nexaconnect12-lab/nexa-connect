@@ -62,3 +62,111 @@ function Start-PhysicalPosEdge($State,[string]$Run,[string]$RepositoryRoot,[bool
     $State.staffEdge=@{id=$process.Id;startTicks=$process.StartTime.ToUniversalTime().Ticks;assemblyName='NexaConnect.PosPilotEdge'}
     $State.physicalPosPilot.edgeArtifactsHash=Get-PhysicalPosEdgeHash $directory
 }
+
+function Set-PhysicalGuestQrProfile($State,[int]$Port,[bool]$NoBuild) {
+    if(-not $State.Contains('physicalPosPilot') -or $State.Contains('qrPilotOrigin') -or $State.processes.Count -or
+        $State.Contains('staffEdge') -or $State.Contains('physicalGuestEdge') -or $NoBuild){
+        throw 'Guest QR changes require a stopped physical POS pilot and a build-enabled Start.'
+    }
+    if($Port -eq 0){
+        if($State.Contains('physicalGuestQrOrigin')){
+            $State.physicalGuestQrPreviousOrigin=$State.physicalGuestQrOrigin
+            $State.Remove('physicalGuestQrOrigin')
+        }
+        return
+    }
+    $staff=[uri]$State.physicalPosPilot.origin
+    $reserved=@($State.urls.Values|ForEach-Object{([uri]$_).Port})+@($State.infrastructure.Values)+@($staff.Port)
+    if($Port -lt 1024 -or $Port -gt 65535 -or $Port -in $reserved){
+        throw 'Choose a separate unprivileged guest HTTPS port.'
+    }
+    $origin="https://$($staff.Host):$Port"
+    Assert-DraftQrPilotOrigin $origin
+    $previous=$State['physicalGuestQrOrigin'] ?? $State['physicalGuestQrPreviousOrigin']
+    if($previous -and $previous -cne $origin){
+        throw 'The existing guest origin is retained because issued links depend on it.'
+    }
+    $State.physicalGuestQrOrigin=$origin
+}
+
+function Stop-PhysicalGuestEdge($State,[string]$Run) {
+    if(-not $State.Contains('physicalGuestEdge')){return}
+    $record=$State.physicalGuestEdge
+    $process=Get-Process -Id $record.id -ErrorAction SilentlyContinue
+    if(Assert-DraftProcess $record $process){
+        $actual=Get-CimInstance Win32_Process -Filter "ProcessId = $($record.id)"
+        $assembly=Join-Path $Run 'apps/PhysicalGuestEdge/NexaConnect.QrPilotEdge.dll'
+        if($actual.ExecutablePath -ne (Get-Command dotnet).Source -or $actual.CommandLine -notlike ('*"'+$assembly+'"*')){
+            throw 'Physical guest edge ownership changed; no process stopped.'
+        }
+        $process.Kill();if(-not $process.WaitForExit(10000)){throw 'Physical guest edge did not stop.'}
+    }
+    $State.Remove('physicalGuestEdge')
+}
+
+function Start-PhysicalGuestEdge($State,[string]$Run,[string]$RepositoryRoot,[bool]$NoBuild,[string]$BackendCertificatePassword) {
+    if(-not $State.Contains('physicalGuestQrOrigin')){return}
+    $origin=$State.physicalGuestQrOrigin
+    Assert-DraftQrPilotOrigin $origin
+    $uri=[uri]$origin
+    $plan=Read-PhysicalPosPlan (Join-Path $Run 'physical-pos-plan.json')
+    if($plan.runId -cne $State.runId -or $plan.origin -cne $State.physicalPosPilot.origin -or
+        $uri.Host -cne $plan.hostAddress -or $uri.Port -eq ([uri]$plan.origin).Port -or
+        (Get-FileHash $plan.certificatePath).Hash -cne $State.physicalPosPilot.certificateHash -or
+        (Get-FileHash $plan.privateKeyPath).Hash -cne $State.physicalPosPilot.privateKeyHash){
+        throw 'The guest endpoint must use the bound physical pilot host and TLS files on its own port.'
+    }
+    if($State.Contains('physicalGuestEdge')){throw 'Stop the owned guest listener before starting it again.'}
+    if(Get-NetTCPConnection -State Listen -LocalPort $uri.Port -ErrorAction SilentlyContinue){
+        throw 'Physical guest port already occupied; no listener adopted.'
+    }
+    $directory=Assert-TerminalPath (Join-Path $Run 'apps/PhysicalGuestEdge')
+    $assembly=Join-Path $directory 'NexaConnect.QrPilotEdge.dll'
+    if($NoBuild){
+        if(-not (Test-Path -LiteralPath $assembly) -or -not $State.Contains('physicalGuestEdgeHash') -or
+            (Get-PhysicalPosEdgeHash $directory) -cne $State.physicalGuestEdgeHash){throw 'Rebuild the exact guest edge before restart.'}
+    }else{
+        & dotnet publish (Join-Path $RepositoryRoot 'src/Tools/NexaConnect.QrPilotEdge') -c Release --output $directory --verbosity quiet -m:1
+        if($LASTEXITCODE -ne 0){throw 'Physical guest edge publication failed.'}
+    }
+    $cert=[Security.Cryptography.X509Certificates.X509Certificate2]::new(
+        (Join-Path $Run 'local.pfx'),$BackendCertificatePassword,
+        [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+    try{$pin=[Convert]::ToHexStringLower([Security.Cryptography.SHA256]::HashData($cert.RawData))}finally{$cert.Dispose()}
+    @{QrPilot=@{PublicOrigin=$origin;ListenAddress=$plan.hostAddress;BackendOrigin="https://localhost:$(([uri]$State.urls.Bff).Port)";
+        BackendCertificateSha256=$pin;CertificatePath=$plan.certificatePath;PrivateKeyPath=$plan.privateKeyPath}} |
+        ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $directory 'appsettings.json')
+    $old=@{}
+    try{
+        foreach($key in @([Environment]::GetEnvironmentVariables('Process').Keys)){
+            if($key -match '__|^NEXACONNECT_|^NEXA_|^ASPNETCORE_|^DOTNET_ENVIRONMENT$|^OTEL_'){
+                $old[$key]=[Environment]::GetEnvironmentVariable($key);Remove-Item -LiteralPath ("Env:"+$key) -ErrorAction SilentlyContinue
+            }
+        }
+        $launch=@{FilePath=(Get-Command dotnet).Source;ArgumentList=@(('"'+$assembly+'"'));WorkingDirectory=$directory;
+            Environment=@{ASPNETCORE_ENVIRONMENT='Development';DOTNET_ENVIRONMENT='Development';Observability__OtlpEnabled='false'};
+            WindowStyle='Hidden';PassThru=$true;RedirectStandardOutput=(Join-Path $Run 'PhysicalGuestEdge.log');
+            RedirectStandardError=(Join-Path $Run 'PhysicalGuestEdge.error.log')}
+        $process=Start-Process @launch
+        $State.physicalGuestEdge=@{id=$process.Id;startTicks=$process.StartTime.ToUniversalTime().Ticks;assemblyName='NexaConnect.QrPilotEdge'}
+    }finally{Restore-DraftEnvironment $old}
+}
+
+function Assert-PhysicalGuestEdgeReady($State,[string]$Run) {
+    if(-not $State.Contains('physicalGuestQrOrigin')){return}
+    $origin=$State.physicalGuestQrOrigin
+    $deadline=[DateTimeOffset]::UtcNow.AddSeconds(30)
+    $ready=$false
+    while([DateTimeOffset]::UtcNow -lt $deadline){
+        try{if((Invoke-WebRequest ($origin+'/order') -TimeoutSec 3).StatusCode -eq 200){$ready=$true;break}}catch{}
+        Start-Sleep -Milliseconds 500
+    }
+    if(-not $ready){throw 'Physical guest order page did not pass the trusted HTTPS probe.'}
+    $uri=[uri]$origin
+    if(-not @(Get-NetTCPConnection -LocalAddress $uri.Host -LocalPort $uri.Port -State Listen -ErrorAction SilentlyContinue |
+        Where-Object OwningProcess -eq $State.physicalGuestEdge.id).Count){throw 'Physical guest listener ownership was not verified.'}
+    $guest=Invoke-WebRequest ($origin+'/bff/guest/qr/context') -TimeoutSec 10 -SkipHttpErrorCheck
+    $staff=Invoke-WebRequest ($origin+'/bff/customer/qr-entries/csrf') -TimeoutSec 10 -SkipHttpErrorCheck
+    if($guest.StatusCode -ne 401 -or $staff.StatusCode -ne 404){throw 'Physical guest admission or staff route isolation failed.'}
+    $State.physicalGuestEdgeHash=Get-PhysicalPosEdgeHash (Join-Path $Run 'apps/PhysicalGuestEdge')
+}

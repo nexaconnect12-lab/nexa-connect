@@ -1,5 +1,10 @@
 # POS presentation
 
+The customer display can temporarily show a table QR bitmap and label on the right.
+The left ad panel remains independent. The cashier loads administrator-provisioned
+branch-matched exports and explicitly shows a table while checkout is idle.
+See [customer-screen QR setup](../../../../docs/Deployment/POS-Customer-Table-QR.md).
+
 The [receipt workspace scrolling follow-up](../../../../docs/Deployment/POS-Refund-Payment-Selection.md#receipt-workspace-scrolling-follow-up)
 uses separate Receipt preview/Provider refund inner tabs with bounded viewports and
 visible scrollbars. It retains the existing bottom workflow panel and outer input
@@ -99,7 +104,8 @@ The staff view starts with its centered scrollable authentication panel hidden; 
 has optional public captions and no controls. `StaffDisplayPlacement` validates a physical
 monitor lease, rejects ambiguous spans/overlap and invalidates changed topology.
 `PosDisplayCoordinator` keeps the cashier borderless and full-screen in sign-in, checkout,
-and lock states. Startup uses the primary monitor. Assigning roles moves the cashier to
+and lock states. Startup uses the validated saved staff monitor or the Windows primary monitor.
+Assigning roles moves the cashier to
 the selected staff monitor and fences native move/resize attempts. A topology fault still
 closes the customer projection and hides private content. Missing/expired media retains neutral fallback.
 

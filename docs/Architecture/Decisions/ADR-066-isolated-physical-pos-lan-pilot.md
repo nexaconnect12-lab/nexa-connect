@@ -21,7 +21,10 @@ Reuse existing first-draft resource ownership/provisioning and private per-user 
 An explicit fresh-run plan selects a separate staff-only HTTPS edge and Keycloak Compose
 override with one canonical external issuer; backend discovery retains normal TLS trust.
 Only the two fixed private PCs and a directly connected same-subnet arrangement are supported
-by this pilot. The guest-only QR edge and retained realm/configuration remain unchanged.
+by the staff listener. An optional, separately bound guest HTTPS edge can reuse the same
+physical pilot's loopback BFF and branch. It reuses the existing QR edge allowlist, rate
+limits, certificate pin and correlation logging. The staff issuer and terminal custody
+are preserved. The independent phone pilot retains its own listener and branch.
 
 The edge is transport-only: bounded forwarding to fixed loopback services, restricted identity
 paths, bearer gating plus the existing exact gallery-reader GET exception, safe correlation

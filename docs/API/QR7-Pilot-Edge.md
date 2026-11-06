@@ -39,3 +39,6 @@ Shared JSON/OTLP/correlation logging uses service `nexaconnect-qr-pilot-edge`; u
 raw path/query/host values are normalized before edge telemetry. Correlation IDs use the
 shared validator and outbound propagation. Bounded failure categories contain no raw
 headers/bodies, guest tokens or financial values. See [operations/queries](../Deployment/QR7-Pilot.md).
+The physical POS pilot may reuse this guest-only edge on a separate HTTPS port
+with its own loopback BFF. Its staff sign-in and API listener remains separate.
+See [physical pilot setup](../Deployment/POS-Physical-Device-Onboarding.md#enable-guest-table-qr-on-the-physical-pos-branch).

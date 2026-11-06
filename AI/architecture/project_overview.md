@@ -1,9 +1,23 @@
 # NexaConnect Project Architecture
 
+Windows POS can review the original paid receipt for cash and manual PromptPay.
+The POS domain models manager approval and named cashier payout custody. Durable
+manual refund recording and reconciliation are pending.
+See [manual payment review](../../docs/Deployment/POS-Manual-Refund-Review.md).
+
+Windows POS can show a provisioned table-ordering QR on the idle customer display.
+The portal exports the existing issued entry locally. See [setup](../../docs/Deployment/POS-Customer-Table-QR.md).
+The physical pilot can enable same-branch guest ordering on a separate private HTTPS
+listener. See [physical pilot operations](../../docs/Deployment/POS-Physical-Device-Onboarding.md#enable-guest-table-qr-on-the-physical-pos-branch).
+
 The Windows cashier window uses borderless full-monitor placement and an in-app close
 button. Local per-terminal display roles restore only when the identified monitor layout
 matches. The separate customer projection retains its topology safety.
 See [staff and customer displays](../../docs/Deployment/Next-Iteration-Phase-4.md).
+
+The Menu workspace presents the server quote inline before sending the original priced
+order. Routine payment uses its existing explicit button and recovery checks.
+See [cashier workflow](../../docs/Deployment/POS-Compact-Cashier-Workspace.md#menu-and-payment-follow-up).
 
 Managed Windows POS has per-user desktop and Start menu shortcuts and can opt in to
 signed startup updates. A local update worker uses the current profile and existing

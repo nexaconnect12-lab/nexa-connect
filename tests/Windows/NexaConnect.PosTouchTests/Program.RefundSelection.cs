@@ -17,6 +17,8 @@ internal static partial class Program
     private static bool refundVerificationInterrupted;
     private static TaskCompletionSource<HttpResponseMessage>? refundVerificationDelayed;
     private static TaskCompletionSource<HttpResponseMessage>? refundSelectionDelayed;
+    private static string refundFixtureTender = "card_omise_test";
+    private static TaskCompletionSource<HttpResponseMessage>? manualRefundReceiptDelayed;
 
     private static void VerifyRefundSelection(MainWindow window, PosClientConfiguration config)
     {
@@ -136,12 +138,16 @@ internal static partial class Program
             refundSelectionDelayed.TrySetResult(new(HttpStatusCode.OK) { Content = JsonContent.Create(new { orderId = refundSelectionOrder }) });
             Wait(() => delayed.IsCompleted);
             Require(selectionField.GetValue(window) is null && !issue.IsEnabled, "delayed selection cannot restore private details after privacy transition");
+            refundSelectionDelayed = null;
+            VerifyManualRefundReview(window);
             Require(refundSelectionCommands == 0, "presentation checks issue no financial command");
             Console.WriteLine("PASS: readable refund selection, confirmation edits, stale balance, pending recovery and privacy fences (synthetic only).");
         }
         finally
         {
             refundSelectionDelayed = null; refundSelectionDenial = null; refundSelectionUncertain = false;
+            refundFixtureTender = "card_omise_test";
+            manualRefundReceiptDelayed = null;
             refundVerificationDelayed = null; refundVerificationInterrupted = false; refundVerificationStatus = 200;
             refundSelectionTesting = false; pendingField.SetValue(window, null);
             Invoke(window, "ClearReceiptView"); ((TabItem)window.FindName("CheckoutTab")).IsSelected = true;
@@ -159,6 +165,52 @@ internal static partial class Program
             while (!ready() && DateTime.UtcNow < until) Pump(window);
             Require(ready(), "refund selection task completed within fixture deadline");
         }
+    }
+
+    private static void VerifyManualRefundReview(MainWindow window)
+    {
+        var receipts = (TabItem)window.FindName("ReceiptsTab");
+        var orders = (TabItem)window.FindName("OrdersTab");
+        var section = (TabItem)window.FindName("ManualRefundSection");
+        var review = (TextBlock)window.FindName("ManualRefundReviewText");
+        foreach (var (tender, label) in new[] { ("cash", "Cash"), ("promptpay_manual", "Manual PromptPay"),
+            ("card_omise_test", "This receipt is for a different tender") })
+        {
+            refundFixtureTender = tender;
+            receipts.IsSelected = true;
+            section.IsSelected = true;
+            Invoke(window, "ChooseManualRefundOrder_Click", window, new RoutedEventArgs());
+            Pump(window);
+            Require(orders.IsSelected && ((ComboBox)window.FindName("OrdersStateFilter")).SelectedIndex == 2,
+                "manual payment review opens the paid-order list");
+            var grid = (DataGrid)window.FindName("OrdersGrid");
+            grid.SelectedIndex = 0;
+            var action = (Button)window.FindName("ReviewManualRefundButton");
+            Require(action.IsEnabled, "manual payment review action can read the selected paid order");
+            action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Pump(window);
+            Require(receipts.IsSelected && section.IsSelected && review.Text.StartsWith(label),
+                "manual payment review reports the original receipt tender");
+            Require(tender == "card_omise_test" ? !review.Text.Contains("100.00") : review.Text.Contains("100.00"),
+                "review shows original paid total for manual tenders only");
+            ((TabItem)window.FindName("ReceiptPreviewSection")).IsSelected = true;
+            Require(review.Text.Length == 0, "leaving manual payment review clears the displayed evidence");
+        }
+
+        orders.IsSelected = true;
+        Pump(window);
+        manualRefundReceiptDelayed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var delayed = (Task)typeof(MainWindow).GetMethod("ReviewManualRefundAsync", Private)!
+            .Invoke(window, [refundSelectionOrder])!;
+        Require(!delayed.IsCompleted, "manual payment receipt read is in flight");
+        Invoke(window, "ClearReceiptView");
+        manualRefundReceiptDelayed.SetResult(new(HttpStatusCode.ServiceUnavailable));
+        DateTime until = DateTime.UtcNow.AddSeconds(5);
+        while (!delayed.IsCompleted && DateTime.UtcNow < until) Pump(window);
+        Require(delayed.IsCompletedSuccessfully && orders.IsSelected && review.Text.Length == 0,
+            "a delayed receipt error cannot reopen the manual payment view after a privacy reset");
+        manualRefundReceiptDelayed = null;
+        Console.WriteLine("PASS: cash and PromptPay original-payment review, nonmanual tender guidance and privacy fencing; no financial writes.");
     }
     private static Task<HttpResponseMessage> RefundSelectionFixtureResponse(HttpRequestMessage request, PosClientConfiguration config, CancellationToken ct)
     {
@@ -181,10 +233,12 @@ internal static partial class Program
                 Guid.Parse(path.Split('/')[^1]), 12.3456m, "THB", "service_issue", "processing", DateTimeOffset.UtcNow, null, null, null)) });
         }
         if (refundSelectionDelayed is {} delayed && path.EndsWith(refundSelectionOrder.ToString("D"))) return delayed.Task.WaitAsync(ct);
+        if (manualRefundReceiptDelayed is {} receiptDelayed && path.EndsWith("/receipt")) return receiptDelayed.Task;
         object value;
-        if (path.EndsWith("/orders")) value = new PosBranchOrderPage(config.OrganizationId, config.RestaurantId, config.BranchId, [], null);
+        if (path.EndsWith("/orders")) value = new PosBranchOrderPage(config.OrganizationId, config.RestaurantId, config.BranchId,
+            [new(refundSelectionOrder, "ORDER-REFUND", DateTimeOffset.UtcNow, "pos", "Paid", "THB", 100, null, null, null, false)], null);
         else if (path.EndsWith("/receipt")) value = new PosReceipt(1, $"R-{refundSelectionOrder:N}".ToUpperInvariant(), refundSelectionOrder,
-            config.OrganizationId, config.RestaurantId, config.BranchId, "ORDER-REFUND", DateTimeOffset.UtcNow, "THB", "card_omise_test",
+            config.OrganizationId, config.RestaurantId, config.BranchId, "ORDER-REFUND", DateTimeOffset.UtcNow, "THB", refundFixtureTender,
             [new(Guid.NewGuid(), "Noodle soup", 100, 1, 100)], null, 100, 0, 0, 100);
         else if (path.EndsWith("/refunds")) value = refundSelectionReserved == 0 ? Array.Empty<PosPaymentRefund>() : [new PosPaymentRefund(
             Guid.NewGuid(), config.OrganizationId, config.RestaurantId, config.BranchId, refundSelectionOrder, refundSelectionIntent,

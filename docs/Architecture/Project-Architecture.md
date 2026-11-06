@@ -1,9 +1,31 @@
 # NexaConnect Project Architecture
 
+The native cash and manual PromptPay review reuses Order's existing scoped immutable
+receipt read. The client shows the original paid tender and amount. Server-side
+domain rules reserve an approved amount and bind payout to the designated cashier's
+terminal and shift. Cash also binds the paying drawer. Durable writes, live
+authorization and reconciliation remain pending.
+See [ADR-067](Decisions/ADR-067-manual-refund-cashier-custody.md) and
+[manual payment review](../Deployment/POS-Manual-Refund-Review.md).
+
+A cashier can project an administrator-provisioned guest table QR bitmap to the idle
+customer screen. Customer Portal renders the existing one-time issuance into a
+branch-scoped file. The POS reads it locally, and guest admission remains authoritative.
+See [customer-screen QR setup](../Deployment/POS-Customer-Table-QR.md).
+
+The physical POS pilot optionally starts a guest-only QR edge beside its staff listener.
+The guest edge pins the same run's loopback Customer BFF. Staff routes, the Keycloak
+issuer and the retained terminal profile remain on the existing staff path.
+See [ADR-066](Decisions/ADR-066-isolated-physical-pos-lan-pilot.md).
+
 Windows POS uses borderless staff bounds through sign-in, checkout and lock. Its local
 display coordinator restores terminal-scoped roles against the saved monitor-layout hash
 or starts on the primary monitor. Normal close remains available in the staff UI and topology faults
 still hide private content. See [ADR-039](Decisions/ADR-039-pos-staff-customer-displays.md).
+
+Cashier pricing review uses an in-memory quote in Menu. Sending still saves the accepted
+fingerprint and original checkout before the API call. Cash and verified PromptPay use
+one payment action with their existing readiness and original-attempt recovery guards.
 
 Managed Windows POS can check an opt-in UNC or HTTPS release manifest before opening
 the workspace. A bounded local worker stages a newer publisher-pinned Authenticode

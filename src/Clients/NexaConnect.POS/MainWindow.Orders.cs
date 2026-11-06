@@ -37,7 +37,7 @@ public partial class MainWindow
         ClearBarcodeInput();
         UpdateScanControls();
         RenderWorkflow();
-        if (!ReceiptsTab.IsSelected) ClearRefundPaymentSelection();
+        if (!ReceiptsTab.IsSelected) { ClearRefundPaymentSelection(); ClearManualRefundReview(); }
         if (QrRequestsTab.IsSelected)
         {
             if (QrReviewView.IsChecked == true) await LoadQrRequestsAsync();
@@ -48,7 +48,7 @@ public partial class MainWindow
         {
             await LoadOrdersAsync(null);
         }
-        else ClearOrderList();
+        else { ClearOrderList(); OrdersReviewGuidance.Text = ""; }
     }
 
     private async void OrdersFilter_Changed(object sender, SelectionChangedEventArgs e)
@@ -121,6 +121,7 @@ public partial class MainWindow
         MoreOrdersButton.IsEnabled = enabled && orderListState.NextCursor is not null;
         OrdersGrid.IsEnabled = enabled;
         SelectRefundPaymentButton.IsEnabled = enabled && pendingRefund is null && OrdersGrid.SelectedItem is PosBranchOrder { Status: "Paid" };
+        ReviewManualRefundButton.IsEnabled = enabled && !displaySafetyBlocked && OrdersGrid.SelectedItem is PosBranchOrder { Status: "Paid" };
         CollectSelectedQrButton.IsEnabled = orderListState.CanCollect((OrdersGrid.SelectedItem as PosBranchOrder)?.OrderId,
             IsSignedIn(), _activeShift is not null, busy || orderListLoading, pendingCheckout is not null || pendingOrder is not null,
             cart.Count != 0, _configuration.PaymentMethod != "card_omise_test", _configuration.Currency);

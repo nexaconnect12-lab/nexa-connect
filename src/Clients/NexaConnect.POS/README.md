@@ -1,9 +1,19 @@
 # NexaConnect POS
 
-The cashier opens borderless and fills the primary monitor until staff assign display
-roles. A saved assignment restores on launch when the physical monitor layout matches.
+[Cash and manual PromptPay review](../../../docs/Deployment/POS-Manual-Refund-Review.md)
+reads the original Paid receipt from the branch order list. Refund recording is pending.
+
+**QR orders** can show a provisioned table-ordering QR on the idle customer display.
+See [customer-screen QR setup](../../../docs/Deployment/POS-Customer-Table-QR.md).
+
+The cashier opens borderless on its saved staff monitor when the physical layout matches.
+Otherwise it starts on the Windows primary monitor.
 **Use staff screen only** clears it. **Close POS** in the cashier header or revealed lock
 panel uses normal shutdown. See [display setup](../../../docs/Deployment/Next-Iteration-Phase-4.md).
+
+**Menu** displays the server quote inline before sending. **Confirm payment received**
+submits the original tender directly after the existing payment readiness checks.
+See [cashier workflow](../../../docs/Deployment/POS-Compact-Cashier-Workspace.md#menu-and-payment-follow-up).
 
 Installer-managed POS checks for an update at ordinary launch when the local
 `update-source.json` is configured. The worker checks the version, file hash and

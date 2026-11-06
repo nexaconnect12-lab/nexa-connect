@@ -1,5 +1,9 @@
 # Local QR pilot guest edge
 
+The physical POS pilot can run this transport on a dedicated guest port and pin
+its own loopback Customer BFF. The same allowlist and correlation apply.
+See [physical pilot setup](../../../docs/Deployment/POS-Physical-Device-Onboarding.md#enable-guest-table-qr-on-the-physical-pos-branch).
+
 The guest browser tab loads the Customer Portal's public favicon through the exact
 `GET /nexaconnect-icon.svg` allowlist entry. It uses the existing proxy and correlation.
 

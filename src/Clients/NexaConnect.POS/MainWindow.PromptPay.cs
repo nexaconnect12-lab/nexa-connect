@@ -64,6 +64,7 @@ public partial class MainWindow
         if(!viewInitialized)return;
         try{
             var saved=_localStore.LoadPendingSettlement();bool original=saved?.Method is not null;
+            PaidButton.Content=settlementUncertain||original?"Verify payment":"Confirm payment received";
             if(saved is not null&&pendingOrder is not null&&(saved.OrderId!=pendingOrder.OrderId||saved.IdempotencyKey!=settlementIdempotencyKey))
             {PaidButton.IsEnabled=false;PaymentReadinessText.Text="Original checkout and payment recovery differ. Preserve recovery and request reconciliation.";return;}
             if(!IsSignedIn()){PaidButton.IsEnabled=false;RefreshPromptPayQrButton.IsEnabled=false;PaymentReadinessText.Text="Sign in or resume the original cashier.";return;}

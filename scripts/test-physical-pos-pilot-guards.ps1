@@ -23,6 +23,23 @@ try{
     foreach($address in @('127.0.0.1','8.8.8.8','::1','0.0.0.0')){$changed=$plan.Clone();$changed.deviceAddress=$address;$changed|ConvertTo-Json|Set-Content $file;Reject {Read-PhysicalPosPlan $file}}
     foreach($origin in @('http://192.168.1.10:9443','https://8.8.8.8:9443','https://staff.example.test:9443')){Reject {Set-DraftComposeEnvironment @{} ('a'*32) 24010 @{} -StaffPilotOrigin $origin}}
     $changed=$plan.Clone();$changed.deviceWindowsAccount='';$changed|ConvertTo-Json|Set-Content $file;Reject {Read-PhysicalPosPlan $file}
+    $state=@{runId=$plan.runId;physicalPosPilot=@{origin=$plan.origin};processes=@{};urls=@{Bff='https://127.0.0.1:24010/'};
+        infrastructure=@{keycloak=24011};authority='https://192.168.1.10:9443/realms/test';provisionedBranch=$true}
+    foreach($port in @(443,9443,24010,24011)){Reject {Set-PhysicalGuestQrProfile $state $port $false}}
+    Reject {Set-PhysicalGuestQrProfile $state 8444 $true}
+    $state.processes.Bff=@{id=42};Reject {Set-PhysicalGuestQrProfile $state 8444 $false};$state.processes.Clear()
+    $state.qrPilotOrigin='https://192.168.1.10:8443';Reject {Set-PhysicalGuestQrProfile $state 8444 $false};$state.Remove('qrPilotOrigin')
+    Set-PhysicalGuestQrProfile $state 8444 $false
+    if($state.physicalGuestQrOrigin -cne 'https://192.168.1.10:8444' -or
+        (Get-DraftQrPilotSettings Bff $state.physicalGuestQrOrigin).QrGuest__Enabled -cne 'true' -or
+        $state.authority -cne 'https://192.168.1.10:9443/realms/test' -or -not $state.provisionedBranch){
+        throw 'Guest QR changed the staff issuer or did not enable the intended guest origin.'
+    }
+    Reject {Set-PhysicalGuestQrProfile $state 8445 $false}
+    Set-PhysicalGuestQrProfile $state 0 $false
+    if($state.Contains('physicalGuestQrOrigin')){throw 'Staff-only recovery retained a guest binding.'}
+    Reject {Set-PhysicalGuestQrProfile $state 8445 $false}
+    Set-PhysicalGuestQrProfile $state 8444 $false
     Write-Output 'Physical POS plan/parser guards passed; no network, trust, listener or installation changes.'
 }finally{Remove-Item -LiteralPath $temporary -Recurse -Force}
 if($Compose){

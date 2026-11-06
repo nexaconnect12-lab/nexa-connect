@@ -12,6 +12,7 @@ public partial class MainWindow
     private void RenderWorkflow()
     {
         if (!viewInitialized) return;
+        UpdateTableQrControls();
         RenderCashierReady();
         bool visible = !reauthenticationRequired && !displaySafetyBlocked;
         WorkflowDock.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
@@ -32,11 +33,11 @@ public partial class MainWindow
             ? Visibility.Collapsed : Visibility.Visible;
         PlaceOrderButton.Visibility = CheckoutTab.IsSelected ? Visibility.Visible : Visibility.Collapsed;
         PaidButton.Visibility = PaymentTab.IsSelected ? Visibility.Visible : Visibility.Collapsed;
-        var amount = checkoutReview is { } review
+        (string Label, string Value) amount = checkoutReview is { } review
             ? ("Order review · server total", CashierPresentation.Money(review.Quote.Pricing.TotalAmount, _configuration.Currency))
             : CashierWorkflow.Amount(TotalText.Text, pendingCheckout is not null, pendingOrder?.TotalAmount, pendingOrder?.Currency ?? _configuration.Currency);
-        WorkflowAmountLabel.Text = amount.Item1;
-        WorkflowAmount.Text = amount.Item2;
+        WorkflowAmountLabel.Text = amount.Label;
+        WorkflowAmount.Text = amount.Value;
         if (!busy) BusyProgress.Visibility = Visibility.Collapsed;
         UpdateResponsiveLayout();
     }

@@ -46,6 +46,14 @@
     </StackPanel>
   </Grid>
   </ScrollViewer>
+  <Border x:Name="TableQrPanel" Grid.Column="2" Background="#F4F6F3" Padding="24" Visibility="Collapsed">
+    <Grid>
+      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+      <TextBlock Text="Order from your phone" FontSize="30" FontWeight="Bold" TextAlignment="Center" TextWrapping="Wrap"/>
+      <Image x:Name="TableQrImage" Grid.Row="1" Margin="0,12" MaxWidth="360" MaxHeight="360" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor" AutomationProperties.Name="Table ordering QR code"/>
+      <TextBlock x:Name="TableQrCaption" Grid.Row="2" FontSize="24" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap"/>
+    </Grid>
+  </Border>
   <Border x:Name="SaverView" Grid.Column="0" Background="#13251B">
     <Grid ClipToBounds="True">
       <TextBlock Text="{Binding ShopName}" Foreground="White" FontSize="30" TextWrapping="Wrap" Margin="24" VerticalAlignment="Center" HorizontalAlignment="Center"/>

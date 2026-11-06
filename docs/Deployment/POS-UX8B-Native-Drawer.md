@@ -9,6 +9,13 @@ Cash-only opening needs a vendor-verified POS806UE/4141P adapter behind the exis
 confirmed-cash hook. The command, pulse specification and live authority rollout still
 need verification before physical activation.
 
+The [PD-POS806UE setup guide](https://help-jsh.paidui.com/e286/28eb) documents the
+drawer port and POS80 Windows print driver. It supplies no drawer-only command or
+pulse specification for the connected 4141P drawer.
+The provider's [drawer connection guide](https://help-jsh.paidui.com/2a2b/1045) documents
+cash-only opening in its own POS application. That guide describes the application's
+peripheral setting, with no command or SDK contract for NexaConnect.
+
 5 November 2026 follow-up: the operator reports the cash drawer is now working. The
 opening trigger was not specified. Record this as a hardware observation; it does not
 establish POS-triggered opening or change the disabled application driver described below.

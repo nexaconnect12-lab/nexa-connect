@@ -18,7 +18,7 @@ pending as described below.
    assigned in multiple branches only to the same product. Duplicates or stale/uncertain
    saves require reload and review, with no automatic write retry.
 4. Sign in to POS with the configured branch and open/resume the original shift. In
-   **Checkout**, select **Enable barcode scan entry (this session)**. It defaults off on
+   **Menu**, select **Enable barcode scan entry (this session)**. It defaults off on
    startup, independently of touch-first (also default off) and Standard/Touch density.
    Here “this session” means the running POS window: lock/resume or sign-out clears input
    and pending lookup but can retain the checkbox until the window is closed. Restart

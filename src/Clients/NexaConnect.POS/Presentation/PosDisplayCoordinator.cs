@@ -107,7 +107,29 @@ internal sealed class PosDisplayCoordinator : IDisposable
     {
         snapshot = next;
         if (topology.Blocked) return;
-        try { customer?.Present(next); }
+        try
+        {
+            if (next.IsWorking) customer?.TableQr(null, null);
+            customer?.Present(next);
+        }
+        catch { Trip(); }
+    }
+    public bool ShowTableQr(System.Windows.Media.Imaging.BitmapSource image, string tableCode)
+    {
+        if (!Active || topology.Blocked || customer is null || snapshot.IsWorking) return false;
+        try
+        {
+            if (!StaffPlacementIsCurrent(platform.Read())
+                || platform.WindowBounds(new WindowInteropHelper(customer).Handle) != topology.Customer!.Bounds)
+                return false;
+            customer.TableQr(image, tableCode);
+            return true;
+        }
+        catch { Trip(); return false; }
+    }
+    public void HideTableQr()
+    {
+        try { customer?.TableQr(null, null); }
         catch { Trip(); }
     }
     public void Disable() { CloseCustomer(); topology.Disable(); }

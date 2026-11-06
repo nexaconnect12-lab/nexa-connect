@@ -1,4 +1,5 @@
 import {test,expect} from "@playwright/test";
+import {readFile} from "node:fs/promises";
 const token="E".repeat(43),org="11111111-1111-1111-1111-111111111111",branch="22222222-2222-2222-2222-222222222222",entry="33333333-3333-3333-3333-333333333333";
 const visit={visitorId:"guest",entryId:entry,restaurantName:"Restaurant",branchName:"Branch",tableCode:"A1",currency:"THB",expiresAtUtc:new Date(Date.now()+3600000).toISOString(),orderingAvailable:false};
 test("scan removes fragment, creates one visit and never boots staff routes",async({page})=>{
@@ -32,13 +33,22 @@ test("staff QR issuance uses CSRF/version and discards secret on branch change",
   else if(path==="/bff/customer/branches"||path.endsWith("/operational-branches"))json=[{branchId:branch,name:"Branch",status:"active"}];
   else if(path.endsWith("/csrf"))json={requestToken:"synthetic-csrf"};
   else if(path.includes("/qr-entries/branches/")){
-   if(route.request().method()==="POST"){writes.push({body:route.request().postDataJSON(),headers:route.request().headers()});json={entry:{id:entry,tableCode:"A1",version:writes.length,active:true,expiresAtUtc:visit.expiresAtUtc},entryUrl:`http://127.0.0.1:5199/order#${token}`};}
+   if(route.request().method()==="POST"){writes.push({body:route.request().postDataJSON(),headers:route.request().headers()});json={entry:{id:entry,tableCode:"A1",version:writes.length,active:true,expiresAtUtc:visit.expiresAtUtc},entryUrl:`https://qr.example.test/order#${token}`};}
    else json=[];
   }else return route.fulfill({status:404,json:{}});return route.fulfill({json});
  });
  await page.goto("/#configuration");await page.getByLabel("QR branch").selectOption(branch);await page.getByLabel("Table code",{exact:true}).fill("A1");
  await page.getByRole("button",{name:"Create table QR"}).click();await expect(page.getByRole("link",{name:"Open table entry"})).toBeVisible();
  expect(writes[0].body).toEqual({tableCode:"A1"});expect(writes[0].headers["x-nexa-csrf"]).toBe("synthetic-csrf");
+ const [download]=await Promise.all([page.waitForEvent("download"),page.getByRole("button",{name:"Download for POS"}).click()]);
+ expect(download.suggestedFilename()).toBe("A1.nexa-table-qr.json");
+ const contents=await readFile(await download.path(),"utf8"), {png,...metadata}=JSON.parse(contents);
+ expect(metadata).toEqual({version:1,branchId:branch,tableCode:"A1",expiresAtUtc:visit.expiresAtUtc});
+ expect(contents).not.toContain(token);
+ const image=Buffer.from(png,"base64");
+ expect(image.subarray(12,16).toString()).toBe("IHDR");
+ expect([image.readUInt32BE(16),image.readUInt32BE(20)]).toEqual([384,384]);
+ expect(writes.length).toBe(1);
  await page.getByRole("button",{name:"Rotate / reissue"}).click();await expect.poll(()=>writes.length).toBe(2);expect(writes[1].body).toEqual({expectedVersion:1});
  await page.getByLabel("QR branch").selectOption("");await expect(page.getByRole("link",{name:"Open table entry"})).toHaveCount(0);
 });

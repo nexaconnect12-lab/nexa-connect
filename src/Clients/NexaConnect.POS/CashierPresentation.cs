@@ -13,7 +13,7 @@ public static class CashierPresentation
     {
         if (!signedIn) return "Sign in to continue. Saved shift and payment work will be retained.";
         if (paymentPending) return "Open Payment and confirm or verify the pending payment before closing cash, shift, or signing out.";
-        if (checkoutPending) return "Open Checkout and choose Verify original order before closing cash, shift, or signing out.";
+        if (checkoutPending) return "Open Menu and verify the original order before closing cash, shift, or signing out.";
         if (cashOpen && movementsPending) return "Open Terminal & sync and resolve pending/rejected movements, then close the cash session in Shift & cash.";
         if (cashOpen) return "In Shift & cash, enter counted closing cash and choose Close cash session, then Close shift.";
         if (shiftOpen) return "A saved shift is open. Choose Close shift in Shift & cash before signing out. If it fails, read the status message below.";

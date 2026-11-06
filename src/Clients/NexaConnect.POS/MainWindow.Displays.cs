@@ -75,6 +75,7 @@ public partial class MainWindow
             DisplayStatusText.Text = "The previous display roles could not be cleared. Check local preferences before changing roles.";
             return;
         }
+        ClearTableQr();
         PublishCustomerDisplay();
         try
         {
@@ -96,11 +97,13 @@ public partial class MainWindow
     private void DisableCustomerDisplay_Click(object sender, RoutedEventArgs e)
     {
         if (busy || !IsSignedIn() || displaySafetyBlocked) return;
+        ClearTableQr();
         displays?.Disable();
         DisplayStatusText.Text = SaveDisplayRoles(null)
             ? "Customer display closed. Single-screen mode will be used next time."
             : "Customer display closed for this launch. The saved assignment could not be cleared.";
         RenderTerminalOverview();
+        UpdateTableQrControls();
     }
 
     private bool SaveDisplayRoles(PosDisplayRoles? roles)
@@ -114,7 +117,11 @@ public partial class MainWindow
     {
         // A presentation fault must never escape into a financial callback, undo
         // its durable recovery write, or change whether its network send happens.
-        try { displays?.Present(customerState.Visible(IsSignedIn(), reauthenticationRequired || displaySafetyBlocked) with { ShopName = _configuration.ShopName }); }
+        try
+        {
+            if (tableQrVisibleUntil is not null) UpdateTableQrControls();
+            displays?.Present(customerState.Visible(IsSignedIn(), reauthenticationRequired || displaySafetyBlocked) with { ShopName = _configuration.ShopName });
+        }
         catch { /* The coordinator fails closed; financial recovery stays independent. */ }
     }
     private void CustomerCartChanged()

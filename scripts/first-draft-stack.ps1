@@ -7,6 +7,7 @@ param(
     [string]$QrImagePath,
     [string]$QrPilotOrigin,
     [string]$PhysicalPosPlan,
+    [ValidateRange(0,65535)][int]$PhysicalGuestQrPort,
     [ValidateSet('PlatformDirectory','Authorization','Restaurant','Catalog','Inventory','Kitchen','Payment','POS','Reporting','Order','Media','Bff')][string]$Service='Kitchen',
     [switch]$ConfirmTestResources,
     [switch]$EnableMedia,
@@ -27,6 +28,9 @@ $ErrorActionPreference='Stop'
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $catalog=Get-DraftServiceCatalog $root -IncludeMedia:$EnableMedia
 $compatibility=($catalog.Values | Sort-Object { [version]$_.minimumApplicationVersion })[-1].minimumApplicationVersion
+if($PSBoundParameters.ContainsKey('PhysicalGuestQrPort') -and ($Action -ne 'Start' -or -not $ConfirmTestResources -or $NoBuild)){
+    throw 'Physical guest QR changes require build-enabled Start -ConfirmTestResources.'
+}
 if($EnableBranchPromptPayQr -and $Action -notin @('Start','Validate')){throw 'Explicit branch PromptPay activation requires Start or Validate.'}
 if($EnableDrawerHistory -and $Action -notin @('Start','Validate')){throw 'Explicit drawer history activation requires Start or Validate.'}
 if($EnableOmiseTestCheckout){
@@ -193,8 +197,10 @@ function Set-Configurations {
             $config.ConnectionStrings__BffSessionCache="127.0.0.1:$($script:state.infrastructure.redis),password=$($script:secrets.REDIS_PASSWORD),abortConnect=false"
             $config.BffSessionCache__InstanceName="nexa:draft:$RunId:customer:"
         }
-        if($script:state.Contains('qrPilotOrigin') -and $script:state.qrPilotOrigin){
-            foreach($entry in (Get-DraftQrPilotSettings $name $script:state.qrPilotOrigin).GetEnumerator()){$config[$entry.Key]=$entry.Value}
+        $guestOrigin=if($script:state.Contains('physicalGuestQrOrigin')){$script:state.physicalGuestQrOrigin}
+            elseif($script:state.Contains('qrPilotOrigin')){$script:state.qrPilotOrigin}
+        if($guestOrigin){
+            foreach($entry in (Get-DraftQrPilotSettings $name $guestOrigin).GetEnumerator()){$config[$entry.Key]=$entry.Value}
         }
         foreach($entry in (Get-DraftOmiseServiceSettings $name $script:state $script:secrets).GetEnumerator()){$config[$entry.Key]=$entry.Value}
         foreach($entry in (Get-DraftDrawerServiceSettings $name $script:state).GetEnumerator()){$config[$entry.Key]=$entry.Value}
@@ -240,6 +246,9 @@ $operationLock=Open-DraftLifecycleLock $run
 try {
 $newRun=-not (Test-Path -LiteralPath $statePath)
 if ($newRun -and $Action -ne 'Start') { throw 'Owned draft state does not exist.' }
+if($newRun -and $PSBoundParameters.ContainsKey('PhysicalGuestQrPort') -and -not $PhysicalPosPlan){
+    throw 'Physical guest QR requires a bound physical POS plan.'
+}
 if($newRun) {
     if(-not $ConfirmTestResources){throw 'Start requires -ConfirmTestResources for isolated generated resources and migrations.'}
     if(Test-Path -LiteralPath $secretPath){throw 'Draft state is missing but protected credentials exist; preserve recovery material rather than reinitialize this run.'}
@@ -273,6 +282,10 @@ if($newRun) {
     if($PhysicalPosPlan){throw 'Physical pilot identity cannot be added to or replaced on a retained run.'}
     if($QrPilotOrigin -and (-not $state.Contains('qrPilotOrigin') -or $state.qrPilotOrigin -cne $QrPilotOrigin)){throw 'QR pilot origin cannot be added to or changed on a retained draft. Create a fresh isolated QR pilot run.'}
     $secrets=Read-DraftSecrets $secretPath
+}
+if($PSBoundParameters.ContainsKey('PhysicalGuestQrPort')){
+    Set-PhysicalGuestQrProfile $state $PhysicalGuestQrPort ([bool]$NoBuild)
+    Save-State
 }
 [void](Test-DraftOmiseEnabled $state)
 if($EnableOmiseTestCheckout){
@@ -326,12 +339,19 @@ try {
             if(-not $state.processes.Contains($name)){$health[$name]=$false;continue}
             $record=$state.processes[$name];$actual=Get-Process -Id $record.id -ErrorAction SilentlyContinue;$health[$name]=Assert-DraftProcess $record $actual
         }
-        [pscustomobject]@{runId=$RunId;status=$state.status;applicationProcesses=$health;portal=$state.urls.Bff;branchProvisioned=$state.provisionedBranch}
+        $guestEdge=$null
+        if($state.Contains('physicalGuestEdge')){
+            $record=$state.physicalGuestEdge
+            $guestEdge=Assert-DraftProcess $record (Get-Process -Id $record.id -ErrorAction SilentlyContinue)
+        }
+        [pscustomobject]@{runId=$RunId;status=$state.status;applicationProcesses=$health;portal=$state.urls.Bff;branchProvisioned=$state.provisionedBranch;
+            physicalGuestOrigin=$state['physicalGuestQrOrigin'];physicalGuestProcess=$guestEdge}
         & docker @compose ps --format '{{.Service}} {{.State}} {{.Health}}'
         return
     }
     if($Action -in @('Stop','Reset')) {
         if($Action -eq 'Reset' -and -not $ConfirmTestResources){throw 'Reset requires -ConfirmTestResources; only this draft project data is removed.'}
+        Stop-PhysicalGuestEdge $state $run;Save-State
         foreach($name in @($state.processes.Keys)){Stop-DraftApp $name}
         Stop-PhysicalPosEdge $state $run;Save-State
         if($Action -eq 'Reset') {
@@ -473,6 +493,9 @@ try {
     }
     if($state.Contains('mediaEnabled') -and $state.mediaEnabled){Start-DraftApp 'Media'}
     Start-DraftApp 'Bff'
+    Start-PhysicalGuestEdge $state $run $root ([bool]$NoBuild) $secrets.CERT_PASSWORD
+    Save-State
+    Assert-PhysicalGuestEdgeReady $state $run
     # Identity-only login smoke subject; product membership/roles are slice 2.
     $admin=Invoke-RestMethod "http://127.0.0.1:$($state.infrastructure.keycloak)/realms/master/protocol/openid-connect/token" -Method Post -Body @{grant_type='password';client_id='admin-cli';username='acceptance-admin';password=$secrets.KEYCLOAK_ADMIN_PASSWORD}
     $headers=@{Authorization='Bearer '+$admin.access_token};$adminBase="http://127.0.0.1:$($state.infrastructure.keycloak)/admin/realms/$($state.realm)"
@@ -518,12 +541,14 @@ try {
     $state.publishedArtifacts=Get-DraftQrPilotArtifactHash $run
     $state.status='Ready';Save-State
     Write-Output "Draft Ready. RunId=$RunId Portal=$($state.urls.Bff)"
+    if($state.Contains('physicalGuestQrOrigin')){Write-Output "Physical guest QR Ready. Guest=$($state.physicalGuestQrOrigin)/order"}
     if($state.provisionedBranch){Write-Output 'Retained branch/menu/role setup is provisioned; live workflow access remains authoritative.'}
     else {Write-Output 'Run scripts/provision-first-draft.ps1 before launching POS. Configuration/credentials/logs remain in the protected run directory.'}
 } catch {
     if($Action -in @('Start','Restart')) {
         $state.status='Failed';Save-State
         # Preserve evidence/data for safe diagnosis; only owned application processes stop.
+        try{Stop-PhysicalGuestEdge $state $run;Save-State}catch{Write-Warning 'Owned guest-edge cleanup requires review.'}
         foreach($name in @($state.processes.Keys)){try{Stop-DraftApp $name}catch{Write-Warning 'Owned process cleanup requires review.'}}
         try{Stop-PhysicalPosEdge $state $run;Save-State}catch{Write-Warning 'Owned staff-edge cleanup requires review.'}
     }

@@ -1,5 +1,9 @@
 # NexaConnect POS Service
 
+The [manual refund domain](../../../docs/Deployment/POS-Manual-Refund-Review.md#approval-and-payout-domain)
+models manager approval, cashier payout custody and replay against the original manual
+payment. Durable refund storage, live authorization and drawer posting remain pending.
+
 POS26 adds the central cashier PIN registry, identity-bound Data Protection verifiers, durable attempt/lockout and immutable audit. Thin V1 routes use live terminal/organization authorization; native unlock privately renews and verifies before restoring authority. Use/manage grants come from Authorization17; compatibility0.45.0 and durable key-ring backup are required. Query service.name=nexaconnect-pos and Cashier PIN boundary with correlation; no credential bodies are logged. The matching retained local pilot is activated with POS26/Authorization17 and verified runtime grants, preserved existing business/recovery data and no agent PIN enrollment; fresh operator/PIN acceptance remains pending. See [API](../../../docs/API/Cashier-PIN.md), [storage](../../../docs/Database/Cashier-PIN.md) and [identity/rollout](../../../docs/Identity/POS-Session-PIN.md).
 
 UX8D adds default-off `DrawerIntents:HistoryEnabled` for authorized list and selected review only. Existing `Enabled` still gates reserve/outcome/legacy single reads and also permits history for existing authority profiles. Both default false; no permission bypass or driver activation. See [pilot rollout](../../../docs/Deployment/POS-UX8D-Pilot-Acceptance.md).

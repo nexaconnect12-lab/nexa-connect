@@ -67,6 +67,7 @@ internal static partial class Program
             window.Show(); Pump(window);
             VerifySessionDisplayLayout(window);
             VerifyDisplayPlacement();
+            VerifyTableQr(root);
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
             VerifyCashierNavigation(window);
             VerifyCompactCheckout(window);
@@ -182,6 +183,7 @@ internal static partial class Program
             field.IsEnabled = false; Invoke(window, "ShowTouchInput", field);
             Require(((TouchKeyboard)window.FindName("InputKeyboard")).Visibility == Visibility.Collapsed, "disabled field rejected");
             field.IsEnabled = true;
+            VerifyInlineSale(window);
             typeof(MainWindow).GetField("reauthenticationRequired", Private)!.SetValue(window, true);
             Invoke(window, "RenderWorkflow");
             Require(((Border)window.FindName("WorkflowDock")).Visibility == Visibility.Collapsed, "workflow totals and controls hidden while locked");
@@ -488,12 +490,13 @@ internal static partial class Program
         }
         Require(input.IsChecked == true && preferences.Load() == new PosUiOptions(true, PosDisplayDensity.Touch), "failed density save preserves both preferences");
     }
-    private static string PreferencesPath(PosUiPreferences preferences) => (string)typeof(PosUiPreferences).GetField("path", Private)!.GetValue(preferences)!;
+    private static string PreferencesPath(PosUiPreferences preferences) => (string)typeof(PosUiPreferences).GetField("inputPath", Private)!.GetValue(preferences)!;
     private sealed class NoNetworkHandler(PosClientConfiguration configuration) : HttpMessageHandler
     {
         public static int PhotoStatus=503,PhotoCalls;
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (inlineSale?.Respond(request) is { } sale) return Task.FromResult(sale);
             if (refundSelectionTesting) return RefundSelectionFixtureResponse(request, configuration, cancellationToken);
             if (request.RequestUri!.AbsolutePath.Contains("/qr-requests", StringComparison.Ordinal)) return QrReviewFixtureResponse(request, cancellationToken);
             if (qrWorkspaceTesting && (request.RequestUri.AbsolutePath.EndsWith("/orders") || request.RequestUri.AbsolutePath.EndsWith("/receipt"))) return QrWorkspaceFixtureResponse(request, configuration);

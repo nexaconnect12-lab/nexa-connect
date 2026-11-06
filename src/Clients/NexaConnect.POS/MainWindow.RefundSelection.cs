@@ -21,9 +21,14 @@ public partial class MainWindow
     {
         if (!IsSignedIn() || busy || pendingRefund is not null || displaySafetyBlocked) return;
         ClearRefundPaymentSelection();
+        OpenPaidOrdersForReview("Review for refund");
+    }
+
+    private void OpenPaidOrdersForReview(string action)
+    {
         OrdersChannelFilter.SelectedIndex = 0; OrdersStateFilter.SelectedIndex = 2;
         OrdersTab.IsSelected = true;
-        OrdersNoticeText.Text = "Select the original paid order, then choose Review for refund. No refund is sent by selection.";
+        OrdersReviewGuidance.Text = $"Select the original paid order, then choose {action}. Review does not send or record a refund.";
     }
     private async void SelectRefundPayment_Click(object sender, RoutedEventArgs e)
     {

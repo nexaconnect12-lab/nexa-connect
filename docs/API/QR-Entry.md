@@ -52,6 +52,9 @@ with GET `/bff/customer/qr-entries/csrf`. They use JSON bodies bounded to 1 KiB.
 responses are bounded to 64 KiB; Directory access to 256 KiB; downstream deadline 15s.
 Dependency bodies/errors are sanitized. Staff issuance links are HTTPS `/order#<opaque>`;
 do not send real links to external QR generators, analytics or support logs.
+While the issuance result is visible, Customer Portal can render a local
+[customer-display export](../Deployment/POS-Customer-Table-QR.md). This uses the existing
+response and adds no retrieval or issuance operation.
 
 ## Visitor boundary
 

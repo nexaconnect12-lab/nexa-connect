@@ -11,7 +11,10 @@ window retains staff controls and its original authentication, authorization and
 pipeline. A detached, allow-listed customer projection contains item names, quantities,
 prices, server breakdown/total, bounded tender labels and outcome guidance. It carries no
 staff identity, credentials, bank reference, internal identifiers, receipt lookup or command.
-Customer input cannot authenticate or invoke a financial action.
+Customer input cannot authenticate or invoke a financial action. A separately controlled
+idle panel may show a table label and its public guest-admission QR bitmap from a
+terminal-provisioned portal export. It clears at lock, sale or timeout. This grants the
+same guest entry as a printed table QR. See [operations](../../Deployment/POS-Customer-Table-QR.md).
 
 Cart amounts are estimates. Quotes and accepted Order responses supply authoritative
 pricing. Only validated Paid results show payment confirmation; uncertain transport or
@@ -20,7 +23,7 @@ Manual confirmation validates the exact original Order, tender, amount, currency
 settlement identity before local recovery clears. This is client response validation, not
 a new settlement rule. Existing source-service transactions/idempotency remain unchanged.
 
-Explicitly select distinct staff/customer monitors each startup. Place windows using physical
+Explicitly select distinct staff/customer monitors on initial setup or after a layout change. Place windows using physical
 pixel coordinates and PerMonitorV2 awareness, not WPF DIP coordinates. The customer window
 cannot activate and contains no operational input. Constrain staff geometry to its assigned
 monitor. The 5 November 2026 [0.8.1 placement follow-up](../../Deployment/POS-Display-Placement-Fix.md)

@@ -1,5 +1,8 @@
 # NexaConnect Customer Portal
 
+**Configuration → Table QR entry → Download for POS** exports the visible issued QR
+for the Windows customer display. See [terminal provisioning](../../../../docs/Deployment/POS-Customer-Table-QR.md).
+
 The Customer Portal sidebar and browser tab use the shared NexaConnect icon. The
 Kitchen display and guest ordering pages use the same tab icon.
 

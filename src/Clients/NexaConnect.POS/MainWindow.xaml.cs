@@ -141,7 +141,7 @@ public partial class MainWindow : Window
         sessionTimer.Start();
         orderListTimer.Tick += OrderListTimer_Tick;
         orderListTimer.Start();
-        Deactivated += (_, _) => { if (viewInitialized) { if (OrdersTab.IsSelected) ClearOrderList(); ClearQrRequests(); ClearRefundPaymentSelection(); } };
+        Deactivated += (_, _) => { if (viewInitialized) { if (OrdersTab.IsSelected) ClearOrderList(); ClearQrRequests(); ClearRefundPaymentSelection(); ClearManualRefundReview(); } };
         StatusText.Text = pendingCheckout is not null
             ? $"Original order {pendingCheckout.OrderId:D} needs verification. Sign in, then verify this order; do not collect again."
             : pendingCashReviewAttempt is null
@@ -650,7 +650,7 @@ public partial class MainWindow : Window
                 try { _localStore.SavePendingCheckout(review); pendingCheckout = review; }
                 catch { StatusText.Text = "Pricing review could not be saved. Original checkout is retained."; return; }
             }
-            StatusText.Text = "Pricing changed. Select Verify original order to review and confirm a fresh quote. The original checkout identity is retained.";
+            StatusText.Text = "Pricing changed. Select Review order total for a fresh quote. The original order is retained.";
         }
         catch (Exception exception)
         {
@@ -658,8 +658,8 @@ public partial class MainWindow : Window
             StatusText.Text = pendingCheckout is null
                 ? "Checkout was not sent. Check pricing availability, terminal setup and local storage."
                 : exception is PosApiException api
-                    ? $"{api.Message} Original checkout retained. Use Verify order; do not create another order."
-                    : "Original checkout retained. Use Verify order to check its result; do not create another order.";
+                    ? $"{api.Message} Original order retained. Continue from Menu."
+                    : "Original order retained. Continue from Menu to review pricing or verify its result.";
         }
         finally { if (checkoutReview is null) CardTokenBox.Clear(); UpdateOperationalState(); }
     }
@@ -1181,8 +1181,14 @@ public partial class MainWindow : Window
 
     private void ClearReceiptView()
     {
-        ClearCheckoutReview();
+        if (checkoutReview is not null)
+        {
+            ClearCheckoutReview();
+            if (pendingCheckout is null) CustomerCartChanged();
+            else { customerState.PricingChanged(); PublishCustomerDisplay(); }
+        }
         ClearRefundPaymentSelection();
+        ClearManualRefundReview();
         ClearMenuPhotos();
         ClearMenuOrganization();
         ClearOrderList();
@@ -1533,7 +1539,6 @@ public partial class MainWindow : Window
         UpdateTenderControls();
         RefreshMenuFilter();
         ContextText.Text = $"Branch {_configuration.BranchId.ToString("N")[..8]} · Terminal {_configuration.TerminalId.ToString("N")[..8]} · {_configuration.Currency} · Connectivity checked per action";
-        PaidButton.Content = settlementUncertain ? "Verify payment" : "Confirm payment received";
         RenderManualPaymentReadiness();
         RenderDrawerControls();
         RenderDrawerHistoryControls();
@@ -1610,6 +1615,7 @@ public partial class MainWindow : Window
 
     private async void SessionTimer_Tick(object? sender, EventArgs e)
     {
+        if (tableQrVisibleUntil is not null) UpdateTableQrControls();
         PosTokenSet? token = _authentication.CurrentToken;
         if (reauthenticationRequired || token is null)
         {

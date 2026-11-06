@@ -68,8 +68,8 @@ surfaces, limits and failure semantics; it adds no business API or financial aut
 No schema, financial rule or new permission is added. Existing provisioning creates a fresh
 branch/menu/terminal and scoped test identities in separately owned databases/realm/volumes.
 Existing development orders/PINs/recovery are not copied. This LAN slice is manual cash and
-branch-approved manual PromptPay only: no Omise sandbox, mobile QR activation or physical
-drawer driver is enabled. The old pilot's accounts/orders/phone QR links do not belong to
+branch-approved manual PromptPay only. Mobile guest ordering is an optional same-branch
+listener described below. The old pilot's accounts/orders/phone QR links do not belong to
 this new branch. Local manager portal access uses the new run's printed loopback BFF URL.
 
 ## Prepare and start
@@ -120,6 +120,44 @@ and close its window before stopping its backend. `Stop` retains business data a
 
 On partial failure, retain the protected run/evidence and diagnose owned resources. Do not
 adopt another run, overwrite state, force-close a cashier or reset databases to bypass guards.
+
+## Enable guest table QR on the physical POS branch
+
+Close the physical POS before maintenance. Stop this pilot, then start it with an explicit
+free guest HTTPS port. For example, if the separate phone pilot uses `:8443`, use `:8444`.
+
+```powershell
+./scripts/physical-pos-pilot.ps1 -Action Stop -PlanPath .runstate/physical-pos/<id>/plan.json
+./scripts/physical-pos-pilot.ps1 -Action Start -PlanPath .runstate/physical-pos/<id>/plan.json -GuestQrPort 8444 -ConfirmTestResources
+```
+
+The guest-only edge uses the physical pilot's host certificate and pins the loopback BFF.
+It serves the guest order page, its assets and admitted guest QR APIs. Staff and identity
+routes stay off the guest port. Keep the staff port limited to the POS. An administrator
+may allow the exact guest TCP port on the host's Private firewall profile, scoped to the
+intended directly connected test subnet. Phones must trust the physical pilot's public CA
+for this HTTPS address. The launcher leaves firewall and client trust administration to
+the operator.
+
+Use different browser profiles or devices when testing guest visits on both pilot
+ports at once. The backends are isolated, but browser cookies are scoped to the host
+and can be replaced across ports on the same IP. The host readiness check verifies
+the listener over HTTPS from the development PC. Verify phone connectivity and trust
+separately.
+
+Use the printed loopback Customer Portal on the development PC. Sign in as the physical
+pilot manager, choose its NexaConnect workspace, and open **Configuration → Table QR
+entry**. Choose the physical POS branch and issue a table code, then use **Download for POS**.
+Staff acceptance still controls delivery to Kitchen. [Customer-screen setup](POS-Customer-Table-QR.md)
+
+Subsequent Start calls reuse the saved guest origin. With POS closed, Stop and then Start
+with `-GuestQrPort 0` to restore the staff-only profile. This preserves table entries and
+their data and retains the original guest origin for reactivation. This backend setup
+uses the existing POS profile. The customer screen requires a POS build with the QR
+display button. The separate existing
+phone pilot is independent. Check `first-draft-stack.ps1 -Action Status -RunId <id>` for
+process state and test the guest `/order` path over normal HTTPS. If startup fails, review
+the protected `PhysicalGuestEdge.log` and `PhysicalGuestEdge.error.log` in the run directory.
 
 ## Build and transfer the first installation
 

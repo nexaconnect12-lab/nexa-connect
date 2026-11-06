@@ -1,5 +1,8 @@
 # Next-iteration Phase 4 — staff and customer Windows POS displays
 
+The cashier can show a provisioned guest ordering code on the idle customer display.
+See [customer-screen table QR setup](POS-Customer-Table-QR.md).
+
 Current follow-up: the [customer-panels slice](POS-Cashier-Ready-And-Customer-Panels.md) renders approved customer advertising in the left half and public welcome/current-order content in the right. Existing role assignment, custody and display-safety rules remain. No-order headings use Welcome with applicable neutral/outcome message; locked views mask transaction details. The original implementation evidence below remains historical.
 
 

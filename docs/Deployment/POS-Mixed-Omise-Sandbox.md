@@ -8,7 +8,7 @@ This is not production card collection or a physical card-reader integration.
 
 ## Cashier workflow
 
-An enabled profile shows **Checkout → Checkout payment → Omise sandbox card — test only**
+An enabled profile shows **Menu → Checkout payment → Omise sandbox card — test only**
 beside **Cash / manual PromptPay**. The configured manual method remains the default.
 The selection is window-local, resets to the configured default when no operator is signed
 in, and cannot change a retained checkout/payment. The original method is saved with the

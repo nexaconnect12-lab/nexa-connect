@@ -2,8 +2,10 @@
 [CmdletBinding()]
 param([Parameter(Mandatory)][ValidateSet('Init','Status','Start','Stop','Bundle')][string]$Action,
  [string]$PlanPath,[string]$HostAddress,[string]$DeviceAddress,[string]$InstallerDirectory,[string]$OutputDirectory,[string]$PreviousBundle,
+ [ValidateRange(0,65535)][int]$GuestQrPort,
  [switch]$ConfirmTestResources)
 $ErrorActionPreference='Stop'
+if($PSBoundParameters.ContainsKey('GuestQrPort') -and $Action -ne 'Start'){throw 'GuestQrPort is a Start option.'}
 $root=Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
 . (Join-Path $PSScriptRoot 'first-draft-terminal-helpers.ps1')
@@ -24,12 +26,14 @@ $run=Get-DraftRunDirectory $root $plan.runId
 if($Action -eq 'Start'){
     if(-not $ConfirmTestResources){throw 'Start requires -ConfirmTestResources for the explicitly separate new pilot.'}
     Assert-PhysicalPosNetwork $plan
+    $guest=@{}
+    if($PSBoundParameters.ContainsKey('GuestQrPort')){$guest.PhysicalGuestQrPort=$GuestQrPort}
     if(-not(Test-Path (Join-Path $run 'state.json'))){
-        & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -RunId $plan.runId -PhysicalPosPlan $PlanPath -EnableMedia -EnableBranchPromptPayQr -ConfirmTestResources
+        & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -RunId $plan.runId -PhysicalPosPlan $PlanPath -EnableMedia -EnableBranchPromptPayQr -ConfirmTestResources @guest
     }else{
         $state=Get-Content (Join-Path $run 'state.json') -Raw|ConvertFrom-Json -AsHashtable
         if(-not $state.Contains('physicalPosPilot') -or $state.physicalPosPilot.planHash -cne (Get-FileHash $PlanPath).Hash){throw 'Refusing to adopt an existing unrelated run.'}
-        & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -RunId $plan.runId -EnableMedia -ConfirmTestResources
+        & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -RunId $plan.runId -EnableMedia -ConfirmTestResources @guest
     }
     & (Join-Path $PSScriptRoot 'provision-first-draft.ps1') -RunId $plan.runId -ConfirmTestResources
     Write-Output 'Separate LAN test branch/menu/terminal provisioned. Build a fresh installer, then use Bundle. No device installation or financial transaction performed.';return
