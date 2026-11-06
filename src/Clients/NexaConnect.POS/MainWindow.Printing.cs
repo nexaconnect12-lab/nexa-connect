@@ -16,7 +16,7 @@ public partial class MainWindow
     {
         receiptPrintOptions = printerPreferences.Load();
         RenderPrinterSettings([]);
-        PrinterSetupStatus.Text = "Refresh printers to check availability. Windows confirms every print job. Preview does not print.";
+        PrinterSetupStatus.Text = "Refresh printers to check availability. Choose a saved printer for direct printing, or Ask each time for the Windows dialog.";
     }
     private void RenderPrinterSettings(IEnumerable<string> names)
     {
@@ -71,13 +71,16 @@ public partial class MainWindow
         ReceiptLayoutText.Text = requested.Paper == ReceiptPaper.Roll80 ? "80 mm layout · verify printer paper size; larger PDF pages contain an 80 mm strip." : "Standard page layout.";
         if (displayedPrintContent is { } content) ShowPrintPreview(content);
         TestReceiptPreview.Document = null;
-        PrinterSetupStatus.Text = "Printer settings saved for this terminal and Windows user. Windows still confirms every print.";
+        PrinterSetupStatus.Text = requested.PrinterName is null
+            ? "Printer settings saved. Print actions open the Windows dialog."
+            : "Printer settings saved. Print actions send directly to the saved queue. Disable drawer opening on print in Windows printer preferences.";
         RenderTerminalOverview();
     }
     private void ShowPrintPreview(ReceiptPrintContent content)
     {
         ReceiptPreview.Document = ReceiptDocumentFactory.Create(content, receiptPrintOptions.Paper);
         displayedPrintContent = content;
+        ReceiptPreviewSection.IsSelected = true;
     }
     private void PreviewTestReceipt_Click(object sender, RoutedEventArgs e)
     {
@@ -95,7 +98,12 @@ public partial class MainWindow
             var result = await ReceiptPrintWorkflow.RunAsync(() => Task.FromResult(ReceiptPrintContent.Test), receiptPrintOptions,
                 receiptPrintDriver, () => PrintSessionCurrent(generation, subject),
                 content => TestReceiptPreview.Document = ReceiptDocumentFactory.Create(content, receiptPrintOptions.Paper), true);
-            if (PrintSessionCurrent(generation, subject)) PrinterSetupStatus.Text = PrintResultMessage(result, true);
+            if (PrintSessionCurrent(generation, subject))
+            {
+                var message = PrintResultMessage(result, true);
+                PrinterSetupStatus.Text = message;
+                StatusText.Text = message;
+            }
         }
         finally { UpdateOperationalState(); }
     }

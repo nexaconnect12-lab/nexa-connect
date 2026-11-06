@@ -4,10 +4,10 @@ This first implementation slice follows the user's iOS Photos direction using th
 
 The details list shows filename, type, size, upload time, status and actions. A grid photo opens a larger detail preview. Authorized users can explicitly download a ready original or confirm deletion through the existing lifecycle routes. Deleting may leave menu/screensaver placeholders until a manager replaces the reference; it does not clear those references automatically. Denial, timeout, processing and empty states do not invent demo photos.
 
-## Menu and screensaver selection
+## Upload, then select
 
-1. Open **Menu management**, select the branch, **Load menu**, select an item and open **Image**.
-2. For a new photo, use the existing **Upload a new product image → Upload for selected menu item** flow. JPEG/PNG/WebP up to 10 MiB follow checksum, scanning, quota and asynchronous processing checks. Uploading alone does not assign or approve it.
+1. In **Media management → Upload photos**, choose up to ten JPEG, PNG or WebP files, up to 10 MiB each. Click **Upload photos** once. The browser uploads one file at a time and reports each file's result. Each attempt has a 60-second timeout and uses the existing checksum, scanning and quota checks. Check the library before resubmitting an unconfirmed file. Use **Refresh library** to see when processing finishes.
+2. Open **Menu management**, select the branch, **Load menu**, select an item and open **Image**. This editor selects photos from the shared library. Upload and branch approval are separate actions.
 3. Click **Choose from photo library**. The popup starts with ready thumbnails; search/page or switch to Details. Select a photo, then **Use selected photo**. **Cancel** leaves the editor's selection unchanged.
 4. Check the branch/item preview, explicitly approve public menu display, then **Save menu image**. A failed preview cannot enable approval. Conflict or uncertain save requires authoritative reload; the popup does not bypass Catalog authorization, CSRF or expected-version rules.
 5. For a screensaver, open its approved gallery, select the branch and use the same popup for staff/customer slides. Existing same-role photos are excluded and each role remains limited to six. Ordering/text edits and explicit gallery approval/save remain separate from picking; customer and staff playlists do not merge.
@@ -16,7 +16,19 @@ Private product thumbnails use same-origin BFF routes and no-store responses. Ba
 
 ## Deployment and verification
 
-Deploy matching Media, Customer BFF and Customer Portal builds. Existing Media4/Catalog9 schemas, object storage/scanner, `Services:Media` and Directory configuration remain; there is no migration, new permission, identity client, environment variable or dependency. The [optional local Media profile](First-Draft-Media.md) must be enabled and healthy. Local activation follows the source-bound pilot/package workflow and requires finishing cashier work and closing POS before services restart. The retained local pilot is activated as recorded below; actual operator acceptance remains pending.
+Deploy matching Media, Customer BFF and Customer Portal builds. The shared upload follow-up uses the existing Media4/Catalog9 schemas, permissions, object storage and scanner. The [optional local Media profile](First-Draft-Media.md) must be enabled and healthy. Local activation requires finishing cashier work and closing POS before services restart. The LAN pilot deployment is recorded below. The retained activation later in this guide records the earlier browse-and-picker slice.
+
+### Physical LAN pilot activation — 6 November 2026
+
+After the operator confirmed POS closure, the existing physical LAN pilot was backed up
+and refreshed. The comparison retained all 501 original business rows across 203 checked
+tables and all 16 checked scope/key-ring files. Cashier sign-in, order history and terminal
+authorization checks passed. The manager portal at `https://127.0.0.1:56464/` passed a live
+check of the multiple-photo control, the authorized library read and the menu selection
+picker. The menu editor offered photo selection only. The live check recorded zero media
+writes. Photo upload, processing and on-terminal display remain operator acceptance steps.
+This activation applies to the portal and LAN services. The staged native installer remains
+version 0.8.4.
 
 Relevant verification: `MediaLibraryTests` and `CustomerMediaLibraryTests`; HTTP `MediaLibraryBoundaryTests` and `CustomerMediaLibraryBoundaryTests`; generated PostgreSQL `MediaLibraryPersistenceTests` through `scripts/test-qr-entry-persistence.ps1 -ConfirmDisposableInfrastructure`; frontend unit/type checks and `npm run test:e2e:gallery` from `src/Frontend`. The full source-bound candidate gate remains `scripts/test-qr6.ps1 -ConfirmDisposableInfrastructure`. Tests cover organization/purpose/revocation, bounded bodies, literal-search pagination, picker cancellation/draft approval, view switching, deletion confirmation and workspace reset. Browser fixtures are simulated; real upload/storage, iPhone/Android and installed-target operator acceptance remain separate.
 

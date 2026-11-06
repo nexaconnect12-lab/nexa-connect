@@ -45,6 +45,19 @@ internal static class Program
         var pdfLayout = ReceiptPrintLayout.ForPage(ReceiptPaper.Roll80, 793.7, 1122.5, 10, 10, 773.7, 1102.5);
         var pdf = ReceiptDocumentFactory.Create(ReceiptPrintContent.Test, ReceiptPaper.Roll80, pdfLayout);
         Require(Math.Abs(pdf.PageWidth - pdf.PagePadding.Left - pdf.PagePadding.Right - 72 * ReceiptPrintLayout.Millimetre) < 0.01, "wider paper keeps roll content width");
+        var driverForm = ReceiptPrintLayout.ForPage(ReceiptPaper.Roll80, 72 * ReceiptPrintLayout.Millimetre, 297 * ReceiptPrintLayout.Millimetre,
+            0, 0, 72 * ReceiptPrintLayout.Millimetre, 297 * ReceiptPrintLayout.Millimetre);
+        var narrowDocument = ReceiptDocumentFactory.Create(new("Synthetic narrow-form receipt", receipt.Render()), ReceiptPaper.Roll80, driverForm);
+        var narrowPaginator = ((IDocumentPaginatorSource)narrowDocument).DocumentPaginator; narrowPaginator.ComputePageCount();
+        Require(narrowPaginator.PageCount > 1, "72 by 297 mm driver form paginates long receipt");
+        Require(new TextRange(narrowDocument.ContentStart, narrowDocument.ContentEnd).Text.Contains("TOTAL THB 14814.00"), "narrow form retains original total");
+        for (int index = 0; index < narrowPaginator.PageCount; index++)
+        {
+            using var page = narrowPaginator.GetPage(index);
+            Require(Math.Abs(page.Size.Width - driverForm.Width) < 0.01, "narrow form retains actual driver page width");
+            VerifyGlyphBounds(page.Visual, page.Visual, new Rect(driverForm.Left, driverForm.Top, driverForm.ContentWidth,
+                driverForm.Height - driverForm.Top - driverForm.Bottom));
+        }
         Console.WriteLine("PASS: Standard/80 mm synthetic receipt pagination, all-page glyph bounds, long names, Thai text, exact totals, literal markup and test labels. No spool job or live POS state accessed.");
     }
     private static void VerifyGlyphBounds(Visual visual, Visual root, Rect content)

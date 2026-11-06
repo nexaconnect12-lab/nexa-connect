@@ -4,12 +4,17 @@
 #ifndef PackageVersion
   #error PackageVersion is required
 #endif
+#ifndef BrandIcon
+  #error BrandIcon is required
+#endif
 
 [Setup]
 AppId={{58CE7A20-856A-47CA-B19B-6759DCA06C70}
 AppName=NexaConnect POS
 AppVersion={#PackageVersion}
 AppPublisher=NexaConnect
+VersionInfoProductName=NexaConnect POS
+VersionInfoVersion={#PackageVersion}
 DefaultDirName={localappdata}\NexaConnect\Terminal
 DisableDirPage=yes
 DisableProgramGroupPage=yes
@@ -30,6 +35,7 @@ OutputBaseFilename=NexaConnect-POS-{#PackageVersion}-win-x64-setup
 Compression=lzma2/fast
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile={#BrandIcon}
 UninstallDisplayIcon={app}\NexaConnect.POS.exe
 #ifdef SignedBuild
 SignTool=publisher
@@ -45,7 +51,8 @@ Source: "{tmp}\preflight\appsettings.json"; DestDir: "{app}"; Flags: external ig
 Source: "{tmp}\preflight\installer-owner.txt"; DestDir: "{app}"; Flags: external ignoreversion uninsneveruninstall
 
 [Icons]
-Name: "{userprograms}\NexaConnect POS"; Filename: "{app}\NexaConnect.POS.exe"
+Name: "{userprograms}\NexaConnect POS"; Filename: "{app}\NexaConnect.POS.exe"; WorkingDir: "{app}"
+Name: "{userdesktop}\NexaConnect POS"; Filename: "{app}\NexaConnect.POS.exe"; WorkingDir: "{app}"
 
 [Registry]
 Root: HKCU; Subkey: "Software\Classes\nexaconnect-pos"; ValueType: string; ValueData: "URL:NexaConnect POS callback"

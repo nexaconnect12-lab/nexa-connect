@@ -17,7 +17,30 @@ public sealed class CustomerMediaController(MediaAssetQueries queries,MediaManag
   string? actor=User.FindFirstValue("sub")??User.FindFirstValue(ClaimTypes.NameIdentifier);bool granted=actor is not null&&await authorizer.IsGrantedAsync(organizationId,ProductPermissions.MediaAssetRead,Request.Headers.Authorization.ToString(),c);if(!granted){logger.LogWarning("Customer media authorization denied for organization {OrganizationId}, actor {ActorSubjectId}",organizationId,actor);return Forbid();}
   return Ok(await queries.ListAsync(organizationId,c));
  }
- [HttpPost("uploads")]public async Task<IActionResult>Start(Guid organizationId,StartMediaUploadCommand request,CancellationToken c){if(!await Granted(organizationId,ProductPermissions.MediaAssetManage,c))return Forbid();try{return StatusCode(201,await management.StartAsync(organizationId,request,Actor()!,c));}catch(ArgumentException e){return BadRequest(new ProblemDetails{Title=e.Message,Status=400});}catch(KeyNotFoundException){return NotFound();}catch(MediaLifecycleConflictException e){return Conflict(new ProblemDetails{Title=e.Message,Status=409});}catch(HttpRequestException e){logger.LogWarning("Media owner validation failed for organization {OrganizationId}, category {Category}",organizationId,e.GetType().Name);return StatusCode(503,new ProblemDetails{Title="Catalog owner validation is unavailable.",Status=503});}}
+ [HttpPost("uploads")]
+ public async Task<IActionResult> Start(Guid organizationId, StartMediaUploadCommand request, CancellationToken c)
+ {
+  if (!await Granted(organizationId, ProductPermissions.MediaAssetManage, c)) return Forbid();
+  try
+  {
+   var session = await management.StartAsync(organizationId, request, Actor()!, c);
+   if (session.Asset is { OwnerService: "media", OwnerType: "photo_library" })
+    logger.LogInformation("Shared photo upload reserved for organization {OrganizationId}", organizationId);
+   return StatusCode(201, session);
+  }
+  catch (ArgumentException e)
+  {
+   logger.LogWarning("Media upload rejected for organization {OrganizationId}, category {Category}", organizationId, "invalid-upload");
+   return BadRequest(new ProblemDetails { Title = e.Message, Status = 400 });
+  }
+  catch (KeyNotFoundException) { return NotFound(); }
+  catch (MediaLifecycleConflictException e) { return Conflict(new ProblemDetails { Title = e.Message, Status = 409 }); }
+  catch (HttpRequestException e)
+  {
+   logger.LogWarning("Media owner validation failed for organization {OrganizationId}, category {Category}", organizationId, e.GetType().Name);
+   return StatusCode(503, new ProblemDetails { Title = "Media upload dependency is unavailable.", Status = 503 });
+  }
+ }
  [HttpPost("{id:guid}/complete")]public async Task<IActionResult>Complete(Guid organizationId,Guid id,VersionRequest request,CancellationToken c){if(!await Granted(organizationId,ProductPermissions.MediaAssetManage,c))return Forbid();try{return Ok(await management.CompleteAsync(organizationId,id,request.ExpectedVersion,Actor()!,c));}catch(ArgumentException e){return BadRequest(new ProblemDetails{Title=e.Message,Status=400});}catch(KeyNotFoundException){return NotFound();}catch(MediaLifecycleConflictException e){return Conflict(new ProblemDetails{Title=e.Message,Status=409});}catch(MediaDependencyException e){logger.LogWarning("Media completion dependency failed for organization {OrganizationId}, category {Category}",organizationId,e.GetType().Name);return StatusCode(503,new ProblemDetails{Title="Media storage or safety inspection is unavailable.",Status=503});}}
  [HttpGet("{id:guid}/download")]public async Task<IActionResult>Download(Guid organizationId,Guid id,CancellationToken c){if(!await Granted(organizationId,ProductPermissions.MediaAssetRead,c))return Forbid();try{return Ok(await management.DownloadAsync(organizationId,id,c));}catch(KeyNotFoundException){return NotFound();}catch(MediaLifecycleConflictException e){return Conflict(new ProblemDetails{Title=e.Message,Status=409});}}
  [HttpGet("{id:guid}/variants")]public async Task<IActionResult>Variants(Guid organizationId,Guid id,CancellationToken c){if(!await Granted(organizationId,ProductPermissions.MediaAssetRead,c))return Forbid();return Ok(await queries.ListVariantsAsync(organizationId,id,c));}

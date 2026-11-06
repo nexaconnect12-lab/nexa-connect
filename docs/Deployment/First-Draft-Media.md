@@ -1,6 +1,6 @@
 # Local first-draft product-image uploads
 
-The [shared photo library](Media-Library.md) is the current browse/select UI: default thumbnail grid, optional details, server search/pages and popup selection in menu/gallery editors. New photo upload remains **Menu management → Image**. The optional Media profile and all upload/scanning/storage prerequisites below are unchanged; the library adds no schema or configuration.
+The shared photo library provides a default thumbnail grid, optional details, server search and pagination. On the refreshed physical LAN pilot, add new photos through **Media management → Upload photos**. The menu and gallery editors use the picker to select ready photos. [Workflow and deployment status](Media-Library.md)
 
 
 The menu upload UUID field is replaced by a branch/product-name picker with existing-image reuse, preview and explicit public-menu approval. Original Media ownership is retained; Catalog6 is required for assignment and guest/POS display. See [current manager workflow and rollout](Menu-Photos.md).
@@ -111,10 +111,11 @@ branch must return 403. These read-only checks cover the manager's exact restaur
 they do not save a gallery or prove delivery to POS. Restaurant resolves the active owning
 restaurant before the existing branch permission check, without adding any grant.
 
-For manual testing sign in to the retained PC staff portal as `draft-store-manager`,
-select the NexaConnect workspace and open **Menu management**. Select the branch, load
-its menu, choose the item by name and open **Image**. Upload JPEG/PNG/WebP up to 10 MiB;
-wait for processing, then choose the ready photo through **Choose from photo library**.
+To test the deployed shared upload flow, sign in to the physical LAN pilot staff portal as
+`draft-store-manager` and select the NexaConnect workspace. Upload JPEG/PNG/WebP files
+up to 10 MiB each through **Media management → Upload photos**. Wait for processing.
+In **Menu management**, select the branch, load its menu, choose the item and open
+**Image**. Choose the ready photo through **Choose from photo library**.
 Inspect the preview, explicitly approve and save. **Media management** provides the shared
 grid/details browser and confirmed lifecycle actions. Product UUID entry is no longer
 needed. No public `usenexaconnect.com` DNS or deployment is activated by this profile.
@@ -242,10 +243,11 @@ production acceptance remain pending.
 
 ### Fullscreen presentation follow-up
 
-The later fullscreen presentation change fills each assigned staff/customer display with
+The historical fullscreen presentation candidate below fills each assigned staff/customer display with
 aspect-preserving edge cropping. Staff retains a compact resume/sign-out overlay; customer
 images have optional public captions and no controls. Physical monitor placement restores
-the prior staff window on resume and retains topology/DPI/movement safety fencing.
+the prior staff window on resume in that candidate. The [current cashier display](Next-Iteration-Phase-4.md#setup-and-recovery)
+stays full-screen through resume and retains topology/DPI/movement safety fencing.
 The preceding rendering receipts establish the earlier layout only.
 
 Fullscreen candidate `facb29f8-f2fe-4ec8-a7ab-127a80c4fa30` passed the complete QR6

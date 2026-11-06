@@ -8,6 +8,42 @@ namespace NexaConnect.UnitTests;
 public sealed class PosAuthenticationTests
 {
     [Fact]
+    public async Task Locked_renewal_keeps_rotation_private_and_preserves_the_original_deadline()
+    {
+        using var f = new Fixture();
+        var token = await f.Login();
+        Assert.True(await f.Auth.EnrollSessionPinAsync("826491"));
+        f.Auth.LockForQuickUnlock();
+        var marker = f.Store.Value;
+        Assert.False(f.Auth.LockedSessionRenewalDue);
+        f.Auth.QuickUnlockClock = new FixedClock(token.ExpiresAtUtc.AddSeconds(-15));
+        Assert.True(f.Auth.LockedSessionRenewalDue);
+        int requests = f.Handler.Requests;
+        await f.Auth.MaintainLockedSessionAsync(CancellationToken.None);
+        Assert.True(f.Handler.Requests > requests);
+        Locked(f);
+        Assert.Same(marker, f.Store.Value);
+        f.Auth.QuickUnlockClock = TimeProvider.System;
+        Assert.True(await f.Auth.TryResumeWithSessionPinAsync("826491"));
+        Assert.Equal(token.SessionExpiresAtUtc, f.Auth.CurrentToken!.SessionExpiresAtUtc);
+    }
+
+    [Fact]
+    public async Task Provider_denial_during_locked_renewal_disables_pin_resume()
+    {
+        using var f = new Fixture();
+        var token = await f.Login();
+        Assert.True(await f.Auth.EnrollSessionPinAsync("826491"));
+        f.Auth.LockForQuickUnlock();
+        f.Auth.QuickUnlockClock = new FixedClock(token.ExpiresAtUtc.AddSeconds(-15));
+        f.Handler.RefreshStatus = HttpStatusCode.BadRequest;
+        await f.Auth.MaintainLockedSessionAsync(CancellationToken.None);
+        Assert.False(f.Auth.CanQuickUnlock);
+        Assert.False(f.Auth.LockedSessionRenewalDue);
+        Locked(f);
+    }
+
+    [Fact]
     public async Task Persistent_pin_resumes_expired_access_without_extending_session_or_publishing_before_verification()
     {
         using var f = new Fixture(); var original = await f.Login();

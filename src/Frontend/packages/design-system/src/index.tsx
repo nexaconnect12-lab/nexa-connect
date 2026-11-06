@@ -69,7 +69,7 @@ body { background: #f4f6f3; }
 .nexa-portal { display: grid; grid-template-columns: 256px minmax(0, 1fr); min-height: 100vh; }
 .nexa-sidebar { background: #fff; border-right: 1px solid #dfe6df; padding: 28px 12px; }
 .nexa-brand { padding: 0 16px 24px; }
-.nexa-brand-mark { color: #14532d; font-size: 22px; font-weight: 750; letter-spacing: -0.6px; }
+.nexa-brand-mark { display: flex; align-items: center; gap: 8px; color: #14532d; font-size: 22px; font-weight: 750; letter-spacing: -0.6px; }
 .nexa-brand-scope { color: #52655a; font-size: 12px; margin-top: 6px; text-transform: uppercase; letter-spacing: 1.2px; }
 .nexa-navigation .ant-menu-title-content { white-space: normal; line-height: 20px; text-overflow: clip; }
 .nexa-portal-body { min-width: 0; }

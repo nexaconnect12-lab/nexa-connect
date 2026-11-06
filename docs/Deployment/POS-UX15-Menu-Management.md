@@ -11,8 +11,9 @@ In Customer Portal's NexaConnect workspace, open **Menu management**, choose a b
 then **Load menu**. Search by name and select an item. The shared selection provides:
 
 - **Details**: edit name, THB price and preparation station; review before confirming.
-- **Image**: open **Choose from photo library** for the shared default-grid/details popup,
-  or upload JPEG/PNG/WebP for the selected item. Wait for processing, confirm a ready
+- **Image**: open **Choose from photo library** for the shared default-grid/details popup.
+  In the refreshed physical LAN pilot, upload and process new photos in
+  **Media management → Upload photos**. In the editor, confirm a ready
   draft candidate, inspect its branch preview, approve public display and save explicitly.
 - **Availability**: confirm sold-out or available status for the selected item.
 - **Categories & order**: manage branch categories and the selected item's category/order,
@@ -31,8 +32,8 @@ and public-display approval.
 Each section retains its own authorization, CSRF token, expected version and save operation.
 There is no combined save transaction. Availability versions never replace details versions.
 Menu photos, screensaver assets and PromptPay QR configuration remain separate. **Media management**
-now contains the shared [photo library](Media-Library.md) and approved screensaver galleries,
-while new product uploads remain in **Menu management → Image**.
+contains the shared photo library and approved screensaver galleries. The later shared
+upload follow-up moves new photo uploads to Media management. [Workflow and rollout](Media-Library.md)
 Historical standalone deep links `#menu-details`, `#menu-availability`, `#menu-organization` and
 `#menu-images` remain supported for compatibility, but are absent from primary navigation;
 the shared workspace's draft guards apply to the new `#menu-management` entry.

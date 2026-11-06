@@ -1,14 +1,14 @@
 # Phase 8 joined browser acceptance
 
-The current lifecycle harness opens **Menu management → Image** for its generated product upload, then uses **Media management** filename search and the Details list for confirmed deletion. The new shared-library slice updates these selectors; the joined real-stack test remains opt-in and must be executed with configured disposable credentials before claiming a new end-to-end upload result.
+The current lifecycle harness uploads a generated photo through **Media management → Upload photos**, then uses filename search and the Details list for confirmed deletion. The joined real-stack test remains opt-in and requires configured disposable credentials.
 
 
-UX15 routes the upload/refresh/delete workflow through **Menu management → Image**, with the shared branch/item selection. The test uses existing seeded data and does not approve a public menu assignment. It is opt-in and separate from mocked browser regression coverage.
+The earlier UX15 fixture used **Menu management → Image** for upload. The current lifecycle harness uses Media management and keeps uploads separate from public menu approval.
 The updated real-stack path has not been executed for UX15; syntax validation alone is not
 joined acceptance. Seed the configured product in the configured authorized branch with a
 unique display name in that branch, because the UI helper selects its exact name.
 
-This opt-in Playwright suite exercises the real Customer Portal, Keycloak login, Customer BFF tenant selection, Media API, presigned MinIO transfer, ClamAV validation, PostgreSQL lifecycle, and asynchronous Media worker. It proves an authorized tenant can upload, process, download, and delete a Catalog-owned image and that an ungranted organization selection is denied.
+This opt-in Playwright suite exercises the real Customer Portal, Keycloak login, Customer BFF tenant selection, Media API, presigned MinIO transfer, ClamAV validation, PostgreSQL lifecycle, and asynchronous Media worker. It checks upload, processing, download and deletion of an organization-owned shared photo and denial of an ungranted organization selection.
 
 The suite does not provision users or business data. Start the disposable development stack described in the Customer Portal README and seed a customer user with `nexa_connect` access, an organization-scoped `tenant-admin` assignment, and a Catalog product owned by that organization. Never point the suite at production.
 

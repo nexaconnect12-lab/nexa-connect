@@ -48,21 +48,15 @@ ownership/lease decisions; [the API contract](../API/Screensaver-Gallery.md) def
    Gallery activity does not count as staff activity. Only original-operator
    authentication resumes work; slideshow clicks do not authenticate.
 
-The staff saver uses full physical monitor bounds, including the taskbar area, and restores
-the preceding bounds/chrome on resume. It never spans monitors. Without assigned roles,
-it uses the single monitor or the unique monitor containing the window; ambiguous spans
-and overlapping/invalid geometry retain safe windowed lock. Topology/DPI/unsafe-movement
-events retain the existing neutral safety lock and require review/restart. Fullscreen is
-application presentation, not an OS kiosk or screen-security boundary.
+The staff saver shares the borderless cashier's full physical monitor bounds through
+lock and resume. See the [current display setup](Next-Iteration-Phase-4.md#setup-and-recovery).
+Ambiguous geometry and topology/DPI changes retain the neutral safety lock and require
+review and restart.
 
 The wake gesture never authenticates, activates a business control or extends cashier
 activity. Held/repeated wake keys are consumed through release. A new lock starts hidden;
 slideshow refresh/rotation does not dismiss an already open panel. With no usable image,
 neutral branding remains visible until the panel is revealed.
-
-A minimized staff window stays minimized when lock rendering runs; it is not raised to
-capture invalid minimized coordinates. After the operator restores it, the next render
-can enter fullscreen. Resume also restores a previously maximized window's state.
 
 Gallery authorization resolves the active owning restaurant before checking the existing
 permission at organization/restaurant/branch scope. This corrects a 403 for a valid

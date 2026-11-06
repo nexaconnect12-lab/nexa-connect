@@ -11,28 +11,46 @@ See [ADR-039](../Architecture/Decisions/ADR-039-pos-staff-customer-displays.md) 
 
 ## Setup and recovery
 
-1. Start the replacement candidate on the private staff monitor. In Windows choose **Extend**,
-   verify monitor identities physically, and keep staff controls away from customer use.
+The [0.8.1 placement follow-up](POS-Display-Placement-Fix.md) introduced customer-window
+refitting. The current cashier uses exact full-monitor bounds through lock and resume.
+Actual topology/staff-DPI changes and unsafe placement still fail closed.
+
+1. In Windows choose **Extend** and make the private staff screen the primary display.
+   Verify monitor identities physically, then start POS.
 2. Authenticate through the existing original-operator flow. Open **Terminal & sync**.
 3. Choose **Refresh displays**, explicitly select **Staff display** and **Customer display**,
    then **Apply display roles** and confirm. Device name, pixel resolution and primary flag
    help identify each display. At least two distinct, non-overlapping monitor rectangles
    are required. Duplicate/invalid/unknown assignments are refused.
-4. The main staff window is placed inside the selected staff work area. The borderless,
-   non-activating customer window occupies its selected display. Placement uses physical
-   pixels, including negative coordinates, with PerMonitorV2 awareness. The staff minimum
-   remains 1000×680 WPF DIPs; incompatible geometry/scaling fails closed rather than spilling
-   controls to another display. Final hardware sizes are still unconfirmed.
+4. The cashier opens full-screen on the primary monitor before roles are assigned. The
+   borderless cashier fills the selected staff monitor after assignment, including during
+   lock and resume. Use **Close POS** in the cashier header, revealed lock panel, or
+   display-safety screen. The borderless, non-activating customer window occupies its
+   selected display. Placement uses physical pixels, including negative coordinates,
+   with PerMonitorV2 awareness. The delivered screens are user-confirmed as 15.6-inch staff
+   and 11.6-inch customer displays, both 1366×768; actual scaling and physical placement
+   remain acceptance checks. See the [current equipment baseline](../Planning/Next-Iteration-Phase-0-Baseline.md).
+   On successful assignment POS saves the roles for this Windows account and terminal.
+   The next launch restores them if Windows reports the same distinct monitor identities,
+   arrangement, resolution and primary display. When the saved setup cannot be verified,
+   POS starts in staff-only mode on the Windows primary monitor. Verify it is private
+   before signing in and apply the roles again.
 5. **Use staff screen only** clears/closes customer output and keeps normal single-screen
-   operation. Both role changes and explicit disable require an authenticated, non-busy operator.
-6. A topology/DPI change, unsafe move/resize across the staff boundary, assignment failure
-   after placement starts, or unexpected customer-window closure invokes the safety path.
+   operation on later launches. Both role changes and explicit disable require an authenticated,
+   non-busy operator. POS reports any local save or clear failure under the display controls.
+6. Actual topology/settings changes, staff-DPI changes, invalid/incompatible geometry,
+   assignment failure after placement starts, or unexpected customer-window closure invoke
+   the safety path. Native staff moves/resizes are held to the exact full-monitor bounds.
+   Harmless customer-only geometry/DPI events refit the existing public window while
+   topology and staff bounds remain safe.
    Customer output closes, staff content/authentication controls are masked, and the original
    session locks without discarding financial recovery. Only neutral restart guidance and
-   **Close POS safely** remain visible. A rejected move is fenced before relocation.
-7. Stop customer use, reconnect the private staff screen, close/restart POS there and select
-   roles again. Reconnect does not automatically reopen output. Each process starts with no
-   customer assignment/window; no monitor preference or customer content is stored on disk.
+   **Close POS safely** remain visible. Unsafe placement is fenced before relocation.
+7. Stop customer use, reconnect the private staff screen, make it the Windows primary
+   display, then restart POS. Reconnect while POS is running does not reopen output.
+   Restart restores a matching saved layout or lets you apply roles again. The local
+   `displays.json` under `%LOCALAPPDATA%\NexaConnect\Preferences\<terminal-scope-hash>`
+   stores role names and a layout hash. Customer content is kept in memory.
 
 The safety view cannot authenticate or resume. Ordinary idle lock keeps the customer window
 open with neutral **Please wait** content and leaves staff authentication on the staff screen.
@@ -55,7 +73,7 @@ access to staff hardware. Native driver/event timing needs actual hardware accep
 | Lock/expiry | Neutral customer view with no transaction details, even if an in-flight command finishes |
 | Original-operator resume | Latest in-memory projection, subject to the original lock/authentication guard |
 | Successful sign-out | Welcome content; prior customer projection cleared |
-| Restart | No customer window; pending settlement can show retained total only as unconfirmed after authentication/reassignment, without reconstructed lines |
+| Restart | A matching saved layout can open the customer welcome view. Pending settlement may show retained total only as unconfirmed after authentication, without reconstructed lines |
 
 The customer contract excludes tokens, staff/actor identity, branch/terminal/Order UUIDs,
 bank references, raw errors, financial review data, refund details and unrelated receipt
@@ -125,7 +143,8 @@ ports, pixel resolutions, orientation, Windows scaling and which supports touch.
 - Confirm Paid/cancelled/rejected outcomes clear details, then start the next order and sign out.
 - Unplug each monitor during idle, cart, in-flight payment and lock. Verify neutral safety mask,
   closed customer output and retained original recovery. Reconnect must not auto-restore.
-- Close/restart on the private staff display, verify fresh role assignment and single-screen mode.
+- Close/restart with the same displays and verify both roles return. Select **Use staff
+  screen only**, close/restart, and verify customer output stays closed.
 - Exercise Windows resolution/scaling changes, long names/orders/large totals, actual touch,
   sleep/wake and device driver behavior. Do not treat unit/bitmap checks as those observations.
 

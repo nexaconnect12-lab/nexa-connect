@@ -47,6 +47,7 @@ public partial class MainWindow
             var payment = await _api.FindRefundPaymentAsync(token, id, byOrder, cancellation.Token);
             if (generation != refundSelectionGeneration || !PrintSessionCurrent(session, token.Subject)) return;
             ReceiptsTab.IsSelected = true;
+            ProviderRefundSection.IsSelected = true;
             settingRefundSelection = true;
             try
             {
@@ -66,6 +67,7 @@ public partial class MainWindow
             if (generation == refundSelectionGeneration && PrintSessionCurrent(session, token.Subject))
             {
                 ReceiptsTab.IsSelected = true;
+                ProviderRefundSection.IsSelected = true;
                 RefundStatusText.Text = "Payment cannot be selected. Check access and the original captured card payment. Cash/manual PromptPay and unverified payments are not supported here.";
             }
         }

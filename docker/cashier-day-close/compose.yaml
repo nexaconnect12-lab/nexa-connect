@@ -82,6 +82,7 @@ services:
       - "127.0.0.1::9000"
     volumes:
       - ../keycloak/realm/nexa-dev-realm.json:/opt/keycloak/data/import/nexa-review-it-${NEXACONNECT_JOINED_RUN_ID}-realm.json:ro
+      - ../keycloak/themes/nexaconnect:/opt/keycloak/themes/nexaconnect:ro
     depends_on:
       keycloak-db:
         condition: service_healthy

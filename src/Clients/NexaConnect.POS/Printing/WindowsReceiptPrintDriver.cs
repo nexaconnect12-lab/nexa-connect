@@ -30,23 +30,28 @@ public sealed class WindowsReceiptPrintDriver : IReceiptPrintDriver
         using var queues = options.PrinterName is null ? null : server.GetPrintQueues([EnumeratedPrintQueueTypes.Local, EnumeratedPrintQueueTypes.Connections]);
         PrintQueue? selected = queues?.FirstOrDefault(q => string.Equals(q.FullName, options.PrinterName, StringComparison.OrdinalIgnoreCase));
         if (options.PrinterName is not null && selected is null) throw new InvalidDataException("Saved printer is unavailable. Refresh printers and select it again.");
-        if (selected is not null) dialog.PrintQueue = selected;
-        if (dialog.ShowDialog() != true) return null;
+        if (selected is null)
+        {
+            if (dialog.ShowDialog() != true) return null;
+            selected = dialog.PrintQueue;
+        }
         // The selected queue belongs to the job until submission; do not dispose it with discovery.
-        var jobServer = new PrintServer(dialog.PrintQueue.HostingPrintServer.Name);
+        var jobServer = new PrintServer(selected.HostingPrintServer.Name);
         PrintQueue? queue = null;
         try
         {
-            queue = new PrintQueue(jobServer, dialog.PrintQueue.Name);
+            queue = new PrintQueue(jobServer, selected.Name);
             queue.Refresh();
             if (queue.IsOffline || queue.IsNotAvailable || queue.IsInError) throw new InvalidOperationException("Printer is unavailable.");
+            dialog.PrintQueue = queue;
+            if (options.PrinterName is not null)
+                dialog.PrintTicket = queue.UserPrintTicket ?? queue.DefaultPrintTicket;
             var capabilities = queue.GetPrintCapabilities(dialog.PrintTicket);
             var area = capabilities.PageImageableArea ?? throw new InvalidDataException("Printer does not report printable bounds.");
             var layout = ReceiptPrintLayout.ForPage(options.Paper,
                 capabilities.OrientedPageMediaWidth ?? dialog.PrintTicket.PageMediaSize?.Width ?? dialog.PrintableAreaWidth,
                 capabilities.OrientedPageMediaHeight ?? dialog.PrintTicket.PageMediaSize?.Height ?? dialog.PrintableAreaHeight,
                 area.OriginWidth, area.OriginHeight, area.ExtentWidth, area.ExtentHeight);
-            dialog.PrintQueue = queue;
             return new Job(dialog, queue, jobServer, options.Paper, layout);
         }
         catch { queue?.Dispose(); jobServer.Dispose(); throw; }

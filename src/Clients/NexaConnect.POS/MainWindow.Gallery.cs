@@ -96,7 +96,6 @@ public partial class MainWindow
     {
       try {
         var now=DateTimeOffset.UtcNow;
-        if(IsLoaded)displays?.StaffScreensaver(reauthenticationRequired&&!displaySafetyBlocked);
         var staff=reauthenticationRequired&&!displaySafetyBlocked?PosGalleryPolicy.Slide(galleryBundle,false,now,galleryRotationEpoch):null;
         StaffGalleryImage.Source=staff is not null&&galleryImages.TryGetValue(staff.AssetId,out var image)?image:null;
         StaffGalleryTitle.Text=staff?.Title??"";StaffGalleryCaption.Text=staff?.Caption??"";

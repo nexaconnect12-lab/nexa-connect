@@ -41,13 +41,43 @@ test('server pages and literal search never show a truncated complete library',a
  await page.getByLabel('Search photo library').fill('Photo 30');await expect(page.getByLabel('Photo thumbnail grid').getByRole('button')).toHaveCount(1);await expect(page.getByText('Page 1',{exact:true})).toBeVisible();expect(state.reads.some(q=>q.includes('page=2'))).toBe(true);
 });
 test('menu picker cancel discards tentative selection and confirm still requires preview and approval',async({page})=>{
- const state=await setup(page,{menu:true});await page.getByRole('button',{name:'Choose from photo library',exact:true}).click();let dialog=page.getByRole('dialog',{name:'Choose a photo'});
+ const state=await setup(page,{menu:true});await expect(page.locator('input[type="file"]')).toHaveCount(0);await page.getByRole('button',{name:'Choose from photo library',exact:true}).click();let dialog=page.getByRole('dialog',{name:'Choose a photo'});
  await expect(dialog.getByRole('button',{name:'Use selected photo'})).toBeDisabled();await dialog.getByRole('button',{name:'Select photo Photo 01.png',exact:true}).click();await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
  await expect(page.getByAltText('Selected menu image preview')).toHaveCount(0);expect(state.writes).toHaveLength(0);
  await page.getByRole('button',{name:'Choose from photo library',exact:true}).click();dialog=page.getByRole('dialog',{name:'Choose a photo'});await expect(dialog.getByRole('button',{name:'Use selected photo'})).toBeDisabled();
  await dialog.getByRole('button',{name:'Select photo Photo 02.png',exact:true}).click();await dialog.getByRole('button',{name:'Use selected photo'}).click();
  await expect(page.getByAltText('Selected menu image preview')).toBeVisible();await expect(page.getByRole('button',{name:'Save menu image'})).toBeDisabled();expect(state.writes).toHaveLength(0);
  await page.getByRole('checkbox',{name:/I approve this image/}).check();await page.getByRole('button',{name:'Save menu image'}).click();await expect(page.getByText(/Menu image approved/)).toBeVisible();expect(state.writes).toHaveLength(1);
+});
+test('media management uploads a batch to the shared workspace and continues after a failed file',async({page})=>{
+ const state=await setup(page,{empty:true});
+ const uploads=new Map(),completed=[];
+ await page.route('**/bff/customer/media/uploads',async route=>{
+  const body=route.request().postDataJSON();
+  expect(body).toMatchObject({ownerService:'media',ownerType:'photo_library',ownerId:org,contentType:'image/png'});
+  expect(body.checksumSha256).toMatch(/^[0-9a-f]{64}$/);
+  const id=`00000000-0000-0000-0000-${String(uploads.size+1).padStart(12,'0')}`;
+  uploads.set(id,body.fileName);
+  await route.fulfill({status:201,json:{asset:{id,concurrencyVersion:1},uploadUrl:new URL(`/fixture-upload/${id}`,page.url()).href}});
+ });
+ await page.route('**/fixture-upload/*',route=>{
+  const id=new URL(route.request().url()).pathname.split('/').at(-1);
+  return route.fulfill({status:uploads.get(id)==='failed.png'?503:200});
+ });
+ await page.route('**/bff/customer/media/*/complete',async route=>{
+  const id=new URL(route.request().url()).pathname.split('/').at(-2);
+  expect(route.request().postDataJSON()).toEqual({expectedVersion:1});
+  completed.push(uploads.get(id));
+  state.photos.push({...libraryPhoto(id,uploads.get(id)),ownerService:'media',ownerType:'photo_library'});
+  await route.fulfill({status:200,json:{id}});
+ });
+ await page.getByLabel('Choose photos').setInputFiles(['first.png','failed.png','last.png'].map(name=>({name,mimeType:'image/png',buffer:photoPng})));
+ await page.getByRole('button',{name:'Upload photos',exact:true}).click();
+ await expect(page.getByText(/failed\.png.*Upload unconfirmed/)).toBeVisible();
+ await expect(page.getByRole('button',{name:'Preview photo first.png'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Preview photo last.png'})).toBeVisible();
+ expect(completed).toEqual(['first.png','last.png']);
+ expect(state.writes).toHaveLength(0);
 });
 test('delete requires confirmation and uses the observed version',async({page})=>{
  const state=await setup(page);await page.getByRole('button',{name:'Preview photo Photo 01.png',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Photo details'});

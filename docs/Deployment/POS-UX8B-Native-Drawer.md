@@ -2,8 +2,19 @@
 
 ## Status and equipment gate
 
+On 6 November 2026 the operator reported POS-80 driver CashDrawer options **NONE**,
+**before printing** and **after printing**. Use **NONE** on the receipt queue. The
+other options are tied to the print job and offer no tender filter.
+Cash-only opening needs a vendor-verified POS806UE/4141P adapter behind the existing
+confirmed-cash hook. The command, pulse specification and live authority rollout still
+need verification before physical activation.
+
+5 November 2026 follow-up: the operator reports the cash drawer is now working. The
+opening trigger was not specified. Record this as a hardware observation; it does not
+establish POS-triggered opening or change the disabled application driver described below.
+
 The user initially selected software preparation while printer and connection details were
-unavailable. On 5 November 2026 the user confirmed PAISHUO **POS806UF** and the **4141P**
+unavailable. On 5 November 2026 the user confirmed PAISHUO **POS806UE** and the **4141P**
 drawer connected to its **DK/DRAWER** port. Vendor opening-test details, supported driver
 command and electrical compatibility remain unverified; this is not device certification.
 Native coordination, the UX8A

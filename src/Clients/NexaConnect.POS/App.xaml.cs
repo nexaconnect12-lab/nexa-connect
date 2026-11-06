@@ -17,7 +17,7 @@ public partial class App : Application
 
     public App() => ShutdownMode = ShutdownMode.OnMainWindowClose;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         if (e.Args.Length > 0 && e.Args[0] == "--validate-package")
         {
@@ -42,7 +42,7 @@ public partial class App : Application
         instance = PosSingleInstance.TryAcquire(MutexName);
         if (instance is null)
         {
-            if (e.Args.Length > 0)
+            if (e.Args.Length > 0 && e.Args[0] is not (PosStartupUpdate.SkipArgument or PosStartupUpdate.FailedArgument))
             {
                 ForwardCallback(e.Args[0]);
             }
@@ -56,14 +56,22 @@ public partial class App : Application
         // first closes the startup/update race; existing-instance callbacks still forward.
         try
         {
-            if (Mutex.TryOpenExisting(PosInstallationPolicy.MaintenanceMutex, out var maintenance))
+            if (MaintenanceInProgress(PosInstallationPolicy.MaintenanceMutex)
+                || MaintenanceInProgress(PosStartupUpdate.MutexName))
             {
-                maintenance.Dispose();
                 MessageBox.Show("Terminal maintenance is in progress. Finish or cancel setup before opening POS.", "POS maintenance");
                 Shutdown(); return;
             }
         }
         catch (UnauthorizedAccessException) { Shutdown(2); return; }
+        if (e.Args.Length == 0 && await PosStartupUpdate.TryHandoffAsync())
+        {
+            Shutdown();
+            return;
+        }
+        if (e.Args is [PosStartupUpdate.FailedArgument])
+            MessageBox.Show("The POS update could not be applied. Opening the installed version.",
+                "POS update", MessageBoxButton.OK, MessageBoxImage.Warning);
         PosClientConfiguration configuration;
         try { configuration = PosClientConfiguration.Load(); }
         catch (Exception exception) when (exception is IOException or System.Text.Json.JsonException or InvalidOperationException)
@@ -108,10 +116,17 @@ public partial class App : Application
             Shutdown(); return;
         }
         OpenWorkspace(window, _authentication);
-        if (e.Args.Length > 0)
+        if (e.Args.Length > 0 && e.Args[0] is not (PosStartupUpdate.SkipArgument or PosStartupUpdate.FailedArgument))
         {
             _ = _authentication.HandleCallbackAsync(e.Args[0]);
         }
+    }
+
+    private static bool MaintenanceInProgress(string name)
+    {
+        if (!Mutex.TryOpenExisting(name, out var mutex)) return false;
+        mutex.Dispose();
+        return true;
     }
 
     // Also exercised by the isolated process fixture, without real onboarding/registry I/O.

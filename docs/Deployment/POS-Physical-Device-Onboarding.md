@@ -7,10 +7,10 @@ pilot with fresh test data on the development Windows PC**, chosen by the operat
 5 November 2026. It reuses the private self-contained EXE installer, current public-client
 OIDC/PKCE flow, owning service authorization and original local recovery. It does not
 migrate or replace the retained normal/QR pilot, publish a download URL, install drivers,
-enroll the physical device remotely or enable automatic updates.
+enroll the physical device remotely or configure the optional startup update source.
 
 Confirmed equipment: S200D Windows 11, 15.6-inch staff and 11.6-inch customer displays,
-both user-reported 1366×768; PAISHUO POS806UF printer; USB Type-A 2D reader labelled
+both user-reported 1366×768; PAISHUO POS806UE printer; USB Type-A 2D reader labelled
 S26332; 4141P drawer connected to DK/DRAWER. Scaling, per-screen touch, printer/scanner
 driver/input mode and physical output remain separate acceptance gates. Drawer opening
 remains disabled. See the [equipment baseline](../Planning/Next-Iteration-Phase-0-Baseline.md).
@@ -25,7 +25,11 @@ The operator confirms the physical Windows account as **PC** and installation of
 both Windows PCs. Normal Windows chain/SAN/expected-root verification passed on the development
 PC; device trust is operator-confirmed and still requires its own onboarding check. The actual
 installation must use account PC. The separate backend is now Ready/provisioned; physical
-device installation and acceptance remain pending.
+device installation and acceptance remain pending in the original preparation evidence.
+Subsequently, the operator reported running the physical POS and applying both display
+roles, then encountering a maximize safety lock. This is operator-reported installation,
+not completed device acceptance. See the [display placement follow-up](POS-Display-Placement-Fix.md)
+for the 0.8.1 correction and pending update/retest.
 Never use an arbitrary unused-looking static address without checking its DHCP reservation.
 
 ## Topology and ownership
@@ -148,11 +152,16 @@ manifest. Do not rely on an unverified checker to authenticate itself. Verify th
 fingerprint independently and install it through normal administration, then run:
 
 ```powershell
-.\Test-DeviceOnboarding.ps1 -ExpectedManifestSha256 <separately-supplied-manifest-sha256>
+.\Test-DeviceOnboarding.ps1 -BundleDirectory . -ExpectedManifestSha256 <separately-supplied-manifest-sha256>
 ```
 
 If Windows blocks a transferred script, review its hash/content before unblocking that
 specific file through normal Windows controls; do not disable system-wide execution policy.
+For the current checker, pass `-BundleDirectory .` explicitly while the copied bundle folder
+is the current directory. Its default-directory invocation failed in Windows PowerShell 5.1;
+the unmodified checker passed with an explicit directory. Fixing the default remains a
+tooling follow-up, not a reason to bypass any hash or TLS check. See the
+[0.8.1 update instructions](POS-Display-Placement-Fix.md#prepared-081-update).
 The independently verified manifest binds the profile/CA/checker as well as setup, preventing
 manifest replacement from concealing changed configuration. The check validates fixed bundle hashes, normal HTTPS trust, exact issuer/PKCE and same-origin
 OIDC endpoints, plus unauthenticated API denial. It does not log in, install software, mutate
@@ -161,11 +170,18 @@ trust or submit financial commands. A pass proves connectivity/configuration onl
 Finish work and close POS, then run `NexaConnect-POS-setup.exe`, selecting `terminal-profile.json`.
 The installer bundles the Desktop Runtime; no .NET SDK or separate Desktop Runtime is required
 on the physical device. Existing setup maintenance/callback/custody and read-only recovery
-checks remain authoritative. Start POS from its Start Menu entry and use the new pilot account.
+checks remain authoritative. In Windows Extend mode, make the private staff screen the
+primary display before starting POS or authenticating. Start POS from its Start Menu
+entry and use the pilot account. See [display roles](Next-Iteration-Phase-4.md#setup-and-recovery).
 Only authenticate on the staff screen. Configure Windows Extend displays and actual role
 assignment/scaling, select/test the printer and enable/test scanner input using existing UI.
 
 ## Later version updates
+
+Setup creates Desktop and Start menu shortcuts for the installing Windows account.
+For a managed install with an approved signer and feed, see [optional startup
+updates](POS-Startup-Updates.md). The unsigned LAN pilot continues to use manual
+versioned updates.
 
 Git source revision/input hashes identify code; the app/installer semantic version identifies
 the installed release. Build each changed release under a new version/output directory,

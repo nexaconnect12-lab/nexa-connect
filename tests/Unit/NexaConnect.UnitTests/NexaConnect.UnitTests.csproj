@@ -75,7 +75,7 @@
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\CustomerDisplayState.cs" Link="POS\CustomerDisplayState.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosOrderListState.cs" Link="POS\PosOrderListState.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\DisplayTopology.cs" Link="POS\DisplayTopology.cs" />
-    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\ScreensaverPlacement.cs" Link="POS\ScreensaverPlacement.cs" />
+    <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\StaffDisplayPlacement.cs" Link="POS\StaffDisplayPlacement.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\LockPromptState.cs" Link="POS\LockPromptState.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\TouchInputEdit.cs" Link="POS\TouchInputEdit.cs" />
     <Compile Include="..\..\..\src\Clients\NexaConnect.POS\Presentation\PosUiPreferences.cs" Link="POS\PosUiPreferences.cs" />

@@ -16,10 +16,9 @@ internal sealed class PosDisplayCoordinator : IDisposable
     private CustomerDisplayWindow? customer;
     private bool placing;
     private bool closing;
+    private bool customerRefitScheduled;
     private volatile bool disposed;
-    private StaffFullscreen? staffFullscreen;
-    private sealed record StaffFullscreen(ScreensaverPlacement Placement,DisplayBounds Bounds,WindowStyle Style,
-        ResizeMode Resize,WindowState State,double MinWidth,double MinHeight);
+    private StaffDisplayPlacement? staffPlacement;
     private CustomerDisplaySnapshot snapshot = CustomerDisplaySnapshot.Welcome;
 
     public PosDisplayCoordinator(Window staff, Action blocked, IPosDisplayPlatform platform)
@@ -30,46 +29,48 @@ internal sealed class PosDisplayCoordinator : IDisposable
         Microsoft.Win32.SystemEvents.DisplaySettingsChanging += Changing;
     }
     public bool Active => topology.Active;
-    public void StaffScreensaver(bool locked)
+    public (string Staff, string Customer)? ActiveRoles => Active
+        ? (topology.Staff!.Device, topology.Customer!.Device) : null;
+    public void InitializeStaffFullscreen()
     {
-        if(locked)
+        if (staffPlacement is not null || topology.Blocked) return;
+        placing = true;
+        try
         {
-            if(staffFullscreen is not null||topology.Blocked||staff.WindowState==WindowState.Minimized)return;
-            var monitors=platform.Read();
-            if(Active&&!topology.IsCurrent(monitors)){Trip();return;}
-            var bounds=platform.WindowBounds(source.Handle);
-            var placement=ScreensaverPlacement.Create(monitors,bounds,Active?topology.Staff!.Device:null);
-            if(placement is null)return; // Ambiguous/overlapping monitors never enlarge staff content.
-            staffFullscreen=new(placement,bounds,staff.WindowStyle,staff.ResizeMode,staff.WindowState,staff.MinWidth,staff.MinHeight);
-            placing=true;
-            try
-            {
-                staff.WindowState=WindowState.Normal;staff.MinWidth=0;staff.MinHeight=0;
-                staff.ResizeMode=ResizeMode.NoResize;staff.WindowStyle=WindowStyle.None;
-                platform.Place(source.Handle,placement.Monitor.Bounds);
-                if(!placement.Allows(platform.WindowBounds(source.Handle),platform.Read()))Trip();
-            }
-            catch{Trip();}
-            finally{placing=false;}
+            var monitors = platform.Read();
+            PlaceStaff(monitors, monitors.SingleOrDefault(monitor => monitor.Primary)?.Device);
         }
-        else if(staffFullscreen is { } saved)
-        {
-            staffFullscreen=null;placing=true;
-            try
-            {
-                staff.WindowState=WindowState.Normal;staff.WindowStyle=saved.Style;staff.ResizeMode=saved.Resize;
-                if(!topology.Blocked&&saved.Placement.IsCurrent(platform.Read()))
-                {platform.Place(source.Handle,saved.Bounds);staff.WindowState=saved.State;}
-                staff.MinWidth=saved.MinWidth;staff.MinHeight=saved.MinHeight;
-            }
-            catch{Trip();}
-            finally{placing=false;}
-        }
+        catch { Trip(); }
+        finally { placing = false; }
     }
-    public bool Apply(string staffDevice, string customerDevice)
+    private void PlaceStaff(IReadOnlyList<PosMonitor> monitors, string? device)
+    {
+        staffPlacement = StaffDisplayPlacement.Create(monitors, platform.WindowBounds(source.Handle), device)
+            ?? throw new InvalidOperationException("Staff monitor placement is ambiguous.");
+        var target = staffPlacement.Monitor.Bounds;
+        staff.WindowState = WindowState.Normal;
+        platform.Place(source.Handle, target);
+        if (!StaffPlacementIsCurrent(platform.Read()))
+            throw new InvalidOperationException("Staff window could not fill its monitor.");
+    }
+    public bool Restore(PosDisplayRoles saved)
+    {
+        var monitors = platform.Read();
+        return saved.Matches(monitors) && Apply(monitors, saved.StaffDevice, saved.CustomerDevice);
+    }
+    public bool Apply(PosMonitor staffMonitor, PosMonitor customerMonitor, out PosDisplayRoles? saved)
+    {
+        saved = null;
+        var monitors = platform.Read();
+        if (!monitors.Contains(staffMonitor) || !monitors.Contains(customerMonitor)
+            || !Apply(monitors, staffMonitor.Device, customerMonitor.Device)) return false;
+        if (DisplayTopology.LayoutHash(monitors) is { } hash)
+            saved = new(staffMonitor.Device, customerMonitor.Device, hash);
+        return true;
+    }
+    private bool Apply(IReadOnlyList<PosMonitor> monitors, string staffDevice, string customerDevice)
     {
         if (topology.Blocked) return false;
-        var monitors = platform.Read();
         var candidate = new DisplayTopology();
         if (!candidate.Assign(monitors, staffDevice, customerDevice)) return false;
         // Validate before closing an existing display. All geometry is physical pixels;
@@ -79,22 +80,26 @@ internal sealed class PosDisplayCoordinator : IDisposable
         placing = true;
         try
         {
-            staff.WindowState = WindowState.Normal;
-            platform.Place(source.Handle, topology.Staff!.WorkArea);
-            if (!topology.AllowsStaff(platform.WindowBounds(source.Handle), platform.Read()))
-                throw new InvalidOperationException("Staff placement outside assigned monitor.");
+            PlaceStaff(monitors, staffDevice);
             customer = new CustomerDisplayWindow(platform);
             customer.Closed += CustomerClosed;
-            customer.DisplayConfigurationChanged += (_, _) => { if (!placing && !closing) Trip(); };
+            customer.DisplayConfigurationChanged += CustomerGeometryChanged;
+            customer.StateChanged += CustomerGeometryChanged;
+            customer.LocationChanged += CustomerGeometryChanged;
+            customer.SizeChanged += CustomerGeometryChanged;
             customer.Present(snapshot);
             var handle = new WindowInteropHelper(customer).EnsureHandle();
             platform.Place(handle, topology.Customer!.Bounds);
+            if (platform.WindowBounds(handle) != topology.Customer.Bounds)
+                throw new InvalidOperationException("Customer window is outside its assigned monitor.");
             customer.Show();
             platform.Place(handle, topology.Customer.Bounds);
+            if (platform.WindowBounds(handle) != topology.Customer.Bounds)
+                throw new InvalidOperationException("Customer window could not fill its monitor.");
         }
         catch { Trip(); return false; }
         finally { placing = false; }
-        if (!topology.IsCurrent(platform.Read()) || !topology.AllowsStaff(platform.WindowBounds(source.Handle), platform.Read()))
+        if (!StaffPlacementIsCurrent(platform.Read()))
         { Trip(); return false; }
         return true;
     }
@@ -123,11 +128,33 @@ internal sealed class PosDisplayCoordinator : IDisposable
         finally { customer = null; closing = false; }
     }
     private void CustomerClosed(object? sender, EventArgs e) { if (!closing) { customer = null; Trip(); } }
+    private void CustomerGeometryChanged(object? sender,EventArgs e)
+    {
+        if(disposed||staff.Dispatcher.HasShutdownStarted||placing||closing||topology.Blocked||customer is null||customerRefitScheduled)return;
+        var expected=customer;customerRefitScheduled=true;
+        try{_=staff.Dispatcher.BeginInvoke(DispatcherPriority.Send,new Action(()=>{
+            customerRefitScheduled=false;
+            if(disposed||closing||topology.Blocked||!ReferenceEquals(customer,expected))return;
+            try
+            {
+                var monitors=platform.Read();
+                if(!StaffPlacementIsCurrent(monitors)){Trip();return;}
+                var handle=new WindowInteropHelper(expected).Handle;
+                if(expected.WindowState==WindowState.Normal&&platform.WindowBounds(handle)==topology.Customer!.Bounds)return;
+                placing=true;
+                expected.WindowState=WindowState.Normal;platform.Place(handle,topology.Customer!.Bounds);
+                if(!topology.IsCurrent(platform.Read())||platform.WindowBounds(handle)!=topology.Customer.Bounds
+                    ||!StaffPlacementIsCurrent(platform.Read()))Trip();
+            }
+            catch{Trip();}
+            finally{placing=false;}
+        }));}catch(InvalidOperationException){customerRefitScheduled=false;}
+    }
     private void Changing(object? sender, EventArgs e)
     {
         if(disposed||staff.Dispatcher.HasShutdownStarted)return;
         try {_ = staff.Dispatcher.BeginInvoke(DispatcherPriority.Send,new Action(()=>{
-            if(!disposed&&!staff.Dispatcher.HasShutdownStarted&&(Active||staffFullscreen is not null))Trip();
+            if(!disposed&&!staff.Dispatcher.HasShutdownStarted&&staffPlacement is not null)Trip();
         }));}
         catch(InvalidOperationException){ /* Dispatcher shutdown raced the notification. */ }
     }
@@ -144,27 +171,42 @@ internal sealed class PosDisplayCoordinator : IDisposable
             finally { staff.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => staff.Opacity = 1); }
         }
     }
+    private bool StaffPlacementIsCurrent(IReadOnlyList<PosMonitor> monitors)
+    {
+        var bounds = platform.WindowBounds(source.Handle);
+        return staffPlacement?.IsFullscreen(bounds, monitors) == true
+            && (!Active || topology.AllowsStaff(bounds, monitors));
+    }
+
     private nint WindowMessage(nint handle, int message, nint wParam, nint lParam, ref bool handled)
     {
-        if ((!Active&&staffFullscreen is null) || topology.Blocked || placing) return 0;
+        if (disposed || placing || staffPlacement is not { } placement) return 0;
         try
         {
+            // WM_SYSCOMMAND: keep the staff window borderless and fullscreen. Close and
+            // system focus switching still use normal Windows behavior.
+            if (message == 0x0112 && ((long)wParam & 0xFFF0) is 0xF000 or 0xF010 or 0xF020 or 0xF030 or 0xF120)
+            {
+                handled = true;
+                return 0;
+            }
+            if (topology.Blocked) return 0;
             if (message is 0x007E or 0x02E0) { Trip(); return 0; } // topology / DPI
             if (message == 0x0046)
             {
                 var position = Marshal.PtrToStructure<WindowsDisplays.WindowPosition>(lParam);
-                var old = platform.WindowBounds(handle);
-                int x = (position.Flags & 0x0002) != 0 ? old.Left : position.X;
-                int y = (position.Flags & 0x0002) != 0 ? old.Top : position.Y;
-                int width = (position.Flags & 0x0001) != 0 ? old.Width : position.Width;
-                int height = (position.Flags & 0x0001) != 0 ? old.Height : position.Height;
-                var proposed=new DisplayBounds(x,y,x+width,y+height);var monitors=platform.Read();
-                if (!(Active?topology.AllowsStaff(proposed,monitors):staffFullscreen?.Placement.Allows(proposed,monitors)==true))
+                const uint noGeometry = 0x0001 | 0x0002; // SWP_NOSIZE | SWP_NOMOVE
+                if ((position.Flags & noGeometry) == noGeometry) return 0;
+                if (!placement.IsCurrent(platform.Read()))
                 {
-                    position.Flags |= 0x0001 | 0x0002; // Reject unsafe move/resize before it occurs.
-                    Marshal.StructureToPtr(position, lParam, false);
-                    Trip();
+                    position.Flags |= noGeometry;
+                    Marshal.StructureToPtr(position, lParam, false); Trip(); return 0;
                 }
+                var target = placement.Monitor.Bounds;
+                position.X = target.Left; position.Y = target.Top;
+                position.Width = target.Width; position.Height = target.Height;
+                position.Flags &= ~noGeometry;
+                Marshal.StructureToPtr(position, lParam, false);
             }
         }
         catch { Trip(); }

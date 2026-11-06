@@ -82,8 +82,9 @@ If another installation owns the callback, setup refuses until explicit takeover
 selected or `/TAKEOVERCALLBACK=1` is supplied after migration review. The old draft remains
 installed and preserved. Do not run both installations interchangeably after takeover;
 the old POS can re-register itself when launched. Keep its recovery/config for support.
-The installer creates a Start Menu shortcut, no startup task, auto-launch, network download
-or financial command. It never force-closes/restarts POS or schedules a forced reboot.
+The installer creates per-user Desktop and Start menu shortcuts. It never force-closes
+POS or schedules a reboot. An [optional startup update worker](POS-Startup-Updates.md)
+can run Setup before the workspace opens and reopen POS afterward.
 
 ## Compatibility and unsupported migration
 
@@ -117,7 +118,7 @@ Managed binary downgrades are refused; equal-version reinstall is supported. Upd
 use the installer engine's file/registry handling after successful preflight. Do not
 claim recovery after power loss from a compiled setup: test that scenario in isolation.
 
-Uninstall removes installed program files/shortcut. It removes `nexaconnect-pos` only
+Uninstall removes installed program files and shortcuts. It removes `nexaconnect-pos` only
 when the command exactly matches this installation; a newly assigned callback stays.
 It keeps public `appsettings.json` and `installer-owner.txt` for reinstall, plus all
 `%LOCALAPPDATA%\NexaConnect\POS`, `Displays` and `GalleryCache` content. No data reset

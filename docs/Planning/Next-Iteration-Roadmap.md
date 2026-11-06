@@ -1,5 +1,29 @@
 # Next iteration: phases, checklist and implementation prompts
 
+6 November 2026. The staged 0.8.4 bundle adds saved-queue printing, direct PIN keypad wake
+and renewal for eligible locked sessions. Backend refresh and transfer checks passed.
+Physical printing and long-break PIN resume await retest. Cash-only drawer opening
+requires a verified adapter. [0.8.4 installation and verification](../Identity/POS-Session-PIN.md#locked-session-renewal)
+
+The earlier 0.8.3 bundle separated receipt previews and provider refunds
+into scrollable tabs and includes the earlier printer and display corrections. The LAN
+backend refresh and transfer checks passed. Physical installation and retest remain
+pending. [Receipt workspace update](../Deployment/POS-Refund-Payment-Selection.md#receipt-workspace-scrolling-follow-up)
+
+5 November 2026: the [0.8.2 printer follow-up](../Deployment/POS-UX5-Receipt-Printing.md#prepared-082-update-and-physical-retest)
+fits the reported 72×297 mm form and exposes returned test-print results in both status
+surfaces. Its retained backend refresh and integrity-checked transfer staging are complete;
+physical installation, actual imageable bounds and POS paper output remain unverified.
+The earlier 79.5 mm-only 0.8.2 candidate was never bundled or installed.
+
+5 November 2026: [physical display placement correction](../Deployment/POS-Display-Placement-Fix.md)
+addresses ordinary move/maximize safety false positives while retaining assigned-screen
+privacy and real topology/staff-DPI locking. Unit/native fixtures pass; matching 0.8.1
+packaging, retained backend refresh and transfer staging are historical; the correction
+is retained in the staged 0.8.4 bundle. Physical update and actual-device retest remain
+pending. Read-only image diagnosis finds no assigned
+photos for the new pilot's three menu items; image assignment belongs to that pilot's portal.
+
 5 November 2026: [physical POS onboarding](../Deployment/POS-Physical-Device-Onboarding.md)
 implements new-pilot staff LAN ingress, dedicated public terminal profiles and source-bound
 versioned installer bundles with device probes and compatible-update guards. The operator
@@ -9,12 +33,13 @@ The separate LAN backend is Ready/provisioned. Account PC and both CA installati
 operator-confirmed; development-PC Windows trust and canonical HTTPS identity checks pass.
 The corrected source-bound 0.8.0 installer/bundle is prepared; real development-PC HTTPS
 PKCE, menu/PIN/history reads and authorization boundaries pass without financial commands.
-Device checker/install, physical sign-in/trust and acceptance remain pending.
+Physical installation/display use is subsequently operator-reported. Formal device checker,
+physical identity/trust and acceptance evidence remain pending.
 Source/fixture tests pass, not live-device acceptance. No public
 installation URL, automatic update, Omise LAN enablement or drawer activation is claimed.
 
 5 November 2026: delivered POS equipment is user-confirmed: both displays **1366×768**,
-PAISHUO **POS806UF** printer (paper notation `79.5|0.5mm`), USB Type-A 2D reader labelled
+PAISHUO **POS806UE** printer (paper notation `79.5|0.5mm`), USB Type-A 2D reader labelled
 **ROHS S26332**, and **4141P** drawer connected to printer **DK/DRAWER**. See the
 [updated equipment baseline](Next-Iteration-Phase-0-Baseline.md). Next hardware checks are
 display assignment/scaling/privacy, Windows-driver receipt output, scanner input isolation,

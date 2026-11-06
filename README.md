@@ -1,11 +1,21 @@
 # NexaConnect
 
+The separate physical POS backend is refreshed and the 0.8.4 bundle is staged. It adds
+direct printing to a saved queue, keypad on PIN wake and private renewal for eligible locked
+sessions. The receipt and display corrections are included. Physical installation and
+retest remain pending. [0.8.4 installation and retest](docs/Identity/POS-Session-PIN.md#locked-session-renewal)
+
 [Physical POS onboarding](docs/Deployment/POS-Physical-Device-Onboarding.md) prepares a
 separate fresh-data LAN pilot on the development PC, a staff-only HTTPS edge and versioned
 private installer/profile transfer with read-only device checks. The retained normal/QR
 pilot remains intact. The separate backend is Ready/provisioned with development-PC trust
-verified; physical-device connectivity/trust, installation and acceptance remain pending.
-No public installation link or automatic update is claimed.
+verified. The operator now reports running the physical POS and assigning its display roles;
+formal device acceptance remains pending. The [display placement follow-up](docs/Deployment/POS-Display-Placement-Fix.md)
+addresses the reported maximize lock and is included in the staged 0.8.4 bundle;
+physical update and retest remain pending.
+The Windows installer provides Desktop and Start menu shortcuts. Managed installs
+can opt in to signed updates from a network folder or HTTPS. No public feed has
+been configured. [Windows POS startup updates](docs/Deployment/POS-Startup-Updates.md)
 
 [Original-payment refund selection](docs/Deployment/POS-Refund-Payment-Selection.md)
 lets staff review an original captured card payment by order/receipt details, with an
@@ -18,7 +28,7 @@ matching Order/POS update is installed in the retained pilot, with original data
 [Persistent cashier PIN](docs/Identity/POS-Session-PIN.md) keeps one personal PIN until changed/reset/revoked and privately renews short-lived credentials before online same-cashier unlock. Matching POS26/Authorization17 and compatibility0.45.0 are activated in the retained local pilot, with existing business/recovery data preserved; fresh PIN/operator acceptance remains pending. Full OIDC remains required at restart/logout/security or actual provider-session expiry. Existing [cashier-ready and 50/50 customer panels](docs/Deployment/POS-Cashier-Ready-And-Customer-Panels.md) retain display/custody behavior; hardware authentication remains unimplemented.
 
 
-[Shared photo library](docs/Deployment/Media-Library.md) adds a default thumbnail grid, switchable details list and contextual popup picker for menu images and approved screensaver galleries. Selection remains a draft until the owning editor previews/approves/saves. This first product-photo slice preserves existing storage, safety and permissions; the retained local pilot is activated and fresh operator acceptance remains pending.
+The shared photo library offers thumbnail and details views and a picker for menu and screensaver editors. Media management accepts up to ten photos at a time. Editors select ready photos and retain their own preview, approval and save steps. The upload controls are deployed on the physical LAN pilot. Upload, processing and on-terminal display await operator verification. [Shared photo library workflow](docs/Deployment/Media-Library.md)
 
 
 [Unified POS QR orders](docs/Deployment/POS-QR-Orders-Workspace.md) combines Pending review, Awaiting payment and Paid / history, with secondary reference lookup. Acceptance and payment remain explicit and separate. The full source gate passed and the matching retained pilot is installed; fresh operator acceptance remains pending.

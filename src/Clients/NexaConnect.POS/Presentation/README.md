@@ -1,5 +1,18 @@
 # POS presentation
 
+The [receipt workspace scrolling follow-up](../../../../docs/Deployment/POS-Refund-Payment-Selection.md#receipt-workspace-scrolling-follow-up)
+uses separate Receipt preview/Provider refund inner tabs with bounded viewports and
+visible scrollbars. It retains the existing bottom workflow panel and outer input
+viewport for constrained-height/keyboard use. Original-payment review selects the refund
+tab; authorized receipt preview selects its own tab. Existing command/session/privacy
+guards are unchanged; native sizing fixtures pass and physical activation/retest is pending.
+
+The [physical-display placement follow-up](../../../../docs/Deployment/POS-Display-Placement-Fix.md)
+originally added staff work-area constraints and a queued public-customer refit
+for harmless state/DPI events. Changed topology, staff DPI, invalid placement and closure
+retain fail-closed masking; disposal fences queued refits. No identity/financial data is
+owned or changed by geometry. Source fixtures pass; physical retest remains pending.
+
 The [compact cashier workspace](../../../../docs/Deployment/POS-Compact-Cashier-Workspace.md) adds a compact header, default-collapsed workspace/menu tools, width-fitted tiles, a bounded cart and one pinned visible checkout total. Routine explanations collapse while attention/busy guidance remains visible at every height. Menu/cart scroll independently in ordinary Checkout; opening the optional keyboard restores the outer scroll extent. Existing handlers, input/density preferences, session/PIN and customer privacy remain authoritative. Compact release 9ab9d05b76ab45d9b4a87e51a5c2f6ea introduced this layout; current refund-selector release 2707248d6f6b4ecaa449ffefefbf3305 retains it with existing business/PIN/recovery state preserved; fresh operator and physical-device acceptance remain pending.
 
 `CustomerDisplayWindow` now divides the customer monitor equally between approved customer-gallery advertising and public shop welcome/allow-listed transaction details. Existing image leases, privacy clearing and topology safety remain; missing ads use neutral shop branding. `MainWindow.CashierSession` projects a staff-only ready identity/register/shift card on Shift & cash only; Checkout uses the compact identity/session header. Navigation/switching still delegates to existing guards. `PosPinEntryWindow` is a masked staff modal keypad; session authority remains in PosAuthentication. See [workflow/configuration](../../../../docs/Deployment/POS-Cashier-Ready-And-Customer-Panels.md) and [PIN security](../../../../docs/Identity/POS-Session-PIN.md).
@@ -83,15 +96,18 @@ projection stays separate. See [gallery contract](../../../../docs/API/Screensav
 
 Locked images use `UniformToFill` across the monitor with aspect-preserving edge cropping.
 The staff view starts with its centered scrollable authentication panel hidden; the customer view
-has optional public captions and no controls. `ScreensaverPlacement` validates a physical
+has optional public captions and no controls. `StaffDisplayPlacement` validates a physical
 monitor lease, rejects ambiguous spans/overlap and invalidates changed topology.
-`PosDisplayCoordinator` snapshots/restores staff bounds/chrome and fences fullscreen moves;
-it owns no authentication or financial state. Missing/expired media retains neutral fallback.
-Minimized windows remain minimized; a later render after restore can enter fullscreen.
+`PosDisplayCoordinator` keeps the cashier borderless and full-screen in sign-in, checkout,
+and lock states. Startup uses the primary monitor. Assigning roles moves the cashier to
+the selected staff monitor and fences native move/resize attempts. A topology fault still
+closes the customer projection and hides private content. Missing/expired media retains neutral fallback.
 
-`LockPromptState` is presentation-only. The first tap/click/keypress reveals the centered
-panel without authenticating; held/repeated wake-key events are consumed through key-up.
-Focus goes to the panel rather than Resume. Escape/Back hides it while preserving the lock;
+`LockPromptState` is presentation-only. In the PIN wake follow-up, the first tap/click or
+release of the matching wake key opens the masked keypad when PIN resume is eligible.
+Held/repeated wake-key events are consumed through key-up. Cancel returns to the lock
+panel, which also provides full sign-in when PIN resume is unavailable. Escape/Back hides
+the panel while preserving the lock.
 active authentication keeps cancel controls visible. New locks reset hidden, while ordinary
 gallery renders preserve prompt visibility. Original resume/sign-out guards remain authoritative.
 
@@ -104,8 +120,12 @@ are excluded. `CustomerDisplayWindow` renders it without activation, input or co
 native display access; `WindowsDisplays` implements it for
 Win32 monitor enumeration/physical placement; `PosDisplayCoordinator` owns window lifetime
 and native display/DPI/movement event fencing. Topology loss clears customer output and
-masks/locks staff work rather than moving it to an unreviewed display. Reconnect/restart
-requires explicit reassignment. OS duplication is not a supported privacy boundary.
+masks/locks staff work. Reconnect during the same process still requires a restart.
+`PosUiPreferences` stores the terminal-scoped role pair and layout hash separately from
+input preferences. The hash covers Win32 monitor interface identities, device names,
+physical bounds and the primary display. Startup opens customer output only for a
+matching saved layout, with a fresh public welcome view. **Use staff screen only**
+clears saved roles. OS duplication is not a supported privacy boundary.
 
 See [ADR-039](../../../../docs/Architecture/Decisions/ADR-039-pos-staff-customer-displays.md)
 and [setup, verification and device checklist](../../../../docs/Deployment/Next-Iteration-Phase-4.md).

@@ -20,6 +20,16 @@ namespace NexaConnect.IntegrationTests;
 
 public sealed class QrPilotEdgeTests
 {
+    [Fact]
+    public void Brand_icon_allows_only_the_public_svg_get()
+    {
+        const string path = "/nexaconnect-icon.svg";
+        Assert.True(PilotOptions.Allowed("GET", path));
+        Assert.False(PilotOptions.Allowed("POST", path));
+        Assert.False(PilotOptions.Allowed("GET", path + "?version=1"));
+        Assert.False(PilotOptions.Allowed("GET", "/nexaconnect-icon.png"));
+    }
+
     [Fact]public void Photo_allowlist_accepts_only_exact_product_get_without_parameters()
     {
         string path=$"/bff/guest/qr/menu/{Guid.NewGuid():D}/photo";

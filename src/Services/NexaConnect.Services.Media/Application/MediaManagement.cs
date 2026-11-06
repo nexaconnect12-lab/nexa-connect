@@ -54,12 +54,14 @@ public sealed class MediaManagement(IMediaManagementRepository repository, IMedi
         string type = command.ContentType?.Trim().ToLowerInvariant() ?? "";
         string hash = command.ChecksumSha256?.Trim().ToLowerInvariant() ?? "";
         bool promptPay=owner=="restaurant"&&kind=="promptpay_qr";
-        if (organizationId == Guid.Empty || command.OwnerId == Guid.Empty || string.IsNullOrWhiteSpace(actor) || !(owner == "catalog" && kind == "product" || promptPay&&branchAuthorized))
+        bool sharedPhoto = owner == "media" && kind == "photo_library" && command.OwnerId == organizationId;
+        if (organizationId == Guid.Empty || command.OwnerId == Guid.Empty || string.IsNullOrWhiteSpace(actor)
+            || !(sharedPhoto || owner == "catalog" && kind == "product" || promptPay && branchAuthorized))
             throw new ArgumentException("Organization, supported owner, and actor are required. Payment QR uses its branch workflow.");
         if (name.Length is < 1 or > 200 || name.Any(char.IsControl) || !Types.Contains(type) || command.SizeBytes is < 1 or > 10_485_760 || !System.Text.RegularExpressions.Regex.IsMatch(hash, "^[0-9a-f]{64}$"))
             throw new ArgumentException("File name, type, size, or checksum is invalid.");
         if(promptPay&&(type!="image/png"||command.SizeBytes>2_097_152))throw new ArgumentException("PromptPay requires a PNG no larger than 2 MiB.");
-        if (!await owners.ExistsAsync(organizationId, owner, kind, command.OwnerId, cancellationToken))
+        if (!sharedPhoto && !await owners.ExistsAsync(organizationId, owner, kind, command.OwnerId, cancellationToken))
             throw new KeyNotFoundException("Catalog product owner was not found in the active organization.");
 
         Guid id = Guid.NewGuid();

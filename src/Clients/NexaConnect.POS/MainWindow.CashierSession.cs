@@ -81,13 +81,14 @@ public partial class MainWindow
     }
     private async void PinUnlock_Click(object sender, RoutedEventArgs e)
     {
-        if (pinUnlockBusy || busy || signInCancellation is not null || displaySafetyBlocked || !_authentication.CanQuickUnlock) return;
-        var prompt = new PosPinEntryWindow(this, "Unlock with your six-digit PIN");
-        if (prompt.ShowDialog() != true) return;
-        string pin = prompt.TakeValue()!;
+        if (pinUnlockBusy || busy || !reauthenticationRequired || windowCancellation.IsCancellationRequested
+            || signInCancellation is not null || displaySafetyBlocked || !_authentication.CanQuickUnlock) return;
         pinUnlockBusy = true; RenderCashierReady();
         try
         {
+            var prompt = new PosPinEntryWindow(this, "Unlock with your six-digit PIN");
+            if (prompt.ShowDialog() != true || windowCancellation.IsCancellationRequested || displaySafetyBlocked) return;
+            string pin = prompt.TakeValue()!;
             bool resumed = await _authentication.TryResumeWithSessionPinAsync(pin, windowCancellation.Token);
             if (windowCancellation.IsCancellationRequested) return;
             // A topology/security transition may supersede an in-flight PIN derivation.

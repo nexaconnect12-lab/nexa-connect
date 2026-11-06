@@ -56,7 +56,7 @@ internal static partial class Program
         var historyPort=new DrawerHistoryFixturePort(config);
         var history=new NexaConnect.POS.Hardware.Drawers.DrawerHistoryReader(config,historyPort,new NexaConnect.POS.Hardware.Drawers.SqliteDrawerIntentStore(Path.Combine(root,"drawer-intents.db"),config.Authority));
         var window = new MainWindow(auth, api, new LocalPosStore(scope, root), new LocalOutboxStore(scope, root), config, preferences, printers, printDriver, () => Task.FromResult(new[] { "Fixture PDF" }), diagnostics,drawer,history)
-            { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
+            { Opacity = 0, ShowActivated = false, ShowInTaskbar = false, UseStaffFullscreen = false };
         try
         {
             // Synthetic identity is injected only into this test instance, never a token store.
@@ -66,6 +66,7 @@ internal static partial class Program
             Invoke(window, "UpdateOperationalState");
             window.Show(); Pump(window);
             VerifySessionDisplayLayout(window);
+            VerifyDisplayPlacement();
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
             VerifyCashierNavigation(window);
             VerifyCompactCheckout(window);
@@ -162,6 +163,7 @@ internal static partial class Program
             typeof(MainWindow).GetField("cancellationStatus", Private)!.SetValue(window, null);
             tabs.SelectedIndex = 0; Pump(window);
             VerifyDensity(window, preferences, args);
+            VerifyReceiptViewport(window);
             VerifyPrinterSettings(window, printers, printDriver, root);
             VerifyScannerGuards(window);
             VerifyTerminalSetup(window,diagnosticsHandler);
@@ -405,6 +407,13 @@ internal static partial class Program
         Require(preview.Document is not null && Math.Abs(preview.Document.PageWidth - 80 * ReceiptPrintLayout.Millimetre) < 0.01, "test preview uses 80 mm page");
         Invoke(window, "PrintTestReceipt_Click", window, new RoutedEventArgs()); Pump(window);
         Require(driver.Prepared == 1 && ((TextBlock)window.FindName("PrinterSetupStatus")).Text.Contains("cancelled"), "test print cancellation stays non-financial");
+        Require(((TextBlock)window.FindName("StatusText")).Text == ((TextBlock)window.FindName("PrinterSetupStatus")).Text,
+            "completed test printing replaces the main preparing status with the actual result");
+        driver.Fail = true;
+        Invoke(window, "PrintTestReceipt_Click", window, new RoutedEventArgs()); Pump(window);
+        Require(driver.Prepared == 2 && ((TextBlock)window.FindName("StatusText")).Text.Contains("unavailable")
+            && ((TextBlock)window.FindName("StatusText")).Text == ((TextBlock)window.FindName("PrinterSetupStatus")).Text,
+            "printer preparation failure replaces preparing text with guidance on both result surfaces");
         typeof(MainWindow).GetField("busy", Private)!.SetValue(window, true);
         paper.SelectedIndex = 0; Invoke(window, "SavePrinterSettings_Click", window, new RoutedEventArgs());
         Require(preferences.Load().Paper == ReceiptPaper.Roll80, "busy state prevents changing printer preference");
@@ -414,7 +423,8 @@ internal static partial class Program
     private sealed class CancelPrintDriver : IReceiptPrintDriver
     {
         public int Prepared;
-        public IReceiptPrintJob? Prepare(ReceiptPrintOptions options) { Prepared++; return null; }
+        public bool Fail;
+        public IReceiptPrintJob? Prepare(ReceiptPrintOptions options) { Prepared++; if (Fail) throw new InvalidOperationException("Synthetic printer failure"); return null; }
     }
     private static void VerifyDensity(MainWindow window, PosUiPreferences preferences, string[] args)
     {

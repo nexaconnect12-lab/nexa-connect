@@ -10,11 +10,25 @@ internal sealed class WindowsDisplays : IPosDisplayPlatform
         MonitorCallback callback = (nint monitor, nint dc, ref Rect rect, nint data) => {
             var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
             if (!GetMonitorInfo(monitor, ref info)) return false;
-            result.Add(new(info.Device, Bounds(info.Monitor), Bounds(info.Work), (info.Flags & 1) != 0));
+            result.Add(new(info.Device, Bounds(info.Monitor), Bounds(info.Work), (info.Flags & 1) != 0,
+                FindMonitorId(info.Device)));
             return true;
         };
         if (!EnumDisplayMonitors(0, 0, callback, 0)) throw new InvalidOperationException("Display enumeration failed.");
         return result;
+    }
+    private static string? FindMonitorId(string display)
+    {
+        const uint active = 1, getInterfaceName = 1;
+        string? id = null;
+        for (uint index = 0; ; index++)
+        {
+            var device = new DisplayDevice { Size = Marshal.SizeOf<DisplayDevice>() };
+            if (!EnumDisplayDevices(display, index, ref device, getInterfaceName)) return id;
+            if ((device.Flags & active) == 0) continue;
+            if (id is not null || string.IsNullOrWhiteSpace(device.Id)) return null;
+            id = device.Id;
+        }
     }
     public DisplayBounds WindowBounds(nint handle)
     {
@@ -44,6 +58,15 @@ internal sealed class WindowsDisplays : IPosDisplayPlatform
         public int Size; public Rect Monitor, Work; public uint Flags;
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string Device;
     }
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] private struct DisplayDevice
+    {
+        public int Size;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string Name;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string Description;
+        public uint Flags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string Id;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string Key;
+    }
     [StructLayout(LayoutKind.Sequential)] internal struct WindowPosition
     {
         public nint Window, InsertAfter; public int X, Y, Width, Height; public uint Flags;
@@ -51,6 +74,7 @@ internal sealed class WindowsDisplays : IPosDisplayPlatform
     private delegate bool MonitorCallback(nint monitor, nint dc, ref Rect rect, nint data);
     [DllImport("user32.dll")] private static extern bool EnumDisplayMonitors(nint dc, nint clip, MonitorCallback callback, nint data);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool GetMonitorInfo(nint monitor, ref MonitorInfo info);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool EnumDisplayDevices(string display, uint index, ref DisplayDevice device, uint flags);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(nint window, out Rect rect);
     [DllImport("user32.dll", SetLastError = true)] private static extern bool SetWindowPos(nint window, nint insertAfter, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern nint GetWindowLongPtr(nint window, int index);

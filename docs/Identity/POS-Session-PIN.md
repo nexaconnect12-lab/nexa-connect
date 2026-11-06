@@ -14,13 +14,27 @@ Five consecutive wrong unlock/current-PIN attempts impose a fifteen-minute serve
 
 ## Locked-session renewal
 
-Manual/idle lock, and an eligible active-refresh connectivity outage reaching access expiry, mask work and persist only the existing nonsecret identity marker. Refresh-capable credentials remain suspended privately in process memory; ordinary `CurrentToken` and disk contain no bearer while locked. **Unlock with PIN** remains primary when eligible; **Use full sign-in instead** is the secondary fallback. Verification requires connectivity.
+The private 0.8.4 bundle includes the direct keypad and locked renewal follow-up.
+The 70 focused unit tests and the native POS UI fixture passed. The refreshed LAN pilot
+retained 463 original business rows across 203 checked tables and passed read-only
+sign-in and authorization checks. Terminal installation and long-break acceptance remain pending.
+
+Copy `\\192.168.0.191\Shared\NexaConnect-POS-0.8.4-b1bd29fd` locally as Windows account
+**PC**. Verify `onboarding.json` against SHA-256
+`1c809cfdd1658564b73c47dd4e5734dc8c5c78fa8882f2dbaf730e4a2937890c` and follow the
+[bundle verification procedure](../Deployment/POS-Physical-Device-Onboarding.md).
+Run `Test-DeviceOnboarding.ps1` from the copied folder with explicit `-BundleDirectory .`
+and `-ExpectedManifestSha256` set to the hash above. After the checker passes, close POS
+if it is open and run
+`NexaConnect-POS-setup.exe` and select the included `terminal-profile.json`.
+
+Manual/idle lock, and an eligible active-refresh connectivity outage reaching access expiry, mask work and persist only the existing nonsecret identity marker. Refresh-capable credentials remain suspended privately in process memory. With an eligible PIN, the first tap, click or matching wake-key release opens the masked PIN keypad directly. Cancelling the keypad returns to the lock panel with a PIN retry and full sign-in fallback. When PIN resume is unavailable, the lock panel offers **Sign in to resume**. Verification requires connectivity.
 
 On explicit unlock, POS renews at the identity provider privately, validates authenticated UserInfo against the original subject/authority, then verifies the PIN at POS using the renewed bearer. Only success for the still-current lock, with a still-live renewed access token and original absolute deadline, restores/saves credentials and exposes work. Rotation stays private on wrong PIN or temporary PIN-service outage. An ordinary refresh completing after an eligible manual/idle lock may retain its rotated credentials only in that same private slot, never publish them or unlock the workspace. Pending full login, security lock, shutdown or the original absolute deadline fences late responses. Refresh and unlock share a serialization gate; neither changes financial recovery or issues a business command.
 
 Access-token expiry while already PIN-locked, or during an eligible active-session refresh connectivity outage, can use PIN resume when connectivity returns. An outage arriving after another UI lock cannot erase its private capability or weaken its security fence. Missing refresh credentials or provider rejection still require full sign-in. Actual provider idle/max expiration, revocation, logout, restart and security/display-safety locks also require full login. PIN enrollment survives. PIN never extends the original configured absolute timeout (default ten hours), establishes offline identity or bypasses live service permissions. Different cashiers cannot resume retained work. Switching cashier still requires resolving retained shift/cash/cart/pending/outbox custody and full login.
 
-This change does not alter shared Keycloak realm policy or refresh unattended while locked. The checked-in development realm has a shorter SSO idle limit than the ten-hour native maximum. A long locked break can therefore still require full login. Before rollout, explicitly agree and verify bounded provider idle/client/max settings for a cashier shift; never promise all-day resume merely from the native setting. Keep shorter portal policies where supported.
+While POS is open, an eligible locked session attempts renewal near access-token expiry. The rotated credentials stay in process memory. This helps maintain the provider's idle window during breaks. Failed transient renewal backs off for 15 seconds. The original absolute deadline, provider maximum and revocation still apply. The shared Keycloak realm settings continue to govern portal and POS sessions. Real-provider long-break acceptance remains pending.
 
 ## Storage, failure and operations
 
@@ -30,7 +44,7 @@ Keep durable POS Data Protection keys and their wrapping configuration with secu
 
 `pos.cashier-pin.use` is default for cashier/store-manager/tenant-admin; organization-wide `pos.cashier-pin.manage` is default only for tenant-admin. All calls validate active branch/store/terminal ownership and live permission. Granting manage to another role allows organization-wide credential reset/revoke, not merely one terminal. It is not a financial/platform-administration grant.
 
-Search shared `nexaconnect-pos` logs for `Cashier PIN boundary` and validated correlation ID; client `nexaconnect-pos-client` emits fixed `cashier-pin-*`, `pin-session-renewal` and lock categories. Never log PINs, hashes, tokens, bodies or unrestricted identities. Audit actor/decision/scope metadata is private. Per-instance HTTP limit30requests/minute/subject complements shared durable credential lockout.
+Search shared `nexaconnect-pos` logs for `Cashier PIN boundary` and validated correlation ID. Client `nexaconnect-pos-client` emits fixed `cashier-pin-*`, `pin-session-keepalive`, `pin-session-renewal` and lock categories. Never log PINs, hashes, tokens, bodies or unrestricted identities. Audit actor/decision/scope metadata is private. Per-instance HTTP limit30requests/minute/subject complements shared durable credential lockout.
 
 Fingerprint/RFID readers remain future integrations requiring real supported hardware and verified enrollment/revocation. A reader UID alone is not trusted identity. Synthetic fixtures do not record installed operator, real provider-policy or hardware acceptance.
 

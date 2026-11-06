@@ -11,33 +11,24 @@ type Selection={organizationId:string;branchId:string;productId:string;assetId:s
 const api=createApiClient({onUnauthorized:signInToCustomer});
 export function MenuPhotoPanel({embedded}:{embedded?:MenuManagementScope}={}){
  const [branch,setBranch]=useState(embedded?.branch??""),[items,setItems]=useState<Item[]>(embedded?.items??[]),[product,setProduct]=useState("");
- const [selection,setSelection]=useState<Selection>(),[asset,setAsset]=useState<string|null>(),[file,setFile]=useState<File>();
+ const [selection,setSelection]=useState<Selection>(),[asset,setAsset]=useState<string|null>();
  const [busy,setBusy]=useState(false),[approved,setApproved]=useState(false),[previewReady,setPreviewReady]=useState(false),[notice,setNotice]=useState<string>(),[imageVersion,setImageVersion]=useState(0);
- const [pickerOpen,setPickerOpen]=useState(false),[libraryVersion,setLibraryVersion]=useState(0),[search,setSearch]=useState("");
- const timer=useRef<number>(),pending=useRef<AbortController>(),fileInput=useRef<HTMLInputElement>(null);
+ const [pickerOpen,setPickerOpen]=useState(false),[search,setSearch]=useState("");
+ const timer=useRef<number>(),pending=useRef<AbortController>();
  useEffect(()=>()=>{pending.current?.abort();window.clearTimeout(timer.current);},[]);
- const panelStatus=useMenuPanelState(embedded,!!file||approved||(asset!==undefined&&!!selection&&asset!==selection.assetId),busy||pickerOpen);
+ const panelStatus=useMenuPanelState(embedded,approved||(asset!==undefined&&!!selection&&asset!==selection.assetId),busy||pickerOpen);
  const begin=()=>{window.clearTimeout(timer.current);pending.current?.abort();const c=new AbortController();pending.current=c;panelStatus.begin();setBusy(true);setNotice(undefined);if(embedded)timer.current=window.setTimeout(()=>{if(pending.current!==c)return;c.abort();embedded.onInvalidated();setSelection(undefined);setApproved(false);setBusy(false);panelStatus.end();setNotice("Request timed out. Reload menu before editing or retrying.");},25000);return c;};
  const end=(c:AbortController)=>{if(!c.signal.aborted){setBusy(false);window.clearTimeout(timer.current);panelStatus.end();}};
  const base=(id=product)=>`/bff/customer/menu-photos/branches/${branch}/products/${id}`;
  const selectAsset=(value:string|null)=>{if(value!==asset)setPreviewReady(false);setAsset(value);setApproved(false);};
- const clear=(id:string)=>{pending.current?.abort();setBranch(id);setSearch("");setItems([]);setProduct("");setSelection(undefined);setAsset(undefined);setFile(undefined);setApproved(false);setPreviewReady(false);setPickerOpen(false);setNotice(undefined);setBusy(false);};
- const load=async()=>{const c=begin();setItems([]);setProduct("");setSelection(undefined);setAsset(undefined);setApproved(false);setFile(undefined);setPickerOpen(false);
+ const clear=(id:string)=>{pending.current?.abort();setBranch(id);setSearch("");setItems([]);setProduct("");setSelection(undefined);setAsset(undefined);setApproved(false);setPreviewReady(false);setPickerOpen(false);setNotice(undefined);setBusy(false);};
+ const load=async()=>{const c=begin();setItems([]);setProduct("");setSelection(undefined);setAsset(undefined);setApproved(false);setPickerOpen(false);
   try{const menu=await api.request<Item[]>(`/bff/customer/catalog/branches/${branch}/menu-items`,{signal:c.signal});if(!c.signal.aborted)setItems(menu);}
   catch{if(!c.signal.aborted)setNotice("Menu unavailable. Check the selected workspace, branch and permissions.");}finally{end(c);}};
  const applySelection=(value:Selection,id:string)=>{if((embedded&&value.organizationId!==embedded.organizationId)||value.productId!==id||value.branchId!==branch||!Number.isSafeInteger(value.version)||value.version<0)throw new Error();setSelection(value);setAsset(value.assetId);};
- const choose=async(id:string)=>{const c=begin();setProduct(id);setSelection(undefined);setAsset(undefined);setFile(undefined);setApproved(false);setPreviewReady(false);setPickerOpen(false);
+ const choose=async(id:string)=>{const c=begin();setProduct(id);setSelection(undefined);setAsset(undefined);setApproved(false);setPreviewReady(false);setPickerOpen(false);
   try{const value=await api.request<Selection>(base(id),{signal:c.signal});if(!c.signal.aborted)applySelection(value,id);}
   catch{if(!c.signal.aborted)setNotice("Photo settings unavailable. Reload before editing.");}finally{end(c);}};
- const upload=async()=>{if(!file||!product||busy)return;const c=begin();
-  try{if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size<1||file.size>10_485_760)throw new Error();
-   const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",await file.arrayBuffer()));if(c.signal.aborted)return;
-   const hash=Array.from(digest).map(v=>v.toString(16).padStart(2,"0")).join("");
-   const session=await api.request<{asset:{id:string;concurrencyVersion:number};uploadUrl:string}>("/bff/customer/media/uploads",{method:"POST",body:{ownerService:"catalog",ownerType:"product",ownerId:product,fileName:file.name,contentType:file.type,sizeBytes:file.size,checksumSha256:hash},signal:c.signal});
-   const response=await fetch(session.uploadUrl,{method:"PUT",credentials:"omit",redirect:"error",headers:{"Content-Type":file.type,"x-amz-checksum-sha256":btoa(String.fromCharCode(...digest))},body:file,signal:c.signal});if(!response.ok)throw new Error();
-   await api.request(`/bff/customer/media/${session.asset.id}/complete`,{method:"POST",body:{expectedVersion:session.asset.concurrencyVersion},signal:c.signal});
-   if(!c.signal.aborted){setFile(undefined);if(fileInput.current)fileInput.current.value="";setLibraryVersion(v=>v+1);setNotice("Uploaded for the selected product. Wait for processing, then choose the ready photo from the photo library and approve it.");}}
-  catch{if(!c.signal.aborted)setNotice("Upload failed or is still awaiting safety checks. Use JPEG, PNG or WebP up to 10 MiB; refresh before retrying.");}finally{end(c);}};
  const save=async()=>{if(!selection||asset===undefined||!approved||busy||(asset!==null&&!previewReady))return;const c=begin();
   try{const csrf=await api.request<{requestToken:string}>("/bff/customer/menu-photos/csrf",{signal:c.signal});
    const value=await api.request<Selection>(base(),{method:"PUT",headers:{"X-Nexa-CSRF":csrf.requestToken},body:{assetId:asset,expectedVersion:selection.version,approved:true},signal:c.signal});
@@ -47,7 +38,7 @@ export function MenuPhotoPanel({embedded}:{embedded?:MenuManagementScope}={}){
   void api.request<Selection>(base(embedded.product),{signal:c.signal}).then(value=>{if(!c.signal.aborted)applySelection(value,embedded.product);})
    .catch(()=>{if(!c.signal.aborted){embedded.onInvalidated();setNotice("Photo settings unavailable. Reload menu before editing.");}}).finally(()=>end(c));
  },[embedded?.branch,embedded?.product]);
- return <>{!embedded&&<><Typography.Paragraph>Select a menu item by name, then choose a photo from the shared library or upload a new one.</Typography.Paragraph>
+ return <>{!embedded&&<><Typography.Paragraph>Select a menu item by name, then choose a photo from the shared library.</Typography.Paragraph>
   <Space wrap><OperationalBranchPicker capability="catalog" label="Menu image branch" value={branch} onChange={clear}/><Button disabled={!branch||busy} onClick={()=>void load()}>Load menu and images</Button></Space></>}
   {notice&&<Alert role="status" message={notice} style={{marginTop:16}}/>}
   {!embedded&&<><Input aria-label="Search menu items" placeholder="Search menu items by name" value={search} onChange={e=>setSearch(e.target.value)} style={{marginTop:16}}/>
@@ -59,11 +50,9 @@ export function MenuPhotoPanel({embedded}:{embedded?:MenuManagementScope}={}){
    <Button disabled={busy||!selection} onClick={()=>setPickerOpen(true)}>Choose from photo library</Button>
    {asset&&<MenuPhoto src={`${base()}/preview/${asset}`} name="Selected menu image preview" refreshKey={imageVersion} onReady={setPreviewReady}/>}
    <Button disabled={busy||!selection} onClick={()=>selectAsset(null)}>Remove image assignment</Button>
-   <label>Upload a new product image <input ref={fileInput} key={`${branch}:${product}`} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={e=>{setFile(e.target.files?.[0]);setApproved(false);}}/></label>
-   <Button disabled={!file||busy} onClick={()=>void upload()}>Upload for selected menu item</Button>
    <Checkbox checked={approved} disabled={busy||!selection||asset===undefined||(asset!==null&&!previewReady)} onChange={e=>setApproved(e.target.checked)}>I approve this image selection for public menu display at this branch.</Checkbox>
    <Button type="primary" disabled={busy||!selection||!approved||asset===undefined||(asset!==null&&!previewReady)} onClick={()=>void save()}>Save menu image</Button>
   </Space></Card>}
-  <MediaPhotoPicker open={pickerOpen&&!!selection} selectedId={asset??undefined} refreshKey={libraryVersion} onCancel={()=>setPickerOpen(false)} onChoose={photo=>{selectAsset(photo.id);setPickerOpen(false);}}/>
+  <MediaPhotoPicker open={pickerOpen&&!!selection} selectedId={asset??undefined} onCancel={()=>setPickerOpen(false)} onChoose={photo=>{selectAsset(photo.id);setPickerOpen(false);}}/>
  </>;
 }

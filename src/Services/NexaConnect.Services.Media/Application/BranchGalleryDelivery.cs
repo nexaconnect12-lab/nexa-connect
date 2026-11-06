@@ -14,7 +14,7 @@ public sealed class BranchGalleryDelivery(IBranchGallerySelectionPort selections
     public async Task<bool> ReadyAsync(Guid org,Guid id,CancellationToken ct)
     {
         var asset=await repository.FindAsync(org,id,ct);
-        return asset?.Asset is {ProcessingStatus:"ready",OwnerService:"catalog",OwnerType:"product"}
+        return ProductPhotoPurpose.IsReady(asset?.Asset,org)
             && await repository.FindVariantKeyAsync(org,id,"display",ct) is not null;
     }
     public async Task<GalleryBundle> DeliverAsync(Guid org,Guid branch,string bearer,CancellationToken ct)

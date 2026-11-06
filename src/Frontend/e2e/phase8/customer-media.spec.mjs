@@ -82,14 +82,14 @@ test("customer signs in, selects an authorized tenant, and completes the Media l
 
   const menu=await browserJson(page,`/bff/customer/catalog/branches/${settings.branchId}/menu-items`);
   const product=menu.find(item=>item.productId===settings.catalogProductId);expect(product).toBeTruthy();
-  await openMenuImage(page,product.name);
+  await page.getByRole('menuitem',{name:'Media management',exact:true}).click();
 
   const png = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
     "base64",
   );
   const fileName = `phase8-e2e-${randomUUID()}.png`;
-  await page.locator('input[type="file"]').setInputFiles({ name: fileName, mimeType: "image/png", buffer: png });
+  await page.getByLabel('Choose photos').setInputFiles({ name: fileName, mimeType: "image/png", buffer: png });
 
   const uploadStarted = page.waitForResponse(
     (response) => response.url().includes("/bff/customer/media/uploads") && response.request().method() === "POST",
@@ -97,7 +97,7 @@ test("customer signs in, selects an authorized tenant, and completes the Media l
   const uploadCompleted = page.waitForResponse(
     (response) => response.url().includes("/complete") && response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Upload for selected menu item", exact: true }).click();
+  await page.getByRole("button", { name: "Upload photos", exact: true }).click();
   const startResponse = await uploadStarted;
   expect(startResponse.ok(), await startResponse.text()).toBeTruthy();
   const session = await startResponse.json();
@@ -106,7 +106,7 @@ test("customer signs in, selects an authorized tenant, and completes the Media l
   expect(session.asset.sizeBytes).toBe(png.length);
   const completionResponse = await uploadCompleted;
   expect(completionResponse.ok(), await completionResponse.text()).toBeTruthy();
-  await expect(page.getByText(/Uploaded for the selected product/)).toBeVisible();
+  await expect(page.getByText(/Uploaded\. Processing for the library/)).toBeVisible();
 
   await expect.poll(
     async () => {
@@ -126,6 +126,14 @@ test("customer signs in, selects an authorized tenant, and completes the Media l
     expect(response.ok()).toBeTruthy();
     expect((await response.body()).length).toBeGreaterThan(0);
   }
+
+  await openMenuImage(page,product.name);
+  await expect(page.getByLabel('Choose photos')).toHaveCount(0);
+  await page.getByRole('button',{name:'Choose from photo library',exact:true}).click();
+  const picker=page.getByRole('dialog',{name:'Choose a photo'});
+  await picker.getByLabel('Search photo library').fill(fileName);
+  await expect(picker.getByRole('button',{name:`Select photo ${fileName}`,exact:true})).toBeEnabled();
+  await picker.getByRole('button',{name:'Cancel',exact:true}).click();
 
   await page.reload();
   await page.getByRole('menuitem',{name:'Media management',exact:true}).click();
@@ -154,7 +162,7 @@ async function signIn(page) {
   await page.locator("#username").fill(settings.username);
   await page.locator("#password").fill(settings.password);
   await page.locator("#kc-login").click();
-  await expect(page.getByText("Customer Portal", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('navigation',{name:'Workspace navigation'})).toBeVisible();
 }
 
 async function browserJson(page, path) {

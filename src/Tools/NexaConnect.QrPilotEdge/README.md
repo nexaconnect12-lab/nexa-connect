@@ -1,5 +1,8 @@
 # Local QR pilot guest edge
 
+The guest browser tab loads the Customer Portal's public favicon through the exact
+`GET /nexaconnect-icon.svg` allowlist entry. It uses the existing proxy and correlation.
+
 UX11 allowlists only the exact /bff/guest/qr/menu-organization GET in addition to existing routes. Existing pinned TLS, guest-cookie-only forwarding, bounded bodies and shared correlation are retained; staff Catalog/BFF routes stay private. See [menu organization contract](../../../docs/API/Menu-Organization.md).
 
 Menu image display adds only the exact GUID guest menu-photo GET allowlist path, without query parameters or private Media routes. Photo requests use an independent240/IP/minute and1000/global budget, preserving the ordering budget. Existing pinned TLS, guest-only cookie forwarding and safe correlation remain. See [API/debugging](../../../docs/API/Menu-Photos.md).

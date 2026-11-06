@@ -9,7 +9,7 @@ type Page={items:LibraryPhoto[];hasMore:boolean;page:number};
 const api=createApiClient({onUnauthorized:signInToCustomer});
 export function validLibraryPage(value:Page,page:number,readyOnly:boolean){
  return value&&value.page===page&&typeof value.hasMore==="boolean"&&Array.isArray(value.items)&&value.items.length<=24&&new Set(value.items.map(p=>p?.id)).size===value.items.length
-  &&value.items.every(p=>p&&/^[0-9a-f-]{36}$/i.test(p.id)&&p.ownerService==="catalog"&&p.ownerType==="product"&&typeof p.originalFileName==="string"&&p.originalFileName.length>0&&p.originalFileName.length<=200
+  &&value.items.every(p=>p&&/^[0-9a-f-]{36}$/i.test(p.id)&&(p.ownerService==="catalog"&&p.ownerType==="product"||p.ownerService==="media"&&p.ownerType==="photo_library")&&typeof p.originalFileName==="string"&&p.originalFileName.length>0&&p.originalFileName.length<=200
    &&["image/jpeg","image/png","image/webp"].includes(p.contentType)&&Number.isSafeInteger(p.sizeBytes)&&p.sizeBytes>0&&Number.isSafeInteger(p.concurrencyVersion)&&p.concurrencyVersion>0
    &&typeof p.processingStatus==="string"&&p.processingStatus.length<=40&&(!readyOnly||p.processingStatus==="ready")&&Number.isFinite(Date.parse(p.uploadedAtUtc)));
 }

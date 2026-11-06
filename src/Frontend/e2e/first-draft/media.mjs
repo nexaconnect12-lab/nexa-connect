@@ -21,14 +21,13 @@ try{
   expect(galleryResponse.status()).toBe(200);const gallery=await galleryResponse.json();expect(gallery.organizationId).toBe(organization);expect(gallery.branchId).toBe(branch);
   expect((await context.request.get(new URL(`/bff/customer/screensaver-gallery/branches/${randomUUID()}`,base).href)).status()).toBe(403);
   stage='upload-page';await page.goto(new URL('/#media',base).href);
-  await expect(page.getByRole('heading',{name:'Media management',exact:true})).toBeVisible();
+  await expect(page.getByLabel('Current section')).toHaveText('Media management');
   stage='upload-input';const image=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64');
   const name=`draft-media-${randomUUID()}.png`;
-  await page.getByPlaceholder('Catalog product UUID').fill(product);
-  await page.locator('input[type="file"]').setInputFiles({name,mimeType:'image/png',buffer:image});
+  await page.getByLabel('Choose photos').setInputFiles({name,mimeType:'image/png',buffer:image});
   const start=page.waitForResponse(r=>r.url().endsWith('/bff/customer/media/uploads')&&r.request().method()==='POST').catch(()=>null);
   const complete=page.waitForResponse(r=>r.url().endsWith('/complete')&&r.request().method()==='POST').catch(()=>null);
-  stage='upload-request';await page.getByRole('button',{name:'Upload',exact:true}).click();
+  stage='upload-request';await page.getByRole('button',{name:'Upload photos',exact:true}).click();
   const response=await start;if(!response)throw new Error();lastStatus=response.status();expect(lastStatus).toBe(201);stage='upload-session-json';const session=await response.json();assetId=session.asset.id;
   const storageOrigin=new URL(session.uploadUrl).origin;const staffHeaders=(await context.request.get(new URL('/',base).href)).headers();const guestHeaders=(await context.request.get(new URL('/order',base).href)).headers();
   expect(staffHeaders['content-security-policy']).toContain(storageOrigin);expect(guestHeaders['content-security-policy']).not.toContain(storageOrigin);stage='upload-transfer';
@@ -49,7 +48,7 @@ try{
   const badTenant=await context.request.post(new URL('/bff/customer/tenant',base).href,{data:{organizationId:randomUUID(),applicationCode:'nexa_connect'}});expect(badTenant.status()).toBe(403);
   const cashier=await login('draft-cashier',cashierPassword);
   try{expect((await cashier.context.request.get(new URL('/bff/customer/media',base).href)).status()).toBe(403);
-   expect((await cashier.context.request.post(new URL('/bff/customer/media/uploads',base).href,{data:{ownerService:'catalog',ownerType:'product',ownerId:product,fileName:'denied-test.png',contentType:'image/png',sizeBytes:image.length,checksumSha256:createHash('sha256').update(image).digest('hex')}})).status()).toBe(403);
+   expect((await cashier.context.request.post(new URL('/bff/customer/media/uploads',base).href,{data:{ownerService:'media',ownerType:'photo_library',ownerId:organization,fileName:'denied-test.png',contentType:'image/png',sizeBytes:image.length,checksumSha256:createHash('sha256').update(image).digest('hex')}})).status()).toBe(403);
   }finally{await cashier.context.close();}
   stage='deletion';const assets=await get('/bff/customer/media'),asset=assets.find(a=>a.id===assetId);
   expect((await context.request.delete(new URL(`/bff/customer/media/${assetId}?expectedVersion=${asset.concurrencyVersion}`,base).href)).status()).toBe(200);

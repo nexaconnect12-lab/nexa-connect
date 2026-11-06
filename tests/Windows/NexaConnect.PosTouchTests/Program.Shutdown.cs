@@ -171,6 +171,11 @@ internal static partial class Program
             var traceDirectory=Path.Combine(root,"traces",mode);
             if(mode=="journal-unavailable"){Directory.CreateDirectory(Path.GetDirectoryName(traceDirectory)!);File.WriteAllText(traceDirectory,"not-directory");}
             OpenWorkspace(window, auth, ShutdownName(root) + ".Callback",new PosLifecycleTrace(traceDirectory));
+            var platform = new WindowsDisplays();
+            var staffBounds = platform.WindowBounds(new System.Windows.Interop.WindowInteropHelper(window).Handle);
+            Require(window.WindowStyle == WindowStyle.None && window.ResizeMode == ResizeMode.NoResize
+                && platform.Read().Any(monitor => monitor.Primary && monitor.Bounds == staffBounds),
+                "locked startup fills the actual staff monitor without Windows chrome");
             var auxiliary=new Window { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
             auxiliary.Show();
             if(mode=="reassigned-main")MainWindow=auxiliary;
@@ -196,7 +201,8 @@ internal static partial class Program
             }
             closeTimer.Tick += (_, _) => { if (File.Exists(Path.Combine(root, "close"))) { closeTimer.Stop();
                 if(mode=="display-notification"){var coordinator=typeof(MainWindow).GetField("displays",Private)!.GetValue(window)!;var notification=Task.Run(()=>coordinator.GetType().GetMethod("Changing",Private)!.Invoke(coordinator,[null,EventArgs.Empty]));Require(notification.Wait(1000),"display notification never waits on the closing dispatcher");}
-                window.Close();
+                ((System.Windows.Controls.Button)window.FindName("CloseCashierButton")).RaiseEvent(
+                    new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
                 if(mode=="cancelled-close"){Require(window.IsVisible&&!Dispatcher.HasShutdownStarted,"cancelled close retains the workspace");window.Close();}
             } };
             closeTimer.Start();

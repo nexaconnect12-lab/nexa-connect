@@ -46,7 +46,10 @@ export function PortalLayout({ title, description, showWorkspaceHeading = true, 
   };
   const navigation = <Menu className="nexa-navigation" aria-label="Workspace sections" mode="inline" selectedKeys={selectedKey ? [selectedKey] : []}
     items={menuItems} onClick={({ key }) => choose(key)} />;
-  const brand = <div className="nexa-brand"><div className="nexa-brand-mark">nexa / connect</div><div className="nexa-brand-scope">{title}</div></div>;
+  const brand = <div className="nexa-brand">
+    <div className="nexa-brand-mark"><img src="/nexaconnect-icon.svg" width={32} height={32} alt="" />nexa / connect</div>
+    <div className="nexa-brand-scope">{title}</div>
+  </div>;
 
   return <div className="nexa-portal">
     <a className="nexa-skip-link" href="#workspace-content" onClick={event => { event.preventDefault(); main.current?.focus(); }}>Skip to workspace</a>

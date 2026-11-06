@@ -127,7 +127,6 @@ public partial class MainWindow : Window
         }
         InitializeTouchInput();
         viewInitialized = true;
-        Loaded += (_, _) => { if (WindowState == WindowState.Normal) { Width = Math.Min(Width, SystemParameters.WorkArea.Width); Height = Math.Min(Height, SystemParameters.WorkArea.Height); } };
         InitializeMenuPhotos();
         System.Windows.Data.CollectionViewSource.GetDefaultView(menuTiles).Filter = value => value is MenuTile tile && MatchesMenuCategory(tile) && CashierPresentation.MatchesMenu(tile.Item.Name, tile.Item.PreparationStation, MenuSearchTextBox.Text, StationComboBox.SelectedItem as string);
         StationComboBox.ItemsSource = new[] { "All stations" };
@@ -1628,6 +1627,23 @@ public partial class MainWindow : Window
         PosTokenSet? token = _authentication.CurrentToken;
         if (reauthenticationRequired || token is null)
         {
+            if (reauthenticationRequired && !tokenRefreshInFlight && !pinUnlockBusy && signInCancellation is null
+                && !displaySafetyBlocked && DateTimeOffset.UtcNow >= nextTokenRefreshAttemptUtc && _authentication.LockedSessionRenewalDue)
+            {
+                tokenRefreshInFlight = true;
+                try
+                {
+                    await _authentication.MaintainLockedSessionAsync(windowCancellation.Token);
+                    nextTokenRefreshAttemptUtc = DateTimeOffset.MinValue;
+                }
+                catch (Exception)
+                {
+                    if (!windowCancellation.IsCancellationRequested)
+                        nextTokenRefreshAttemptUtc = DateTimeOffset.UtcNow.AddSeconds(15);
+                }
+                finally { tokenRefreshInFlight = false; }
+            }
+            if (windowCancellation.IsCancellationRequested) return;
             RenderCashierReady();
             return;
         }
@@ -1745,7 +1761,15 @@ public partial class MainWindow : Window
     protected override void OnPreviewKeyUp(KeyEventArgs e)
     {
         Key key=e.Key==Key.System?e.SystemKey:e.Key;
-        if(lockPrompt.KeyUp((int)key))e.Handled=true;
+        if (lockPrompt.KeyUp((int)key))
+        {
+            e.Handled = true;
+            if (openPinAfterWakeKey && !lockPrompt.WakeKeyHeld)
+            {
+                openPinAfterWakeKey = false;
+                QueuePinUnlockPrompt();
+            }
+        }
         base.OnPreviewKeyUp(e);
     }
 

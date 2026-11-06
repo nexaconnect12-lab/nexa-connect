@@ -1,11 +1,41 @@
 # NexaConnect POS
 
+The cashier opens borderless and fills the primary monitor until staff assign display
+roles. A saved assignment restores on launch when the physical monitor layout matches.
+**Use staff screen only** clears it. **Close POS** in the cashier header or revealed lock
+panel uses normal shutdown. See [display setup](../../../docs/Deployment/Next-Iteration-Phase-4.md).
+
+Installer-managed POS checks for an update at ordinary launch when the local
+`update-source.json` is configured. The worker checks the version, file hash and
+Windows-trusted signer pin, then reuses Setup before any cashier session opens.
+See [startup updates](../../../docs/Deployment/POS-Startup-Updates.md).
+
+The Windows executable, cashier window and cashier header use the shared NexaConnect
+icon. The customer display continues to show the merchant's shop name and media.
+
+The staged 0.8.4 client uses the saved Windows queue for direct receipt printing,
+with the Windows dialog available through **Ask each time**. On wake, an eligible cashier
+gets the PIN keypad directly. The running POS can renew a locked session privately through
+the existing absolute deadline. Physical installation and retest remain pending. See [printer setup](../../../docs/Deployment/POS-UX5-Receipt-Printing.md#configure-and-use)
+and [locked-session renewal](../../../docs/Identity/POS-Session-PIN.md#locked-session-renewal).
+
+[Physical-display placement correction](../../../docs/Deployment/POS-Display-Placement-Fix.md)
+originally constrained staff moves and maximize frames. The cashier now fills the monitor.
+The correction still refits the public customer window on harmless placement/DPI
+notifications. Real topology/staff-DPI failures still
+mask and retain original work. The separate backend is refreshed; the correction is retained
+in the staged [0.8.4 update bundle](../../../docs/Identity/POS-Session-PIN.md#locked-session-renewal).
+Physical installation/device retest is pending. The new pilot's
+three photo selections were independently verified as unassigned, consistent with their
+404 photo-delivery results; upload alone does not assign or approve an image.
+
 [Physical device onboarding](../../../docs/Deployment/POS-Physical-Device-Onboarding.md)
 prepares a dedicated terminal in a separate fresh-data LAN pilot and versioned private EXE
 transfer. The native client and installer retain existing HTTPS/public-client/custody checks;
 no credentials or protected recovery are copied from the development terminal. The separate
 backend is Ready/provisioned; account PC and CA installation are operator-confirmed, while
-physical-device checker/install and actual sign-in/device acceptance remain pending.
+physical installation and display use are now operator-reported. Formal device acceptance
+remains pending; development-PC checks do not substitute for the physical-device checker.
 
 Pending-refund feedback is installed in matching release 2707248d6f6b4ecaa449ffefefbf3305: verification
 shows its result above the inner form scroll and in the main status, with a 20-second
@@ -123,10 +153,11 @@ text/Enter while this mode is enabled; click/tap or Tab then Space confirms deli
 No global hooks, offline map or scanner preference persistence. See
 [UX6 setup, duplicate handling and actual-device gates](../../../docs/Deployment/POS-UX6-Barcode-Scanning.md).
 
-**Terminal & sync → Receipt printer** saves a Windows queue and Standard (default)/80 mm
+**Terminal & sync → Input & devices → Receipt printer** saves a Windows queue and Standard (default)/80 mm
 layout separately from input preferences. Preview or explicitly print a labelled synthetic
-test; Windows confirms each job. Sales/refund reprints reload live authorized original
-receipts before/after the dialog and reject stale sessions/changed content. Printer errors
+test. The direct-print follow-up sends explicit print actions to the saved queue, while
+**Ask each time** opens the Windows dialog. Sales/refund reprints reload live authorized
+original receipts before queue preparation and again before submission. Printer errors
 never collect or refund again. See [UX5 setup, failures and pending PDF/hardware acceptance](../../../docs/Deployment/POS-UX5-Receipt-Printing.md)
 and [printing responsibilities](Printing/README.md).
 
@@ -168,8 +199,10 @@ UX4 refreshes once a minute while active or locked with a valid gallery-only rea
 across each assigned monitor. Aspect-preserving images fill the display with edge cropping;
 a centered staff authentication panel starts hidden and appears on tap/click/keypress, while the customer view
 has only approved images/optional public text and no authentication/transaction content.
-The first gesture only reveals the panel; select Resume/Authenticate separately to start
-original-cashier authentication. Escape or Back to screensaver hides controls and stays locked.
+In the PIN wake follow-up, a tap/click or release of the wake key opens the masked keypad
+for an eligible cashier. Cancelling exposes the lock panel with PIN retry and full sign-in.
+When PIN resume is unavailable, the panel offers full sign-in. Escape or Back to screensaver
+hides controls and stays locked.
 During authentication the panel stays visible so cancellation remains available.
 Validated PNGs/public text have a five-minute maximum lease in a bounded DPAPI cache; invalid,
 expired or removed content becomes neutral branding. Defaults remain disabled/neutral until
@@ -182,11 +215,10 @@ scope and original subject, expire after 24 hours, and clear on sign-out/denial.
 remain five minutes. Unchanged playlists retain rotation across refresh. See
 [UX4 rollout, failures and pending acceptance](../../../docs/Deployment/POS-UX4-Locked-Gallery.md).
 
-Staff screensaver placement snapshots and restores prior window bounds/chrome on resume.
-It uses physical monitor bounds, including the taskbar area, without spanning monitors.
-Without assigned display roles it uses the sole monitor or the unique monitor containing
-the window; ambiguous/overlapping geometry is not enlarged. Display/DPI/unsafe-move changes
-retain the existing neutral safety lock. This is application fullscreen, not OS kiosk mode.
+The staff screensaver shares the cashier's borderless full-monitor bounds and retains
+them through resume. The main window starts on the primary monitor and uses the explicit
+staff role after assignment. Ambiguous geometry and display/DPI changes retain the neutral
+safety lock.
 
 Local draft build-enabled Start now publishes the persisted Media profile's validated
 loopback endpoint into `Services:MediaApi` in both saved and published settings. Default/off
@@ -237,7 +269,7 @@ The Receipts workspace includes manager-authorized refunds for captured provider
 
 The Payment tab can cancel the current manual pre-payment Order with a required printable reason and explicit confirmation. Before send it persists the reason and pending status alongside the DPAPI-protected settlement idempotency UUID, so restart or response loss offers only verification of the same server command. Completed cancellation clears checkout recovery; pending disables payment and review disables both payment and another cancellation. Provider-payment, offline, and post-capture refund cancellation are outside this control. See the [Order cancellation contract](../../../docs/API/Order-Cancellation.md).
 
-The Receipts tab automatically previews a newly Paid Order and retrieves prior receipts by Order ID. It validates the server snapshot before rendering, stores only a protected last-Order reference, clears receipt contents on session lock/sign-out, and reloads with live `order.read` authorization before/after every Windows print dialog. Receipt or printer failure never changes Paid; keep the Order ID and retry retrieval without collecting again. UX5 adds ordinary Windows driver selection and 80 mm layout; vendor protocols/device certification and fiscal tax invoices remain planned. See [paid-order receipt contract](../../../docs/API/Paid-Order-Receipts.md).
+The Receipts tab automatically previews a newly Paid Order and retrieves prior receipts by Order ID. It validates the server snapshot before rendering, stores only a protected last-Order reference, clears receipt contents on session lock/sign-out, and reloads with live `order.read` authorization before queue preparation and again before submission. Receipt or printer failure never changes Paid; keep the Order ID and retry retrieval without collecting again. UX5 adds ordinary Windows driver selection and 80 mm layout; vendor protocols/device certification and fiscal tax invoices remain planned. See [paid-order receipt contract](../../../docs/API/Paid-Order-Receipts.md).
 
 New orders require a server pricing preview and explicit bill confirmation. Confirmed fingerprints persist before send; pricing changes retain the original checkout identity and require another confirmation. Accepted breakdowns persist with pending settlement and are displayed after restart. This requires the pricing-capable Order API and migration 8; hardware/live OIDC acceptance remains separate. See [pricing contract and rollout](../../../docs/API/Order-Pricing.md).
 
@@ -248,7 +280,7 @@ A read-only POS Omise acceptance verifier now checks one Paid test-card Order, o
 
 Opt-in Development-only `card_omise_test` checkout now forwards a masked, transient test token from POS to Order and Payment. Pending intents without a token await a fresh operator token; retries use the original Order identity and contents. For an original pending checkout, POS enables token input only after Verify original order returns validated `cardTokenRequired=true`; that permission is memory-only and cleared on each attempt/session lock. Tokens never enter SQLite/outbox or durable workflow state. The opt-in five-scenario hosted Omise gate passed on 2026-09-18, including pre-authorization/token handoff. Local POS Omise verification passed on 2026-09-18 with operator-attested UI/OIDC/sign-out; the verifier does not independently inspect those interactions. Production browser card collection remains planned. See the [configuration and acceptance guide](../../../docs/Deployment/Omise-POS-Card-Token-Handoff.md).
 
-This project is the Windows WPF POS client scaffold. It opens Keycloak in the system browser, uses Authorization Code + PKCE S256, validates the callback state, redeems the code without a client secret, and stores the resulting token set with the Windows Data Protection API under the current user's profile. While the operator is active, it renews the short-lived access token with the rotated refresh token. Five minutes without key, click, or touch input locks the workspace, and a ten-hour absolute boundary clears online credentials; both require fresh interactive Keycloak authentication while preserving shift, cash, order, outbox, and review recovery. The current operational slice opens and closes a server-side shift through the POS API, persists the active shift identifier locally, and provides a menu-driven order-entry screen that submits to the authenticated Order workflow endpoint.
+This project is the Windows WPF POS client scaffold. It opens Keycloak in the system browser, uses Authorization Code + PKCE S256, validates the callback state, redeems the code without a client secret, and stores the resulting token set with the Windows Data Protection API under the current user's profile. While the operator is active, it renews the short-lived access token with the rotated refresh token. Five minutes without key, click, or touch input locks the workspace for PIN or credential verification. The ten-hour absolute boundary requires fresh interactive Keycloak authentication. Both preserve shift, cash, order, outbox, and review recovery. The current operational slice opens and closes a server-side shift through the POS API, persists the active shift identifier locally, and provides a menu-driven order-entry screen that submits to the authenticated Order workflow endpoint.
 
 The operational UI also provides cash-session reconciliation/open/close, terminal enrollment, offline outbox replay, and an Order-owned cashier Paid control for Bangkok cash and manually verified PromptPay. Shift & cash shows the server-calculated opening amount, signed net movements, expected cash, counted-cash variance preview, and movement history. A successful close is authoritative only after the closed summary is read back from the service. If that read fails after the close response, the UI labels its local variance as verification pending and keeps Refresh reconciliation available for that closed session. Terminal & sync lists unresolved operation identity, state, attempts, status, and last attempt without exposing protected payloads. `%LOCALAPPDATA%\NexaConnect\POS\pos-state.db` schema 2 owns shift, cash-session, checkout, settlement, pending cash-review, and outbox state. Payloads are DPAPI-protected for the current Windows user, the database is permanently bound to organization/branch/store/terminal scope, and WAL plus `synchronous=FULL` protect committed transitions. Cash movement enqueue commits before its first HTTP attempt. `sending` rows return to `queued` after process interruption; HTTP `400`, `403`, and `409` become `rejected`; transient failures return to `queued`; successful acknowledgements become `completed`. The UI provides authenticated retry and no unaudited discard. Cash close remains blocked by unresolved movements.
 

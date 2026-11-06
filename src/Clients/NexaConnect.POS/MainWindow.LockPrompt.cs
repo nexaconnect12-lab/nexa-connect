@@ -1,11 +1,13 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace NexaConnect.POS;
 
 public partial class MainWindow
 {
     private readonly LockPromptState lockPrompt=new();
+    private bool openPinAfterWakeKey;
     private void RenderUnlockChoice()
     {
         bool signingIn = signInCancellation is not null;
@@ -39,14 +41,28 @@ public partial class MainWindow
     {
         lockPrompt.SetLocked(reauthenticationRequired&&!displaySafetyBlocked);
         if(!lockPrompt.Reveal())return false;
-        RenderLockPrompt(true);return true;
+        RenderLockPrompt(true);
+        QueuePinUnlockPrompt();
+        return true;
     }
     private bool HandleLockPromptKey(KeyEventArgs e)
     {
         lockPrompt.SetLocked(reauthenticationRequired&&!displaySafetyBlocked);
         Key key=e.Key==Key.System?e.SystemKey:e.Key;
+        bool wasVisible = lockPrompt.Visible;
         if(!lockPrompt.KeyDown((int)key,key==Key.Escape,signInCancellation is not null))return false;
+        if (!wasVisible && lockPrompt.Visible) openPinAfterWakeKey = true;
         RenderLockPrompt(true);return true;
+    }
+    private void QueuePinUnlockPrompt()
+    {
+        if (!_authentication.CanQuickUnlock || windowCancellation.IsCancellationRequested) return;
+        int generation = receiptSessionGeneration;
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            if (generation == receiptSessionGeneration && lockPrompt.Visible)
+                PinUnlock_Click(this, new RoutedEventArgs());
+        }, DispatcherPriority.Background, windowCancellation.Token);
     }
     private void BackToScreensaver_Click(object sender,RoutedEventArgs e)
     {

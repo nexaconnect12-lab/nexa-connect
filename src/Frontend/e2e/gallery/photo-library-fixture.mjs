@@ -5,7 +5,7 @@ export async function fulfillPhotoLibrary(route,photos){
  if(url.pathname.startsWith('/bff/customer/media-library/assets/')){await route.fulfill({contentType:'image/png',body:photoPng});return true;}
  if(url.pathname!=='/bff/customer/media-library')return false;
  const query=url.searchParams.get('search')?.toLocaleLowerCase()??'',ready=url.searchParams.get('readyOnly')==='true',page=Number(url.searchParams.get('page')??1);
- const rows=photos.filter(a=>a.ownerService==='catalog'&&a.ownerType==='product'&&(!ready||a.processingStatus==='ready')&&a.originalFileName.toLocaleLowerCase().includes(query));
+ const rows=photos.filter(a=>(a.ownerService==='catalog'&&a.ownerType==='product'||a.ownerService==='media'&&a.ownerType==='photo_library')&&(!ready||a.processingStatus==='ready')&&a.originalFileName.toLocaleLowerCase().includes(query));
  await route.fulfill({json:{items:rows.slice((page-1)*24,page*24),hasMore:rows.length>page*24,page}});return true;
 }
 export async function pickPhoto(page,name){

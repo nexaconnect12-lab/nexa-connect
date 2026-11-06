@@ -1,0 +1,4 @@
+{
+  "manifest": "https://updates.example.invalid/windows-pos/pos-update.json",
+  "publisherCertificateSha256": "REPLACE_WITH_APPROVED_SIGNING_CERTIFICATE_SHA256"
+}

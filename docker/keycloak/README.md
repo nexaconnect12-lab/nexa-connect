@@ -67,6 +67,14 @@ Do not commit users, passwords, client secrets, signing keys, sessions, or expor
 
 ## Production image
 
+The production image includes the optional `nexaconnect` login theme. The joined cashier
+pilot mounts the same theme read-only. To use it in another stock-image deployment,
+mount `docker/keycloak/themes/nexaconnect` at `/opt/keycloak/themes/nexaconnect` read-only.
+In the intended realm, select **Realm settings → Themes → Login theme → nexaconnect**
+and save. Open a fresh sign-in page and check the browser tab. Select the previous theme
+to revert. The theme inherits Keycloak's login UI and supplies only the favicon.
+The checked-in realm import continues to use its existing theme selection.
+
 `Containerfile` performs Keycloak's build step ahead of startup and enables health and metrics support. A production deployment must additionally supply TLS or trusted reverse-proxy configuration, explicit public and administrative hostnames, managed secrets, database backups, resource limits, and an availability topology appropriate to its recovery objectives.
 
 See the [production runbook](../../docs/Identity/Production-Runbook.md) and `docker-compose.production.yml` for the supported deployment contract and preflight checks.

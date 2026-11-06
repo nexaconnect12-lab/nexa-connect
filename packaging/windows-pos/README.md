@@ -1,14 +1,22 @@
 # Windows POS private EXE candidate
 
+The packaging script passes the shared NexaConnect ICO to Inno Setup. The Desktop
+and Start menu shortcuts and uninstall entry use the icon embedded in the POS executable.
+
 [Physical device onboarding](../../docs/Deployment/POS-Physical-Device-Onboarding.md)
 adds a separate fresh-data LAN profile and immutable transfer folders around this installer.
 `Test-DeviceOnboarding.ps1` runs on the intended Windows account with Windows PowerShell
 5.1+, requires `-ExpectedManifestSha256` obtained separately, verifies fixed bundle files and normal TLS/OIDC/API
 denial, and installs nothing. Bundles contain a canonical public CA, never private keys or
 DPAPI state. Updates can compare prior bundle custody/version; actual setup preflight remains
-authoritative. No automatic update or public download is introduced.
+authoritative. Signed builds also emit `pos-update.json` for an opt-in UNC or HTTPS
+[startup update feed](../../docs/Deployment/POS-Startup-Updates.md). Private unsigned
+builds use the manual install workflow.
 Verify the manifest with Windows `Get-FileHash` and check the checker/CA hashes against it
 before executing that script or installing trust; the checker cannot authenticate itself.
+Run it from the copied bundle folder with explicit `-BundleDirectory .`; the current
+checker has a known Windows PowerShell 5.1 default-directory failure. Explicit-directory
+verification passed without changing the checker or bypassing TLS/hash checks.
 
 The Inno Setup definition is compiled by `scripts/package-pos-installer.ps1`. It embeds
 an offline ZIP of the actual self-contained win-x64 POS, with runtime/native dependencies.

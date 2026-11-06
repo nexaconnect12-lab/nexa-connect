@@ -23,14 +23,24 @@ a new settlement rule. Existing source-service transactions/idempotency remain u
 Explicitly select distinct staff/customer monitors each startup. Place windows using physical
 pixel coordinates and PerMonitorV2 awareness, not WPF DIP coordinates. The customer window
 cannot activate and contains no operational input. Constrain staff geometry to its assigned
-monitor. Topology/DPI changes, unexpected customer-window closure or unsafe staff movement
-close customer output, mask staff content and invoke the existing retained-work lock. Do not
+monitor. The 5 November 2026 [0.8.1 placement follow-up](../../Deployment/POS-Display-Placement-Fix.md)
+originally constrained staff moves and maximization to the work area. The current staff
+window fills the monitor and keeps exact bounds through native move/resize attempts.
+Customer-only window state/DPI events refit the existing public view while topology and
+private staff bounds remain valid; they do not authenticate or change custody. Actual
+topology/settings changes, staff-DPI changes, unexpected customer closure and unresolvable
+unsafe placement close customer output, mask staff content and invoke retained-work lock. Do not
 automatically move protected work to another monitor or resurrect a customer window after
-reconnection. Stop customer use and restart on the private staff screen to reassign roles.
+reconnection in the same process. Stop customer use and restart after checking the private
+staff screen and the Windows display layout.
 
 Single-screen staff operation remains the default. An authenticated, non-busy operator may
-explicitly close customer output while the assignment is intact. Assignments are not persisted;
-restart begins without a customer window and existing interactive-login guards still apply.
+explicitly close customer output and clear saved roles. Successful role assignment writes
+a bounded local preference for the Windows account and terminal. Startup restores only
+when the saved hash of monitor interface identities, device names, physical bounds and the
+primary display matches the current layout. Customer output begins with a public welcome
+view, and existing interactive-login guards still apply. A missing or incompatible
+preference falls back to staff-only on the primary monitor.
 
 ## Clearing and isolation
 
@@ -55,3 +65,11 @@ long-order readability and actual device selection remain Phase 9 acceptance. Ap
 and distinct screensavers remain Phase 5.
 
 See [Phase 4 verification and operations](../../Deployment/Next-Iteration-Phase-4.md).
+
+## Staff window presentation follow-up
+
+The cashier window is borderless and fills its current staff monitor in every session
+state. Before role assignment it starts on the Windows primary monitor. Explicit roles
+select the staff and customer bounds separately. Closing from the cashier surface uses
+the normal shutdown path. Display faults continue to hide staff content and close the
+customer window.

@@ -37,6 +37,8 @@ internal static partial class Program
                 "refund picker reuses the paginated paid-orders workspace");
             Load();
             Require(receipts.IsSelected && id.Text == refundSelectionIntent.ToString("D"), "selection binds original intent without UUID typing");
+            Require(((TabItem)window.FindName("ProviderRefundSection")).IsSelected,
+                "original-payment selection opens the provider-refund section without issuing a command");
             string details = ((TextBlock)window.FindName("RefundSelectedPaymentText")).Text;
             Require(details.Contains("ORDER-REFUND") && details.Contains("Noodle soup") && details.Contains("100.00"), "readable original payment details are shown");
             Require(!issue.IsEnabled, "selection never automatically issues or confirms a refund");

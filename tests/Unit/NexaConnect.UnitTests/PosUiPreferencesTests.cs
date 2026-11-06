@@ -7,6 +7,36 @@ public class PosUiPreferencesTests
     private static string DirectoryForTest() => Path.Combine(Path.GetTempPath(), "NexaConnect-InputTests", Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void Display_roles_survive_reopen_and_explicit_single_screen_clears_them()
+    {
+        string path = DirectoryForTest();
+        var preferences = new PosUiPreferences(path);
+        var roles = new PosDisplayRoles("staff", "customer", new string('a', 64));
+        Assert.Null(preferences.LoadDisplayRoles());
+        preferences.SaveTouchFirst(true);
+        preferences.SaveDisplayRoles(roles);
+        var reopened = new PosUiPreferences(path);
+        Assert.Equal(roles, reopened.LoadDisplayRoles());
+        Assert.True(reopened.LoadTouchFirst());
+        reopened.SaveDisplayRoles(null);
+        Assert.Null(new PosUiPreferences(path).LoadDisplayRoles());
+        Assert.True(new PosUiPreferences(path).LoadTouchFirst());
+    }
+
+    [Theory]
+    [InlineData("{")]
+    [InlineData("{\"Version\":2,\"Roles\":{}}")]
+    [InlineData("{\"Version\":1,\"Roles\":null}")]
+    [InlineData("{\"Version\":1,\"Roles\":{\"StaffDevice\":\"staff\",\"CustomerDevice\":\"staff\",\"LayoutHash\":\"x\"}}")]
+    public void Invalid_display_preferences_are_ignored(string content)
+    {
+        string path = DirectoryForTest();
+        Directory.CreateDirectory(path);
+        File.WriteAllText(Path.Combine(path, "displays.json"), content);
+        Assert.Null(new PosUiPreferences(path).LoadDisplayRoles());
+    }
+
+    [Fact]
     public void New_terminal_defaults_to_keyboard_and_mouse_without_writing_files()
     {
         var path = DirectoryForTest();

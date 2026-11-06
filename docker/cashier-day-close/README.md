@@ -1,5 +1,8 @@
 # Disposable cashier-to-day-close infrastructure
 
+The Keycloak container mounts the [optional NexaConnect login theme](../keycloak/README.md#production-image)
+read-only. Recreate an existing container to add the mount before selecting the theme.
+
 The Slice 5 historical cashier-cutoff launcher supplies Order `Services:POS` for strict terminal admission and both host environment variables explicitly. The test-only fixture accepts Singapore or Bangkok business calendars; production binaries receive no clock override. Current cutoff acceptance requires eighteen browser cases plus six Authorization persistence cases. See [manager guide](../../docs/Deployment/First-Draft-Manager.md).
 
 RabbitMQ probes run as its broker user (`gosu rabbitmq rabbitmq-diagnostics`) to avoid a root probe creating an inaccessible Erlang cookie during server startup. The [owned local draft topology](../first-draft/README.md) extends this template with persistent generated volumes; the disposable cashier acceptance lifecycle still removes its own resources.

@@ -1,5 +1,8 @@
 # Omise test token helper
 
+The tab uses the NexaConnect favicon from the helper's own static files. When changing
+the branding, sync this SVG with `assets/branding/nexaconnect-icon.svg`.
+
 Development-only static browser tokenization helper, bound to `https://localhost:54443`. It uses the normal ASP.NET Core HTTPS development certificate. Provision and trust that certificate with `dotnet dev-certs https --trust` before starting; do not bypass browser certificate warnings. This is separate from the untrusted, certificate-pinned provider simulator.
 
 ```powershell

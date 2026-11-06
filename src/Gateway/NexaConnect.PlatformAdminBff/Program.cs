@@ -85,6 +85,7 @@ app.UseStaticFiles(new StaticFileOptions
     OnPrepareResponse = context =>
     {
         context.Context.Response.Headers.CacheControl = context.File.Name.Equals("index.html", StringComparison.OrdinalIgnoreCase)
+            || context.File.Name.Equals("nexaconnect-icon.svg", StringComparison.OrdinalIgnoreCase)
             ? "no-cache"
             : "public,max-age=31536000,immutable";
     }

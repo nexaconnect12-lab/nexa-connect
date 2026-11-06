@@ -19,9 +19,9 @@ public sealed class MediaLibraryPersistenceTests
             string scripts=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../../src/Tools/NexaConnect.DataMigration/Scripts/Media"));
             foreach(var directory in Directory.GetDirectories(scripts).Order()){await using var migration=source.CreateCommand(await File.ReadAllTextAsync(Path.Combine(directory,"up.sql")));await migration.ExecuteNonQueryAsync();}
             Guid org=Guid.NewGuid(),foreign=Guid.NewGuid();var management=new PostgresMediaManagementRepository(source);var library=new PostgresMediaAssetRepository(source);
-            async Task<MediaAssetSummary> Seed(Guid owner,string name,string service="catalog",string type="product")
+            async Task<MediaAssetSummary> Seed(Guid owner,string name,string service="catalog",string type="product",Guid? ownerId=null)
             {
-                Guid id=Guid.NewGuid();return await management.StartAsync(owner,id,$"organizations/{owner:D}/assets/{id:D}/original",new(service,type,Guid.NewGuid(),name,"image/png",10,new string('a',64)),"fixture",DateTimeOffset.UtcNow.AddMinutes(10),new(100000,100),default);
+                Guid id=Guid.NewGuid();return await management.StartAsync(owner,id,$"organizations/{owner:D}/assets/{id:D}/original",new(service,type,ownerId??Guid.NewGuid(),name,"image/png",10,new string('a',64)),"fixture",DateTimeOffset.UtcNow.AddMinutes(10),new(100000,100),default);
             }
             for(int i=0;i<30;i++)await Seed(org,$"Photo {i:00}.png");
             await Seed(foreign,"Foreign.png");await Seed(org,"Bank QR.png","restaurant","promptpay_qr");
@@ -36,6 +36,10 @@ public sealed class MediaLibraryPersistenceTests
             Assert.Empty((await library.BrowseAsync(foreign,new("Photo"),default)).Items);
             await using(var ready=source.CreateCommand("UPDATE media_assets SET processing_status='ready',processed_at_utc=now() WHERE id=$1")){ready.Parameters.AddWithValue(literal.Id);await ready.ExecuteNonQueryAsync();}
             Assert.Equal(literal.Id,Assert.Single((await library.BrowseAsync(org,new(ReadyOnly:true),default)).Items).Id);
+            var shared=await Seed(org,"Shared photo.png","media","photo_library",org);
+            await Seed(org,"Shared wrong owner.png","media","photo_library",foreign);
+            await Seed(foreign,"Shared foreign.png","media","photo_library",foreign);
+            Assert.Equal(shared.Id,Assert.Single((await library.BrowseAsync(org,new("Shared"),default)).Items).Id);
         }
         finally
         {

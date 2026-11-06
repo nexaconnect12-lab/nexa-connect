@@ -1,13 +1,45 @@
 # NexaConnect Project Architecture
 
+The Windows cashier window uses borderless full-monitor placement and an in-app close
+button. Local per-terminal display roles restore only when the identified monitor layout
+matches. The separate customer projection retains its topology safety.
+See [staff and customer displays](../../docs/Deployment/Next-Iteration-Phase-4.md).
+
+Managed Windows POS has per-user desktop and Start menu shortcuts and can opt in to
+signed startup updates. A local update worker uses the current profile and existing
+installer recovery guards. See [startup updates](../../docs/Deployment/POS-Startup-Updates.md).
+
+Shared NexaConnect artwork covers both portals, Kitchen and guest ordering tabs,
+Windows POS and its installer, and the Omise test helper. The Keycloak sign-in
+favicon is an optional realm theme. See [branding deployment](../../docs/Deployment/NexaConnect-Branding.md).
+
+The staged 0.8.4 POS bundle adds direct Windows receipt printing to the saved queue
+and opens the masked PIN keypad on wake. An eligible locked session can renew privately
+in memory within its original deadline. The cash drawer requires a verified device adapter.
+
+The [printer follow-up](../../docs/Deployment/POS-UX5-Receipt-Printing.md) refines existing
+WPF receipt geometry for the reported 72×297 mm form and session-fenced print feedback.
+The staged 0.8.4 bundle includes that work and gives receipt previews and provider
+refunds separate scrolling tabs. The LAN backend refresh and transfer staging are
+complete. Physical installation and retest remain pending.
+
+The [0.8.1 physical-display correction](../../docs/Deployment/POS-Display-Placement-Fix.md)
+adds bounded staff movement/maximize and queued customer-window refitting inside existing
+explicit roles. Real topology/staff-DPI and placement failures retain privacy locking and
+original financial recovery. Presentation owns no new API/data/authentication. The separate
+backend refresh and transfer staging were completed for 0.8.1; the correction is retained
+in the staged 0.8.4 bundle, with physical update/retest pending. New-pilot missing menu
+photos are unassigned metadata.
+
 [Physical POS onboarding](../../docs/Deployment/POS-Physical-Device-Onboarding.md) adds an
 explicit fresh-data first-draft LAN profile and `NexaConnect.PosPilotEdge`, separate from
 retained/guest pilots. Its fixed-IP TLS boundary forwards one realm and five staff APIs
 to owned loopback upstreams; owning authorization/financial recovery remain unchanged.
 Versioned private EXE/profile/public-CA bundles and device probes reuse existing installer
-custody guards. No schema/grant or automatic update. The separate backend is Ready/provisioned
-with development-PC trust checked; physical-device trust, installation and Keycloak acceptance
-remain pending. See [ADR-066](../../docs/Architecture/Decisions/ADR-066-isolated-physical-pos-lan-pilot.md).
+custody guards. This onboarding tooling does not enroll terminals in startup updates.
+The separate backend is Ready/provisioned
+with development-PC trust checked. Physical installation/display use and CA installation
+are operator-reported; formal device/Keycloak acceptance remains pending. See [ADR-066](../../docs/Architecture/Decisions/ADR-066-isolated-physical-pos-lan-pilot.md).
 This staff tool rejects OTLP export pending separate identity-URL/scope redaction verification;
 shared structured JSON and validated correlation remain available.
 
@@ -28,7 +60,7 @@ The [compact cashier workspace](../../docs/Deployment/POS-Compact-Cashier-Worksp
 [ADR-065](../../docs/Architecture/Decisions/ADR-065-persistent-cashier-pin.md) supersedes session-only PINs with POS-owned organization/issuer/cashier credentials (POS26, Authorization17, compatibility0.45.0). Protected verifiers, durable five-failure/fifteen-minute lockout, CAS and immutable audit support unchanged PINs across future logins. Native manual/idle or eligible connectivity-expiry resume privately renews provider credentials and verifies online before restoring still-live authority; original custody/max/session/security fences remain. Administrative reset/revoke is API-only, default tenant-admin; no reader/offline authority or provider-policy change. The matched retained pilot is activated with preserved business/recovery data and fresh operator cases pending; existing 50/50 customer projection/gallery behavior remains.
 
 
-The [shared photo library](../../docs/Deployment/Media-Library.md) adds private, paginated product-photo browsing and bounded same-origin PNG thumbnails behind Customer BFF. React menu/gallery editors share a default-grid/details popup picker; candidate selection does not approve or publish. Media keeps bytes/lifecycle, Catalog menu selection and Restaurant gallery approval. No schema/configuration change; batch uploads, metadata editing and other formats remain planned. See [ADR-063](../../docs/Architecture/Decisions/ADR-063-shared-photo-library.md).
+The [shared photo library](../../docs/Deployment/Media-Library.md) adds private, paginated product-photo browsing and bounded same-origin PNG thumbnails behind Customer BFF. React menu/gallery editors share a default-grid/details popup picker; candidate selection does not approve or publish. Media keeps bytes/lifecycle, Catalog menu selection and Restaurant gallery approval. Media management uploads bounded batches to the organization library. Menu and gallery editors select ready photos. Metadata editing and other formats remain planned. See [ADR-063](../../docs/Architecture/Decisions/ADR-063-shared-photo-library.md).
 
 
 The [unified native QR workspace](../../docs/Deployment/POS-QR-Orders-Workspace.md) combines review, open QR orders and paid history using existing Order-owned contracts and collection/receipt handlers. Memory-only view generations/cursors and QR-only projection guards preserve privacy; navigation never accepts or collects. Manual reference lookup is secondary, and all-branch Orders remains. No service, schema, permission, payment or recovery ownership change. The matching retained pilot is installed with preserved state; fresh operator acceptance remains pending.

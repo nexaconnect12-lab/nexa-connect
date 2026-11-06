@@ -25,6 +25,25 @@ public sealed class MediaManagementTests
     }
 
     [Fact]
+    public async Task Shared_photo_requires_the_active_organization_as_owner_without_a_catalog_product()
+    {
+        var repo = new Repo();
+        var service = Service(repo, owners: new Owners { Exists = false });
+        var command = new StartMediaUploadCommand("media", "photo_library", repo.Org, "photo.png", "image/png", 10, new string('a', 64));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.StartAsync(repo.Org, command with { OwnerId = Guid.NewGuid() }, "actor", default));
+        await service.StartAsync(repo.Org, command, "actor", default);
+        Assert.Equal(command, repo.Command);
+        Assert.StartsWith($"organizations/{repo.Org:D}/assets/", repo.Key);
+
+        var found = Asset();
+        repo.Found = found with { Asset = found.Asset with { OwnerService = "media", OwnerType = "photo_library", OwnerId = repo.Org, ProcessingStatus = "ready" } };
+        repo.Variant = "processed-variant";
+        Assert.Equal(new byte[] {1, 2, 3}, await new MenuPhotoDelivery(repo, new Storage(), new PhotoEncoder()).ReadAsync(repo.Org, repo.Id, default));
+        repo.Found = repo.Found.Value with { Asset = repo.Found.Value.Asset with { OwnerId = Guid.NewGuid() } };
+        Assert.Null(await new MenuPhotoDelivery(repo, new Storage(), new PhotoEncoder()).ReadAsync(repo.Org, repo.Id, default));
+    }
+
+    [Fact]
     public async Task Start_generates_tenant_scoped_key_and_normalizes()
     {
         var repo = new Repo(); Guid org = Guid.NewGuid();

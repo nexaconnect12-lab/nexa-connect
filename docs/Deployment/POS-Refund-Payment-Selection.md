@@ -8,7 +8,37 @@ variable is required. Fresh operator/provider acceptance remains pending.
 
 ## Workflow
 
-1. Open **Receipts → Choose paid order…**. The existing Orders workspace opens with
+### Receipt workspace scrolling follow-up
+
+The source follow-up separates **Receipt preview** and **Provider refund** into inner
+tabs under Receipts. Each uses the available bounded height instead of stacking an
+auto-sized refund form above a starved preview. Both have visible vertical scrollbars;
+wide receipt pages also allow horizontal scrolling. The outer input viewport remains
+available when minimum window height or the optional keyboard requires it, above the
+existing bottom workflow panel. The refund status stays outside its form scroll area.
+
+Successful/failed original-payment selection opens **Provider refund**; loading an
+authorized receipt opens **Receipt preview**. Tab selection itself submits no refund,
+print or payment, and the existing authorization, confirmation, pending-refund and
+session/privacy guards remain. The 0.8.3 backend refresh and private bundle staging
+completed on 6 November 2026.
+The isolated native fixture verifies final receipt/action reachability at 1366×768,
+1093×614 and 960×520 in both densities. The full native suite passed again after adding
+the original-payment-to-refund-tab assertion; actual terminal retest remains required.
+
+On 6 November 2026, the matching LAN backend passed read-only TLS, sign-in and
+authorization checks after the 0.8.3 refresh. The preservation check retained 463 original
+business rows across 203 checked tables and all 16 checked scope and key-ring files.
+The six bundle files passed hash comparison after transfer to
+`\\192.168.0.191\Shared\NexaConnect-POS-0.8.3-b1bd29fd`.
+
+The 0.8.4 bundle includes this layout. Use its installation guide and then verify both
+Receipts tabs on the terminal. [0.8.4 installation and verification](../Identity/POS-Session-PIN.md#locked-session-renewal)
+
+The 0.8.3 staging record used manifest SHA-256
+`1ec3d28406033015b833350aba8c3f1a8a5db292b4e5fe5960b9f7a222385a4d`.
+
+1. Open **Receipts → Provider refund → Choose paid order…**. The existing Orders workspace opens with
    all sources and Paid orders selected, retaining bounded 25-row pagination and Refresh.
 2. Select the original order using its order number, created date, table and total.
    Choose **Review for refund**. This action only reads; it never submits a refund.

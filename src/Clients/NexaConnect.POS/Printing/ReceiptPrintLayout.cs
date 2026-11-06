@@ -21,11 +21,15 @@ public sealed record ReceiptPrintLayout(double Width, double Height, double Left
         double rightEdge = Math.Min(width - margin, x + printableWidth);
         if (paper == ReceiptPaper.Roll80)
         {
-            if (width + 1 < 80 * Millimetre) throw new InvalidDataException("Select an 80 mm or wider paper size in printer preferences.");
+            // Receipt drivers may expose a 72 mm form for nominal 80 mm stock.
+            // Fit the actual reported page; never invent bounds or enlarge its content.
+            if (width + 1 < 72 * Millimetre) throw new InvalidDataException("Select a receipt form at least 72 mm wide in printer preferences.");
             rightEdge = Math.Min(rightEdge, 76 * Millimetre);
         }
         var result = new ReceiptPrintLayout(width, height, left, top, width - rightEdge, Math.Max(margin, height - y - printableHeight));
-        if (result.ContentWidth < 64 * Millimetre || height - result.Top - result.Bottom < 20 * Millimetre)
+        // Avoid rejecting an exact 64 mm result through floating-point subtraction.
+        const double arithmeticTolerance = 0.0000001;
+        if (result.ContentWidth + arithmeticTolerance < 64 * Millimetre || height - result.Top - result.Bottom + arithmeticTolerance < 20 * Millimetre)
             throw new InvalidDataException("Printer printable area is too small for this receipt layout.");
         return result;
     }

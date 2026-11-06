@@ -1,5 +1,8 @@
 # NexaConnect Customer BFF
 
+The shared portal favicon uses `Cache-Control: no-cache` so browsers revalidate its
+stable URL after a branding update.
+
 GET `/bff/customer/media-library` and `/assets/{asset}/thumbnail` derive protected selected-tenant/stable subject and recheck current Directory membership. Bounded JSON/PNG forwarding uses dedicated redirect-disabled `MediaLibraryDirectory`/`MediaLibraryMedia` clients with shared correlation and URI logging removed. Existing Services addresses/session/Media authority apply; no new setting or guest route. Query service `nexaconnect-customer-bff` / `Media library BFF`; see [contract/bounds/debugging](../../../docs/API/Media-Library.md).
 
 

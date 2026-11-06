@@ -1,5 +1,7 @@
 # Product Owner Portal
 
+The sidebar and browser tab use the shared NexaConnect icon.
+
 Phase 2 uses the shared responsive shell, keyboard skip navigation, compact-screen drawer
 and labeled session/summary loading and read-error feedback. Existing platform capabilities,
 hash sections, OIDC client/cookie and mutation contracts are unchanged. See

@@ -8,6 +8,21 @@ public sealed class DisplayTopologyTests
     private static PosMonitor Customer => new("customer", new(-1280, 0, 0, 1024), new(-1280, 0, 0, 984), false);
 
     [Fact]
+    public void Saved_roles_match_the_same_physical_monitors_regardless_of_enumeration_order()
+    {
+        var staff = Staff with { MonitorId = "physical-staff" };
+        var customer = Customer with { MonitorId = "physical-customer" };
+        var roles = new PosDisplayRoles(staff.Device, customer.Device, DisplayTopology.LayoutHash([staff, customer])!);
+        Assert.True(roles.Matches([customer, staff]));
+        Assert.False(roles.Matches([staff]));
+        Assert.False(roles.Matches([staff with { MonitorId = customer.MonitorId }, customer with { MonitorId = staff.MonitorId }]));
+        Assert.False(roles.Matches([staff, customer with { Bounds = new(-1024, 0, 0, 768) }]));
+        Assert.False(roles.Matches([staff with { Primary = false }, customer with { Primary = true }]));
+        Assert.Null(DisplayTopology.LayoutHash([staff, customer with { MonitorId = null }]));
+        Assert.Null(DisplayTopology.LayoutHash([staff, customer with { MonitorId = staff.MonitorId!.ToUpperInvariant() }]));
+    }
+
+    [Fact]
     public void Roles_require_explicit_distinct_extended_monitors()
     {
         var policy = new DisplayTopology();

@@ -1,16 +1,106 @@
 # POS UX5 — printer setup and 80 mm receipts
 
+Latest operator observation, 5 November 2026: paper output is now reported, with bottom
+text too close to the manual tear edge. The operator can adjust feed spacing in the
+printer settings and explicitly requests no code adjustment for this. Use the driver's
+feed setting; no application feed command or additional layout change was implemented.
+This updates the earlier pending-output observations below; exact installed version,
+final feed distance and complete physical receipt acceptance were not supplied.
+
+## Physical POS diagnostic follow-up — 5 November 2026
+
+The operator reports that the POS806UE Windows test page prints, while the POS test
+dialog closes with no paper and the application remains responsive. The main status
+continues to show “Preparing test print…”. Source review found that completion updated
+only the printer-panel message. The source follow-up now copies the session-current
+completion result to both that panel and the main status, including cancellation/failure;
+the existing privacy/session fence remains. The operator subsequently reported that Windows
+offers a **72 × 297 mm** form. The nominal 80 mm receipt layout now fits reported page widths
+of at least 72 mm, including 79.5 mm page reports, with the existing one-DIP width rounding tolerance.
+The old 80 mm minimum (and the first, superseded 79.5 mm-only 0.8.2 candidate) would reject 72 mm.
+That earlier candidate was never bundled or installed; the prepared replacement is described below.
+Side margins, actual driver imageable bounds, 64 mm minimum content and 20 mm minimum
+height remain enforced. A full-imageable 72 mm form yields 64 mm content; a restricted
+imageable area can still fail safely. Only the final content-width/height minimum comparisons
+use a `0.0000001` DIP arithmetic tolerance to avoid rejecting an exact boundary through
+floating-point subtraction; this does not invent or enlarge the driver-reported bounds.
+These source fixes are not installed yet.
+
+Successful physical POS output is still unconfirmed. Before another attempt,
+read the message directly below the printer buttons and inspect the Windows queue for
+the original test job. A successful Windows test page does not verify WPF driver bounds
+or POS spool submission. The selected form is user-reported; the driver's actual imageable
+bounds are not yet measured. No Windows
+driver was changed, and financial operations/retry behavior are unchanged; no physical POS
+output is claimed. Cancellation/failure feedback is covered by the isolated native settings
+fixture without opening a live printer or submitting jobs. The 18 focused receipt-printing
+tests and all-page native glyph/pagination checks passed for the 72 × 297 mm source update,
+including original totals and rejected insufficient imageable bounds. The complete native
+touch/input/settings fixture also passed its repeat against the current 72 mm update.
+These checks do not establish hardware output or resolve the physical driver's cause.
+
+## Prepared 0.8.2 update and physical retest
+
+The staging records and hashes below document 0.8.2. Use the staged 0.8.4 bundle for
+installation, then follow the current printer setup under **Configure and use**.
+[0.8.4 installation and verification](../Identity/POS-Session-PIN.md#locked-session-renewal)
+
+After the operator confirmed physical POS closure, the separate LAN pilot was backed up,
+rebuilt and restored to Ready/provisioned. Read-only preservation checks retained 405
+original business rows across 203 checked tables, excluding volatile delivery/authorization
+and processing state. Sixteen original scope/key-ring files were unchanged and all 17
+protected credential values were preserved. Original application/identity database backups
+and data volumes were retained; the physical machine's local recovery was not inspected.
+Strict HTTPS/PKCE cashier sign-in, menu/history/PIN-status reads, wrong-terminal denial,
+anonymous staff denial and hidden admin/guest boundaries passed without financial/PIN writes.
+
+The six public replacement files are staged at
+`\\192.168.0.191\Shared\NexaConnect-POS-0.8.2-b1bd29fd`.
+The Windows PowerShell checker passed with an explicit bundle directory; all copied hashes
+matched. The versioned/source-bound bundle reuses the same issuer, terminal and public CA.
+This private unsigned package is **not installed on the physical POS yet**. No paper output
+is claimed. The original normal/QR pilots were not refreshed by this maintenance.
+
+On the physical POS as ordinary Windows account **PC**, keep POS closed and copy the whole
+folder locally. Follow the [onboarding integrity checks](POS-Physical-Device-Onboarding.md)
+before executing scripts: verify `onboarding.json` SHA-256 against
+`dc22a59f12a2a81dda030a613a5b182b1f9c2602df2da94589bc44e277145d8f`, then verify checker/CA
+hashes against that trusted manifest. From the copied folder run:
+
+```powershell
+powershell.exe -NoProfile -File .\Test-DeviceOnboarding.ps1 -BundleDirectory . -ExpectedManifestSha256 dc22a59f12a2a81dda030a613a5b182b1f9c2602df2da94589bc44e277145d8f
+```
+
+Run `NexaConnect-POS-setup.exe`, selecting the included `terminal-profile.json`. Installer
+SHA-256: `785acacfa4d38fb03527858e6a881e003acad992ec7cc3a69e55e26a9af8aae5`.
+No new certificate or PIN enrollment is required. After restart, authenticate as the original
+cashier, check retained work and reapply the staff/customer display roles if used.
+
+In Windows printer preferences retain the user-reported **72 × 297 mm** form. In POS open
+**Terminal & sync → Input & devices → Receipt printer**, refresh/select the same Windows
+queue that prints successfully, select **80 mm roll**, and **Save printer settings**.
+Choose **Print test receipt**, confirm that queue and form in the Windows dialog, and print
+once. Record the new main/panel result and actual paper/queue outcome. If submission is
+uncertain, inspect the original job before retrying. Do not create or recollect a sale to
+test printing. Driver imageable bounds and successful physical output remain acceptance gates.
+
+## Existing setup
+
 After installing the [terminal-sections follow-up](POS-UX10-Windows11-Cashier.md#terminal-sections-follow-up),
 printer controls are under **Terminal & sync → Input & devices → Receipt printer**. Earlier
 releases place them directly on the Terminal & sync page; the workflow below is otherwise unchanged.
 
 Implemented and installed in the retained local pilot on 28 October 2026. Saved-PDF
 inspection and actual printer acceptance remain pending. On 5 November 2026 the user
-confirmed PAISHUO **POS806UF**, paper notation `79.5|0.5mm`; earlier supplied connection
+confirmed PAISHUO **POS806UE**, paper notation `79.5|0.5mm`; earlier supplied connection
 is USB. Confirm paper tolerance, installed Windows driver/queue and exact printable area
 on the device. The connected DK/DRAWER cable does not enable POS drawer opening.
 
 ## Configure and use
+
+The staged 0.8.4 bundle includes direct printing. It uses an explicitly saved
+Windows queue and its user print ticket, falling back to the queue's default ticket
+when needed. Terminal installation and physical print testing remain pending.
 
 1. Sign in and open **Terminal & sync → Receipt printer**. Select **Refresh printers**.
    Discovery runs off the UI thread and lists installed Windows local/connected queues.
@@ -20,16 +110,18 @@ on the device. The connected DK/DRAWER cable does not enable POS drawer opening.
    page (default)** or **80 mm roll**, then **Save printer settings**. The selection is
    saved per Windows user and full organization/restaurant/branch/store/terminal scope.
    It is independent of default-off touch input and Standard/Touch display density.
-3. Select **Preview test receipt** to inspect synthetic text without printing. **Print
-   test receipt** explicitly opens the Windows dialog and prints a document marked
+3. Select **Preview test receipt** to inspect synthetic text. **Print test receipt**
+   sends the job through the selected mode and prints a document marked
    **TEST PRINT — NOT A SALE**. It creates no order, payment, refund or cash movement.
-4. The saved queue is preselected in the dialog; the operator still confirms every job.
-   A different queue chosen in that dialog applies only to that job. Save settings to
-   change the terminal's preference. Missing saved queues fail without substituting a
-   default printer; refresh and explicitly select another queue or Ask each time.
+4. An explicit print action sends directly to the saved queue. **Ask each time** opens
+   the Windows dialog, where a queue choice applies to one job. If a saved queue is
+   missing, refresh printers and select a replacement or **Ask each time**.
+   On POS-80, choose **Printing Preferences → Print Settings → CashDrawer → NONE**
+   so sales, test receipts, reprints and refunds can print without a driver-triggered
+   drawer opening. Cash-sale-triggered opening requires the separate drawer integration.
 5. Set the actual paper size/orientation in the driver's print preferences. This POS
    layout does not install drivers, configure paper forms or force custom driver sizes.
-   The 80 mm layout requires reported paper width at least 80 mm (one DIP rounding
+   The nominal 80 mm layout accepts driver forms at least 72 mm wide (one DIP rounding
    tolerance), at least 64 mm usable content and 20 mm usable vertical space. Missing,
    invalid or undersized bounds fail before spool submission.
 6. In **Receipts**, load an original paid Order or completed provider refund, inspect its
@@ -47,8 +139,8 @@ receipt, not a fiscal tax invoice; no business identity or tax fields are invent
 ## Authorization, failures and custody
 
 Sales reads retain live branch `order.read`; completed provider refund reads retain live
-`payment.refund.read`. Every print reloads/validates before the dialog and again after it
-closes, verifies unchanged receipt content, and checks the original session/generation at
+`payment.refund.read`. Every print reloads and validates before queue preparation and
+again before submission, verifies unchanged receipt content, and checks the original session/generation at
 each asynchronous boundary. Refund lookup also checks the exact requested refund UUID.
 Lock/sign-out/display safety prevents a pending print from starting submission; already
 submitted Windows jobs cannot be withdrawn by POS lock. Delayed refund results cannot

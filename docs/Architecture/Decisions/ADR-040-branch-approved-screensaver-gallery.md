@@ -49,7 +49,8 @@ or enter the financial pipeline. Cached promotion is not offline authorization o
 On 27 October 2026, presentation expands approved images across each assigned monitor,
 preserving aspect ratio and cropping edges to fill. A compact staff overlay keeps resume
 and sign-out available; the customer view retains no controls. Staff fullscreen uses physical
-monitor bounds and restores prior window geometry/chrome on resume. A monitor lease rejects
+monitor bounds. The [cashier full-screen follow-up](ADR-039-pos-staff-customer-displays.md#staff-window-presentation-follow-up)
+keeps those bounds on resume. A monitor lease rejects
 ambiguous/overlapping layouts and changed topology; existing privacy fencing remains active.
 This trades complete edge visibility for full-display imagery without changing approval,
 authentication, lease or financial authority. It does not establish OS kiosk restrictions.

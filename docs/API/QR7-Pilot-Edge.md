@@ -9,7 +9,7 @@ Allowed upstream paths/methods are closed:
 
 | Method | Path |
 | --- | --- |
-| GET | `/order`, `/order/`, flat known-format `/assets/<name>.(js,css,woff2,png,svg)` |
+| GET | `/order`, `/order/`, `/nexaconnect-icon.svg`, flat known-format `/assets/<name>.(js,css,woff2,png,svg)` |
 | GET | `/bff/guest/qr/context`, `/menu`, `/requests` under that guest prefix |
 | POST | `/bff/guest/qr/sessions`, `/quote`, `/requests` under that guest prefix |
 | POST | `/bff/guest/qr/requests/{guid}/confirm-price` |

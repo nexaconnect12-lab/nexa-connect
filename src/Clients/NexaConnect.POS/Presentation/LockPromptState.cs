@@ -6,6 +6,7 @@ public sealed class LockPromptState
     public bool Locked { get; private set; }
     public bool Visible { get; private set; }
     private int? wakeKey;
+    public bool WakeKeyHeld => wakeKey.HasValue;
     public bool SetLocked(bool locked)
     {
         if(Locked==locked)return false;

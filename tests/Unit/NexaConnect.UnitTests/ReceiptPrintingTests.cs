@@ -67,6 +67,15 @@ public sealed class ReceiptPrintingTests
         Assert.Equal(80 * mm, preview.Width); Assert.Equal(72 * mm, preview.ContentWidth, 6);
         var pdf = ReceiptPrintLayout.ForPage(ReceiptPaper.Roll80, 210 * mm, 297 * mm, 3 * mm, 3 * mm, 204 * mm, 291 * mm);
         Assert.Equal(preview.ContentWidth, pdf.ContentWidth, 6); Assert.Equal(preview.Left, pdf.Left, 6);
+        var stock = ReceiptPrintLayout.ForPage(ReceiptPaper.Roll80, 79.5 * mm, 200 * mm, 3 * mm, 0, 73.5 * mm, 200 * mm);
+        Assert.InRange(stock.ContentWidth / mm, 71.49, 71.51);
+        Assert.True(stock.Left >= 3 * mm && stock.Width - stock.Right <= 76.5 * mm);
+        Assert.Throws<InvalidDataException>(() => ReceiptPrintLayout.ForPage(ReceiptPaper.Roll80, 79.5 * mm, 200 * mm, 15 * mm, 0, 64.5 * mm, 200 * mm));
+        var narrowForm = ReceiptPrintLayout.ForPage(ReceiptPaper.Roll80, 72 * mm, 297 * mm, 0, 0, 72 * mm, 297 * mm);
+        Assert.Equal(64 * mm, narrowForm.ContentWidth, 6);
+        Assert.Equal(72 * mm, narrowForm.Width);
+        Assert.Throws<InvalidDataException>(() => ReceiptPrintLayout.ForPage(ReceiptPaper.Roll80, 72 * mm, 297 * mm, 9 * mm, 0, 63 * mm, 297 * mm));
+        Assert.Throws<InvalidDataException>(() => ReceiptPrintLayout.ForPage(ReceiptPaper.Roll80, 70 * mm, 200 * mm, 0, 0, 70 * mm, 200 * mm));
         Assert.Throws<InvalidDataException>(() => ReceiptPrintLayout.ForPage(ReceiptPaper.Roll80, 58 * mm, 200 * mm, 0, 0, 58 * mm, 200 * mm));
         Assert.Throws<InvalidDataException>(() => ReceiptPrintLayout.ForPage(ReceiptPaper.Roll80, 80 * mm, 200 * mm, 13 * mm, 0, 67 * mm, 200 * mm));
         Assert.Throws<InvalidDataException>(() => ReceiptPrintLayout.ForPage(ReceiptPaper.Standard, double.NaN, 500, 0, 0, 500, 500));

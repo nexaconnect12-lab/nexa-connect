@@ -1,5 +1,9 @@
 # NexaConnect frontend foundations
 
+Both portal builds copy the icon formats from [shared branding](../../assets/branding).
+The portal shell and tab use the SVG. Dedicated Kitchen and guest ordering inherit
+the Customer Portal tab icon.
+
 The Customer Portal [photo-library slice](../../docs/Deployment/Media-Library.md) reuses Ant Design for a default thumbnail grid, details view and contextual menu/gallery popup. Existing upload and explicit approval flows remain separate; no second UI framework is introduced.
 
 
@@ -11,7 +15,7 @@ UX13 Customer Portal adds **Menu availability**: branch/name selection, explicit
 
 UX11 adds a dedicated Menu categories page: branch picker, category creation/rename/order, searchable product assignment and explicit versioned save/conflict recovery. QR menus use the same categories/order plus search; filters retain cart state and layout failure falls back to all items. Existing photo approval remains separate. See [UX11](../../docs/Deployment/POS-UX11-Menu-Organization.md).
 
-Customer Media management now selects menu products by name, reuses ready uploaded images or uploads for the selected product, previews and explicitly approves the branch selection. Guest QR menus use same-origin optional photos; absent/error photos leave cart/pricing usable. No UUID typing or public storage URL is needed for photo assignment/display. See [manager steps](../../docs/Deployment/Menu-Photos.md).
+The shared upload follow-up gives Media management batch uploads. Menu management selects a ready photo for the named product, previews it and explicitly approves the branch assignment. Guest QR menus display optional same-origin photos and keep cart and pricing usable if photo loading fails. [Manager steps and rollout](../../docs/Deployment/Menu-Photos.md)
 
 QR6 pins patched Zod4.6.7, updates form-validation peer compatibility and uses z.guid() in financial API schemas to preserve the existing .NET GUID format. Existing scope, money, safe-version/date and authorization checks remain. New GUID/bounded-collection tests and preparation/cutoff/seal/settlement browser regressions accompany the QR matrix; both dependency audits remain required. See [QR6](../../docs/Deployment/QR6-Integration.md) and [dependency policy](../../docs/Deployment/Frontend-Dependency-Hardening.md).
 

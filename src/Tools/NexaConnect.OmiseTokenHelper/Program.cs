@@ -12,7 +12,7 @@ var app = builder.Build();
 app.UseNexaConnectRequestLogging();
 app.Use(async (context, next) =>
 {
-    context.Response.Headers.ContentSecurityPolicy = "default-src 'none'; script-src 'self' https://cdn.omise.co; connect-src https://vault.omise.co; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+    context.Response.Headers.ContentSecurityPolicy = "default-src 'none'; script-src 'self' https://cdn.omise.co; connect-src https://vault.omise.co; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
     context.Response.Headers.CacheControl = "no-store";
     context.Response.Headers["Referrer-Policy"] = "no-referrer";
     context.Response.Headers.XContentTypeOptions = "nosniff";

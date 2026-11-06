@@ -1,5 +1,48 @@
 # NexaConnect Project Architecture
 
+Windows POS uses borderless staff bounds through sign-in, checkout and lock. Its local
+display coordinator restores terminal-scoped roles against the saved monitor-layout hash
+or starts on the primary monitor. Normal close remains available in the staff UI and topology faults
+still hide private content. See [ADR-039](Decisions/ADR-039-pos-staff-customer-displays.md).
+
+Managed Windows POS can check an opt-in UNC or HTTPS release manifest before opening
+the workspace. A bounded local worker stages a newer publisher-pinned Authenticode
+installer, waits for the POS process to exit, and delegates installation to Setup's
+existing current-account custody and recovery checks. See [ADR-042](Decisions/ADR-042-pos-private-exe-installer.md)
+and [startup update operations](../Deployment/POS-Startup-Updates.md).
+
+The [shared branding assets](../Deployment/NexaConnect-Branding.md) are built into
+the portals and Windows packages. Guest ordering can load the public favicon through
+the QR pilot edge. Keycloak supplies its favicon through an optional login theme.
+
+Media management uploads batches into the organization-owned photo library through the
+existing Media lifecycle. Menu and screensaver editors select ready photos from the same
+library and each editor saves its own approval. Existing product-owned photos remain
+available through the same purpose-scoped reads. [Shared photo workflow](../Deployment/Media-Library.md)
+
+The staged 0.8.4 POS client supports direct Windows spool submission from the saved queue and shows
+the PIN keypad on wake for an eligible lock. Bounded background renewal serializes with
+PIN resume and keeps rotation in the suspended memory slot. Live online PIN verification
+still gates workspace access. The POS-80 driver should use CashDrawer NONE. The separately
+authorized cash drawer hook requires a verified hardware adapter before activation.
+
+The [0.8.2 printer follow-up](../Deployment/POS-UX5-Receipt-Printing.md) stays within existing
+native receipt presentation: fit validated 72×297 mm driver geometry and publish test-print
+completion through the existing session fence. Data ownership, authorization and one-attempt
+spool submission remain unchanged. The staged 0.8.4 bundle includes the printer correction
+and bounded scrolling for separate receipt-preview and provider-refund tabs. The refreshed
+LAN backend passed its read checks. Physical installation and retest remain pending.
+[0.8.4 installation and retest](../Identity/POS-Session-PIN.md#locked-session-renewal)
+
+The [0.8.1 physical POS placement follow-up](../Deployment/POS-Display-Placement-Fix.md)
+introduced staff work-area constraints and queued customer-only refits. Current cashier
+placement uses full-monitor bounds, and customer refits still require current topology
+and safe staff bounds. Real topology/staff-DPI/placement failures still mask/lock original work;
+late/disposed callbacks cannot recreate output. No service, schema or authority change.
+See [ADR-039](Decisions/ADR-039-pos-staff-customer-displays.md). The separate backend is
+refreshed and the correction is retained in the staged 0.8.4 bundle; physical update/retest
+is pending. The earlier 0.8.1 staging remains historical evidence.
+
 The [physical-device LAN pilot](../Deployment/POS-Physical-Device-Onboarding.md) is a new,
 explicitly isolated fresh-data first-draft topology on the development PC. A separate
 `nexaconnect-pos-pilot-edge` HTTPS tool admits the two configured private PCs, forwards
@@ -8,9 +51,10 @@ and preserves owning authorization/idempotency/financial boundaries. A new-run-o
 Compose override fixes the canonical Keycloak issuer; administration stays loopback.
 Immutable versioned onboarding bundles reuse the existing installer/custody model and
 export only public profile/canonical CA bytes. No database or grant changes, retained
-issuer migration, public distribution or automatic update. The separate backend is now
+issuer migration, public distribution or startup update enrollment. The separate backend is now
 Ready/provisioned with development-PC trust and canonical issuer reachability verified;
-physical-device installation/identity acceptance remain gated. [ADR-066](Decisions/ADR-066-isolated-physical-pos-lan-pilot.md)
+physical installation/display use is operator-reported, while formal device/identity acceptance
+remains gated. [ADR-066](Decisions/ADR-066-isolated-physical-pos-lan-pilot.md)
 records the decision and trust/maintenance constraints.
 The staff tool retains shared JSON/correlation telemetry but rejects OTLP export configuration
 pending separate outbound identity-URL and hosting-scope redaction verification.
@@ -216,9 +260,10 @@ The native client's Printing component owns queue preferences, imageable-page la
 WPF Windows-spool integration behind a testable driver/job seam. Staff settings and test
 preview remain client presentation. Full-scope current-user `printing.json` is separate
 from input and protected financial state. Standard/dialog defaults remain; 80 mm is optional.
-Sales and refund prints reload through existing authorized Order/Payment reads before and
-after the dialog, fence session changes and require unchanged receipt content before one
-explicit submission. No new API, database, business command or shared service rule is added.
+The direct-print follow-up submits explicit print actions to a saved queue using its print
+preferences. The default Ask each time mode opens the dialog. Sales and refund prints use
+authorized Order/Payment reads before queue preparation and again before submission, with
+session and receipt-content checks.
 The byte-oriented hardware facade, drawer/scanner and vendor protocols remain separate.
 See [component](../../src/Clients/NexaConnect.POS/Printing/README.md) and
 [rollout, verification and remaining hardware gates](../Deployment/POS-UX5-Receipt-Printing.md).
@@ -369,10 +414,11 @@ reads Restaurant's live branch-authorized selection and supplies only ready sele
 product variants as bounded PNGs. POS uses a scoped current-user protected cache with a
 maximum five-minute lease and independent lock-screen rendering. Fullscreen images fill
 each assigned display with aspect-preserving cropping; staff authentication controls start
-hidden and a first gesture reveals a centered original-operator resume/sign-out panel
-without authenticating. The customer view has no controls. Physical monitor
-leases and existing topology/DPI/movement fencing protect placement, restoring prior staff
-geometry/chrome on resume. UX4 adds a separate gallery-only reader; no new OAuth client,
+hidden. The PIN wake follow-up opens the masked keypad on the first tap or wake-key release
+for eligible cashiers. The centered lock panel offers sign-in fallback. The customer view
+has no controls. Physical monitor
+leases and existing topology/DPI/movement fencing protect placement. Staff resumes in
+the same borderless geometry. UX4 adds a separate gallery-only reader; no new OAuth client,
 business command, table, permission or offline selling capability is added. See
 [ADR-040](Decisions/ADR-040-branch-approved-screensaver-gallery.md),
 [API](../API/Screensaver-Gallery.md) and [operations/evidence](../Deployment/Next-Iteration-Phase-5.md).

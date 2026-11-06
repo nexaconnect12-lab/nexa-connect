@@ -1,8 +1,17 @@
 # Next iteration phase 0 — baseline and execution assessment
 
+5 November 2026 operator follow-up: receipt paper now prints, with manual tearing; the
+operator will adjust trailing feed spacing in Windows printer settings and explicitly
+requests no application-code adjustment for that spacing. The cash drawer is also reported
+working. The opening mechanism/test trigger was not specified, so this confirms the
+operator's hardware observation, not implementation or acceptance of POS-triggered opening.
+
 5 November 2026 delivered-equipment update (user-reported): both S200D displays are
-**1366×768**. Printer model is **PAISHUO POS806UF**, with paper width supplied as
+**1366×768**. Printer model is **PAISHUO POS806UE**, with paper width supplied as
 `79.5|0.5mm` (confirm whether this means 79.5 ± 0.5 mm; printable width is not established).
+The operator separately reports a **72×297 mm Windows driver form**. This is a selected
+page/form size, not a measurement of the physical stock or the driver's imageable bounds;
+actual printable bounds and successful POS paper output remain unverified.
 The USB Type-A 2D barcode/QR reader is labelled **ROHS S26332**; ROHS is recorded as supplied,
 not treated as a verified manufacturer or SDK. The **4141P drawer connects to the printer's
 DK/DRAWER port**. This supersedes the earlier unknown resolution/model/connection below.
@@ -111,7 +120,7 @@ These findings identify review targets; they are not a complete security certifi
 | E03 | Separate portal origins intended | Domain/DNS ownership, certificate method, identity origin and administrative access method unconfirmed | Phase 6 external access |
 | E04 | Off-server recovery required | Backup destination, retention, recovery time/data-loss objectives, alert recipient and maintenance owner unconfirmed | Phase 6 restore and phase 8 readiness |
 | E05 | Delivered S200D: Windows 11, purchased specification Intel Core i5 5th generation, 8 GB RAM, 128 GB SSD; 15.6-inch staff and 11.6-inch customer displays. User confirms both displays 1366×768 on 5 November 2026; earlier seller 1920×1080 possibility is not the delivered resolution | Confirm Windows scaling/DPI, staff/customer assignment, per-screen touch, OS edition/architecture, exact CPU, display topology and disconnect/reconnect behavior on the device | Phases 4, 7 hardware verification; phase 9 |
-| E06 | Delivered PAISHUO POS806UF printer, paper notation `79.5|0.5mm`; USB Type-A 2D barcode/QR reader labelled ROHS S26332; PAISHUO 4141P drawer connected to printer DK/DRAWER port. Earlier printer details were USB/80 mm/200 DPI; Microsoft Print to PDF remains a separate test target | Confirm installed printer driver/queue, paper tolerance and printable area, scanner HID/keyboard or other interface and suffix, vendor-supported drawer command/electrical compatibility. Physical tests remain pending; drawer opening disabled | Phase 9 and separately scoped peripheral acceptance |
+| E06 | Delivered PAISHUO POS806UE printer, paper notation `79.5|0.5mm` and separately user-reported Windows form **72×297 mm**; form size is not measured stock/imageable bounds. USB Type-A 2D barcode/QR reader labelled ROHS S26332; PAISHUO 4141P drawer connected to printer DK/DRAWER port. Earlier printer details were USB/80 mm/200 DPI; Microsoft Print to PDF remains a separate test target | Confirm installed printer driver/queue, paper tolerance and actual imageable area/POS output, scanner HID/keyboard or other interface and suffix, vendor-supported drawer command/electrical compatibility. Physical tests remain pending; drawer opening disabled | Phase 9 and separately scoped peripheral acceptance |
 | D01 | Idle screen lock, authenticated resume, no work discard | Prefer existing Keycloak interactive flow as the implementation starting point; mechanism/UX reviewed in phase 1. No new PIN, bypass or shared unlock credential approved | Phase 1 |
 | D02 | Gallery selection by authorized staff, approved product/menu assets | Select owning context and permission, playlist schema/version, refresh/capacity/withdrawal rules and fallback branding in phase 5 | Phase 5 |
 | D03 | Professional consistent UI | No logo/style reference confirmed. Provisional reuse: existing green `#14532d`, semantic colours, neutral surfaces, existing typography/frameworks; no claim of user-approved final visual design | Phase 2 rendered review |

@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text.Json;
+
 namespace NexaConnect.POS;
 
 public readonly record struct DisplayBounds(int Left, int Top, int Right, int Bottom)
@@ -9,9 +12,18 @@ public readonly record struct DisplayBounds(int Left, int Top, int Right, int Bo
     public bool Overlaps(DisplayBounds other) => Left < other.Right && Right > other.Left
         && Top < other.Bottom && Bottom > other.Top;
 }
-public sealed record PosMonitor(string Device, DisplayBounds Bounds, DisplayBounds WorkArea, bool Primary)
+public sealed record PosMonitor(string Device, DisplayBounds Bounds, DisplayBounds WorkArea, bool Primary, string? MonitorId = null)
 {
     public string Label => $"{Device} · {Bounds.Width}×{Bounds.Height}{(Primary ? " · primary" : "")}";
+}
+public sealed record PosDisplayRoles(string StaffDevice, string CustomerDevice, string LayoutHash)
+{
+    internal bool IsValid => StaffDevice is { Length: > 0 and <= 32 }
+        && CustomerDevice is { Length: > 0 and <= 32 }
+        && StaffDevice != CustomerDevice && LayoutHash is { Length: 64 } && LayoutHash.All(Uri.IsHexDigit);
+
+    internal bool Matches(IReadOnlyList<PosMonitor> monitors) =>
+        IsValid && string.Equals(LayoutHash, DisplayTopology.LayoutHash(monitors), StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>Fail-closed display role policy; no financial or authentication authority.</summary>
@@ -22,6 +34,16 @@ public sealed class DisplayTopology
     public bool Blocked { get; private set; }
     private PosMonitor[] assignedTopology = [];
     public bool Active => Staff is not null && Customer is not null;
+
+    internal static string? LayoutHash(IReadOnlyList<PosMonitor> monitors)
+    {
+        if (monitors.Count < 2 || monitors.Any(monitor => string.IsNullOrEmpty(monitor.MonitorId))
+            || monitors.Select(monitor => monitor.MonitorId).Distinct(StringComparer.OrdinalIgnoreCase).Count() != monitors.Count)
+            return null;
+        var layout = monitors.OrderBy(monitor => monitor.Device, StringComparer.Ordinal)
+            .Select(monitor => new { monitor.Device, MonitorId = monitor.MonitorId!.ToUpperInvariant(), monitor.Bounds, monitor.Primary });
+        return Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(layout)));
+    }
 
     public bool Assign(IReadOnlyList<PosMonitor> monitors, string staffDevice, string customerDevice)
     {

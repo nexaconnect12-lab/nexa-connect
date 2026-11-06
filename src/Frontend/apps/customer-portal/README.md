@@ -1,5 +1,8 @@
 # NexaConnect Customer Portal
 
+The Customer Portal sidebar and browser tab use the shared NexaConnect icon. The
+Kitchen display and guest ordering pages use the same tab icon.
+
 Inner pages omit the repeated Customer Portal title/description/session-badge banner. The navbar supplies the inner-page title; duplicate inner-page titles are removed. Subsection headings, workspace-selection instructions, the dedicated Kitchen display title and guest ordering titles remain. Sidebar branding, workspace selection and account/navigation controls remain in the portal shell. The additional inner-page title removal is now deployed in matching retained release `2b6baf12d93e4193b61d030d34bae33f` with the [cashier/customer update](../../../../docs/Deployment/POS-Cashier-Ready-And-Customer-Panels.md). Later release verification and read-only real-manager portal checks pass; the earlier remove-only edit itself was not tested or deployed at that time.
 
 The earlier banner-only refinement was activated in retained release
@@ -18,7 +21,7 @@ mutation is issued by these checks. The then-fresh operator pack
 `2bde82cc87344b8086697a33083f6816` had a valid binding and fresh QR candidate with all 17
 cases pending. This does not establish operator, physical-device or production acceptance.
 
-**Media management → Photo library** defaults to a thumbnail grid, with Details, filename search, server pagination, explicit download and confirmed delete. `MediaLibrary` and `MediaPhotoPicker` are reused by **Menu management → Image** and staff/customer screensaver editors. Popup confirmation changes only the draft; preview, explicit public approval and owning save remain mandatory. New product uploads stay in the menu Image editor; batch uploads/metadata editing/other formats remain planned. See [workflow and limits](../../../../docs/Deployment/Media-Library.md).
+**Media management → Photo library** defaults to a thumbnail grid, with Details, filename search, server pagination, explicit download and confirmed delete. `MediaLibrary` and `MediaPhotoPicker` are reused by **Menu management → Image** and staff/customer screensaver editors. Popup confirmation changes only the draft; preview, explicit public approval and owning save remain mandatory. Upload up to ten photos per batch from Media management. The menu Image editor selects photos from the library. See [workflow and limits](../../../../docs/Deployment/Media-Library.md).
 
 
 Configuration → PromptPay QR — manually verified provides branch-scoped PNG preview/upload, separate explicit approval and removal. Live configuration.manage is enforced by owning services; branch discovery uses promptpay-qr. Context change discards the draft, writes require BFF CSRF and uncertain writes require reload without automatic retry. PNG safety does not verify bank/payee; managers approve independently. See [operator guide](../../../../docs/Deployment/POS-Branch-PromptPay-QR.md).
@@ -29,7 +32,7 @@ context changes discard editable proof and uncertain/rejected saves require relo
 retry. PUT uses protected BFF tenant/CSRF. Collisions/sharing remain Catalog-owned. See
 [setup/acceptance](../../../../docs/Deployment/POS-UX6-Barcode-Scanning.md).
 
-Use [the optional local Media profile](../../../../docs/Deployment/First-Draft-Media.md) to test the existing product-image upload form through real storage/scanning/processing. Uploads require explicit menu-image selection and branch approval before QR/POS menu display. The local test runner records bounded results without browser traces or signed URLs.
+Use the optional local Media profile to test **Media management → Upload photos** through real storage, scanning and processing. QR/POS menu display requires selection of a ready image and explicit branch approval in Menu management. The local test runner records bounded results without browser traces or signed URLs. [Local setup and verification](../../../../docs/Deployment/First-Draft-Media.md)
 
 QR8 adds friendly request/collection labels and 15-second mounted, visible/focused read refresh with serialization, cancellation and 20-second timeouts. Guest unknown outcomes retain the original in-memory submission identity for explicit retry; no automatic acceptance/payment or browser persistence. See [QR8](../../../../docs/Deployment/QR8-Usability.md).
 

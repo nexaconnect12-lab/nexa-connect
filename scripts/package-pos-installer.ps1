@@ -3,7 +3,7 @@
 param(
     [Parameter(Mandatory)][string]$CompilerPath,
     [Parameter(Mandatory)][string]$OutputDirectory,
-    [ValidatePattern('^\d{1,4}\.\d{1,4}\.\d{1,4}$')][string]$PackageVersion='0.7.0',
+    [ValidatePattern('^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$')][string]$PackageVersion='0.7.0',
     [switch]$PrivateUnsigned,
     [string]$SignToolPath,
     [ValidatePattern('^[a-fA-F0-9]{40}$')][string]$CertificateThumbprint,
@@ -29,6 +29,8 @@ $releaseSourceJson=& node (Join-Path $PSScriptRoot 'release/source.mjs')
 if($LASTEXITCODE -ne 0){throw 'Release source inventory failed.'}
 $releaseSource=$releaseSourceJson|ConvertFrom-Json
 $template=Join-Path $repoRoot 'packaging/windows-pos/NexaConnect.POS.iss'
+$brandIcon=Assert-TerminalPath (Join-Path $repoRoot 'assets/branding/nexaconnect-icon.ico')
+if(-not (Test-Path -LiteralPath $brandIcon -PathType Leaf)){throw 'The NexaConnect installer icon is missing.'}
 $templateHash=(Get-FileHash -LiteralPath $template -Algorithm SHA256).Hash
 New-Item -ItemType Directory -Path $output | Out-Null
 $payload=Join-Path $output 'payload'
@@ -53,7 +55,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $installerOutput=Join-Path $output 'installer'
 New-Item -ItemType Directory -Path $installerOutput | Out-Null
 $parts=$PackageVersion.Split('.')
-$arguments=@('/Qp',('/DPayloadZip='+$zip),('/DInstallerOutput='+$installerOutput),('/DPackageVersion='+$PackageVersion),('/DVersionMajor='+$parts[0]),('/DVersionMinor='+$parts[1]),('/DVersionPatch='+$parts[2]))
+$arguments=@('/Qp',('/DPayloadZip='+$zip),('/DInstallerOutput='+$installerOutput),('/DBrandIcon='+$brandIcon),('/DPackageVersion='+$PackageVersion),('/DVersionMajor='+$parts[0]),('/DVersionMinor='+$parts[1]),('/DVersionPatch='+$parts[2]))
 if(-not $PrivateUnsigned){
     $signCommand='"'+$SignToolPath+'" sign /sha1 '+$CertificateThumbprint+' /fd SHA256 /tr '+$TimestampUrl+' /td SHA256 $f'
     $arguments+=@('/DSignedBuild=1',('/Spublisher='+$signCommand))
@@ -70,5 +72,9 @@ if((Get-FileHash -LiteralPath $template -Algorithm SHA256).Hash -cne $templateHa
 $hashes=[ordered]@{}
 foreach($file in Get-ChildItem -LiteralPath $payload -File -Recurse | Sort-Object FullName){$hashes[[IO.Path]::GetRelativePath($payload,$file.FullName).Replace('\','/')]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash}
 @{format=1;packageVersion=$PackageVersion;sourceRevision=$before.revision;sourceDirty=$before.dirty;sourceInputHash=$before.inputHash;releaseSource=$releaseSource;installerTemplateHash=$templateHash;runtime='win-x64 self-contained .NET 10 Windows Desktop';privateUnsigned=[bool]$PrivateUnsigned;unsignedPayloadPeCount=$unsigned;setupSha256=(Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash;compilerSha256=(Get-FileHash -LiteralPath $compiler -Algorithm SHA256).Hash;payloadFiles=$hashes;installed=$false;storeSubmitted=$false}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $output 'installer-candidate.json')
+if(-not $PrivateUnsigned){
+    @{version=$PackageVersion;sha256=(Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash} |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $installerOutput 'pos-update.json') -Encoding utf8NoBOM
+}
 Write-Output "Private installer candidate: $setup"
 Write-Output 'No installation, account registration, publication or recovery migration was performed.'

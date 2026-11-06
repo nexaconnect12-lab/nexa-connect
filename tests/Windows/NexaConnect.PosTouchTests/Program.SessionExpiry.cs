@@ -24,6 +24,18 @@ internal static partial class Program
             var pin=(Button)fixture.Window.FindName("PinUnlockButton");var signin=(Button)fixture.Window.FindName("ResumeButton");
             Require(pin.Visibility==Visibility.Visible && Equals(pin.Content,"Unlock with PIN"),"available PIN is the primary unlock action");
             Require(Equals(signin.Content,"Use full sign-in instead") && signin.Style==fixture.Window.FindResource("SessionSignInLink"),"full sign-in is a secondary link beside PIN");
+            bool openedPin = false;
+            _ = fixture.Window.Dispatcher.InvokeAsync(() =>
+            {
+                var prompt = fixture.Window.OwnedWindows.OfType<PosPinEntryWindow>().SingleOrDefault();
+                if (prompt is null) return;
+                openedPin = prompt.IsVisible && prompt.Title == "Unlock with your six-digit PIN";
+                prompt.Close();
+            }, DispatcherPriority.ContextIdle);
+            Invoke(fixture.Window, "RevealLockPrompt");
+            Pump(fixture.Window);
+            Require(openedPin, "waking a PIN-enabled lock opens the keypad without clicking Unlock with PIN");
+            fixture.AssertLocked();
             typeof(PosAuthentication).GetProperty("QuickUnlockClock",Private)!.SetValue(fixture.Auth,new UnlockPresentationClock(DateTimeOffset.UtcNow.AddHours(25)));
             fixture.Tick();
             Require(pin.Visibility==Visibility.Collapsed && Equals(signin.Content,"Sign in to resume"),"expiry replaces PIN with a single sign-in action");

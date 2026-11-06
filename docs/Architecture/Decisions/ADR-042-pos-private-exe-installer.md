@@ -31,19 +31,24 @@ MSI adds no needed scope here; MSIX remains a later separately rehearsed option.
 No terminal config, fixed deployment address, tokens, confidential client or draft state
 is embedded. The operator supplies a strict public hosted profile. Setup stages a frozen
 copy, runs the actual POS read-only preflight and then uses the installer engine to copy
-files/create a Start Menu shortcut/register HKCU callback. An existing other callback
+files/create per-user Desktop and Start menu shortcuts/register HKCU callback. An existing other callback
 requires explicit takeover authorization. The app still validates OAuth state and forwards
 callbacks through its existing current-user pipe; setup never consumes/logs callback data.
 
 A maintenance mutex prevents normal POS startup during maintenance in the same Windows
 logon session. Setup also checks the existing POS mutex and never force-closes POS, closes
-a shift or restarts it. Downgrades of the managed app are blocked. Compatible updates
+a shift or restarts it. An opt-in startup worker checks a UNC or HTTPS manifest before
+the workspace opens. It stages the exact hash-matching newer EXE only with a Windows-valid
+Authenticode signature from the configured certificate fingerprint, waits for POS to
+exit, then runs Setup with the current profile and reopens POS. Manual Setup retains
+its existing operator workflow. See [startup update operations](../../Deployment/POS-Startup-Updates.md).
+Downgrades of the managed app are blocked. Compatible updates
 preserve exact terminal/restaurant/tender/realm custody; endpoint relocation is allowed
 with unchanged custody. Local schema 2, DPAPI scope and retained authentication bindings
 are checked read-only. Installer preflight performs no schema migration or financial replay.
 Existing realms/scopes or old/unreadable recovery require original-installation review.
 
-The uninstaller removes installed programs/shortcut and removes the callback only while
+The uninstaller removes installed programs and shortcuts and removes the callback only while
 its exact command still points to this installation. It retains public config/ownership
 metadata and all external recovery, tokens, display preferences and gallery cache. It does
 not restore another old installation's callback automatically. A wrong-account/device

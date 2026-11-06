@@ -28,7 +28,7 @@ rollout is distinct from UX11's later source-only category implementation.
 1. Sign in to Customer Portal, select the restaurant workspace and open **Menu management**.
 2. Choose a branch, **Load menu**, select the item by name and open **Image**.
 3. Click **Choose from photo library**. The popup defaults to ready thumbnails; search/page or switch to Details. Select a photo and **Use selected photo**. Cancel does not change the draft.
-4. For a new file, use **Upload a new product image → Upload for selected menu item**. JPEG/PNG/WebP up to 10 MiB follow existing checksums, malware/safety checks and variant processing. Wait for ready, refresh the popup and select it. No UUID typing is needed.
+4. For new files, use **Media management → Upload photos**. The shared upload follow-up accepts up to ten JPEG/PNG/WebP files per batch, up to 10 MiB each. Wait for processing, reopen the picker and select a ready photo. [Upload limits and rollout status](Media-Library.md)
 5. Check the branch/item preview, tick public-menu approval and **Save menu image**. To clear, choose **Remove image assignment**, approve and save. A conflict or uncertain response requires an authoritative reload before another save.
 6. Refresh the guest QR and Windows POS menus. Missing/deleted/unready photos leave text usable. Screensaver approval and manual PromptPay bank QR configuration remain separate. See [shared-library workflow and limits](Media-Library.md).
 
