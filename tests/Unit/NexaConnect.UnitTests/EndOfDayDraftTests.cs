@@ -56,11 +56,31 @@ public sealed class EndOfDayDraftTests
         var result=await f.Query.ReadAsync(Org,Branch,new(2026,9,1),"Bearer customer",default);
         Assert.Equal("draft",result.Status);Assert.Contains("recorded_check_is_historical",result.Issues);Assert.Same(f.Check,result.RecordedCompleteness);
     }
+    [Fact] public async Task Manual_refund_day_uses_source_amounts_and_compares_exact_evidence()
+    {
+        string proof = new('a', 64);
+        var f = new Fixture
+        {
+            ManualRefunds = new(15, 5, 2, 1, 1, proof),
+            Projection = new(1, 100, 100, 45, 55, "THB", Now, 15, 5, 2, new string('b', 64))
+        };
+        var report = await f.Query.ReadAsync(Org, Branch, new(2026, 9, 1), "Bearer customer", default);
+        Assert.Equal(45, report.CompletedRefunds);
+        Assert.Equal(55, report.NetSales);
+        Assert.Contains("unresolved_manual_refunds", report.Issues);
+        Assert.Contains("manual_refund_drawer_evidence_gap", report.Issues);
+        Assert.Contains("manual_refund_projection_evidence_gap", report.Issues);
+        Assert.DoesNotContain("projection_totals_differ", report.Issues);
+        f.Projection = f.Projection with { ManualRefundEvidenceVersion = proof };
+        Assert.DoesNotContain("manual_refund_projection_evidence_gap",
+            (await f.Query.ReadAsync(Org, Branch, new(2026, 9, 1), "Bearer customer", default)).Issues);
+    }
     private sealed class Clock:TimeProvider{public override DateTimeOffset GetUtcNow()=>Now;}
     private sealed class Fixture:IEndOfDaySources,IReportingCustomerAuthorizer,IReportingReadRepository,IFinancialCompletenessRepository
     {
         public bool Allowed=true,Fail,WrongScope;public int SourceReads;public string Currency="THB";
         public DashboardSummary Projection=new(0,0,0,0,0,null,null);public FinancialCompletenessObservation? Check;
+        public ManualRefundDaySummary? ManualRefunds;
         public EndOfDayDraft Query=>new(this,this,this,this,new Clock());
         public Task<bool> IsGrantedAsync(Guid org,Guid? branch,string permission,string bearer,CancellationToken ct)
         {Assert.Equal("reporting.sales.read",permission);return Task.FromResult(Allowed&&org==Org&&branch==Branch);}
@@ -68,7 +88,7 @@ public sealed class EndOfDayDraftTests
         public Task<OrderDaySummary> OrderAsync(EndOfDayWindow w,string bearer,CancellationToken ct)=>Task.FromResult(new OrderDaySummary(WrongScope?w with{OrganizationId=Guid.NewGuid()}:w,Now,100,1,1,1,[new("cash",Currency,100)],[Currency]));
         public Task<PaymentDaySummary> PaymentAsync(EndOfDayWindow w,string bearer,CancellationToken ct)
         {if(Fail)throw new HttpRequestException("dependency");return Task.FromResult(new PaymentDaySummary(w,Now,25,1,1,0,["THB"]));}
-        public Task<PosDaySummary> PosAsync(EndOfDayWindow w,string bearer,CancellationToken ct)=>Task.FromResult(new PosDaySummary(w,Now,1,1,1,2,["THB"]));
+        public Task<PosDaySummary> PosAsync(EndOfDayWindow w,string bearer,CancellationToken ct)=>Task.FromResult(new PosDaySummary(w,Now,1,1,1,2,["THB"], ManualRefunds: ManualRefunds));
         public Task<DashboardSummary> DashboardAsync(ReportingRange range,CancellationToken ct)=>Task.FromResult(Projection);
         public Task<SalesReport> SalesAsync(ReportingRange range,CancellationToken ct)=>throw new NotSupportedException();
         public Task<FinancialCompletenessObservation?> LatestAsync(ReportingRange range,CancellationToken ct)=>Task.FromResult(Check);

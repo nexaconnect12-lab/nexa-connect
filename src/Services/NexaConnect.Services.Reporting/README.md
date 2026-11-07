@@ -1,5 +1,10 @@
 # Reporting service
 
+[Manual refund financial reporting](../../../docs/API/Manual-Refund-Reporting.md)
+uses Reporting 23 and the default-off ManualRefundConsumer. Sales and the day-close
+draft show separate POS cash and PromptPay refund totals by completion time.
+The draft compares exact POS evidence. Permanent settlement remains pending.
+
 QR5 reuses existing original Order sale-completed/manual settlement contracts for QR channel/dine_in sales. No Reporting schema, permission or projector behavior changes; local owning integration verifies duplicate original sale events project once. Hosted broker delivery remains separate. See [QR5](../../../docs/Deployment/QR5-Collection.md).
 
 Customer reporting, end-of-day, cutoff and sealed reconciliation entry filters include `customer-user`, consistent with draft provisioning. Existing live organization/branch/product permission checks remain mandatory; the entry role grants no financial authority. [Slice 5 acceptance](../../../docs/Deployment/First-Draft-Manager.md) exercises real manager/accountant reads, cashier denial and actual settlement CSV observations through missing/recovered delivery and source outages/revocation. No schema or new grant.

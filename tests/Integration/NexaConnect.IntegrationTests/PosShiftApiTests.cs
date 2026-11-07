@@ -431,7 +431,8 @@ public sealed class PosShiftApiFactory : WebApplicationFactory<PosProgram>
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new RsaSecurityKey(_signingKey),
-                    ClockSkew = TimeSpan.Zero
+                    ClockSkew = TimeSpan.Zero,
+                    RoleClaimType = "roles"
                 };
             });
             services.RemoveAll<IShiftStore>();
@@ -449,13 +450,14 @@ public sealed class PosShiftApiFactory : WebApplicationFactory<PosProgram>
         });
     }
 
-    public string CreateToken()
+    public string CreateToken(string? subject = null)
     {
         DateTime now = DateTime.UtcNow;
         var claims = new[]
         {
-            new Claim("sub", Subject),
-            new Claim("preferred_username", "integration-test-user")
+            new Claim("sub", subject ?? Subject),
+            new Claim("preferred_username", "integration-test-user"),
+            new Claim("roles", "customer-viewer")
         };
         var token = new JwtSecurityToken(
             issuer: Issuer,

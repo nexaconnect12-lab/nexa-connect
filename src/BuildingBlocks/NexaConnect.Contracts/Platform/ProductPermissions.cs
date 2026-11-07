@@ -4,6 +4,8 @@ public static class ProductPermissions
 {
     public const string PosCashierPinUse = "pos.cashier-pin.use";
     public const string PosCashierPinManage = "pos.cashier-pin.manage";
+    public const string PosManualRefundApprove = "pos.manual-refund.approve";
+    public const string PosManualRefundPayout = "pos.manual-refund.payout";
     public const string CatalogMenuRead = "catalog.menu.read";
     public const string CatalogMenuWrite = "catalog.menu.write";
     public const string InventoryStockRead = "inventory.stock.read";
@@ -53,6 +55,7 @@ public static class ProductPermissions
         RestaurantConfigurationRead, RestaurantConfigurationManage,
         ReportingDashboardRead, ReportingSalesRead, ReportingActivityRead, MediaAssetRead, MediaAssetManage,
         NotificationSend, NotificationRead, KitchenTicketRead, KitchenTicketTransition,
-        PosCashReviewRead, PosCashReviewResolve, PosDrawerManualOpen, PosDrawerCashSaleOpen, PosDrawerRead, PosCashierPinUse, PosCashierPinManage
+        PosCashReviewRead, PosCashReviewResolve, PosDrawerManualOpen, PosDrawerCashSaleOpen, PosDrawerRead, PosCashierPinUse, PosCashierPinManage,
+        PosManualRefundApprove, PosManualRefundPayout
     ];
 }

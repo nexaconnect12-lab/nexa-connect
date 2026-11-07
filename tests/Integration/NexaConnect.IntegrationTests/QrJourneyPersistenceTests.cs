@@ -112,6 +112,12 @@ public sealed class QrJourneyPersistenceTests
             await PublishAndProject(orders,pos,sources["Reporting"],broker,id);
             var mine=Assert.Single((await requests.MineAsync(main.SessionToken,default)).Items);var receipt=(await original.GetReceiptAsync(org,branch,id,default))!;
             Assert.Equal("paid",mine.CollectionStatus);Assert.Equal(receipt.ReceiptNumber,mine.Receipt!.ReceiptNumber);Assert.Equal(receipt.TotalAmount,mine.Receipt.TotalAmount);
+            var evidence = new PostgresManualTenderEvidenceStore(orders);
+            var refundSale = await evidence.ReadRefundSaleAsync(org, restaurantId, branch, id, default);
+            Assert.NotNull(refundSale);
+            Assert.Equal(receipt.TotalAmount, refundSale.Amount);
+            Assert.Equal("cash", refundSale.Method);
+            Assert.Null(await evidence.ReadRefundSaleAsync(org, restaurantId, Guid.NewGuid(), id, default));
             var paidHistory = Assert.Single((await browse.ListAsync(browseScope, "qr", "paid", null, 25, "Bearer fixture", default)).Items);
             Assert.Equal("Paid", paidHistory.Status); Assert.False(paidHistory.CanCollectQr); Assert.Equal("paid", paidHistory.CollectionStatus);
             Assert.Equal(1L,await Count(orders,"orders"));Assert.Equal(1L,await Count(sources["Kitchen"],"kitchen_tickets"));Assert.Equal(9,inventory.GetStock(org,branch).Single().AvailableQuantity);

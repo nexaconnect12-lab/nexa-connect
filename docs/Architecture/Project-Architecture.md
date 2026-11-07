@@ -3,8 +3,16 @@
 The native cash and manual PromptPay review reuses Order's existing scoped immutable
 receipt read. The client shows the original paid tender and amount. Server-side
 domain rules reserve an approved amount and bind payout to the designated cashier's
-terminal and shift. Cash also binds the paying drawer. Durable writes, live
-authorization and reconciliation remain pending.
+terminal and shift. POS 27 serializes operations by original settlement, fences closure
+while payout is unresolved, and posts cash completion and its drawer movement atomically.
+The default-off POS refund API verifies current membership, owning branch, and live
+Authorization 18 grants. Approval reads immutable settlement evidence from Order.
+Recovery reads POS-owned status. The native cashier workspace lists outstanding
+assignments, keeps an exact Windows-protected operation reference, and records
+payout evidence. POS 28 adds the manager workspace, expiring cashier availability
+and append-only release serialized against payout start. Completion writes the POS
+outbox atomically. Reporting 23 projects manual refunds by completion time and the
+day-close draft compares exact evidence. Permanent cutoff and settlement proof remain pending.
 See [ADR-067](Decisions/ADR-067-manual-refund-cashier-custody.md) and
 [manual payment review](../Deployment/POS-Manual-Refund-Review.md).
 

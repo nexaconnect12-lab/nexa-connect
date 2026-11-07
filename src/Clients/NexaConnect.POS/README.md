@@ -1,5 +1,11 @@
 # NexaConnect POS
 
+[Assigned cash and PromptPay refunds](../../../docs/Deployment/POS-Manual-Refund-Review.md#cashier-workspace)
+lets the cashier load assigned approvals, bind payout custody, and record funds
+already returned. A Windows-protected original operation supports lookup after
+interruption. [Manager approval and release](../../../docs/Deployment/POS-Manual-Refund-Review.md#manager-approval-and-release)
+uses a verified original sale and expiring cashier availability. Pilot activation is pending.
+
 [Cash and manual PromptPay review](../../../docs/Deployment/POS-Manual-Refund-Review.md)
 reads the original Paid receipt from the branch order list. Refund recording is pending.
 

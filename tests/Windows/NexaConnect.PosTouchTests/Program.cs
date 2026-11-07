@@ -72,6 +72,9 @@ internal static partial class Program
             VerifyCashierNavigation(window);
             VerifyCompactCheckout(window);
             VerifyRefundSelection(window, config);
+            VerifyAssignedManualRefund(window, config);
+            VerifyAssignedManualRefund(window, config, tamperedTerms: true);
+            VerifyManagerManualRefund(window);
             VerifyQrReview(window, config, args.Contains("--qr-review-preview"));
             VerifyMenuPhotoPresentation(window);
             VerifyMenuOrganization(window,config);
@@ -497,6 +500,10 @@ internal static partial class Program
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             if (inlineSale?.Respond(request) is { } sale) return Task.FromResult(sale);
+            if (managerRefundFixture is { } manager && request.RequestUri!.AbsolutePath.Contains("/manual-refunds/"))
+                return manager.RespondAsync(request, cancellationToken);
+            if (assignedRefundFixture is { } refund && request.RequestUri!.AbsolutePath.Contains("/manual-refunds/"))
+                return refund.RespondAsync(request, cancellationToken);
             if (refundSelectionTesting) return RefundSelectionFixtureResponse(request, configuration, cancellationToken);
             if (request.RequestUri!.AbsolutePath.Contains("/qr-requests", StringComparison.Ordinal)) return QrReviewFixtureResponse(request, cancellationToken);
             if (qrWorkspaceTesting && (request.RequestUri.AbsolutePath.EndsWith("/orders") || request.RequestUri.AbsolutePath.EndsWith("/receipt"))) return QrWorkspaceFixtureResponse(request, configuration);

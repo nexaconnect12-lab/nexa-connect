@@ -1,6 +1,20 @@
 # NexaConnect Data Migration
 
-POS26 adds two cashier credential/audit tables; Authorization17 backfills use and tenant-admin manage grants. Current full catalog223tables, compatibility0.45.0. The standalone default remains0.38.0: select0.45.0 explicitly. Empty26→25→26 is supported; retained credential/audit history blocks downgrade. Preserve the POS Data Protection key ring with database backups. See [storage](../../../docs/Database/Cashier-PIN.md).
+Reporting 23 adds one manual refund fact table at compatibility 0.48.0.
+Populated facts prevent downgrade. See [manual refund reporting](../../../docs/API/Manual-Refund-Reporting.md).
+
+POS 28 adds manual refund readiness and release at compatibility 0.47.0.
+Retained release history prevents downgrade. See [storage](../../../docs/Database/POS-Manual-Refunds.md).
+
+POS 27 adds four manual refund tables and two closure guards. The migration requires
+application compatibility 0.46.0. At introduction the full catalog defined 227 tables.
+The standalone launcher still defaults to 0.38.0.
+Authorization 18 adds manual refund permission grants at the same compatibility.
+Provision approval limits separately and retain the grants until started payouts are resolved.
+POS 27 can roll back while empty. Any retained refund sale makes the migration
+forward-only. See [storage](../../../docs/Database/POS-Manual-Refunds.md).
+
+POS26 adds two cashier credential/audit tables; Authorization17 backfills use and tenant-admin manage grants. At introduction the full catalog had 223 tables at compatibility 0.45.0. Empty26→25→26 is supported; retained credential/audit history blocks downgrade. Preserve the POS Data Protection key ring with database backups. See [storage](../../../docs/Database/Cashier-PIN.md).
 
 Catalog9 adds menu_version and one append-only details audit table: at introduction **Catalog31/full221**, compatibility0.44.0. Existing metadata and references are preserved; matched legacy writers advance versions. Standalone default remains0.38.0; select0.44.0 explicitly. See [details persistence/recovery](../../../docs/Database/Menu-Details.md).
 

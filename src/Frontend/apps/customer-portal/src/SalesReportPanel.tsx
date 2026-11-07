@@ -5,7 +5,8 @@ import { ApiError, createApiClient } from "@nexaconnect/api-client";
 import { Completeness, readCompleteness, reportWindow } from "./financialCompleteness";
 
 type SalesReport={items:Array<{orderId:string;channel:string;serviceType:string;currency:string;totalAmount:number;orderStatus:string;orderedAtUtc:string}>;
-  grossSales:number;refundedAmount:number;netSales:number;currency?:string;latestGlobalCheckpointUpdatedAtUtc?:string};
+  grossSales:number;refundedAmount:number;netSales:number;currency?:string;latestGlobalCheckpointUpdatedAtUtc?:string;
+  manualCashRefunds?:number;manualPromptPayRefunds?:number};
 const api=createApiClient({onUnauthorized:()=>location.assign("/bff/customer/login")});
 
 export function SalesReportPanel({organizationId}:{organizationId:string}) {
@@ -59,6 +60,8 @@ export function SalesReportPanel({organizationId}:{organizationId:string}) {
     {sales&&<>
       <Descriptions bordered><Descriptions.Item label="Completed sales">{sales.currency??""} {sales.grossSales}</Descriptions.Item>
         <Descriptions.Item label="Refunded in range">{sales.currency??""} {sales.refundedAmount}</Descriptions.Item>
+        <Descriptions.Item label="Cash refunds">{sales.currency??""} {sales.manualCashRefunds??0}</Descriptions.Item>
+        <Descriptions.Item label="Manual PromptPay refunds">{sales.currency??""} {sales.manualPromptPayRefunds??0}</Descriptions.Item>
         <Descriptions.Item label="Net sales">{sales.currency??""} {sales.netSales}</Descriptions.Item></Descriptions>
       <Table rowKey="orderId" scroll={{x:650}} dataSource={sales.items} columns={[{title:"Ordered (UTC)",dataIndex:"orderedAtUtc"},{title:"Channel",dataIndex:"channel"},
         {title:"Service",dataIndex:"serviceType"},{title:"Status",dataIndex:"orderStatus",render:value=><Tag>{value}</Tag>},

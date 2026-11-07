@@ -1,5 +1,9 @@
 # Authorization Service
 
+Authorization 18 grants `pos.manual-refund.approve` to tenant administrators and
+store managers and `pos.manual-refund.payout` to cashiers. Approval requires a
+separately provisioned active THB limit. See [manual refund API](../../../docs/API/POS-Manual-Refunds.md).
+
 Authorization17 grants pos.cashier-pin.use to cashier/store-manager/tenant-admin and organization-wide pos.cashier-pin.manage only to tenant-admin; new role defaults match. These permit the POS-owned PIN API, not new Keycloak identities or financial actions. Deploy at compatibility0.45.0 with POS26; [details](../../../docs/Identity/POS-Session-PIN.md).
 
 Authorization16 adds distinct pos.drawer.manual-open, pos.drawer.cash-sale-open and pos.drawer.read. Existing/new tenant-admin and store-manager roles receive all three; cashier receives cash-sale/read only. Scope, live decisions and original-cashier custody remain required; no realm-role, credential or hardware enablement. See [UX8A](../../../docs/Deployment/POS-UX8A-Drawer-Authority.md).

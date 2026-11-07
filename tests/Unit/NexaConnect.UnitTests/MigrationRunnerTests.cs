@@ -9,7 +9,7 @@ public sealed class MigrationRunnerTests
         var services = new Dictionary<string, int>(StringComparer.Ordinal)
         {
             ["PlatformDirectory"] = 3,
-            ["Authorization"] = 17,
+            ["Authorization"] = 18,
             ["Restaurant"] = 4,
             ["Catalog"] = 9,
             ["Inventory"] = 5,
@@ -18,9 +18,9 @@ public sealed class MigrationRunnerTests
             ["Customer"] = 2,
             ["Payment"] = 18,
             ["Notification"] = 3,
-            ["POS"] = 26,
+            ["POS"] = 28,
             ["Media"] = 4,
-            ["Reporting"] = 22
+            ["Reporting"] = 23
         };
 
         foreach ((string service, int expectedVersion) in services)

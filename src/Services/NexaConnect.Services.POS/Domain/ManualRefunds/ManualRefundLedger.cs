@@ -9,9 +9,10 @@ public sealed record ManualRefundPayout(Guid TerminalId, Guid ShiftId, Guid? Cas
     string CashierSubject, DateTimeOffset StartedAtUtc);
 
 public sealed record ManualRefundCompletion(string? TransferReference, DateTimeOffset RecordedAtUtc);
+public sealed record ManualRefundRelease(string ManagerSubject, Guid AuthorizationDecisionId, DateTimeOffset ReleasedAtUtc);
 
 public sealed record ManualRefund(ManualRefundApproval Approval, ManualRefundPayout? Payout = null,
-    ManualRefundCompletion? Completion = null);
+    ManualRefundCompletion? Completion = null, ManualRefundRelease? Release = null);
 
 // One original verified manual settlement is the balance boundary. The repository must
 // persist each transition under an exclusive lock for this scope and original order.
@@ -48,7 +49,8 @@ public sealed class ManualRefundLedger
     public decimal PaidAmount { get; }
     public string Currency { get; }
     public DateTimeOffset PaidAtUtc { get; }
-    public decimal AvailableAmount => PaidAmount - refunds.Values.Sum(refund => refund.Approval.Amount);
+    public decimal AvailableAmount => PaidAmount - refunds.Values.Where(refund => refund.Release is null).Sum(refund => refund.Approval.Amount);
+    public ManualRefund? Read(Guid operationId) => refunds.GetValueOrDefault(operationId);
 
     public ManualRefund Approve(ManualRefundApproval approval)
     {
@@ -82,6 +84,7 @@ public sealed class ManualRefundLedger
     public ManualRefund BeginPayout(Guid operationId, ManualRefundPayout payout)
     {
         var refund = Find(operationId);
+        if (refund.Release is not null) throw new InvalidOperationException("The approval was released.");
         if (payout.CashierSubject != refund.Approval.CashierSubject)
             throw new UnauthorizedAccessException("The approved cashier must complete the refund.");
         if (payout.TerminalId == Guid.Empty || payout.ShiftId == Guid.Empty
@@ -98,6 +101,19 @@ public sealed class ManualRefundLedger
         }
 
         refund = refund with { Payout = payout };
+        refunds[operationId] = refund;
+        return refund;
+    }
+
+    public ManualRefund Release(Guid operationId, ManualRefundRelease release)
+    {
+        var refund = Find(operationId);
+        if (refund.Approval.ManagerSubject != release.ManagerSubject) throw new UnauthorizedAccessException();
+        if (release.AuthorizationDecisionId == Guid.Empty || release.ReleasedAtUtc < refund.Approval.ApprovedAtUtc)
+            throw new ArgumentException("Valid release authority and time are required.");
+        if (refund.Payout is not null) throw new InvalidOperationException("A started payout cannot be released.");
+        if (refund.Release is not null) return refund;
+        refund = refund with { Release = release };
         refunds[operationId] = refund;
         return refund;
     }

@@ -43,7 +43,7 @@ internal sealed class LocalPosDatabase
         using var query = connection.CreateCommand();
         query.CommandText = """
             SELECT EXISTS(SELECT 1 FROM local_state
-                WHERE state_key IN ('active-shift','cash-session','pending-settlement','pending-checkout','pending-refund','pending-cash-review'))
+                WHERE state_key IN ('active-shift','cash-session','pending-settlement','pending-checkout','pending-refund','pending-cash-review','pending-manual-refund','pending-manual-refund-approval'))
                 OR EXISTS(SELECT 1 FROM outbox_operations WHERE state <> 'completed');
             """;
         return Convert.ToInt32(query.ExecuteScalar(), CultureInfo.InvariantCulture) != 0;

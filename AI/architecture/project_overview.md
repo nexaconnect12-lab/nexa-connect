@@ -1,8 +1,14 @@
 # NexaConnect Project Architecture
 
 Windows POS can review the original paid receipt for cash and manual PromptPay.
-The POS domain models manager approval and named cashier payout custody. Durable
-manual refund recording and reconciliation are pending.
+POS 27 persists manager approval and named cashier payout custody and can atomically
+link a cash refund to its drawer movement. Default-off APIs add live Authorization 18
+approval and cashier custody with Order settlement evidence and scoped recovery.
+Windows POS can review assigned refunds and recover the original payout after
+interruption. POS 28 adds native manager approval, authenticated cashier availability
+and serialized release of unused approvals. Reporting 23 projects completion by
+refund time and compares exact POS evidence in the day-close draft. Permanent
+settlement certification and pilot activation remain pending.
 See [manual payment review](../../docs/Deployment/POS-Manual-Refund-Review.md).
 
 Windows POS can show a provisioned table-ordering QR on the idle customer display.
@@ -99,7 +105,7 @@ UX17 adds native lifecycle diagnostics and independent non-UI cleanup, immediate
 
 UX16 refines the native cashier theme with flat surfaces, template-local dark-rail contrast and compact Category/Station filters. Existing WPF handlers, default Standard/keyboard input, optional Touch settings and protected business/session recovery remain unchanged. No service/data boundary changes. The matching local pilot is installed; actual operator/device acceptance remains pending. See [UX16](../../docs/Deployment/POS-UX16-Flat-Cashier.md).
 
-UX15 composes the existing Catalog-backed menu editors into one Customer Portal workspace with shared branch/item selection, isolated drafts and independent saves/approval. Version ownership and service boundaries are unchanged; Catalog9 remains current; that slice introduced full221/compatibility0.44.0, while the persistent-PIN follow-up now requires full223/compatibility0.45.0. The retained local pilot is activated with twelve Ready services and a responsive matching POS; actual operator acceptance remains pending. See [UX15](../../docs/Deployment/POS-UX15-Menu-Management.md).
+UX15 composes the existing Catalog-backed menu editors into one Customer Portal workspace with shared branch/item selection, isolated drafts and independent saves/approval. Version ownership and service boundaries are unchanged. Catalog 9 brought the catalog to 221 tables at compatibility 0.44.0. The persistent-PIN follow-up brought it to 223 tables at compatibility 0.45.0. The retained local pilot is activated with twelve Ready services and a responsive matching POS. Actual operator acceptance remains pending. See [UX15](../../docs/Deployment/POS-UX15-Menu-Management.md).
 
 UX14 adds Catalog9 details version/audit and a protected name/price/station editor with explicit review/confirmation. Row-locked CAS and legacy upsert version increments protect stale drafts; availability and accepted Order snapshots remain independent. At introduction, Catalog31/full221 and minimum compatibility0.44.0; the PIN follow-up adds two POS tables at compatibility0.45.0. See [ADR-061](../../docs/Architecture/Decisions/ADR-061-safe-menu-details-editing.md).
 
@@ -789,7 +795,7 @@ NexaConnect_Media
 NexaConnect_Reporting
 ```
 
-Versioned migrations exist for all 13 service databases and currently define 223 tables with service-owned indexes and constraints. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. Customer version 2 adds append-only audit that excludes profile fields while its version-1 outbox remains authoritative. The runner supports versioned directories; the catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
+Versioned migrations exist for all 13 service databases and currently define 230 tables with service-owned indexes and constraints. Platform Directory version 3 adds append-only platform-administration audit records to its organization, access, and support-elevation state. Customer version 2 adds append-only audit that excludes profile fields while its version-1 outbox remains authoritative. The runner supports versioned directories. The catalogs remain pre-production until every script passes clean-install, downgrade, and re-upgrade tests against PostgreSQL 17.
 
 Rules:
 

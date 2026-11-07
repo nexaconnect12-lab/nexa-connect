@@ -2,10 +2,12 @@ namespace NexaConnect.Services.Reporting.Application;
 
 public sealed record ReportingRange(Guid OrganizationId, Guid BranchId, DateTimeOffset FromUtc, DateTimeOffset ToUtc);
 public sealed record DashboardSummary(int CompletedOrders, decimal GrossSales, decimal NetPaid, decimal Refunded,
-    decimal NetSales, string? Currency, DateTimeOffset? LatestGlobalCheckpointUpdatedAtUtc);
+    decimal NetSales, string? Currency, DateTimeOffset? LatestGlobalCheckpointUpdatedAtUtc,
+    decimal ManualCashRefunds = 0, decimal ManualPromptPayRefunds = 0, int ManualRefundCount = 0, string? ManualRefundEvidenceVersion = null);
 public sealed record SalesReportRow(Guid OrderId, Guid BranchId, string Channel, string ServiceType, string Currency, decimal SubtotalAmount, decimal DiscountAmount, decimal ServiceChargeAmount, decimal TaxAmount, decimal TotalAmount, string OrderStatus, DateTimeOffset OrderedAtUtc, DateTimeOffset? CompletedAtUtc);
 public sealed record SalesReport(ReportingRange Range, IReadOnlyCollection<SalesReportRow> Items, decimal TotalSales,
-    decimal RefundedAmount, decimal NetSales, string? Currency, DateTimeOffset? LatestGlobalCheckpointUpdatedAtUtc)
+    decimal RefundedAmount, decimal NetSales, string? Currency, DateTimeOffset? LatestGlobalCheckpointUpdatedAtUtc,
+    decimal ManualCashRefunds = 0, decimal ManualPromptPayRefunds = 0)
 {
     public decimal GrossSales => TotalSales;
 }

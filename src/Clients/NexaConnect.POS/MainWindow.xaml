@@ -571,9 +571,55 @@
               <Border Style="{StaticResource Card}" Margin="0,8">
                 <StackPanel>
                   <TextBlock Text="Review the original cash or manually verified PromptPay payment." TextWrapping="Wrap"/>
-                  <TextBlock Text="Recording refunds is not available here yet. This review only reads the original sales receipt." TextWrapping="Wrap" Margin="0,6"/>
+                  <TextBlock Text="Original receipt review does not move money. Only a manager-approved refund assigned to you can be recorded here." TextWrapping="Wrap" Margin="0,6"/>
                   <Button Content="Choose paid order…" Click="ChooseManualRefundOrder_Click" HorizontalAlignment="Left"/>
                   <TextBlock x:Name="ManualRefundReviewText" TextWrapping="Wrap" Margin="0,8" AutomationProperties.LiveSetting="Polite"/>
+                  <Expander Header="Manager approval and release">
+                    <StackPanel>
+                      <WrapPanel>
+                        <Button x:Name="LoadManagerRefundButton" Content="Load approval options" Click="LoadManagerRefund_Click" IsEnabled="False"/>
+                        <Button x:Name="VerifyManagerRefundButton" Content="Verify saved approval" Click="VerifyManagerRefund_Click" IsEnabled="False"/>
+                        <Button x:Name="RetryManagerRefundButton" Content="Retry saved approval" Click="RetryManagerRefund_Click" IsEnabled="False"/>
+                      </WrapPanel>
+                      <TextBlock x:Name="ManagerRefundStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+                      <ComboBox x:Name="ManagerRefundCashier" DisplayMemberPath="Label" SelectionChanged="ManagedRefund_Changed" AutomationProperties.Name="Available cashier"/>
+                      <WrapPanel>
+                        <TextBox x:Name="ManagerRefundAmount" Width="100" MaxLength="18" TextChanged="ManagedRefund_Changed" AutomationProperties.Name="Refund amount THB"/>
+                        <ComboBox x:Name="ManagerRefundReason" SelectedIndex="0" AutomationProperties.Name="Refund reason">
+                          <ComboBoxItem Content="Customer request" Tag="customer_request"/>
+                          <ComboBoxItem Content="Duplicate charge" Tag="duplicate_charge"/>
+                          <ComboBoxItem Content="Item unavailable" Tag="item_unavailable"/>
+                          <ComboBoxItem Content="Service issue" Tag="service_issue"/>
+                          <ComboBoxItem Content="Other" Tag="other"/>
+                        </ComboBox>
+                        <Button x:Name="ApproveManagerRefundButton" Content="Approve refund" Click="ApproveManagerRefund_Click" IsEnabled="False"/>
+                      </WrapPanel>
+                      <ListBox x:Name="ManagedRefundList" DisplayMemberPath="Label" MaxHeight="132"
+                               SelectionChanged="ManagedRefund_Changed" AutomationProperties.Name="My approvals for this order"/>
+                      <Button x:Name="ReleaseManagerRefundButton" Content="Release unused approval" Click="ReleaseManagerRefund_Click" IsEnabled="False" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                  </Expander>
+                  <TextBlock Text="Refunds assigned to me" Style="{StaticResource Heading}"/>
+                  <WrapPanel>
+                    <Button x:Name="RegisterRefundAvailabilityButton" Content="Make me available for refunds" Click="RegisterRefundAvailability_Click" IsEnabled="False"/>
+                    <Button Content="Load assigned refunds" Click="LoadAssignedRefunds_Click"/>
+                    <Button x:Name="VerifySavedManualRefundButton" Content="Verify saved refund" Click="VerifySavedManualRefund_Click" IsEnabled="False"/>
+                  </WrapPanel>
+                  <ListBox x:Name="AssignedRefundList" DisplayMemberPath="Label" SelectionChanged="AssignedRefund_Changed"
+                           MaxHeight="176" AutomationProperties.Name="Assigned manual refunds"/>
+                  <TextBlock x:Name="AssignedRefundStatus" TextWrapping="Wrap" Margin="0,8" AutomationProperties.LiveSetting="Polite"/>
+                  <Button x:Name="StartAssignedRefundButton" Content="Start approved payout" Click="StartAssignedRefund_Click" HorizontalAlignment="Left" IsEnabled="False"/>
+                  <StackPanel x:Name="AssignedRefundCompletion" Visibility="Collapsed">
+                    <StackPanel x:Name="RefundTransferProof" Visibility="Collapsed">
+                      <TextBlock Text="Verified return-transfer reference"/>
+                      <TextBox x:Name="ManualRefundTransferReference" MaxLength="64" TextChanged="ManualRefundEvidence_Changed"
+                               AutomationProperties.Name="Verified return-transfer reference"/>
+                    </StackPanel>
+                    <CheckBox x:Name="ManualRefundPayoutConfirmed" Content="I verified the approved amount was already returned"
+                              Checked="ManualRefundEvidence_Changed" Unchecked="ManualRefundEvidence_Changed"/>
+                    <Button x:Name="CompleteAssignedRefundButton" Content="Record payout" Click="CompleteAssignedRefund_Click"
+                            HorizontalAlignment="Left" IsEnabled="False"/>
+                  </StackPanel>
                 </StackPanel>
               </Border>
             </ScrollViewer>

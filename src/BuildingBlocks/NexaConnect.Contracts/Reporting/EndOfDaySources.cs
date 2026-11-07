@@ -12,4 +12,8 @@ public sealed record PaymentDaySummary(EndOfDayWindow Window, DateTimeOffset Obs
     IReadOnlyList<string> Currencies, string? EvidenceVersion = null);
 public sealed record PosDaySummary(EndOfDayWindow Window, DateTimeOffset ObservedAtUtc,
     int OpenShifts, int OpenCashSessions, int PendingCashReviews, decimal CashVariance,
-    IReadOnlyList<string> Currencies, string? EvidenceVersion = null,decimal LateCashCorrectionAdjustment=0,int LateCashCorrections=0);
+    IReadOnlyList<string> Currencies, string? EvidenceVersion = null,decimal LateCashCorrectionAdjustment=0,int LateCashCorrections=0,
+    ManualRefundDaySummary? ManualRefunds = null);
+
+public sealed record ManualRefundDaySummary(decimal CashAmount, decimal PromptPayAmount, int CompletedCount,
+    int UnresolvedPayouts, int DrawerEvidenceGaps, string? EvidenceVersion);

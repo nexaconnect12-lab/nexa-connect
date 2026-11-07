@@ -9,6 +9,8 @@ public sealed record LocalReceiptReference(Guid OrderId);
 public sealed record LocalPendingRefundState(Guid PaymentIntentId, Guid OperationId, decimal Amount,
     string Currency, string ReasonCode, Guid? RefundId = null);
 public sealed record LocalRefundReference(Guid PaymentIntentId, Guid OperationId);
+public sealed record LocalManualRefundReference(Guid OrderId, Guid OperationId, string CashierSubject);
+public sealed record LocalManualRefundApproval(Guid OrderId, string ManagerSubject, NexaConnect.Contracts.POS.ApproveManualRefundV1 Request);
 public sealed record LocalShiftState(Guid ShiftId, string ShiftNumber, DateTimeOffset OpenedAtUtc);
 public sealed record LocalCashSessionState(Guid CashSessionId, Guid ShiftId, DateTimeOffset OpenedAtUtc);
 public sealed record LocalPendingSettlementState(Guid OrderId, decimal Amount, string Currency,
@@ -133,6 +135,20 @@ public sealed class LocalPosStore
         Write("pending-refund", state);
     }
     public void ClearPendingRefund() => Delete("pending-refund");
+    public LocalManualRefundReference? LoadManualRefund() => Read<LocalManualRefundReference>("pending-manual-refund",
+        "The saved manual refund cannot be read. Preserve the database and verify the original operation.");
+    public void SaveManualRefund(LocalManualRefundReference state)
+    {
+        if (state.OrderId == Guid.Empty || state.OperationId == Guid.Empty || string.IsNullOrWhiteSpace(state.CashierSubject)
+            || state.CashierSubject.Length > 200 || state.CashierSubject.Any(char.IsControl))
+            throw new InvalidDataException("The original manual refund and cashier are required.");
+        Write("pending-manual-refund", state);
+    }
+    public void ClearManualRefund() => Delete("pending-manual-refund");
+    public LocalManualRefundApproval? LoadManualRefundApproval() => Read<LocalManualRefundApproval>("pending-manual-refund-approval",
+        "The saved manual refund approval cannot be read. Preserve the database and verify the original operation.");
+    public void SaveManualRefundApproval(LocalManualRefundApproval state) => Write("pending-manual-refund-approval", state);
+    public void ClearManualRefundApproval() => Delete("pending-manual-refund-approval");
     public LocalRefundReference? LoadLastRefund() => Read<LocalRefundReference>("last-refund",
         "The last refund reference cannot be read.");
     public void SaveLastRefund(Guid paymentIntentId, Guid operationId)

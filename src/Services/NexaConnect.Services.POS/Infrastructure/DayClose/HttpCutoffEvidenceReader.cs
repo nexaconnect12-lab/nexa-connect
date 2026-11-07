@@ -56,7 +56,10 @@ public sealed class HttpCutoffEvidenceReader(IHttpClientFactory clients,ICutoffP
         static CutoffReference Ref<T>(SourceCutoff<T> value)=>new(value.ManifestId,value.Generation,value.EvidenceVersion,
             value.SourceRevision?.Epoch,value.SourceRevision?.Revision);
         string[] issues=check.Status=="gaps_detected"?["cutoff_financial_gaps"]:[];
-        return new(context.TimeZone,"THB",w.FromUtc,w.ToUtc,o.GrossSales,p.CompletedRefunds,o.GrossSales-p.CompletedRefunds,drawer.CashVariance,
+        issues=issues.Concat(context.Issues.Where(HttpDayCloseEvidenceReader.IsManualRefundIssue))
+            .Concat(HttpDayCloseEvidenceReader.ManualRefundBlockers(drawer.ManualRefunds)).Distinct().Order().ToArray();
+        decimal refunded=p.CompletedRefunds+(drawer.ManualRefunds?.CashAmount??0)+(drawer.ManualRefunds?.PromptPayAmount??0);
+        return new(context.TimeZone,"THB",w.FromUtc,w.ToUtc,o.GrossSales,refunded,o.GrossSales-refunded,drawer.CashVariance,
             o.Tenders.Select(x=>new DayTender(x.Method,x.Currency,x.Amount)).OrderBy(x=>x.Method,StringComparer.Ordinal).ThenBy(x=>x.Currency,StringComparer.Ordinal).ToArray(),
             order.Manifest.EvidenceVersion,payment.Manifest.EvidenceVersion,pos.Manifest.EvidenceVersion,o.UnresolvedOrders,p.UnresolvedPayments,p.UnresolvedRefunds,
             drawer.OpenShifts,drawer.OpenCashSessions,drawer.PendingCashReviews,issues,clock.GetUtcNow(),order.Manifest.CapturedAtUtc,payment.Manifest.CapturedAtUtc,pos.Manifest.CapturedAtUtc,

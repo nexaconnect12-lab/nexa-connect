@@ -49,6 +49,10 @@ public sealed class PostgresPosDayReader(NpgsqlDataSource source) : IPosDayReade
             await using var rows=await corrections.ExecuteReaderAsync(ct);await rows.ReadAsync(ct);var adjustment=rows.GetDecimal(0);var count=rows.GetInt32(1);
             result=result with{CashVariance=result.CashVariance+adjustment,LateCashCorrectionAdjustment=adjustment,LateCashCorrections=count,Currencies=count==0?result.Currencies:result.Currencies.Append("THB").Distinct().Order().ToArray()};
         }
+        var manualRefunds = await PostgresManualRefundDayEvidence.ReadAsync(window, connection, tx, ct);
+        if (manualRefunds is not null)
+            result = result with { ManualRefunds = manualRefunds,
+                Currencies = manualRefunds.CompletedCount == 0 ? result.Currencies : result.Currencies.Append("THB").Distinct().Order().ToArray() };
         var evidenceSql="""
             WITH stores_in_scope AS (SELECT id FROM stores WHERE restaurant_id=$2 AND branch_id=$3),
             sessions AS (
@@ -71,6 +75,17 @@ public sealed class PostgresPosDayReader(NpgsqlDataSource source) : IPosDayReade
         if(hasCorrections)evidenceSql=evidenceSql.Replace(") rows WHERE", """
             UNION ALL SELECT 'correction',a.id,jsonb_build_array('late-cash-correction',a.id,a.work_id,a.barrier_id,a.reviewed_version,a.posted_at_utc,a.posting_date,a.adjustment,a.currency)::text
             FROM late_cash_corrections a WHERE a.organization_id=$1 AND a.restaurant_id=$2 AND a.branch_id=$3 AND a.posted_at_utc>=$4 AND a.posted_at_utc<$5
+            ) rows WHERE
+            """);
+        if (manualRefunds is not null) evidenceSql = evidenceSql.Replace(") rows WHERE", """
+            UNION ALL SELECT 'manual-refund',a.operation_id,
+                jsonb_build_array('manual-refund',a.operation_id,s.order_id,s.settlement_id,s.tender,a.amount,s.currency,
+                    p.started_at_utc,c.recorded_at_utc,c.cash_movement_id)::text
+            FROM manual_refund_sales s JOIN manual_refund_approvals a USING (order_id)
+            JOIN manual_refund_payouts p USING (operation_id)
+            LEFT JOIN manual_refund_completions c USING (operation_id)
+            WHERE s.organization_id=$1 AND s.restaurant_id=$2 AND s.branch_id=$3
+              AND ((p.started_at_utc<$5 AND c.operation_id IS NULL) OR (c.recorded_at_utc>=$4 AND c.recorded_at_utc<$5))
             ) rows WHERE
             """);
         await using var evidence=new NpgsqlCommand(evidenceSql,connection,tx);

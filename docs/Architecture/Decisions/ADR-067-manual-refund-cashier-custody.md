@@ -2,8 +2,13 @@
 
 ## Status
 
-Accepted design. The in-memory POS domain and original receipt review are implemented.
-Persistence, authorization integration, financial publication and activation are pending.
+Accepted design. Original receipt review, domain rules and the POS 27 transaction store
+are implemented, with default-off new-work APIs, live scoped approval and operation lookup.
+The native cashier workspace uses the outstanding assignment queue and exact
+operation lookup. POS 28 adds the manager workspace, authenticated five-minute
+cashier availability, and immutable release of untouched approvals. Reporting 23
+projects transactional POS completions. Exact source comparison is available in
+the day-close draft. Durable settlement certification and activation are pending.
 
 ## Context
 

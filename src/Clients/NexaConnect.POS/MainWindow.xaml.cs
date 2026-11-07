@@ -89,6 +89,9 @@ public partial class MainWindow : Window
         try { ReceiptOrderIdTextBox.Text = _localStore.LoadLastReceipt()?.OrderId.ToString("D") ?? ""; }
         catch (Exception) { ReceiptStatusText.Text = "Last receipt reference unavailable; enter the paid order ID."; }
         pendingRefund = _localStore.LoadPendingRefund();
+        pendingManualRefund = _localStore.LoadManualRefund();
+        pendingManualRefundApproval = _localStore.LoadManualRefundApproval();
+        manualRefundVerificationRequired = pendingManualRefund is not null;
         lastRefund = _localStore.LoadLastRefund();
         if (pendingRefund is not null)
         {
@@ -261,6 +264,11 @@ public partial class MainWindow : Window
             StatusText.Text = "Close the cash session and resolve pending payment before closing this shift.";
             return;
         }
+        if (pendingManualRefund is not null)
+        {
+            StatusText.Text = "Verify the saved manual refund in Receipts before closing this shift.";
+            return;
+        }
 
         try
         {
@@ -326,6 +334,11 @@ public partial class MainWindow : Window
     private async void CloseCash_Click(object sender, RoutedEventArgs e)
     {
         if (_authentication.CurrentToken is null || cashSessionId is null) return;
+        if (pendingManualRefund is not null)
+        {
+            StatusText.Text = "Verify the saved manual refund in Receipts before closing this cash session.";
+            return;
+        }
         if (pendingOrder is not null || pendingCheckout is not null)
         {
             StatusText.Text = "Confirm or reconcile the pending cash payment before closing this cash session.";
@@ -1479,6 +1492,8 @@ public partial class MainWindow : Window
         LoadReceiptButton.IsEnabled = signedIn;
         PrintReceiptButton.IsEnabled = signedIn && displayedReceiptOrderId is not null;
         RenderRefundSelectionControls();
+        RenderAssignedRefundControls();
+        RenderManagerRefundControls();
         LoadRefundButton.IsEnabled = signedIn && (pendingRefund is not null || lastRefund is not null);
         PrintRefundButton.IsEnabled = signedIn && displayedRefundReceipt is not null;
         bool hasStoredSession = _authentication.CurrentToken is not null;
@@ -1585,7 +1600,8 @@ public partial class MainWindow : Window
 
     private bool HasRetainedWork() => _activeShift is not null || cashSessionId is not null
         || pendingOrder is not null || pendingCheckout is not null || pendingCashReviewAttempt is not null
-        || pendingRefund is not null || cart.Count > 0 || outbox.Load().Count > 0;
+        || pendingRefund is not null || pendingManualRefund is not null || pendingManualRefundApproval is not null
+        || cart.Count > 0 || outbox.Load().Count > 0;
 
     private void RenderSessionLock()
     {

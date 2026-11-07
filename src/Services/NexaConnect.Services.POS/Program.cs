@@ -47,6 +47,16 @@ builder.Services.AddHttpClient<RestaurantHierarchyClient>().AddNexaConnectCorrel
 builder.Services.AddHttpClient("Authorization").AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<IShiftStore, PostgresShiftStore>();
 builder.Services.AddScoped<ICashSessionStore, PostgresCashSessionStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.ManualRefunds.IManualRefundStore, PostgresManualRefundStore>();
+builder.Services.AddScoped<NexaConnect.Services.POS.Application.ManualRefunds.ManualRefunds>();
+builder.Services.AddHttpClient<NexaConnect.Services.POS.Application.ManualRefunds.IManualRefundSaleReader,
+    NexaConnect.Services.POS.Infrastructure.ManualRefunds.HttpManualRefundSaleReader>(client => client.Timeout = TimeSpan.FromSeconds(12))
+    .RemoveAllLoggers().ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+    .AddNexaConnectCorrelationPropagation();
+builder.Services.AddHttpClient<NexaConnect.Services.POS.Application.ManualRefunds.IManualRefundMembership,
+    NexaConnect.Services.POS.Infrastructure.ManualRefunds.HttpManualRefundMembership>(client => client.Timeout = TimeSpan.FromSeconds(8))
+    .RemoveAllLoggers().ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+    .AddNexaConnectCorrelationPropagation();
 builder.Services.AddScoped<ICashReviewStore, PostgresCashReviewStore>();
 builder.Services.AddScoped<IOrderSettlementProjectionStore, LateAwareOrderSettlementStore>();
 builder.Services.AddScoped<ITerminalStore, PostgresTerminalStore>();
@@ -127,9 +137,14 @@ app.Use(async(context,next)=>{if(context.Request.Path.StartsWithSegments("/api/p
 app.Use(async (context,next)=>
 {
     try { await next(); }
-    catch(Npgsql.PostgresException e)when(e.SqlState=="PDS01"||e.SqlState=="P0001"&&e.MessageText=="financial_day_fenced")
+    catch(Npgsql.PostgresException e)when(e.SqlState is "PDS01" or "PMR01"||e.SqlState=="P0001"&&e.MessageText=="financial_day_fenced")
     {
-        var code=e.SqlState=="PDS01"?"financial_day_barrier":"financial_day_fenced";
+        var code=e.SqlState switch
+        {
+            "PDS01" => "financial_day_barrier",
+            "PMR01" => "manual_refund_payout_pending",
+            _ => "financial_day_fenced"
+        };
         context.Response.StatusCode=409;context.Response.Headers.CacheControl="no-store";
         app.Logger.LogWarning("Financial source mutation rejected; code {Code}",code);
         await context.Response.WriteAsJsonAsync(new{code});

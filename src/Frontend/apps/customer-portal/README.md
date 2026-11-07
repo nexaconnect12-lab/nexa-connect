@@ -1,5 +1,9 @@
 # NexaConnect Customer Portal
 
+Sales and the end-of-day draft show separate cash and manual PromptPay refund
+totals. The draft identifies missing drawer and Reporting evidence. See
+[manual refund reporting](../../../../docs/API/Manual-Refund-Reporting.md).
+
 **Configuration → Table QR entry → Download for POS** exports the visible issued QR
 for the Windows customer display. See [terminal provisioning](../../../../docs/Deployment/POS-Customer-Table-QR.md).
 

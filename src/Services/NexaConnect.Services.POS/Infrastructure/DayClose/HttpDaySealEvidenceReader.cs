@@ -72,12 +72,16 @@ public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySea
             new DaySealRecordChange(source,c.Revision,c.Attribution,c.RecordKind,c.RecordId,c.ParentId,c.BeforeStatus,c.AfterStatus,
                 c.BeforeFinancialVersion,c.AfterFinancialVersion,c.BeforeFinancialAtUtc,c.AfterFinancialAtUtc));
         var details=Details("Order",orderAfter.Changes).Concat(Details("Payment",paymentAfter.Changes)).Concat(Details("POS",posAfter.Changes)).ToArray();
+        var manual=posAfter.CurrentSummary!.ManualRefunds;
+        decimal refunded=paymentAfter.CurrentSummary!.CompletedRefunds+(manual?.CashAmount??0)+(manual?.PromptPayAmount??0);
         return basis with{Corrections=correction,ObservedAtUtc=clock.GetUtcNow(),Cutoff=cutoff with{CheckId=check.CheckId,DeliveryComplete=check.DeliveryComplete,FinancialGaps=checked((int)gaps)},
+            Issues=basis.Issues.Concat(context.Issues.Where(HttpDayCloseEvidenceReader.IsManualRefundIssue))
+                .Concat(HttpDayCloseEvidenceReader.ManualRefundBlockers(manual)).Distinct().Order().ToArray(),
             Seals=new(Ref(order.Seal),Ref(payment.Seal),Ref(pos.Seal),pending,
                 order.JournalComplete&&payment.JournalComplete&&pos.JournalComplete&&orderAfter.JournalComplete&&paymentAfter.JournalComplete&&posAfter.JournalComplete
                 && orderAfter.UnknownChanges==0&&paymentAfter.UnknownChanges==0&&posAfter.UnknownChanges==0,check.DeliveryComplete),
-            SealComparison=new(orderAfter.CurrentSummary!.GrossSales,paymentAfter.CurrentSummary!.CompletedRefunds,
-                orderAfter.CurrentSummary.GrossSales-paymentAfter.CurrentSummary.CompletedRefunds,posAfter.CurrentSummary!.CashVariance,
+            SealComparison=new(orderAfter.CurrentSummary!.GrossSales,refunded,
+                orderAfter.CurrentSummary.GrossSales-refunded,posAfter.CurrentSummary.CashVariance,
                 orderAfter.CurrentSummary.Tenders.Select(t=>new DayTender(t.Method,t.Currency,t.Amount)).ToArray(),
                 checked(orderAfter.UnknownChanges+paymentAfter.UnknownChanges+posAfter.UnknownChanges),clock.GetUtcNow(),details.Take(256).ToArray(),
                 details.Length>256||orderAfter.ChangesTruncated||paymentAfter.ChangesTruncated||posAfter.ChangesTruncated)};

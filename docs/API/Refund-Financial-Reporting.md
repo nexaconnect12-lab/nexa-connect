@@ -1,5 +1,8 @@
 # Refund financial reporting
 
+POS-owned manual refunds use a separate Reporting 23 projection and the same refund
+time totals. See [manual refund reporting](Manual-Refund-Reporting.md).
+
 Reporting migration 18 (minimum application `0.21.0`) projects Payment-owned `payment.refunded.v1` completion events into separate refund facts. Payment remains authoritative for refund eligibility, authorization, completion and receipt history. This consumer never queries or modifies Payment or Order databases.
 
 ## Read contracts and accounting time
@@ -39,7 +42,7 @@ Run focused `RefundFinancialReportingTests` and `RefundFinancialProjectionPostgr
 
 ## Completeness boundary
 
-Reporting 19 now supplies receipt-backed operational sales/payment consumers and bounded Order replay/reconciliation; see [sale financial reporting](Sale-Financial-Reporting.md). The refund pipeline is implemented, but gross sales, net paid and net sales are not certified complete production accounting reports until all-source historical completeness and joined production acceptance are established. Manual-tender refunds, return/restock allocation, fiscal credit notes and settlement accounting remain separate work.
+Reporting 19 supplies receipt-backed operational sales/payment consumers and bounded Order replay/reconciliation. Provider refund completeness remains scoped to Payment evidence. Manual refund draft reconciliation is documented separately. Return/restock allocation, fiscal credit notes and final settlement remain separate work. See [sale financial reporting](Sale-Financial-Reporting.md).
 
 See [ADR-017](../Architecture/Decisions/ADR-017-refund-time-financial-reporting.md) and [Payment refund contract](Payment-Refunds.md).
 

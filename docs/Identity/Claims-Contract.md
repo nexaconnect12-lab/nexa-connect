@@ -104,6 +104,16 @@ Realm roles may grant coarse access such as `report-viewer` or `tenant-admin`. T
 
 Payment refund commands require a live branch-scoped `payment.refund.create` decision and retain its UUID with the financial operation. Authorization 9 grants create only to `tenant-admin` and `store-manager`, but role permission alone is insufficient: Payment supplies amount and currency, and Authorization requires an active eligible restaurant/action/currency approval limit that covers the amount. `payment.refund.read` is also granted to `accountant` and `cashier` for reconciliation and receipt reprint. Payment independently validates organization, restaurant, branch, Order, and Payment-intent ownership; claims alone never authorize a refund. Internal decision and provider evidence are excluded from the customer refund response.
 
+Manual cash and PromptPay refunds use Authorization 18. Tenant administrators and
+store managers receive `pos.manual-refund.approve`, which requires an active THB
+approval limit for the amount. Cashiers receive `pos.manual-refund.payout`. POS also
+checks active organization membership, branch ownership and the named cashier's
+identity. Recovery is available to the original manager or cashier under current
+permissions. A cashier registers availability using their own live payout permission
+and open shift. A manager may release their own untouched approval under a fresh
+approval permission decision. No new Keycloak client or realm role is required.
+[Manual refund API](../API/POS-Manual-Refunds.md)
+
 Organization membership is resolved through the Platform Directory API or an approved local projection. It is not inferred from email domains, usernames, client roles, or direct Keycloak database access.
 
 The initial current-access API is `GET /api/platform-directory/v1/me/access`. It evaluates the caller's `sub`, active memberships, active organizations, and enabled `nexa_connect` application access, returning the organizations available to the current subject. The organization-specific `GET /api/platform-directory/v1/organizations/{organizationId}/access` endpoint remains available for a single access decision. Both are organization-level boundaries, not substitutes for product resource authorization.

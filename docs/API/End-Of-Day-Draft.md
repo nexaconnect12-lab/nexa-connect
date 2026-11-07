@@ -14,7 +14,7 @@ The Customer Portal **End-of-day draft** is a read-only observation of one compl
 | --- | --- | --- |
 | `GET /api/order/v1/customer/end-of-day` | `order.read`, with Directory membership and Restaurant hierarchy | Gross sales, completed order count, gross receipt tenders, unresolved orders, missing evidence count |
 | `GET /api/payment/v1/customer/end-of-day` | Both `payment.intent.read` and `payment.refund.read`, with Directory membership and Restaurant hierarchy | Completed refunds, unresolved intent/refund counts, missing evidence count |
-| `GET /api/pos/v1/customer/end-of-day` | Branch `pos.cash-review.read`, with Restaurant hierarchy | Open shifts/cash sessions, pending reviews, closed drawer variance |
+| `GET /api/pos/v1/customer/end-of-day` | Branch `pos.cash-review.read`, with Restaurant hierarchy | Open shifts/cash sessions, pending reviews, closed drawer variance, and manual refund totals and evidence |
 
 These source APIs accept `organizationId`, `restaurantId`, `branchId`, `fromUtc`, `toUtc`. Application rejects empty IDs and open, nonpositive or over-27-hour windows; all SQL values are parameterized. Order/Payment predicates include all three owner IDs. POS stores own restaurant/branch IDs, so Application must first resolve and validate organization through Restaurant before reading them. Source APIs require customer roles; workload tokens cannot replace customer financial permission. Existing role assignments are not expanded: an accountant may need reviewed additional read grants if their current role lacks `order.read` or `payment.intent.read`.
 
@@ -30,7 +30,7 @@ Reporting uses Restaurant's current branch timezone, never the browser timezone.
 | --- | --- |
 | `grossSales` / Order `completedOrders` | Currently completed Orders created in the day, matching existing sales report order-time semantics |
 | `tenders` | Completed Order immutable receipts paid in the day, grouped by receipt tender and currency; gross receipts before refunds |
-| `completedRefunds` | Payment refunds completed in the day, including refunds of older sales |
+| `completedRefunds` | Payment provider refunds and POS cash/manual PromptPay refunds completed in the day, including refunds of older sales |
 | `netSales` | Gross sales minus completed refunds; may be negative |
 | `cashVariance` | Counted minus expected cash for sessions closed in the day, recomputed from current authoritative movements |
 
@@ -47,6 +47,11 @@ Order uses one repeatable-read transaction for aggregates/tenders; Payment and P
 `missing_source_evidence` counts receipt-backed sale candidates selected by creation or Paid time without a receipt or retained sale publication, and completed refund candidates without a receipt or retained original refund publication. These are existence checks, not full receipt/hash validation; the privileged financial completeness tool and separate [day-cutoff reconciliation](Day-Close-Cutoffs.md) perform identity/value/hash checks. Missing older tender receipts cannot be reconstructed and must not be treated as zero verified tender receipts.
 
 Issue codes are `unresolved_orders`, `unresolved_payments`, `unresolved_refunds`, `open_shifts`, `open_cash_sessions`, `pending_cash_reviews`, `cash_variance`, `missing_source_evidence`, `projection_totals_differ`, `financial_evidence_not_checked`, `recorded_check_is_historical`, `recorded_financial_gaps`. Every recorded check is labeled historical relative to independent fresh reads, including `observed_complete`; it cannot certify settlement. The page shows source times, operational counts, missing source evidence and readable issues. Filter, reload, tenant changes, denied access, failed/malformed reads and late responses clear or discard old results. The report route supplies no polling, exports or mutations. The portal also hosts separate [POS-owned preparation](Day-Close-Preparation.md) and [retained day-cutoff evidence](Day-Close-Cutoffs.md) workflows; neither mutates Reporting or authorizes settlement.
+
+The draft also checks POS manual refunds. It exposes `pos.manualRefunds` and can
+report `unresolved_manual_refunds`, `manual_refund_drawer_evidence_gap` and
+`manual_refund_projection_evidence_gap`. Reporting checks exact manual refund evidence
+as well as the totals. [Manual refund source and projection contract](Manual-Refund-Reporting.md)
 
 New service events use existing shared JSON/OTLP telemetry and validated outbound correlation propagation. Query `{service_name="nexaconnect-reporting"} |= "End-of-day draft"`, the owning `nexaconnect-order`, `nexaconnect-payment`, `nexaconnect-pos` streams for `End-of-day source`, and `nexaconnect-customer-bff` for `End-of-day draft BFF`. Request telemetry also covers Restaurant calendar reads. Bodies, financial amounts, credentials, actor/reason data and arbitrary headers are never logged by these paths.
 

@@ -1,5 +1,10 @@
 # Order Service
 
+The [manual refund evidence read](../../../docs/API/POS-Manual-Refunds.md) validates
+the original manual settlement against the immutable Paid receipt under live scope
+and permission. Query `nexaconnect-order` for fixed `Manual refund sale` events and
+validated correlation. Order exposes no transfer proof and performs no refund mutation.
+
 The existing authenticated, no-store Order detail GET includes nullable original
 `paymentIntentId` for [POS refund selection](../../../docs/Deployment/POS-Refund-Payment-Selection.md).
 It retains live branch `order.read`/tenant checks and disclosure-safe 404; the field is

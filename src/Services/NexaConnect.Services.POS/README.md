@@ -2,7 +2,14 @@
 
 The [manual refund domain](../../../docs/Deployment/POS-Manual-Refund-Review.md#approval-and-payout-domain)
 models manager approval, cashier payout custody and replay against the original manual
-payment. Durable refund storage, live authorization and drawer posting remain pending.
+payment. [POS 27](../../../docs/Database/POS-Manual-Refunds.md) adds durable storage,
+shift and drawer closure guards, and atomic cash drawer posting. The [gated refund
+API](../../../docs/API/POS-Manual-Refunds.md) adds live authorization and read-only
+recovery. Windows POS uses the scoped outstanding queue and exact recovery.
+POS 28 supports authenticated cashier availability and original-manager release of
+unused approvals. Completion atomically queues POS manual refund evidence in
+the outbox. Day-close draft evidence checks drawer linkage. Permanent settlement
+proof remains pending, and new work defaults off.
 
 POS26 adds the central cashier PIN registry, identity-bound Data Protection verifiers, durable attempt/lockout and immutable audit. Thin V1 routes use live terminal/organization authorization; native unlock privately renews and verifies before restoring authority. Use/manage grants come from Authorization17; compatibility0.45.0 and durable key-ring backup are required. Query service.name=nexaconnect-pos and Cashier PIN boundary with correlation; no credential bodies are logged. The matching retained local pilot is activated with POS26/Authorization17 and verified runtime grants, preserved existing business/recovery data and no agent PIN enrollment; fresh operator/PIN acceptance remains pending. See [API](../../../docs/API/Cashier-PIN.md), [storage](../../../docs/Database/Cashier-PIN.md) and [identity/rollout](../../../docs/Identity/POS-Session-PIN.md).
 

@@ -8,6 +8,15 @@ namespace NexaConnect.Services.POS.Infrastructure.DayClose;
 /// <summary>Translates Reporting's draft contract into POS-owned preparation evidence.</summary>
 public sealed class HttpDayCloseEvidenceReader(HttpClient client, TimeProvider clock) : IDayCloseEvidenceReader
 {
+    internal static bool IsManualRefundIssue(string code) => code is "unresolved_manual_refunds"
+        or "manual_refund_drawer_evidence_gap" or "manual_refund_projection_evidence_gap" or "manual_refund_finalization_pending";
+
+    internal static IEnumerable<string> ManualRefundBlockers(ManualRefundDaySummary? manual)
+    {
+        if (manual?.CompletedCount > 0) yield return "manual_refund_finalization_pending";
+        if (manual?.UnresolvedPayouts > 0) yield return "unresolved_manual_refunds";
+        if (manual?.DrawerEvidenceGaps > 0) yield return "manual_refund_drawer_evidence_gap";
+    }
     private sealed record Calendar(Guid OrganizationId,Guid RestaurantId,Guid BranchId,string TimeZone,string Currency);
     private sealed record Projection(int CompletedOrders,decimal GrossSales,decimal Refunded,string? Currency);
     private sealed record Range(Guid OrganizationId,Guid BranchId,DateTimeOffset FromUtc,DateTimeOffset ToUtc);
@@ -33,7 +42,8 @@ public sealed class HttpDayCloseEvidenceReader(HttpClient client, TimeProvider c
             || draft.Order.Window!=w || draft.Payment.Window!=w || draft.Pos.Window!=w
             || w.FromUtc==default || w.ToUtc>w.FromUtc.AddHours(27) || w.ToUtc<=w.FromUtc || w.ToUtc>now
             || draft.GrossSales<0 || draft.CompletedRefunds<0 || draft.NetSales!=draft.GrossSales-draft.CompletedRefunds
-            || draft.GrossSales!=draft.Order.GrossSales || draft.CompletedRefunds!=draft.Payment.CompletedRefunds || draft.CashVariance!=draft.Pos.CashVariance
+            || draft.GrossSales!=draft.Order.GrossSales || draft.CompletedRefunds!=draft.Payment.CompletedRefunds
+                +(draft.Pos.ManualRefunds?.CashAmount??0)+(draft.Pos.ManualRefunds?.PromptPayAmount??0) || draft.CashVariance!=draft.Pos.CashVariance
             || new[]{draft.Order.CompletedOrders,draft.Order.UnresolvedOrders,draft.Order.EvidenceGaps,draft.Payment.UnresolvedPayments,draft.Payment.UnresolvedRefunds,draft.Payment.EvidenceGaps,draft.Pos.OpenShifts,draft.Pos.OpenCashSessions,draft.Pos.PendingCashReviews}.Any(n=>n<0)
             || new[]{draft.Order.ObservedAtUtc,draft.Payment.ObservedAtUtc,draft.Pos.ObservedAtUtc}.Any(t=>t<w.ToUtc || t>now)
             || b.Currency is null || b.Currency.Length!=3 || b.Currency.Any(c=>c is <'A' or >'Z')
@@ -50,6 +60,8 @@ public sealed class HttpDayCloseEvidenceReader(HttpClient client, TimeProvider c
         if(TimeZoneInfo.ConvertTime(w.FromUtc,zone).DateTime!=day.BusinessDate.ToDateTime(TimeOnly.MinValue)
             || TimeZoneInfo.ConvertTime(w.ToUtc,zone).DateTime!=day.BusinessDate.AddDays(1).ToDateTime(TimeOnly.MinValue))throw new InvalidOperationException("Calendar boundaries invalid.");
         var issues=draft.Issues.ToList();
+        // The current durable cutoff protocol certifies provider refund delivery only.
+        issues.AddRange(ManualRefundBlockers(draft.Pos.ManualRefunds));
         if(draft.Projection.GrossSales!=draft.GrossSales || draft.Projection.Refunded!=draft.CompletedRefunds || draft.Projection.CompletedOrders!=draft.Order.CompletedOrders)issues.Add("projection_totals_differ");
         if(draft.Projection.Currency is not null && draft.Projection.Currency!=b.Currency)throw new InvalidOperationException("Projection currency invalid.");
         if(draft.RecordedCompleteness is null)issues.Add("financial_evidence_not_checked");

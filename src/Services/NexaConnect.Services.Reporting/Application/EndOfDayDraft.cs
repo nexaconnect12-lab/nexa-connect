@@ -64,6 +64,8 @@ public sealed class EndOfDayDraft(IEndOfDaySources sources, IReportingCustomerAu
         await Task.WhenAll(orderTask, paymentTask, posTask, projectionTask, checkTask);
         var order = await orderTask; var payment = await paymentTask; var pos = await posTask;
         var projection = await projectionTask; var check = await checkTask;
+        var manual = pos.ManualRefunds;
+        decimal completedRefunds = payment.CompletedRefunds + (manual?.CashAmount ?? 0) + (manual?.PromptPayAmount ?? 0);
         if (order.Window != window || payment.Window != window || pos.Window != window || check is not null && check.Range != range)
             throw new InvalidOperationException("Source returned inconsistent scope.");
         var now = clock.GetUtcNow();
@@ -71,6 +73,9 @@ public sealed class EndOfDayDraft(IEndOfDaySources sources, IReportingCustomerAu
             || order.GrossSales < 0 || payment.CompletedRefunds < 0 || order.Tenders.Any(t => t.Amount < 0 || string.IsNullOrWhiteSpace(t.Method))
             || new[] { order.CompletedOrders, order.UnresolvedOrders, order.EvidenceGaps, payment.UnresolvedPayments,
                 payment.UnresolvedRefunds, payment.EvidenceGaps, pos.OpenShifts, pos.OpenCashSessions, pos.PendingCashReviews }.Any(n => n < 0)
+            || manual is not null && (manual.CashAmount < 0 || manual.PromptPayAmount < 0 || manual.CompletedCount < 0
+                || manual.UnresolvedPayouts < 0 || manual.DrawerEvidenceGaps < 0 || manual.DrawerEvidenceGaps > manual.CompletedCount
+                || (manual.CompletedCount == 0) != (manual.CashAmount + manual.PromptPayAmount == 0))
             || new[] { order.ObservedAtUtc, payment.ObservedAtUtc, pos.ObservedAtUtc }.Any(t => t < window.ToUtc || t > now))
             throw new InvalidOperationException("Source returned invalid observation.");
         var currencies = order.Currencies.Concat(order.Tenders.Select(t => t.Currency)).Concat(payment.Currencies).Concat(pos.Currencies)
@@ -85,7 +90,15 @@ public sealed class EndOfDayDraft(IEndOfDaySources sources, IReportingCustomerAu
         if (pos.PendingCashReviews > 0) issues.Add("pending_cash_reviews");
         if (pos.CashVariance != 0) issues.Add("cash_variance");
         if (order.EvidenceGaps + payment.EvidenceGaps > 0) issues.Add("missing_source_evidence");
-        if (projection.GrossSales != order.GrossSales || projection.Refunded != payment.CompletedRefunds || projection.CompletedOrders != order.CompletedOrders)
+        if (manual?.UnresolvedPayouts > 0) issues.Add("unresolved_manual_refunds");
+        if (manual?.DrawerEvidenceGaps > 0) issues.Add("manual_refund_drawer_evidence_gap");
+        if (projection.ManualRefundCount != (manual?.CompletedCount ?? 0)
+            || projection.ManualCashRefunds != (manual?.CashAmount ?? 0)
+            || projection.ManualPromptPayRefunds != (manual?.PromptPayAmount ?? 0)
+            || manual?.CompletedCount > 0 && (manual.EvidenceVersion is not { Length: 64 } proof || !proof.All(char.IsAsciiHexDigit)
+                || projection.ManualRefundEvidenceVersion != proof))
+            issues.Add("manual_refund_projection_evidence_gap");
+        if (projection.GrossSales != order.GrossSales || projection.Refunded != completedRefunds || projection.CompletedOrders != order.CompletedOrders)
             issues.Add("projection_totals_differ");
         if (check is null) issues.Add("financial_evidence_not_checked");
         else
@@ -94,7 +107,7 @@ public sealed class EndOfDayDraft(IEndOfDaySources sources, IReportingCustomerAu
             issues.Add("recorded_check_is_historical");
             if (check.Status != "observed_complete") issues.Add("recorded_financial_gaps");
         }
-        return new(date, branch, window, "draft", order.GrossSales, payment.CompletedRefunds,
-            order.GrossSales - payment.CompletedRefunds, order.Tenders, pos.CashVariance, order, payment, pos, projection, check, issues);
+        return new(date, branch, window, "draft", order.GrossSales, completedRefunds,
+            order.GrossSales - completedRefunds, order.Tenders, pos.CashVariance, order, payment, pos, projection, check, issues);
     }
 }

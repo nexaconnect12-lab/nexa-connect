@@ -11,7 +11,10 @@ import {DayDraft,dayRequest,readDayDraft} from "./endOfDay";
 
 import {DayClosePreparationPanel} from "./DayClosePreparationPanel";
 const api=createApiClient({onUnauthorized:()=>location.assign("/bff/customer/login")});
-const issueNames:Record<string,string>={unresolved_orders:"Unresolved orders",unresolved_payments:"Unresolved payments",unresolved_refunds:"Unresolved refunds",open_shifts:"Open shifts",open_cash_sessions:"Open cash sessions",pending_cash_reviews:"Pending cash reviews",missing_source_evidence:"Missing receipt or retained publication evidence",projection_totals_differ:"Reporting totals differ from source totals",financial_evidence_not_checked:"No financial evidence check recorded for this exact day",recorded_check_is_historical:"Recorded financial check is historical; request a fresh check before closing",recorded_financial_gaps:"Recorded financial check contains gaps",cash_variance:"Cash variance requires review"};
+const issueNames:Record<string,string>={unresolved_orders:"Unresolved orders",unresolved_payments:"Unresolved payments",unresolved_refunds:"Unresolved provider refunds",open_shifts:"Open shifts",open_cash_sessions:"Open cash sessions",pending_cash_reviews:"Pending cash reviews",missing_source_evidence:"Missing receipt or retained publication evidence",projection_totals_differ:"Reporting totals differ from source totals",financial_evidence_not_checked:"No financial evidence check recorded for this exact day",recorded_check_is_historical:"Recorded financial check is historical; request a fresh check before closing",recorded_financial_gaps:"Recorded financial check contains gaps",cash_variance:"Cash variance requires review",
+  unresolved_manual_refunds:"Started manual refund payouts need verification",
+  manual_refund_drawer_evidence_gap:"A manual refund has missing or mismatched drawer evidence",
+  manual_refund_projection_evidence_gap:"Manual refund evidence differs between POS and Reporting"};
 export function EndOfDayPanel({organizationId}:{organizationId:string}){
   const [branch,setBranch]=useState("");const [date,setDate]=useState("");const [report,setReport]=useState<DayDraft>();
   const [reviewed,setReviewed]=useState<{scope:string;version:number}>();
@@ -54,6 +57,10 @@ export function EndOfDayPanel({organizationId}:{organizationId:string}){
         <Descriptions.Item label="UTC window">{report.window.fromUtc} to {report.window.toUtc} (exclusive)</Descriptions.Item>
         <Descriptions.Item label="Gross sales">{report.branch.currency} {report.grossSales}</Descriptions.Item>
         <Descriptions.Item label="Completed refunds">{report.branch.currency} {report.completedRefunds}</Descriptions.Item>
+        {report.pos.manualRefunds && <>
+          <Descriptions.Item label="Cash refunds">{report.branch.currency} {report.pos.manualRefunds.cashAmount}</Descriptions.Item>
+          <Descriptions.Item label="Manual PromptPay refunds">{report.branch.currency} {report.pos.manualRefunds.promptPayAmount}</Descriptions.Item>
+        </>}
         <Descriptions.Item label="Net sales">{report.branch.currency} {report.netSales}</Descriptions.Item>
         <Descriptions.Item label="Cash variance including corrections">{report.branch.currency} {report.cashVariance}</Descriptions.Item>
         <Descriptions.Item label="Late cash correction adjustments">{report.branch.currency} {report.pos.lateCashCorrectionAdjustment} ({report.pos.lateCashCorrections} postings)</Descriptions.Item>

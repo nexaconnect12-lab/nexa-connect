@@ -42,7 +42,7 @@ public partial class MainWindow
             ShowManualRefundReview(tender is null
                 ? "This receipt is for a different tender. Use Provider refund to review a captured card payment."
                 : $"{tender} · Original paid amount {CashierPresentation.Money(receipt.TotalAmount, receipt.Currency)}\n"
-                    + $"Receipt {receipt.ReceiptNumber} · Paid {receipt.PaidAtUtc.LocalDateTime:g}");
+                    + $"Order {receipt.OrderNumber} · Receipt {receipt.ReceiptNumber} · Paid {receipt.PaidAtUtc.LocalDateTime:g}", tender is not null);
         }
         catch (Exception error) when (error is HttpRequestException or System.IO.IOException
             or System.IO.InvalidDataException or System.Text.Json.JsonException or OperationCanceledException or PosApiException)
@@ -55,13 +55,14 @@ public partial class MainWindow
             UpdateOperationalState();
         }
 
-        void ShowManualRefundReview(string message)
+        void ShowManualRefundReview(string message, bool manualTender = false)
         {
             if (!ReferenceEquals(manualRefundReview, deadline) || !OrdersTab.IsSelected
                 || !PrintSessionCurrent(generation, token.Subject)) return;
             ReceiptsTab.IsSelected = true;
             ManualRefundSection.IsSelected = true;
             ManualRefundReviewText.Text = message;
+            managerRefundOrder = manualTender ? orderId : null;
             StatusText.Text = "Original payment review finished.";
         }
     }
@@ -78,5 +79,7 @@ public partial class MainWindow
         manualRefundReview = null;
         review?.Cancel();
         ManualRefundReviewText.Text = "";
+        ClearAssignedRefundView();
+        ClearManagerRefundView();
     }
 }

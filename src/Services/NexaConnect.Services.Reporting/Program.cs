@@ -32,6 +32,9 @@ builder.Services.AddHttpClient<ICashCorrectionSource, HttpCashCorrectionSource>(
 if (builder.Configuration.GetValue<bool>("CashCorrectionConsumer:Enabled")) builder.Services.AddHostedService<CashCorrectionFinancialConsumer>();
 builder.Services.AddScoped<RefundFinancialReporting>();
 builder.Services.AddScoped<IRefundFinancialFactRepository, PostgresRefundFinancialFactRepository>();
+builder.Services.AddScoped<ManualRefundFinancialReporting>();
+builder.Services.AddScoped<IManualRefundFinancialFacts, PostgresManualRefundFinancialFacts>();
+if (builder.Configuration.GetValue<bool>("ManualRefundConsumer:Enabled")) builder.Services.AddHostedService<ManualRefundFinancialConsumer>();
 builder.Services.AddScoped<ActivityService>();
 builder.Services.AddScoped<IActivityProjectionRepository, PostgresActivityProjectionRepository>();
 builder.Services.AddActivityConsumer(builder.Configuration);
