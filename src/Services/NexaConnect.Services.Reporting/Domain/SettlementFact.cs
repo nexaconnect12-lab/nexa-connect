@@ -6,10 +6,13 @@ public sealed record SettlementCorrectionItem(Guid EventId,Guid CorrectionId,Gui
     Guid OrderId,Guid TenderId,Guid DrawerId,DateOnly PostingDate,DateTimeOffset PostedAtUtc,decimal Adjustment);
 public sealed record SettlementCorrection(Guid ManifestId,Guid RevisionEpoch,long SourceRevision,string ManifestHash,
     int Expected,int Matched,int Missing,int Conflicting,int Unexpected,decimal Adjustment,SettlementCorrectionItem[] Items);
+public sealed record SettlementManualRefunds(Guid ManifestId,Guid RevisionEpoch,long SourceRevision,
+    decimal CashAmount,decimal PromptPayAmount,int CompletedCount,string? EvidenceVersion);
 public sealed record SettlementFact(Guid EventId,Guid CorrelationId,Guid SettlementId,Guid OrganizationId,Guid RestaurantId,Guid BranchId,
     DateOnly BusinessDate,DateTimeOffset SettledAtUtc,Guid ApprovalId,long SealVersion,string Currency,
     decimal GrossSales,decimal CompletedRefunds,decimal NetSales,decimal CashVariance,SettlementTender[] Tenders,
-    SettlementSource[] Sources,int ContractVersion,Guid? DecisionId,DateTimeOffset? FromUtc,DateTimeOffset? ToUtc,SettlementCorrection? Corrections)
+    SettlementSource[] Sources,int ContractVersion,Guid? DecisionId,DateTimeOffset? FromUtc,DateTimeOffset? ToUtc,SettlementCorrection? Corrections,
+    [property:System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] SettlementManualRefunds? ManualRefunds=null)
 {
     public void Validate()
     {
@@ -25,11 +28,11 @@ public sealed record SettlementFact(Guid EventId,Guid CorrelationId,Guid Settlem
             throw new ArgumentException("Invalid settlement financial evidence.");
         if(ContractVersion==1)
         {
-            if(DecisionId is not null||FromUtc is not null||ToUtc is not null||Corrections is not null)throw new ArgumentException("Legacy evidence cannot be enriched.");
+            if(DecisionId is not null||FromUtc is not null||ToUtc is not null||Corrections is not null||ManualRefunds is not null)throw new ArgumentException("Legacy evidence cannot be enriched.");
             return;
         }
         var c=Corrections;var pos=Sources.Single(s=>s.Source=="POS");
-        if(ContractVersion!=2||DecisionId is null||DecisionId==Guid.Empty||FromUtc is null||ToUtc is null
+        if(ContractVersion is not (2 or 3)||DecisionId is null||DecisionId==Guid.Empty||FromUtc is null||ToUtc is null
             ||FromUtc>=ToUtc||ToUtc-FromUtc>TimeSpan.FromHours(27)||SettledAtUtc<ToUtc||c is null
             ||c.ManifestId==Guid.Empty||c.RevisionEpoch!=pos.Epoch||c.SourceRevision!=pos.Revision
             ||c.ManifestHash is not{Length:64}||c.ManifestHash.Any(ch=>!char.IsAsciiHexDigit(ch))
@@ -41,5 +44,12 @@ public sealed record SettlementFact(Guid EventId,Guid CorrelationId,Guid Settlem
             ||c.Items.Select(i=>i.WorkId).Distinct().Count()!=c.Expected||c.Items.Select(i=>i.OrderId).Distinct().Count()!=c.Expected
             ||c.Items.Select(i=>i.TenderId).Distinct().Count()!=c.Expected||c.Items.Sum(i=>i.Adjustment)!=c.Adjustment)
             throw new ArgumentException("Invalid settled correction evidence.");
+        var m=ManualRefunds;
+        if(ContractVersion==2 ? m is not null : m is null || m.ManifestId!=c.ManifestId || m.RevisionEpoch!=pos.Epoch || m.SourceRevision!=pos.Revision
+            || m.CashAmount<0 || m.PromptPayAmount<0 || !Money(m.CashAmount) || !Money(m.PromptPayAmount)
+            || m.CashAmount+m.PromptPayAmount>CompletedRefunds || m.CompletedCount is <0 or >10000
+            || (m.CompletedCount==0 ? m.CashAmount!=0||m.PromptPayAmount!=0||m.EvidenceVersion is not null
+                : m.CashAmount+m.PromptPayAmount<=0||m.EvidenceVersion is not {Length:64}||m.EvidenceVersion.Any(ch=>!char.IsAsciiHexDigit(ch))))
+            throw new ArgumentException("Invalid settled manual refund evidence.");
     }
 }

@@ -77,8 +77,8 @@ public sealed class PostgresDaySettlementStore(NpgsqlDataSource source) : IDaySe
         {
             await Run(c, tx, "INSERT INTO branch_day_settlement_receipts(organization_id,settlement_id,receipt) VALUES($1,$2,$3::jsonb)", ct,
                 state.Identity.OrganizationId, state.Id, JsonSerializer.Serialize(receipt, Json));
-            var publication = SettlementPublicationFactory.Current(receipt);
-            await Run(c, tx, "INSERT INTO outbox_messages(id,event_type,contract_version,aggregate_type,aggregate_id,payload,correlation_id,occurred_at_utc) VALUES($1,'pos.branch-day-settled.v2',2,'branch-day-settlement',$2,$3::jsonb,$4,$5)", ct,
+            var publication = SettlementPublicationFactory.WithManualRefunds(receipt);
+            await Run(c, tx, "INSERT INTO outbox_messages(id,event_type,contract_version,aggregate_type,aggregate_id,payload,correlation_id,occurred_at_utc) VALUES($1,'pos.branch-day-settled.v3',3,'branch-day-settlement',$2,$3::jsonb,$4,$5)", ct,
                 publication.EventId, state.Id, JsonSerializer.Serialize(publication, Json), state.CorrelationId, now);
         }
         await Save(c, tx, state, ct); await Audit(c, tx, state, commit ? "commit" : "abort", ct);

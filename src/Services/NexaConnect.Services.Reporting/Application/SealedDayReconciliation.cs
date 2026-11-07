@@ -8,7 +8,7 @@ public interface ISealedSources
     Task<SourceSealRead<PaymentDaySummary>> PaymentSealAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct);
     Task<SourceSealRead<PosDaySummary>> PosSealAsync(EndOfDayWindow w,Guid id,string bearer,CancellationToken ct) => throw new InvalidOperationException("POS seal evidence capability unavailable.");
 }
-public sealed class SealedDayReconciliation(ISealedSources sources,IReportingCustomerAuthorizer authorization,IFinancialCompletenessRepository repository,ICashCorrectionFactRepository corrections)
+public sealed class SealedDayReconciliation(ISealedSources sources,IReportingCustomerAuthorizer authorization,IFinancialCompletenessRepository repository,ICashCorrectionFactRepository corrections,IManualRefundFinancialFacts? manualRefunds=null)
 {
     public async Task<SealedReconciliation> CheckAsync(SealedReconciliationCommand command,string bearer,CancellationToken ct)
     {
@@ -25,14 +25,14 @@ public sealed class SealedDayReconciliation(ISealedSources sources,IReportingCus
         // Reuse the exact financial inventory policy, translating immutable seals to source observations.
         // Subsequent financial changes are reported by the journal; they cannot rewrite this selected set.
         var adapter=new SealedAdapter(sources,order,payment,pos);
-        var check=await new DayCutoffReconciliation(adapter,authorization,repository,corrections).CheckAsync(new(w,order.Manifest.ManifestId,payment.Manifest.ManifestId,pos.Manifest.ManifestId),bearer,ct);
+        var check=await new DayCutoffReconciliation(adapter,authorization,repository,corrections,manualRefunds).CheckAsync(new(w,order.Manifest.ManifestId,payment.Manifest.ManifestId,pos.Manifest.ManifestId),bearer,ct);
         return new(check.CheckId,w,command.OrderSealId,command.PaymentSealId,order.Manifest.ManifestId,payment.Manifest.ManifestId,
-            check.DeliveryComplete,check.CheckedAtUtc,check.Sales,check.Payments,check.Refunds,command.PosSealId,check.CashCorrections,3);
+            check.DeliveryComplete,check.CheckedAtUtc,check.Sales,check.Payments,check.Refunds,command.PosSealId,check.CashCorrections,check.EvidenceProtocolVersion,check.ManualRefunds);
     }
     private static void Validate<T>(SourceSealRead<T> value,EndOfDayWindow w,Guid id)
     {
         if(value.Seal.SealId!=id || value.Seal.Window!=w || value.Manifest.Window!=w || value.Seal.ManifestId!=value.Manifest.ManifestId
-            || value.Seal.SourceRevision!=value.Manifest.SourceRevision || value.Manifest.EvidenceProtocolVersion is not (2 or 3) || value.PendingChanges<0)
+            || value.Seal.SourceRevision!=value.Manifest.SourceRevision || value.Manifest.EvidenceProtocolVersion is not (2 or 3 or 4) || value.PendingChanges<0)
             throw new InvalidOperationException("Sealed source identity invalid.");
     }
     private sealed class SealedAdapter(ISealedSources sources,SourceSealRead<OrderDaySummary> order,SourceSealRead<PaymentDaySummary> payment,SourceSealRead<PosDaySummary> pos):ICutoffSources

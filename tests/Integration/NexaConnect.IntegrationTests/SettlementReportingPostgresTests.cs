@@ -28,7 +28,7 @@ public sealed partial class DaySealPostgresTests
         var manifest=await CommittedSettlementManifest();var original=JsonSerializer.Serialize((await Settlements.ReadAsync(Day,default))!.Receipt);
         var repository=new SDb.PostgresSettlementFactRepository(reporting);var missing=await repository.CompareAsync(manifest,default);
         Assert.Equal(1,missing.Missing);Assert.Equal("missing",Assert.Single(missing.Items).Status);
-        var value=Assert.Single(manifest.Events);Assert.Null(value.V1);Assert.Equal(2,SR.SettlementReporting.Translate(value).ContractVersion);
+        var value=Assert.Single(manifest.Events);Assert.Null(value.V1);Assert.Equal(3,SR.SettlementReporting.Translate(value).ContractVersion);
         Assert.True(await repository.ProjectAsync(SR.SettlementReporting.Translate(value),default));
         var complete=await repository.CompareAsync(manifest,default);Assert.Equal(missing.ManifestHash,complete.ManifestHash);Assert.Equal("matched",complete.Status);
         Assert.Equal("verified",complete.Items.Single().CorrectionEvidence);Assert.Empty(complete.Items.Single().Corrections!.Items);
@@ -66,7 +66,7 @@ public sealed partial class DaySealPostgresTests
     [ReportingDatabaseFact]
     public async Task Settlement_reporting_legacy_original_is_not_enriched_and_missing_or_changed_original_fails_closed()
     {
-        var current=await CommittedSettlementManifest();var v2=current.Events.Single().V2!;
+        var current=await CommittedSettlementManifest();var v2=current.Events.Single().V3!.Settlement;
         await Sql(pos,"UPDATE outbox_messages SET event_type='pos.branch-day-settled.v1',contract_version=1,payload=$2::jsonb WHERE id=$1",v2.EventId,JsonSerializer.Serialize(v2.Settlement,new JsonSerializerOptions(JsonSerializerDefaults.Web)));
         var legacy=await SettlementManifest();Assert.Null(legacy.Events.Single().V2);var repository=new SDb.PostgresSettlementFactRepository(reporting);
         await repository.ProjectAsync(SR.SettlementReporting.Translate(legacy.Events.Single()),default);
@@ -89,7 +89,7 @@ public sealed partial class DaySealPostgresTests
     public async Task Settlement_reporting_migration_empty_rollback_and_immutable_history_guards_are_enforced()
     {
         var directory=Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/Reporting/0022_settlement_reporting");
-        await Sql(reporting,File.ReadAllText(Path.Combine(directory,"down.sql")));await Sql(reporting,File.ReadAllText(Path.Combine(directory,"up.sql")));
+        await Sql(reporting,File.ReadAllText(Path.Combine(directory,"down.sql")));await Sql(reporting,File.ReadAllText(Path.Combine(directory,"up.sql")));await Sql(reporting,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/Reporting/0024_manual_refund_settlements/up.sql")));
         var manifest=await CommittedSettlementManifest();await new SDb.PostgresSettlementFactRepository(reporting).ProjectAsync(SR.SettlementReporting.Translate(manifest.Events.Single()),default);
         await Assert.ThrowsAsync<PostgresException>(()=>Sql(reporting,"DELETE FROM settlement_facts"));
         await Assert.ThrowsAsync<PostgresException>(()=>Sql(reporting,"UPDATE settlement_event_receipts SET payload_hash=repeat('a',64)"));
@@ -98,7 +98,7 @@ public sealed partial class DaySealPostgresTests
     [ReportingRabbitFact]
     public async Task Settlement_reporting_hosted_consumer_recovers_commit_before_ack_and_restart_and_rejects_conflict()
     {
-        var manifest=await CommittedSettlementManifest();var e=manifest.Events.Single().V2!;
+        var manifest=await CommittedSettlementManifest();var e=manifest.Events.Single().V3!;
         var wrapped=new SettlementCommitBeforeAck(new SDb.PostgresSettlementFactRepository(reporting));var services=new ServiceCollection();
         services.AddSingleton<SR.ISettlementFactRepository>(wrapped);services.AddSingleton<SR.ISettlementSource>(new SettlementSourcePort(this));services.AddSingleton<SR.IReportingCustomerAuthorizer>(this);services.AddScoped<SR.SettlementReporting>();
         using var provider=services.BuildServiceProvider();var queue="nexa.settlement.it."+Guid.NewGuid().ToString("N");var exchange=queue+".events";
@@ -107,7 +107,7 @@ public sealed partial class DaySealPostgresTests
         await using var rabbit=await new ConnectionFactory{Uri=new(uri)}.CreateConnectionAsync();
         await using var transport=new RabbitMqOutboxTransport(rabbit,Options.Create(new OutboxOptions{Exchange=exchange}));
         await using var originalQuery=pos.CreateCommand("SELECT payload::text FROM outbox_messages WHERE id=$1");originalQuery.Parameters.AddWithValue(e.EventId);var raw=(string)(await originalQuery.ExecuteScalarAsync())!;
-        async Task Publish(string payload,int version=2,Guid? id=null)=>await transport.PublishAsync(new(id??e.EventId,"pos.branch-day-settled.v"+version,version,"branch-day-settlement",e.Settlement.SettlementId,payload,e.CorrelationId.ToString("D"),e.OccurredAtUtc),default);
+        async Task Publish(string payload,int version=3,Guid? id=null)=>await transport.PublishAsync(new(id??e.EventId,"pos.branch-day-settled.v"+version,version,"branch-day-settlement",e.Settlement.Settlement.SettlementId,payload,e.CorrelationId.ToString("D"),e.OccurredAtUtc),default);
         async Task Wait(Func<Task<bool>> check){for(int n=0;n<300;n++){if(await check())return;await Task.Delay(50);}throw new TimeoutException("Settlement projection did not converge.");}
         try
         {
@@ -115,10 +115,10 @@ public sealed partial class DaySealPostgresTests
             {
                 await consumer.StartAsync(default);using var ready=new CancellationTokenSource(TimeSpan.FromSeconds(15));await consumer.WaitUntilReadyAsync(ready.Token);
                 await Publish(raw);await Wait(()=>Task.FromResult(Volatile.Read(ref wrapped.Calls)>=2));
-                await Publish(JsonSerializer.Serialize(e with{Settlement=e.Settlement with{CashVariance=1}},new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+                await Publish(JsonSerializer.Serialize(e with{Settlement=e.Settlement with{Settlement=e.Settlement.Settlement with{CashVariance=1}}},new JsonSerializerOptions(JsonSerializerDefaults.Web)));
                 await using var inspect=await rabbit.CreateChannelAsync();await Wait(async()=> (await inspect.QueueDeclarePassiveAsync(queue+".dead")).MessageCount==1);
                 // A genuinely older envelope is accepted without invented correction proof.
-                var legacy=e.Settlement with{EventId=Guid.NewGuid(),SettlementId=Guid.NewGuid(),BusinessDate=Date.AddDays(-1)};
+                var legacy=e.Settlement.Settlement with{EventId=Guid.NewGuid(),SettlementId=Guid.NewGuid(),BusinessDate=Date.AddDays(-1)};
                 await Publish(JsonSerializer.Serialize(legacy,new JsonSerializerOptions(JsonSerializerDefaults.Web)),1,legacy.EventId);
                 await Wait(async()=>await Count(reporting,"settlement_facts")==2);await consumer.StopAsync(default);
             }

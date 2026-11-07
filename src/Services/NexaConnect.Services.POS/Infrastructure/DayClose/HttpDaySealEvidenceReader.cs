@@ -38,9 +38,10 @@ public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySea
             new SealedReconciliationCommand(w,order.Seal.SealId,payment.Seal.SealId,pos.Seal.SealId),token,ct);
         if(check.Window!=w || check.OrderSealId!=order.Seal.SealId || check.PaymentSealId!=payment.Seal.SealId
             || check.OrderManifestId!=cutoff.Order.ManifestId || check.PaymentManifestId!=cutoff.Payment.ManifestId
-            || check.EvidenceProtocolVersion!=3 || check.PosSealId!=pos.Seal.SealId || check.CheckId==Guid.Empty || check.CheckedAtUtc<w.ToUtc || check.CheckedAtUtc>clock.GetUtcNow())
+            || check.EvidenceProtocolVersion!=pos.Manifest.EvidenceProtocolVersion || check.PosSealId!=pos.Seal.SealId || check.CheckId==Guid.Empty || check.CheckedAtUtc<w.ToUtc || check.CheckedAtUtc>clock.GetUtcNow())
             throw new InvalidOperationException("Sealed reconciliation invalid.");
         var correction=CorrectionEvidenceTranslation.Read(pos.Manifest,check.CashCorrections);
+        var manualProof=ManualRefundEvidenceTranslation.Read(pos.Manifest,check.ManualRefunds);
         long gaps=0;
         if(check.Sales.Expected!=order.Manifest.Sales.Count || check.Payments.Expected!=order.Manifest.Sales.Count || check.Refunds.Expected!=payment.Manifest.Refunds.Count)
             throw new InvalidOperationException("Sealed inventories invalid.");
@@ -74,7 +75,7 @@ public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySea
         var details=Details("Order",orderAfter.Changes).Concat(Details("Payment",paymentAfter.Changes)).Concat(Details("POS",posAfter.Changes)).ToArray();
         var manual=posAfter.CurrentSummary!.ManualRefunds;
         decimal refunded=paymentAfter.CurrentSummary!.CompletedRefunds+(manual?.CashAmount??0)+(manual?.PromptPayAmount??0);
-        return basis with{Corrections=correction,ObservedAtUtc=clock.GetUtcNow(),Cutoff=cutoff with{CheckId=check.CheckId,DeliveryComplete=check.DeliveryComplete,FinancialGaps=checked((int)gaps)},
+        return basis with{Corrections=correction,ManualRefunds=manualProof,ObservedAtUtc=clock.GetUtcNow(),Cutoff=cutoff with{CheckId=check.CheckId,DeliveryComplete=check.DeliveryComplete,FinancialGaps=checked((int)gaps)},
             Issues=basis.Issues.Concat(context.Issues.Where(HttpDayCloseEvidenceReader.IsManualRefundIssue))
                 .Concat(HttpDayCloseEvidenceReader.ManualRefundBlockers(manual)).Distinct().Order().ToArray(),
             Seals=new(Ref(order.Seal),Ref(payment.Seal),Ref(pos.Seal),pending,
@@ -92,7 +93,7 @@ public sealed class HttpDaySealEvidenceReader(IHttpClientFactory clients,IDaySea
             || s.Seal.ManifestId!=reviewed.ManifestId || s.Manifest.ManifestId!=reviewed.ManifestId
             || s.Manifest.Generation!=reviewed.Generation || s.Manifest.EvidenceVersion!=reviewed.EvidenceVersion
             || s.Seal.SourceRevision!=s.Manifest.SourceRevision || s.Seal.SourceRevision.Epoch!=reviewed.RevisionEpoch
-            || s.Seal.SourceRevision.Revision!=reviewed.SourceRevision || s.PendingChanges<0 || s.Manifest.EvidenceProtocolVersion!=(typeof(T)==typeof(PosDaySummary)?3:2)
+            || s.Seal.SourceRevision.Revision!=reviewed.SourceRevision || s.PendingChanges<0 || s.Manifest.EvidenceProtocolVersion!=(typeof(T)==typeof(PosDaySummary)?4:2)
             || s.AttributionProtocolVersion!=2 || s.UnknownChanges<0 || s.UnknownChanges>s.PendingChanges
             || s.Changes is null || s.Changes.Count>256 || s.Changes.Count>s.PendingChanges
             || s.ObservedChanges<s.PendingChanges || s.CurrentSummary is null

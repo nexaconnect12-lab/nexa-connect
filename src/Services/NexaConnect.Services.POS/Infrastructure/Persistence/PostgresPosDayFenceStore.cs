@@ -14,7 +14,7 @@ public sealed class PostgresPosDayFenceStore(NpgsqlDataSource source):IPosDayFen
      await using var connection=await source.OpenConnectionAsync(ct);
      await using var transaction=await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead,ct);
      var manual=await PostgresManualRefundDayEvidence.ReadAsync(command.Window,connection,transaction,ct);
-     if (manual is { CompletedCount: >0 } or { UnresolvedPayouts: >0 }) throw new SnapshotOperationConflictException();
+     if (manual is null or { UnresolvedPayouts: >0 } or { DrawerEvidenceGaps: >0 }) throw new SnapshotOperationConflictException();
      await transaction.CommitAsync(ct);
    }
    return await new PostgresWindowFence(source).ExecuteAsync(command,actor,cancel,

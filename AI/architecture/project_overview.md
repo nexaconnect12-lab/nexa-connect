@@ -7,8 +7,10 @@ approval and cashier custody with Order settlement evidence and scoped recovery.
 Windows POS can review assigned refunds and recover the original payout after
 interruption. POS 28 adds native manager approval, authenticated cashier availability
 and serialized release of unused approvals. Reporting 23 projects completion by
-refund time and compares exact POS evidence in the day-close draft. Permanent
-settlement certification and pilot activation remain pending.
+refund time and compares exact POS evidence in the day-close draft. POS 29 /
+Reporting 24 add protocol-four cutoff/seal delivery proof, refund-day financial
+journaling and V3 permanent settlements with separate cash/PromptPay totals.
+Pilot activation and physical acceptance remain pending.
 See [manual payment review](../../docs/Deployment/POS-Manual-Refund-Review.md).
 
 Windows POS can show a provisioned table-ordering QR on the idle customer display.

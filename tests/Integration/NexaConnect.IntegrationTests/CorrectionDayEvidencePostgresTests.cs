@@ -37,7 +37,7 @@ public sealed partial class DaySealPostgresTests
         var blocked=await Reviewed();Assert.Equal("blocked",blocked.Status);Assert.Contains("correction_delivery_missing",blocked.Blockers);
         var retained=blocked.Snapshot!.Corrections!;Assert.Equal(1,retained.Expected);Assert.Equal(-10,retained.Adjustment);Assert.Equal(1,retained.Missing);
         var source=(await new P.PostgresPosCutoffStore(pos).ReadAsync(Window,retained.ManifestId,default))!.Manifest;
-        Assert.Equal(3,source.EvidenceProtocolVersion);Assert.Equal(publication.Events.Single(),Assert.Single(source.CashCorrections!.Events));
+        Assert.Equal(4,source.EvidenceProtocolVersion);Assert.Equal(publication.Events.Single(),Assert.Single(source.CashCorrections!.Events));
         Assert.Equal(retained.SourceRevision,source.SourceRevision!.Revision);Assert.Equal(retained.RevisionEpoch,source.SourceRevision.Epoch);
         var projector=new RD.PostgresCashCorrectionFactRepository(reporting);
         Assert.True(await projector.ProjectAsync(R.CashCorrectionReporting.Translate(publication.Events.Single()),default));
@@ -88,7 +88,7 @@ public sealed partial class DaySealPostgresTests
         var store=new P.PostgresPosCutoffStore(pos);var oldRead=(await store.ReadAsync(Window,legacy.ManifestId,default))!;
         Assert.False(oldRead.Current);Assert.Equal(2,oldRead.Manifest.EvidenceProtocolVersion);Assert.Null(oldRead.Manifest.CashCorrections);
         Assert.Equal(legacy.ManifestId,(await store.CaptureAsync(command,"manager",default)).ManifestId);Assert.Equal(original,(string)(await query.ExecuteScalarAsync())!);
-        var fresh=await store.CaptureAsync(new(Guid.NewGuid(),Window),"manager",default);Assert.Equal(3,fresh.EvidenceProtocolVersion);Assert.Empty(fresh.CashCorrections!.Events);
+        var fresh=await store.CaptureAsync(new(Guid.NewGuid(),Window),"manager",default);Assert.Equal(4,fresh.EvidenceProtocolVersion);Assert.Empty(fresh.CashCorrections!.Events);
         Assert.True((await store.ReadAsync(Window,fresh.ManifestId,default))!.Current);
         await Assert.ThrowsAsync<NexaConnect.Infrastructure.Persistence.SnapshotOperationConflictException>(()=>store.SealAsync(new(Guid.NewGuid(),Window,legacy.ManifestId,legacy.SourceRevision!),"manager",default));
     }

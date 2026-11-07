@@ -8,7 +8,8 @@ The native cashier workspace uses the outstanding assignment queue and exact
 operation lookup. POS 28 adds the manager workspace, authenticated five-minute
 cashier availability, and immutable release of untouched approvals. Reporting 23
 projects transactional POS completions. Exact source comparison is available in
-the day-close draft. Durable settlement certification and activation are pending.
+the day-close draft. POS 29 / Reporting 24 add exact cutoff, sealed and permanent
+settlement proof. Activation and physical verification remain pending.
 
 ## Context
 

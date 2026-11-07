@@ -47,6 +47,14 @@ public sealed class SettlementReplay(ISettlementReplayStore store,ISettlementRep
             if(v2.EventId!=result.EventId||v2.CorrelationId!=result.CorrelationId||v2.OccurredAtUtc!=result.OccurredAtUtc||v2.Corrections is null)
                 throw new ArgumentException("Original settlement version identity mismatch.");
         }
+        else if(value.ContractVersion==3)
+        {
+            var v3=JsonSerializer.Deserialize<BranchDaySettledV3>(value.Payload,Json)??throw new ArgumentException();
+            var v2=v3.Settlement??throw new ArgumentException();result=v2.Settlement??throw new ArgumentException();
+            if(v3.EventId!=result.EventId||v3.CorrelationId!=result.CorrelationId||v3.OccurredAtUtc!=result.OccurredAtUtc
+                ||v2.EventId!=result.EventId||v2.CorrelationId!=result.CorrelationId||v2.OccurredAtUtc!=result.OccurredAtUtc||v2.Corrections is null||v3.ManualRefunds is null)
+                throw new ArgumentException("Original settlement version identity mismatch.");
+        }
         else throw new ArgumentException("Unsupported settlement publication version.");
         if(result.EventId!=value.Id||result.CorrelationId==Guid.Empty||result.SettlementId==Guid.Empty||result.OccurredAtUtc==default)
             throw new ArgumentException("Original settlement identity absent.");

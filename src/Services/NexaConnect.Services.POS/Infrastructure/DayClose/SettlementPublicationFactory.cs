@@ -4,6 +4,14 @@ namespace NexaConnect.Services.POS.Infrastructure.DayClose;
 
 internal static class SettlementPublicationFactory
 {
+    public static BranchDaySettledV3 WithManualRefunds(SettlementReceipt receipt)
+    {
+        var m=receipt.Snapshot.ManualRefunds??throw new InvalidOperationException("Settlement manual refund proof absent.");
+        if(!m.IsValid||!m.Matched||receipt.Snapshot.Cutoff?.EvidenceProtocolVersion!=4)
+            throw new InvalidOperationException("Settlement manual refund proof invalid.");
+        return new(receipt.EventId,receipt.CorrelationId,receipt.SettledAtUtc,Current(receipt),
+            new(m.ManifestId,m.RevisionEpoch,m.SourceRevision,m.CashAmount,m.PromptPayAmount,m.CompletedCount,m.EvidenceVersion));
+    }
     public static BranchDaySettledV1 Legacy(SettlementReceipt receipt)
     {
         var s=receipt.Snapshot;var day=receipt.Identity;var seals=s.Seals??throw new InvalidOperationException("Settlement source seals absent.");

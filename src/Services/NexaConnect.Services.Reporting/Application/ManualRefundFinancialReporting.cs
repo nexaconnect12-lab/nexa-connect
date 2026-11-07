@@ -1,10 +1,12 @@
 using NexaConnect.Contracts.IntegrationEvents;
+using NexaConnect.Contracts.Reporting;
 
 namespace NexaConnect.Services.Reporting.Application;
 
 public interface IManualRefundFinancialFacts
 {
     Task<bool> ProjectAsync(PosManualRefundCompletedV1 value, CancellationToken ct);
+    Task<ManualRefundDaySummary> ReadDayAsync(EndOfDayWindow window, CancellationToken ct) => throw new InvalidOperationException("Manual refund evidence capability unavailable.");
 }
 
 public sealed class ManualRefundFinancialReporting(IManualRefundFinancialFacts facts)

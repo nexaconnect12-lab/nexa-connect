@@ -5,8 +5,8 @@ const amount=z.string().regex(/^-?(?:0|[1-9]\d{0,17})(?:\.\d{1,4})?$/),count=z.n
 const correction=z.object({manifestId:id,revisionEpoch:id,sourceRevision:count,manifestHash:z.string().regex(/^[A-Fa-f0-9]{64}$/),expected:count.max(1000),matched:count.max(1000),missing:z.literal(0),conflicting:z.literal(0),unexpected:z.literal(0),adjustment:amount,
  items:z.array(z.object({eventId:id,correctionId:id,originalSettlementId:id,workId:id,orderId:id,tenderId:id,drawerId:id,postingDate:date,postedAtUtc:time,adjustment:amount})).max(1000)});
 const row=z.object({eventId:id,settlementId:id,businessDate:date,settledAtUtc:time,approvalId:id,sealVersion:count.positive(),currency:z.literal("THB"),grossSales:amount,completedRefunds:amount,netSales:amount,cashVariance:amount,
- contractVersion:z.union([z.literal(1),z.literal(2)]),correctionEvidence:z.enum(["verified","historical_unavailable"]),corrections:correction.nullable(),status:z.enum(["matched","missing","conflicting","unexpected"]),
- sources:z.array(z.object({source:z.enum(["Order","Payment","POS"]),sealId:id,epoch:id,revision:count})).length(3),decisionId:id.nullable(),fromUtc:time.nullable(),toUtc:time.nullable()});
+ contractVersion:z.union([z.literal(1),z.literal(2),z.literal(3)]),correctionEvidence:z.enum(["verified","historical_unavailable"]),corrections:correction.nullable(),status:z.enum(["matched","missing","conflicting","unexpected"]),
+ sources:z.array(z.object({source:z.enum(["Order","Payment","POS"]),sealId:id,epoch:id,revision:count})).length(3),decisionId:id.nullable(),fromUtc:time.nullable(),toUtc:time.nullable(),manualRefunds:z.object({manifestId:id,revisionEpoch:id,sourceRevision:count,cashAmount:amount,promptPayAmount:amount,completedCount:count.max(10000),evidenceVersion:z.string().regex(/^[A-Fa-f0-9]{64}$/).nullable()}).nullish()});
 const schema=z.object({organizationId:id,branchId:id,fromDate:date,toDate:date,sourceObservedAtUtc:time,comparedAtUtc:time,manifestHash:z.string().regex(/^[A-F0-9]{64}$/),status:z.enum(["matched","gaps"]),expected:count.max(31),matched:count.max(31),missing:count.max(31),conflicting:count.max(31),unexpected:count.max(62),items:z.array(row).max(62)});
 export type SettlementLedger=z.infer<typeof schema>;
 function units(v:string){const [whole="0",fraction=""]=v.replace(/^-/ ,"").split(".");return(v.startsWith("-")?-1n:1n)*(BigInt(whole)*10000n+BigInt(fraction.padEnd(4,"0")));}
@@ -20,6 +20,8 @@ export function readSettlementLedger(raw:unknown,organizationId:string,request:{
  const v=schema.parse(raw),counts={matched:0,missing:0,conflicting:0,unexpected:0};let corrections=0;
  for(const r of v.items){
   counts[r.status]++;
+  const m=r.manualRefunds,pos=r.sources.find(s=>s.source==="POS");
+  if(r.contractVersion===3 ? !m||!pos||m.manifestId!==r.corrections?.manifestId||m.revisionEpoch!==pos.epoch||m.sourceRevision!==pos.revision||units(m.cashAmount)<0n||units(m.promptPayAmount)<0n||units(m.cashAmount)+units(m.promptPayAmount)>units(r.completedRefunds)||(m.completedCount===0?(units(m.cashAmount)!==0n||units(m.promptPayAmount)!==0n||m.evidenceVersion!==null):(!m.evidenceVersion||units(m.cashAmount)+units(m.promptPayAmount)<=0n)) : m!=null)throw Error("Invalid settled manual refund proof");
   if(r.businessDate<v.fromDate||r.businessDate>=v.toDate||units(r.grossSales)<0n||units(r.completedRefunds)<0n||units(r.netSales)!==units(r.grossSales)-units(r.completedRefunds)
    ||new Set(r.sources.map(s=>s.source)).size!==3||Date.parse(r.settledAtUtc)>Date.parse(v.sourceObservedAtUtc))throw Error("Invalid settlement evidence");
   if(r.contractVersion===1){if(r.correctionEvidence!=="historical_unavailable"||r.corrections!==null||r.decisionId!==null||r.fromUtc!==null||r.toUtc!==null)throw Error("Legacy proof was enriched");}

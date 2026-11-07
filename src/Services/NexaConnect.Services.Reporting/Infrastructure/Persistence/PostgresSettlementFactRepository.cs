@@ -88,7 +88,8 @@ public sealed class PostgresSettlementFactRepository(NpgsqlDataSource source):IS
         return new(f.EventId,f.SettlementId,f.BusinessDate,f.SettledAtUtc,f.ApprovalId,f.SealVersion,f.Currency,Money(f.GrossSales),Money(f.CompletedRefunds),Money(f.NetSales),Money(f.CashVariance),
             f.ContractVersion,c is null?"historical_unavailable":"verified",c is null?null:new(c.ManifestId,c.RevisionEpoch,c.SourceRevision,c.ManifestHash,c.Expected,c.Matched,c.Missing,c.Conflicting,c.Unexpected,c.Adjustment,
                 c.Items.Select(i=>new SettlementCorrectionItemV2(i.EventId,i.CorrectionId,i.OriginalSettlementId,i.WorkId,i.OrderId,i.TenderId,i.DrawerId,i.PostingDate,i.PostedAtUtc,i.Adjustment)).ToArray()),status,
-            f.Sources.Select(s=>new SettlementSourceV1(s.Source,s.SealId,s.Epoch,s.Revision)).ToArray(),f.DecisionId,f.FromUtc,f.ToUtc);
+            f.Sources.Select(s=>new SettlementSourceV1(s.Source,s.SealId,s.Epoch,s.Revision)).ToArray(),f.DecisionId,f.FromUtc,f.ToUtc,
+            f.ManualRefunds is not {} m?null:new(m.ManifestId,m.RevisionEpoch,m.SourceRevision,m.CashAmount,m.PromptPayAmount,m.CompletedCount,m.EvidenceVersion));
     }
     private static void Add(NpgsqlCommand q,params object[] values){foreach(var v in values)q.Parameters.AddWithValue(v);}
 }

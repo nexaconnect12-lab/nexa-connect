@@ -58,6 +58,7 @@ public sealed class ManualRefundPersistenceTests
             await Run(up);
             string management = await File.ReadAllTextAsync(Path.Combine(scripts, "0028_manual_refund_management/up.sql"));
             await Run(management);
+            await Run(await File.ReadAllTextAsync(Path.Combine(scripts, "0029_manual_refund_day_evidence/up.sql")));
 
             var (org, restaurant, branch, store, terminal, shift, drawer) =
                 (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
@@ -231,6 +232,8 @@ public sealed class ManualRefundPersistenceTests
             Assert.Equal(2, source.ManualRefunds.CompletedCount);
             Assert.NotNull(source.ManualRefunds.EvidenceVersion);
             Assert.Equal(source.ManualRefunds.EvidenceVersion, current.ManualRefundEvidenceVersion);
+            Assert.Equal(source.ManualRefunds,await new PostgresManualRefundFinancialFacts(reporting).ReadDayAsync(window,default));
+            Assert.Equal(0,(await new PostgresManualRefundFinancialFacts(reporting).ReadDayAsync(window with{RestaurantId=Guid.NewGuid()},default)).CompletedCount);
             await Assert.ThrowsAsync<SnapshotOperationConflictException>(() => new PostgresPosDayFenceStore(pos).ExecuteAsync(
                 new(Guid.NewGuid(), window, Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddMinutes(1)), "fixture", false, default));
             Assert.Equal(0, (await report.DashboardAsync(range with { BranchId = Guid.NewGuid() }, default)).ManualRefundCount);

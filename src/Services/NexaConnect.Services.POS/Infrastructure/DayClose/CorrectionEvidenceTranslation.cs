@@ -8,7 +8,7 @@ internal static class CorrectionEvidenceTranslation
     public static DayCorrectionEvidence Read(SourceCutoff<PosDaySummary> manifest,CashCorrectionDeliveryProof? proof)
     {
         var events=manifest.CashCorrections?.Events??throw new InvalidOperationException("Correction source evidence absent.");
-        if(manifest.EvidenceProtocolVersion!=3||proof is null||proof.Counts is null||proof.PosManifestId!=manifest.ManifestId
+        if(manifest.EvidenceProtocolVersion is not (3 or 4)||proof is null||proof.Counts is null||proof.PosManifestId!=manifest.ManifestId
             ||proof.ManifestHash!=CashCorrectionEvidenceFingerprint.Calculate(events)
             ||proof.PosRevision!=manifest.SourceRevision||proof.PosRevision is not{Epoch:var epoch,Revision:>=0}||epoch==Guid.Empty)
             throw new InvalidOperationException("Correction evidence identity mismatch.");

@@ -107,10 +107,10 @@ verification for this release. [Reporting configuration and evidence](../API/Man
 
 - Add transfer-reference uniqueness across orders. Reconcile uncertain payouts before
   allowing another payout attempt.
-- Extend durable cutoff, seal and settlement evidence to certify POS-owned manual
-  refunds. POS blocks finalization for dates with completed manual refunds until
-  that protocol is ready. Then verify refunds and the drawer flow on the physical
-  pilot with synthetic data.
+- Deploy POS 29 / Reporting 24 and matching code, then verify protocol-four
+  cutoff/seal and V3 settlement evidence plus the drawer flow on the physical
+  pilot with synthetic data. Keep new work disabled until rollout prerequisites
+  (including transfer-reference policy) are resolved.
 
 The cashier workspace requires a matching Windows POS build and backend. The
 retained physical pilot remains disabled for new refund work.

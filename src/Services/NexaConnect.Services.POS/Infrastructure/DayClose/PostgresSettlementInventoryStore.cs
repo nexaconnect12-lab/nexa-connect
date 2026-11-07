@@ -58,10 +58,16 @@ public sealed class PostgresSettlementInventoryStore(NpgsqlDataSource source):IS
                 if(JsonSerializer.Serialize(value,Json)!=JsonSerializer.Serialize(SettlementPublicationFactory.Current(receipt),Json))throw new InvalidOperationException("Settlement proof provenance changed.");
                 original=new(null,value);
             }
+            else if(version==3&&rows.GetString(1)=="pos.branch-day-settled.v3")
+            {
+                var value=JsonSerializer.Deserialize<BranchDaySettledV3>(payload,PublicationJson)??throw new InvalidOperationException();
+                if(JsonSerializer.Serialize(value,Json)!=JsonSerializer.Serialize(SettlementPublicationFactory.WithManualRefunds(receipt),Json))throw new InvalidOperationException("Manual refund settlement provenance changed.");
+                original=new(null,null,value);
+            }
             else throw new InvalidOperationException("Settlement publication version unsupported.");
             events.Add(original);payloads.Add(receipt.EventId,payload);
         }
-        if(events.Count>31||events.Sum(e=>e.V2?.Corrections.Expected??0)>1000)throw new ArgumentException("Narrow the settlement date range.");
+        if(events.Count>31||events.Sum(e=>(e.V2??e.V3?.Settlement)?.Corrections.Expected??0)>1000)throw new ArgumentException("Narrow the settlement date range.");
         var manifest=new SettlementManifest(range.OrganizationId,restaurant,range.BranchId,range.FromDate,range.ToDate,DateTimeOffset.UtcNow,events);
         if(JsonSerializer.SerializeToUtf8Bytes(manifest,Json).Length>2*1024*1024)throw new ArgumentException("Narrow the settlement evidence range.");
         return (manifest,payloads);

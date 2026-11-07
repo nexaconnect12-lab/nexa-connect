@@ -21,7 +21,7 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
     int PendingCashReviews, string[] Issues, DateTimeOffset ObservedAtUtc, DateTimeOffset? OrderObservedAtUtc = null,
     DateTimeOffset? PaymentObservedAtUtc = null, DateTimeOffset? PosObservedAtUtc = null,
     Guid? RecordedCheckId = null, DateTimeOffset? RecordedCheckedAtUtc = null, DayCutoffEvidence? Cutoff = null,DaySealEvidence? Seals=null,
-    DaySealComparison? SealComparison=null,DayCorrectionEvidence? Corrections=null)
+    DaySealComparison? SealComparison=null,DayCorrectionEvidence? Corrections=null,DayManualRefundEvidence? ManualRefunds=null)
 {
     public bool IsValid(DateTimeOffset now) => !string.IsNullOrWhiteSpace(TimeZone) && TimeZone.Length<=100
         && Currency is { Length:3 } && Currency.All(c=>c is >= 'A' and <= 'Z')
@@ -43,6 +43,8 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
                 && r.Generation>0 && r.EvidenceVersion.Length==64 && r.EvidenceVersion.All(char.IsAsciiHexDigit)))
         && (Corrections is null || Cutoff is not null && Corrections.IsValid(FromUtc,ToUtc)
             && Corrections.ManifestId==Cutoff.Pos.ManifestId&&Corrections.RevisionEpoch==Cutoff.Pos.RevisionEpoch&&Corrections.SourceRevision==Cutoff.Pos.SourceRevision)
+        && (ManualRefunds is null || Cutoff is not null && ManualRefunds.IsValid
+            && ManualRefunds.ManifestId==Cutoff.Pos.ManifestId && ManualRefunds.RevisionEpoch==Cutoff.Pos.RevisionEpoch && ManualRefunds.SourceRevision==Cutoff.Pos.SourceRevision)
         && (Seals is null || Cutoff is not null && Seals.PendingChanges>=0
             && new[]{Seals.Order,Seals.Payment,Seals.Pos}.All(r=>r is not null && r.SealId!=Guid.Empty && r.ManifestId!=Guid.Empty && r.RevisionEpoch!=Guid.Empty && r.SourceRevision>=0)
             && Seals.Order.ManifestId==Cutoff.Order.ManifestId && Seals.Payment.ManifestId==Cutoff.Payment.ManifestId && Seals.Pos.ManifestId==Cutoff.Pos.ManifestId
@@ -54,7 +56,7 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
         .Concat(new[] { OrderVersion, PaymentVersion, PosVersion }.Any(x => x is null || x.Length != 64 || x.Any(c => !char.IsAsciiHexDigit(c)))
             ? ["source_evidence_unavailable"] : Array.Empty<string>())
         .Concat(Cutoff is { SourcesCurrent:false } ? ["cutoff_superseded"] : Array.Empty<string>())
-        .Concat(Cutoff is not null && (Cutoff.EvidenceProtocolVersion!=3
+        .Concat(Cutoff is not null && (Cutoff.EvidenceProtocolVersion is not (3 or 4)
             || new[]{Cutoff.Order,Cutoff.Payment,Cutoff.Pos}.Any(r=>r.RevisionEpoch is null || r.RevisionEpoch==Guid.Empty || r.SourceRevision is null or <0))
             ? ["source_revision_unavailable"] : Array.Empty<string>())
         .Concat(Cutoff is { DeliveryComplete:false } ? ["cutoff_delivery_unproven"] : Array.Empty<string>())
@@ -64,6 +66,8 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
         .Concat(Corrections is {Missing:>0} ? ["correction_delivery_missing"] : Array.Empty<string>())
         .Concat(Corrections is {Conflicting:>0} ? ["correction_delivery_conflicting"] : Array.Empty<string>())
         .Concat(Corrections is {Unexpected:>0} ? ["correction_delivery_unexpected"] : Array.Empty<string>())
+        .Concat(Cutoff is {EvidenceProtocolVersion:4} && ManualRefunds is null ? ["manual_refund_evidence_unavailable"] : Array.Empty<string>())
+        .Concat(ManualRefunds is {Matched:false} ? ["manual_refund_delivery_unproven"] : Array.Empty<string>())
         .Concat(Seals is {PendingChanges:>0} ? ["sealed_changes_pending"] : Array.Empty<string>())
         .Concat(Seals is {JournalComplete:false} ? ["seal_journal_unavailable"] : Array.Empty<string>())
         .Concat(Seals is {DeliveryComplete:false} ? ["seal_delivery_unproven"] : Array.Empty<string>()).Distinct().Order().ToArray();
@@ -81,6 +85,7 @@ public sealed record DayEvidence(string TimeZone, string Currency, DateTimeOffse
             && Cutoff.Order==other.Cutoff.Order && Cutoff.Payment==other.Cutoff.Payment && Cutoff.Pos==other.Cutoff.Pos
             && Cutoff.SourcesCurrent==other.Cutoff.SourcesCurrent && Cutoff.FinancialGaps==other.Cutoff.FinancialGaps
             && Cutoff.DeliveryComplete==other.Cutoff.DeliveryComplete && Cutoff.EvidenceProtocolVersion==other.Cutoff.EvidenceProtocolVersion)
+        && ManualRefunds==other.ManualRefunds
         && Seals==other.Seals
         && (Corrections is null ? other.Corrections is null : other.Corrections is not null&&Corrections.Same(other.Corrections));
 }

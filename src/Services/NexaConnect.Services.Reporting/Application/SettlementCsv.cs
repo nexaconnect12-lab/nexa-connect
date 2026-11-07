@@ -9,7 +9,7 @@ namespace NexaConnect.Services.Reporting.Application;
 public static class SettlementCsv
 {
     public const int MaximumBytes = 4 * 1024 * 1024;
-    private static readonly string[] Columns = "record_type,organization_id,branch_id,from_date,to_date_exclusive,source_observed_at_utc,compared_at_utc,manifest_hash,report_status,expected,matched,missing,conflicting,unexpected,event_id,settlement_id,business_date,settled_at_utc,approval_id,seal_version,currency,gross_sales,completed_refunds,net_sales,cash_variance,contract_version,delivery_status,correction_evidence,decision_id,window_from_utc,window_to_utc,source,source_seal_id,source_epoch,source_revision,correction_manifest_id,correction_epoch,correction_revision,correction_manifest_hash,correction_expected,correction_matched,correction_missing,correction_conflicting,correction_unexpected,correction_adjustment_included_in_variance,correction_event_id,correction_id,original_settlement_id,work_id,order_id,tender_id,drawer_id,posting_date,posted_at_utc,correction_item_adjustment".Split(',');
+    private static readonly string[] Columns = "record_type,organization_id,branch_id,from_date,to_date_exclusive,source_observed_at_utc,compared_at_utc,manifest_hash,report_status,expected,matched,missing,conflicting,unexpected,event_id,settlement_id,business_date,settled_at_utc,approval_id,seal_version,currency,gross_sales,completed_refunds,net_sales,cash_variance,contract_version,delivery_status,correction_evidence,decision_id,window_from_utc,window_to_utc,source,source_seal_id,source_epoch,source_revision,correction_manifest_id,correction_epoch,correction_revision,correction_manifest_hash,correction_expected,correction_matched,correction_missing,correction_conflicting,correction_unexpected,correction_adjustment_included_in_variance,correction_event_id,correction_id,original_settlement_id,work_id,order_id,tender_id,drawer_id,posting_date,posted_at_utc,correction_item_adjustment,manual_cash_refunds,manual_promptpay_refunds,manual_refund_count,manual_refund_evidence_hash".Split(',');
 
     public static string FileName(Guid branchId, DateOnly from, DateOnly to) =>
         FormattableString.Invariant($"day-settlements-{branchId:D}-{from:yyyy-MM-dd}-{to:yyyy-MM-dd}.csv");
@@ -86,6 +86,13 @@ public static class SettlementCsv
                 settlement["correction_missing"] = Number(proof.Missing); settlement["correction_conflicting"] = Number(proof.Conflicting);
                 settlement["correction_unexpected"] = Number(proof.Unexpected);
                 settlement["correction_adjustment_included_in_variance"] = Money(proof.Adjustment);
+            }
+            if(item.ManualRefunds is {} manual)
+            {
+                settlement["manual_cash_refunds"] = Money(manual.CashAmount);
+                settlement["manual_promptpay_refunds"] = Money(manual.PromptPayAmount);
+                settlement["manual_refund_count"] = Number(manual.CompletedCount);
+                settlement["manual_refund_evidence_hash"] = manual.EvidenceVersion ?? "";
             }
             Write("settlement", settlement);
             foreach (var source in item.Sources.OrderBy(s => s.Source, StringComparer.Ordinal))

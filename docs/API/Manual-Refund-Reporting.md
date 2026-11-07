@@ -23,14 +23,34 @@ A missing digest on a nonempty range is a gap. Cash linkage checks include the
 original order, session, actor, amount and posting time. Started payouts without
 completion carry forward.
 
-POS day-close preparation blocks permanent settlement of a day with completed
-manual refunds with `manual_refund_finalization_pending` until durable cutoff,
-seal and settlement proof include this source. Existing provider refund
-completeness and historical checks do not certify manual refunds.
+POS 29 / Reporting 24 (application compatibility 0.49.0) extend permanent day-close
+with protocol-four POS cutoffs. The retained `summary.manualRefunds` contains
+separate cash and PromptPay totals, count and canonical inventory digest. Cutoff
+and sealed reconciliation return `manualRefunds` proof bound to the POS manifest,
+epoch and revision. Reporting compares the exact restaurant/branch/window inventory
+in one repeatable-read snapshot; matching totals alone cannot establish delivery.
+Missing, conflicting or unexpected completions leave `matched=false` and block readiness.
+No transfer references or staff identities enter this proof.
 
-Apply Reporting 23 at application compatibility 0.48.0 with matching POS and
-Reporting code. Use POS 28. Enable the Reporting consumer and verify its binding
-before publishing from the POS outbox. In disposable verification configure
+POS journals payout start and completion atomically with the original mutation.
+Unresolved payouts and drawer-linkage gaps block sealing. Source fences and durable
+barriers reject intersecting financial writes. A later-day refund of an earlier
+sale affects its completion day, without changing a finalized earlier day. Fresh
+captures require protocol four; historical protocol-three evidence is readable but
+cannot authorize a new settlement. No historical journal entries are fabricated.
+
+New settlements publish `pos.branch-day-settled.v3`: an unchanged V2 envelope plus
+`manualRefunds` with manifest/epoch/revision, cash amount, PromptPay amount, count
+and digest. Receipt and outbox commit together. Reporting validates the original
+binding, projects idempotently and displays/exports both tender totals. Original
+V1/V2 receipts remain unchanged and show historical proof as unavailable, not zero.
+The previous `manual_refund_finalization_pending` blanket guard is replaced by
+exact delivery, unresolved payout, drawer and source-revision checks.
+
+Apply POS 29 and Reporting 24 before matching producers/consumers, along with
+Authorization 18. Enable the Reporting manual-refund and settlement consumers and
+verify all three settlement bindings (V1/V2/V3) before enabling new POS refunds.
+In disposable verification configure
 `ManualRefundConsumer__Enabled=true`, a secret-managed
 `ManualRefundConsumer__ConnectionString` and `ManualRefundConsumer__Exchange`
 matching the POS outbox. Default queue is `nexaconnect.reporting.manual-refunds.v1`.

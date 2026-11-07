@@ -36,7 +36,7 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
     private bool allowed=true,fail,calendarDrift,forgeCorrectionHash;
     private TimeProvider sealClock=TimeProvider.System;
     private readonly List<Guid> capturedOperations=[];
-    private ReportingApp.DayCutoffReconciliation Checker=>new(this,this,new ReportingDb.PostgresFinancialCompletenessRepository(reporting),new ReportingDb.PostgresCashCorrectionFactRepository(reporting));
+    private ReportingApp.DayCutoffReconciliation Checker=>new(this,this,new ReportingDb.PostgresFinancialCompletenessRepository(reporting),new ReportingDb.PostgresCashCorrectionFactRepository(reporting),new ReportingDb.PostgresManualRefundFinancialFacts(reporting));
     private PosApp.DayCloseCutoff Workflow=>new(new CoordinatorDb.PostgresDayCutoffStore(pos),
         new CoordinatorDb.HttpCutoffEvidenceReader(this,new CoordinatorDb.PostgresDayCutoffStore(pos),this,TimeProvider.System),
         this,this,TimeProvider.System,NullLoggerFactory.Instance);
@@ -372,7 +372,7 @@ public sealed partial class DaySealPostgresTests:IAsyncLifetime,ReportingApp.ICu
             }
         }
         else if(service=="Reporting" && request.RequestUri.AbsolutePath.EndsWith("day-seal-reconciliation"))
-            result=await new ReportingApp.SealedDayReconciliation(this,this,new ReportingDb.PostgresFinancialCompletenessRepository(reporting),new ReportingDb.PostgresCashCorrectionFactRepository(reporting)).CheckAsync((await request.Content!.ReadFromJsonAsync<SealedReconciliationCommand>(cancellationToken:ct))!,"Bearer token",ct);
+            result=await new ReportingApp.SealedDayReconciliation(this,this,new ReportingDb.PostgresFinancialCompletenessRepository(reporting),new ReportingDb.PostgresCashCorrectionFactRepository(reporting),new ReportingDb.PostgresManualRefundFinancialFacts(reporting)).CheckAsync((await request.Content!.ReadFromJsonAsync<SealedReconciliationCommand>(cancellationToken:ct))!,"Bearer token",ct);
         else if(service=="Reporting")result=await Checker.CheckAsync((await request.Content!.ReadFromJsonAsync<CutoffReconciliationCommand>(cancellationToken:ct))!,"Bearer token",ct);
         else if(request.Method==HttpMethod.Post)
         {

@@ -20,7 +20,7 @@ public sealed record CutoffReconciliation(Guid CheckId, EndOfDayWindow Window, G
     CutoffFactCounts Sales, CutoffFactCounts Payments, CutoffFactCounts Refunds,
     SourceFinancialRevision? OrderRevision = null, SourceFinancialRevision? PaymentRevision = null,
     bool DeliveryComplete = false, int EvidenceProtocolVersion = 1, Guid PosManifestId = default,
-    SourceFinancialRevision? PosRevision = null, CashCorrectionDeliveryProof? CashCorrections = null);
+    SourceFinancialRevision? PosRevision = null, CashCorrectionDeliveryProof? CashCorrections = null, ManualRefundDeliveryProof? ManualRefunds = null);
 
 public sealed record CashCorrectionDeliveryProof(Guid PosManifestId, SourceFinancialRevision PosRevision,
     string ManifestHash, CutoffFactCounts Counts,

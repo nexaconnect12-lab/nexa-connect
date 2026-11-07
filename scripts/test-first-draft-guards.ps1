@@ -47,7 +47,7 @@ Expect-Rejection { Assert-DraftProcess @{id=124;startTicks=$record.startTicks} $
 Expect-Rejection { Assert-DraftProcess @{id=123;startTicks=$record.startTicks-1} $actual }
 if(Assert-DraftProcess $record $null){throw 'Missing process accepted as live.'};$passed++
 $catalog=Get-DraftServiceCatalog $root
-if($catalog.POS.version -ne 28 -or $catalog.Reporting.version -ne 23 -or $catalog.Count -ne 10){throw 'Unexpected service inventory.'};$passed++
+if($catalog.POS.version -ne 29 -or $catalog.Reporting.version -ne 24 -or $catalog.Count -ne 10){throw 'Unexpected service inventory.'};$passed++
 $argsList=Get-DraftComposeArguments $root $id
 if($argsList -notcontains "nexa-draft-$id" -or $argsList -notcontains (Join-Path $directory 'compose.env')){throw 'Compose isolation missing.'};$passed++
 $probe='NEXACONNECT_JOINED_GUARD_PROBE'

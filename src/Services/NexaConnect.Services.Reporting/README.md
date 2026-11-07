@@ -3,7 +3,9 @@
 [Manual refund financial reporting](../../../docs/API/Manual-Refund-Reporting.md)
 uses Reporting 23 and the default-off ManualRefundConsumer. Sales and the day-close
 draft show separate POS cash and PromptPay refund totals by completion time.
-The draft compares exact POS evidence. Permanent settlement remains pending.
+The draft compares exact POS evidence. Reporting 24 accepts V3 permanent settlements
+with separate manual totals; protocol-four cutoff/sealed reconciliation also compares
+exact manual completion digests. Historical V1/V2 publications remain unchanged.
 
 QR5 reuses existing original Order sale-completed/manual settlement contracts for QR channel/dine_in sales. No Reporting schema, permission or projector behavior changes; local owning integration verifies duplicate original sale events project once. Hosted broker delivery remains separate. See [QR5](../../../docs/Deployment/QR5-Collection.md).
 
@@ -13,7 +15,7 @@ Anonymous `GET /health/live` returns only `{ "status": "Healthy" }` and does not
 
 `GET .../reports/day-settlements/export.csv` renders a fresh authorized ledger observation as bounded UTF-8 CSV with original totals, source seals, separate correction detail and delivery/proof status. Existing Reporting/POS read permissions and dependencies apply; output is capped at 4 MiB, no-store, with a validated attachment filename. No migration or new configuration; Reporting 22 / POS 23 / compatibility 0.38.0 remain applicable. Query `nexaconnect-reporting` safe `Settlement report` authorization/failure events with validated correlation. See [contract](../../../docs/API/Settlement-Export.md), [rollout/tests](../../../docs/Deployment/Settlement-Reporting.md#settlement-csv-export) and [ADR-036](../../../docs/Architecture/Decisions/ADR-036-bounded-settlement-export.md).
 
-Audited settlement replay is implemented in POS 23 / Reporting 22 at compatibility 0.38.0. Administrative --settlements preview pins original V1/V2 payloads; execute records intent in the same source snapshot, append-only attempts and actual database-login attribution before/after broker calls. Original receipts, source revisions and dispatcher flags stay unchanged. No customer replay endpoint or grant is added. See [ADR-035](../../../docs/Architecture/Decisions/ADR-035-audited-settlement-replay.md), [command](../../../docs/API/Settlement-Replay.md) and [operations](../../../docs/Deployment/Settlement-Replay.md).
+Audited settlement replay is implemented in POS 23 / Reporting 22 at compatibility 0.38.0. Administrative --settlements preview pins original V1/V2/V3 payloads; execute records intent in the same source snapshot, append-only attempts and actual database-login attribution before/after broker calls. Original receipts, source revisions and dispatcher flags stay unchanged. No customer replay endpoint or grant is added. See [ADR-035](../../../docs/Architecture/Decisions/ADR-035-audited-settlement-replay.md), [command](../../../docs/API/Settlement-Replay.md) and [operations](../../../docs/Deployment/Settlement-Replay.md).
 
 Settlement reporting now uses Reporting 22 / POS 23 with matching binaries at compatibility 0.38.0. New commits atomically publish V2 proof; the opt-in consumer accepts original V1/V2, stores immutable facts/hash receipts and exposes a live authorized business-date ledger with separate corrections and delivery gaps. V1 proof remains unavailable rather than enriched. No new financial authority is added. See [ADR-034](../../../docs/Architecture/Decisions/ADR-034-settlement-reporting.md), [API](../../../docs/API/Settlement-Reporting.md) and [rollout](../../../docs/Deployment/Settlement-Reporting.md).
 

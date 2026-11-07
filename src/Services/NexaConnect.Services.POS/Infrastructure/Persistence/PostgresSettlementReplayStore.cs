@@ -17,7 +17,8 @@ public sealed class PostgresSettlementReplayStore(NpgsqlDataSource source):ISett
     private static SettlementReplayEvent[] Events(SettlementReplayRequest request,(SettlementManifest Manifest,IReadOnlyDictionary<Guid,string> Payloads) selected)
     {
         var events=selected.Manifest.Events.Select(p=>p.V1 is{} v1?new SettlementReplayEvent(v1.EventId,1,selected.Payloads[v1.EventId])
-            :new(p.V2!.EventId,2,selected.Payloads[p.V2.EventId])).OrderBy(e=>e.Id).ToArray();
+            :p.V2 is {} v2?new(v2.EventId,2,selected.Payloads[v2.EventId])
+            :new(p.V3!.EventId,3,selected.Payloads[p.V3.EventId])).OrderBy(e=>e.Id).ToArray();
         SettlementReplay.Plan(request,events);return events;
     }
     public async Task<IReadOnlyList<SettlementReplayEvent>> BeginAsync(Guid runId,SettlementReplayRequest request,Guid operatorId,string reason,string expectedManifest,CancellationToken ct)

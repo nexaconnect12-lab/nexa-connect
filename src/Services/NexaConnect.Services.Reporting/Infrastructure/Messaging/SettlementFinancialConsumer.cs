@@ -13,7 +13,7 @@ public sealed class SettlementFinancialConsumer(
     IConfiguration configuration,
     ILogger<SettlementFinancialConsumer> logger) : BackgroundService
 {
-    public const string RoutingKey = "pos.branch-day-settled.v2";
+    public const string RoutingKey = "pos.branch-day-settled.v3";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private static readonly ActivitySource Activities = new("nexaconnect-reporting");
     private static readonly System.Diagnostics.Metrics.Meter Meter = new("nexaconnect-reporting");
@@ -48,6 +48,7 @@ public sealed class SettlementFinancialConsumer(
                 await channel.QueueDeclareAsync(queue + ".dead", durable: true, exclusive: false, autoDelete: false,
                     cancellationToken: stoppingToken);
                 await channel.QueueBindAsync(queue, exchange, RoutingKey, cancellationToken: stoppingToken);
+                await channel.QueueBindAsync(queue, exchange, "pos.branch-day-settled.v2", cancellationToken: stoppingToken);
                 await channel.QueueBindAsync(queue, exchange, "pos.branch-day-settled.v1", cancellationToken: stoppingToken);
                 await channel.QueueBindAsync(queue + ".dead", exchange, queue + ".dead", cancellationToken: stoppingToken);
                 await channel.BasicQosAsync(0, prefetch, false, stoppingToken);
@@ -77,10 +78,11 @@ public sealed class SettlementFinancialConsumer(
         IDisposable? logScope = null;
         try
         {
-            if ((delivery.RoutingKey != RoutingKey && delivery.RoutingKey != "pos.branch-day-settled.v1") || delivery.Body.Length > 2 * 1024 * 1024)
+            if ((delivery.RoutingKey != RoutingKey && delivery.RoutingKey != "pos.branch-day-settled.v2" && delivery.RoutingKey != "pos.branch-day-settled.v1") || delivery.Body.Length > 2 * 1024 * 1024)
                 throw new ArgumentException("Invalid settlement envelope.");
             var value = delivery.RoutingKey == RoutingKey
-                ? new SettlementPublication(null, JsonSerializer.Deserialize<BranchDaySettledV2>(delivery.Body.Span, Json) ?? throw new JsonException())
+                ? new SettlementPublication(null,null,JsonSerializer.Deserialize<BranchDaySettledV3>(delivery.Body.Span, Json) ?? throw new JsonException())
+                : delivery.RoutingKey == "pos.branch-day-settled.v2" ? new SettlementPublication(null, JsonSerializer.Deserialize<BranchDaySettledV2>(delivery.Body.Span, Json) ?? throw new JsonException())
                 : new SettlementPublication(JsonSerializer.Deserialize<BranchDaySettledV1>(delivery.Body.Span, Json) ?? throw new JsonException(), null);
             var fact = SettlementReporting.Translate(value);
             eventId = fact.EventId;

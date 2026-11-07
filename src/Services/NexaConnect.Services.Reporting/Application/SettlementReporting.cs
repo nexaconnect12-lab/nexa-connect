@@ -16,8 +16,10 @@ public sealed class SettlementReporting(ISettlementFactRepository repository,ISe
     private static decimal Normalize(decimal n)=>decimal.Parse(n.ToString("G29",CultureInfo.InvariantCulture),NumberStyles.Float,CultureInfo.InvariantCulture);
     public static SettlementFact Translate(SettlementPublication publication)
     {
-        if((publication.V1 is null)==(publication.V2 is null))throw new ArgumentException("Exactly one original settlement version is required.");
-        var v2=publication.V2;var s=publication.V1??v2!.Settlement;
+        if(new object?[]{publication.V1,publication.V2,publication.V3}.Count(x=>x is not null)!=1)throw new ArgumentException("Exactly one original settlement version is required.");
+        var v3=publication.V3;var v2=publication.V2??v3?.Settlement;var s=publication.V1??v2!.Settlement;
+        if(v3 is not null&&(v2 is null||v3.EventId!=v2.EventId||v3.CorrelationId!=v2.CorrelationId||v3.OccurredAtUtc!=v2.OccurredAtUtc||v3.ManualRefunds is null))
+            throw new ArgumentException("Manual refund settlement envelope mismatch.");
         if(s is null||s.Tenders is null||s.Sources is null||s.Tenders.Any(t=>t is null)||s.Sources.Any(s=>s is null))throw new ArgumentException("Settlement payload absent.");
         if(v2 is not null&&(v2.EventId!=s.EventId||v2.CorrelationId!=s.CorrelationId||v2.OccurredAtUtc!=s.OccurredAtUtc||v2.Corrections?.Items is null))
             throw new ArgumentException("Settlement envelope identity mismatch.");
@@ -26,10 +28,12 @@ public sealed class SettlementReporting(ISettlementFactRepository repository,ISe
         var fact=new SettlementFact(s.EventId,s.CorrelationId,s.SettlementId,s.OrganizationId,s.RestaurantId,s.BranchId,s.BusinessDate,
             s.OccurredAtUtc.ToUniversalTime(),s.ApprovalId,s.SealVersion,s.Currency,Normalize(s.GrossSales),Normalize(s.CompletedRefunds),Normalize(s.NetSales),Normalize(s.CashVariance),
             s.Tenders.OrderBy(t=>t.Method,StringComparer.Ordinal).ThenBy(t=>t.Currency,StringComparer.Ordinal).Select(t=>new SettlementTender(t.Method,t.Currency,Normalize(t.Amount))).ToArray(),
-            s.Sources.OrderBy(s=>s.Source,StringComparer.Ordinal).Select(s=>new SettlementSource(s.Source,s.SealId,s.Epoch,s.Revision)).ToArray(),v2 is null?1:2,
+            s.Sources.OrderBy(s=>s.Source,StringComparer.Ordinal).Select(s=>new SettlementSource(s.Source,s.SealId,s.Epoch,s.Revision)).ToArray(),v3 is not null?3:v2 is null?1:2,
             v2?.DecisionId,v2?.FromUtc.ToUniversalTime(),v2?.ToUtc.ToUniversalTime(),c is null?null:new(c.ManifestId,c.RevisionEpoch,c.SourceRevision,c.ManifestHash,
                 c.Expected,c.Matched,c.Missing,c.Conflicting,c.Unexpected,Normalize(c.Adjustment),c.Items.OrderBy(i=>i.EventId).Select(i=>new SettlementCorrectionItem(i.EventId,i.CorrectionId,
-                    i.OriginalSettlementId,i.WorkId,i.OrderId,i.TenderId,i.DrawerId,i.PostingDate,i.PostedAtUtc.ToUniversalTime(),Normalize(i.Adjustment))).ToArray()));
+                    i.OriginalSettlementId,i.WorkId,i.OrderId,i.TenderId,i.DrawerId,i.PostingDate,i.PostedAtUtc.ToUniversalTime(),Normalize(i.Adjustment))).ToArray()),
+            v3 is null?null:new(v3.ManualRefunds.ManifestId,v3.ManualRefunds.RevisionEpoch,v3.ManualRefunds.SourceRevision,
+                Normalize(v3.ManualRefunds.CashAmount),Normalize(v3.ManualRefunds.PromptPayAmount),v3.ManualRefunds.CompletedCount,v3.ManualRefunds.EvidenceVersion));
         fact.Validate();return fact;
     }
     public static void ValidateRange(SettlementReportRange r)

@@ -17,4 +17,4 @@ public sealed record SealedReconciliationCommand(EndOfDayWindow Window, Guid Ord
 public sealed record SealedReconciliation(Guid CheckId, EndOfDayWindow Window, Guid OrderSealId, Guid PaymentSealId,
     Guid OrderManifestId, Guid PaymentManifestId, bool DeliveryComplete, DateTimeOffset CheckedAtUtc,
     CutoffFactCounts Sales, CutoffFactCounts Payments, CutoffFactCounts Refunds,
-    Guid PosSealId = default, CashCorrectionDeliveryProof? CashCorrections = null, int EvidenceProtocolVersion = 1);
+    Guid PosSealId = default, CashCorrectionDeliveryProof? CashCorrections = null, int EvidenceProtocolVersion = 1, ManualRefundDeliveryProof? ManualRefunds = null);

@@ -10,6 +10,21 @@ public static class FinancialChange
     public static FinancialImpact Classify(DateTimeOffset from,DateTimeOffset to,FinancialRecord? before,FinancialRecord? after,bool uncertain,string kind)
     {
         if(uncertain || before is not null && after is not null && before.Id!=after.Id)return new(null,"ownership_uncertain");
+        if(kind=="manual_refunds")
+        {
+            if(from==default||to<=from||before is null&&after is null)return new(null,"unknown");
+            foreach(var s in new[]{before,after}.OfType<FinancialRecord>())
+            {
+                if(s.Id==Guid.Empty||s.Version<=0||s.CreatedAtUtc==default||s.Status is not("started" or "completed"))return new(null,"unknown");
+                if(s.Status=="started"&&s.CreatedAtUtc<to)return new(true,"unresolved_refund");
+                if(s.Status=="completed")
+                {
+                    if(s.FinancialAtUtc is null||s.FinancialAtUtc<s.CreatedAtUtc)return new(null,"unknown");
+                    if(s.FinancialAtUtc>=from&&s.FinancialAtUtc<to)return new(true,"refund_date");
+                }
+            }
+            return new(false,"unrelated");
+        }
         if(kind=="late_cash_corrections")
         {
             if(from==default||to<=from||before is null&&after is null)return new(null,"unknown");

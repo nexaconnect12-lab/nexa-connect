@@ -15,6 +15,19 @@ public sealed class SettlementReportingTests
             [new(Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),Guid.NewGuid(),v1.BusinessDate,start.AddHours(1),-10)]));
     }
     [Fact]
+    public void V3_preserves_separate_manual_totals_and_rejects_forged_or_historically_enriched_proof()
+    {
+        var v2=Event();var m=new SettlementManualRefundsV3(v2.Corrections.ManifestId,v2.Corrections.RevisionEpoch,v2.Corrections.SourceRevision,1,1,2,new('b',64));
+        var v3=new BranchDaySettledV3(v2.EventId,v2.CorrelationId,v2.OccurredAtUtc,v2,m);
+        var fact=SettlementReporting.Translate(new(null,null,v3));
+        Assert.Equal(3,fact.ContractVersion);Assert.Equal(1,fact.ManualRefunds!.CashAmount);Assert.Equal(1,fact.ManualRefunds.PromptPayAmount);
+        Assert.Throws<ArgumentException>(()=>SettlementReporting.Translate(new(null,null,v3 with{ManualRefunds=m with{CashAmount=3}})));
+        Assert.Throws<ArgumentException>(()=>SettlementReporting.Translate(new(null,null,v3 with{ManualRefunds=m with{SourceRevision=m.SourceRevision+1}})));
+        Assert.Throws<ArgumentException>(()=>SettlementReporting.Translate(new(null,null,v3 with{ManualRefunds=m with{EvidenceVersion=null}})));
+        Assert.Throws<ArgumentException>(()=>(fact with{ContractVersion=2}).Validate());
+        Assert.Equal(FinancialCompleteness.Hash(fact),FinancialCompleteness.Hash(SettlementReporting.Translate(new(null,null,v3 with{ManualRefunds=m with{CashAmount=1.0000m}}))));
+    }
+    [Fact]
     public void Legacy_is_not_enriched_and_current_preserves_exact_financial_and_correction_provenance()
     {
         var e=Event();var legacy=SettlementReporting.Translate(new(e.Settlement,null));var current=SettlementReporting.Translate(new(null,e));

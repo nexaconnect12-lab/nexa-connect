@@ -13,7 +13,6 @@ public sealed class HttpDayCloseEvidenceReader(HttpClient client, TimeProvider c
 
     internal static IEnumerable<string> ManualRefundBlockers(ManualRefundDaySummary? manual)
     {
-        if (manual?.CompletedCount > 0) yield return "manual_refund_finalization_pending";
         if (manual?.UnresolvedPayouts > 0) yield return "unresolved_manual_refunds";
         if (manual?.DrawerEvidenceGaps > 0) yield return "manual_refund_drawer_evidence_gap";
     }

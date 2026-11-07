@@ -5,11 +5,37 @@ using NexaConnect.Contracts.IntegrationEvents;
 using NexaConnect.Services.Reporting.Application;
 using Npgsql;
 using NpgsqlTypes;
+using NexaConnect.Contracts.Reporting;
+using NexaConnect.Infrastructure.Persistence;
 
 namespace NexaConnect.Services.Reporting.Infrastructure.Persistence;
 
 public sealed class PostgresManualRefundFinancialFacts(NpgsqlDataSource source) : IManualRefundFinancialFacts
 {
+    public async Task<ManualRefundDaySummary> ReadDayAsync(EndOfDayWindow w, CancellationToken ct)
+    {
+        await using var c=await source.OpenConnectionAsync(ct);
+        await using var tx=await c.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead,ct);
+        const string scope="FROM manual_refund_facts WHERE organization_id=$1 AND restaurant_id=$2 AND branch_id=$3 AND refunded_at_utc >= $4 AND refunded_at_utc < $5";
+        NpgsqlCommand Query(string sql)
+        {
+            var q=new NpgsqlCommand(sql,c,tx);
+            foreach(var v in new object[]{w.OrganizationId,w.RestaurantId,w.BranchId,w.FromUtc.ToUniversalTime(),w.ToUtc.ToUniversalTime()})q.Parameters.AddWithValue(v);
+            return q;
+        }
+        decimal cash,prompt;int count;
+        await using(var q=Query("SELECT COALESCE(sum(amount) FILTER(WHERE method='cash'),0),COALESCE(sum(amount) FILTER(WHERE method='promptpay_manual'),0),count(*)::int "+scope))
+        await using(var rows=await q.ExecuteReaderAsync(ct))
+        { await rows.ReadAsync(ct);cash=rows.GetDecimal(0);prompt=rows.GetDecimal(1);count=rows.GetInt32(2); }
+        string? hash=null;
+        if(count>0)
+        {
+            await using var q=Query("SELECT jsonb_build_array(operation_id,order_id,settlement_id,method,amount,btrim(currency),(extract(epoch from refunded_at_utc)*1000000)::bigint,cash_movement_id)::text "+scope+" ORDER BY operation_id LIMIT 10001");
+            hash=await BoundedEvidenceHash.ReadAsync(q,"manual-refund-day-v1",ct);
+        }
+        await tx.CommitAsync(ct);
+        return new(cash,prompt,count,0,0,hash);
+    }
     public async Task<bool> ProjectAsync(PosManualRefundCompletedV1 value, CancellationToken ct)
     {
         ManualRefundFinancialReporting.Validate(value);

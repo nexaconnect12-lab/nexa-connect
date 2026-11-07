@@ -12,7 +12,11 @@ assignments, keeps an exact Windows-protected operation reference, and records
 payout evidence. POS 28 adds the manager workspace, expiring cashier availability
 and append-only release serialized against payout start. Completion writes the POS
 outbox atomically. Reporting 23 projects manual refunds by completion time and the
-day-close draft compares exact evidence. Permanent cutoff and settlement proof remain pending.
+day-close draft compares exact evidence. POS 29 / Reporting 24 retain protocol-four
+manual-refund digests, compare exact scoped projection inventories, and protect
+payout changes with the existing financial journal, fences and durable barriers.
+V3 settlement publications preserve separate manual cash/PromptPay totals in
+immutable receipts, Reporting and CSV; original V1/V2 history stays unchanged.
 See [ADR-067](Decisions/ADR-067-manual-refund-cashier-custody.md) and
 [manual payment review](../Deployment/POS-Manual-Refund-Review.md).
 
