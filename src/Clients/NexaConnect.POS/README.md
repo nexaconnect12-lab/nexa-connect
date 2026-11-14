@@ -1,5 +1,10 @@
 # NexaConnect POS
 
+The [QR orders workspace](../../../docs/Deployment/POS-QR-Orders-Workspace.md) shows
+request age at load, visible row counts and the original order's local creation
+time. Pending review puts the decision panel beside the list on wider windows
+and below it on smaller windows. Installed operator acceptance is pending.
+
 [Assigned cash and PromptPay refunds](../../../docs/Deployment/POS-Manual-Refund-Review.md#cashier-workspace)
 lets the cashier load assigned approvals, bind payout custody, and record funds
 already returned. A Windows-protected original operation supports lookup after

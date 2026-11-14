@@ -7,6 +7,7 @@ namespace NexaConnect.POS;
 public sealed record PosQrRequest(Guid Id, string TableCode, string Status, long Version,
     DateTimeOffset DeadlineUtc, Guid? OrderId, string? OrderStatus, string Currency, decimal TotalAmount, string Details)
 {
+    public string AgeLabel { get; init; } = "—";
     public string StatusLabel => Status switch { "price_review" => "Guest price confirmation needed", "accepted" => "Accepted · " + OrderStatus, "pending" => "Pending", "rejected" => "Rejected", "expired" => "Expired", _ => Status };
     public static PosQrRequest From(QrRequestView value, string currency)
     {
@@ -27,7 +28,10 @@ public sealed record PosQrRequest(Guid Id, string TableCode, string Status, long
         if (value.Status == "price_review") details += "\nWaiting for guest confirmation. Refreshing review does not accept the order.";
         if (value.OrderId is { } order) details += $"\n\nOriginal Order: {order:D}\nAcceptance is not payment. Use Orders to check preparation and collect once.";
         return new(value.Id, value.TableCode, value.Status, value.Version, value.DeadlineUtc, value.OrderId,
-            value.OrderStatus, value.Quote.Currency, value.Quote.TotalAmount, details);
+            value.OrderStatus, value.Quote.Currency, value.Quote.TotalAmount, details)
+        {
+            AgeLabel = $"{Math.Max(0, (long)(DateTimeOffset.UtcNow - value.SubmittedAtUtc).TotalMinutes)} min"
+        };
     }
 
     private static void ValidateQuote(QrQuote? quote, string currency)

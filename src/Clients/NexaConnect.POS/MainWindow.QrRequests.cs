@@ -74,7 +74,8 @@ public partial class MainWindow
             if (!IsSignedIn() || !qrReviewState.Apply(generation, page)) return;
             QrRequestsGrid.ItemsSource = qrReviewState.Items;
             QrRequestsNotice.Text = page.Items.Count == 0 ? "No matching QR requests."
-                : $"{page.Items.Count} requests shown." + (page.HasMore ? " More requests remain; refresh after decisions to review the next batch." : "");
+                : (page.Items.Count == 1 ? "1 request shown." : $"{page.Items.Count} requests shown.")
+                    + (page.HasMore ? " More requests remain; refresh after decisions to review the next batch." : "");
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception error)

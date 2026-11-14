@@ -19,7 +19,8 @@ internal static partial class Program
         if (args is ["--shutdown-only"]) { VerifyShutdown(); return; }
         bool checkoutLayoutOnly = args is ["--checkout-layout-only"];
         bool paymentLayoutOnly = args is ["--payment-layout-only"];
-        if (!checkoutLayoutOnly && !paymentLayoutOnly)
+        bool qrQueueOnly = args is ["--qr-queue-only"];
+        if (!checkoutLayoutOnly && !paymentLayoutOnly && !qrQueueOnly)
         {
             VerifySessionExpiry();
             if (args is ["--session-expiry-only"]) return;
@@ -70,6 +71,12 @@ internal static partial class Program
                     SessionStartedAtUtc: DateTimeOffset.UtcNow, SessionExpiresAtUtc: DateTimeOffset.UtcNow.AddHours(1), Subject: "fixture", Authority: config.Authority));
             Invoke(window, "UpdateOperationalState");
             window.Show(); Pump(window);
+            if (qrQueueOnly)
+            {
+                SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
+                VerifyQrReview(window, config, preview: true);
+                return;
+            }
             if (checkoutLayoutOnly) { VerifyCompactCheckout(window); return; }
             if (paymentLayoutOnly)
             {

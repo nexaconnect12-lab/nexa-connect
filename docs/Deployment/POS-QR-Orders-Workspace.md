@@ -6,6 +6,18 @@ entries. Portal manager review and the all-branch **Orders** tab remain availabl
 
 ## Cashier workflow
 
+The Phase 3 queue shows each request's table and age in whole minutes when the
+list loads. The notice counts the rows shown and indicates when more work is
+available. Pending review keeps the request list beside the decision panel at
+window widths of 1100 logical pixels and wider. Narrower windows place the
+decision panel below the list. Awaiting payment and Paid / history show each
+original order's creation time in the terminal's local time.
+
+Use `dotnet run --project tests/Windows/NexaConnect.PosTouchTests -- --qr-queue-only`
+to check the synthetic queue, explicit decisions, original-order handoff and
+receipt navigation. On the installed pilot, validate oldest-first review,
+reference lookup, rejection and a single kitchen delivery and payment.
+
 Choose one of three views:
 
 | View | Data and actions |

@@ -39,6 +39,8 @@ internal static partial class Program
         var accept = (Button)window.FindName("AcceptQrRequestButton"); var reject = (Button)window.FindName("RejectQrRequestButton");
         tab.IsSelected = true; Pump(window);
         Require(grid.Items.Count == 1, "native queue loads without a shift or collection");
+        Require(grid.Items[0] is PosQrRequest { AgeLabel: "0 min" }, "request shows its age from submission time");
+        Require(((TextBlock)window.FindName("QrRequestsNotice")).Text.Contains("1 request shown"), "queue reports the loaded count");
         grid.SelectedIndex = 0; Pump(window);
         Require(!accept.IsEnabled && !reject.IsEnabled, "decisions require explicit reviewed confirmation");
         Require(((TextBlock)window.FindName("QrRequestDetails")).Text.Contains("Synthetic rice"), "review displays original line and server totals");
@@ -50,6 +52,8 @@ internal static partial class Program
         foreach (var size in new[] { new Size(960, 640), new Size(1366, 768), new Size(1920, 1080) })
         {
             window.Width = size.Width; window.Height = size.Height; Pump(window);
+            var details = (FrameworkElement)window.FindName("QrReviewDetailPanel");
+            Require(Grid.GetColumn(details) == (size.Width < 1100 ? 0 : 1), "review details reflow at narrow widths");
             var scroll = (ScrollViewer)window.FindName("QrRequestsScroll");
             accept.BringIntoView(); Pump(window);
             var bounds = accept.TransformToAncestor(scroll).TransformBounds(new Rect(accept.RenderSize));

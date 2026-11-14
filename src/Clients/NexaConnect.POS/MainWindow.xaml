@@ -295,15 +295,20 @@
               <Button x:Name="RefreshQrRequestsButton" Content="Refresh requests" Click="RefreshQrRequests_Click"/>
             </WrapPanel>
             <TextBlock x:Name="QrRequestsNotice" Text="Refresh requests to review this branch." TextWrapping="Wrap" Margin="0,8" AutomationProperties.LiveSetting="Polite"/>
-            <DataGrid x:Name="QrRequestsGrid" Height="190" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" CanUserAddRows="False" SelectionChanged="QrRequestSelection_Changed" ScrollViewer.PanningMode="Both" AutomationProperties.Name="Branch QR requests">
+            <Grid x:Name="QrReviewLayout">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="3*"/><ColumnDefinition x:Name="QrReviewDetailColumn" Width="2*"/></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <DataGrid x:Name="QrRequestsGrid" Height="220" VerticalAlignment="Top" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" CanUserAddRows="False" SelectionChanged="QrRequestSelection_Changed" ScrollViewer.PanningMode="Both" AutomationProperties.Name="Branch QR requests">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Table" Binding="{Binding TableCode}" Width="90"/>
-                <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="*" MinWidth="190"/>
-                <DataGridTextColumn Header="Currency" Binding="{Binding Currency}" Width="80"/>
-                <DataGridTextColumn Header="Total" Binding="{Binding TotalAmount, StringFormat=F2}" Width="90"/>
+                <DataGridTextColumn Header="Age at load" Binding="{Binding AgeLabel}" Width="95" CanUserSort="False"/>
+                <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="*" MinWidth="155"/>
+                <DataGridTextColumn Header="Total" Binding="{Binding TotalAmount, StringFormat=F2}" Width="80"/>
               </DataGrid.Columns>
             </DataGrid>
-            <TextBlock x:Name="QrRequestDetails" Text="Select a request to review its items and totals." TextWrapping="Wrap" Margin="0,12"/>
+            <StackPanel x:Name="QrReviewDetailPanel" Grid.Column="1" Margin="12,0,0,0">
+            <TextBlock Text="Review selected request" FontWeight="SemiBold"/>
+            <TextBlock x:Name="QrRequestDetails" Text="Select a request to review its items and totals." TextWrapping="Wrap" Margin="0,8"/>
             <CheckBox x:Name="QrDecisionConfirmed" Content="I reviewed this request and the selected decision." Checked="QrDecisionConfirmation_Changed" Unchecked="QrDecisionConfirmation_Changed"/>
             <WrapPanel Margin="0,8">
               <Button x:Name="AcceptQrRequestButton" Content="Accept original request" Click="AcceptQrRequest_Click"/>
@@ -313,6 +318,8 @@
               <Button x:Name="RejectQrRequestButton" Content="Reject request" Click="RejectQrRequest_Click"/>
               <Button x:Name="ViewAcceptedQrOrderButton" Content="View original order" Click="ViewAcceptedQrOrder_Click"/>
             </WrapPanel>
+            </StackPanel>
+            </Grid>
             <TextBlock Text="Refreshes every 15 seconds while active. Only explicit decisions change requests. Pending requests are oldest first; after decisions, refresh to review the next batch." TextWrapping="Wrap"/>
           </StackPanel>
         </ScrollViewer>
@@ -329,6 +336,7 @@
                 <DataGridTextColumn Header="Table" Binding="{Binding TableCode}" Width="65"/>
                 <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="125"/>
                 <DataGridTextColumn Header="Collection" Binding="{Binding CollectionLabel}" Width="130"/>
+                <DataGridTextColumn Header="Order created (local)" Binding="{Binding CreatedAtUtc.LocalDateTime, StringFormat=g}" Width="145"/>
                 <DataGridTextColumn Header="Total" Binding="{Binding TotalAmount, StringFormat=N2}" Width="85"/>
                 <DataGridTextColumn Header="Currency" Binding="{Binding Currency}" Width="75"/>
               </DataGrid.Columns>

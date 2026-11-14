@@ -78,10 +78,12 @@ walkthrough remains pending. See [Menu list acceptance](../Deployment/POS-UX15-M
 The guest menu and cart slice is implemented. It adds reachable filters,
 sold-out labels, a cart shortcut with the current quote, table context and
 visible request status labels. Physical phone acceptance remains pending.
-The Windows incoming order queue is the next slice.
+The Windows incoming order queue is implemented in source. Its synthetic fixture
+passes. The installed rush walkthrough and live kitchen/payment evidence remain
+pending.
 
 1. Guest menu and cart use the [existing QR roadmap](QR-Ordering-Roadmap.md) and staff review flow. The layout surfaces mobile category navigation, sold-out labels, cart editing, table context, the server quote and request status.
-2. Refine the [Windows QR workspace](../Deployment/POS-QR-Orders-Workspace.md) with order age, status counts, table/reference and clear actions for Pending review, Awaiting payment and Paid/history. Compare a wide layout with a filtered list on the smallest supported terminal.
+2. The [Windows QR workspace](../Deployment/POS-QR-Orders-Workspace.md) shows loaded counts, request age, table/reference and separate review, payment and receipt actions. Wide Pending review uses a list and adjacent decision panel. On smaller terminals the existing filtered list sits above the decision panel.
 3. Run the [QR device acceptance](../Deployment/QR9-Acceptance.md) on the actual HTTPS route using iPhone Safari and Android Chrome. Cover scanning, back navigation, expired sessions, stale prices, duplicate taps, and staff collection of the original order.
 
 **Exit gate.** A guest completes the flow on both phone targets. During a simulated rush, staff find the oldest request and a known reference, handle a rejection and complete a successful order with one kitchen delivery and one payment outcome. Promote QR only with the matching evidence.
