@@ -356,7 +356,7 @@ test(scenarios[16],async({page,browser})=>{
  expect((await bff(page,'/bff/customer/day-close-settlements'+query)).data.settlement.receipt).toEqual(originalReceipt);
  const cutWindow={organizationId:f.organizationId,restaurantId:f.restaurantId,branchId:refs.branchId,fromUtc:new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z').toISOString(),toUtc:new Date().toISOString()};
  const cuts={};for(const owner of ['order','payment','pos']){const capture=await call(owner,`/api/${owner}/v1/customer/day-cutoffs`,manager,{operationId:randomUUID(),window:cutWindow});expect(capture.status).toBe(200);cuts[owner]=capture.data.manifest;}
- expect(cuts.pos.evidenceProtocolVersion).toBe(3);expect(cuts.pos.cashCorrections.events).toHaveLength(1);
+ expect(cuts.pos.evidenceProtocolVersion).toBe(4);expect(cuts.pos.cashCorrections.events).toHaveLength(1);
  const retainedCommand={window:cutWindow,orderManifestId:cuts.order.manifestId,paymentManifestId:cuts.payment.manifestId,posManifestId:cuts.pos.manifestId};
  const undelivered=await call('reporting','/api/reporting/v1/customer/day-cutoff-reconciliation',manager,retainedCommand);
  expect(undelivered.status).toBe(200);expect(undelivered.data.deliveryComplete).toBe(false);expect(undelivered.data.cashCorrections.counts.missing).toBe(1);
