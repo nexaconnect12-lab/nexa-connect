@@ -21,8 +21,14 @@ async function setup(page,options={}){
 test("phone cart uses server totals, invalidates edits and clears on refresh",async({page})=>{
  await page.setViewportSize({width:320,height:568});
  await setup(page);await expect(page.getByRole("button",{name:"Add Unavailable dish",exact:true})).toBeDisabled();
- await page.getByRole("button",{name:"Add Soup",exact:true}).click();await page.getByRole("spinbutton",{name:"Quantity for Soup"}).fill("2");
+ await expect(page.getByText("Sold out",{exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"Add Soup",exact:true}).click();
+ await page.getByRole("button",{name:"View cart",exact:true}).click();
+ const cart=page.getByRole("region",{name:"Your cart"});
+ await expect(cart).toBeFocused();await expect(cart.getByText("Table A1")).toBeVisible();
+ await page.getByRole("spinbutton",{name:"Quantity for Soup"}).fill("2");
  await page.getByRole("button",{name:"Review totals",exact:true}).click();const totals=page.getByRole("region",{name:"Server totals"});await expect(totals).toBeVisible();await expect(totals.getByText("THB 235.40",{exact:true})).toBeVisible();
+ await expect(page.getByText("2 items · THB 235.40 quoted",{exact:true})).toBeVisible();
  await page.getByRole("spinbutton",{name:"Quantity for Soup"}).fill("3");await expect(totals).toHaveCount(0);
  await page.getByRole("button",{name:"Review totals",exact:true}).click();await expect(totals).toBeVisible();await expect(page.getByText("Prices or pricing policy changed.",{exact:false})).toHaveCount(0);
  await page.setViewportSize({width:844,height:390});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

@@ -1,11 +1,11 @@
 import {useEffect,useRef,useState} from "react";
-import {Alert,Button,Typography} from "antd";
+import {Alert,Button,Tag,Typography} from "antd";
 import {qrStatus} from "./qrStatus";
 import {useVisibleRefresh} from "./useVisibleRefresh";
 import {QrMenuCart,type Quote} from "./QrMenuCart";
 export type RequestView={id:string;tableCode:string;status:"pending"|"price_review"|"accepted"|"rejected"|"expired";version:number;submittedAtUtc:string;deadlineUtc:string;reason?:string;quote:Quote;reviewQuote?:Quote;orderId?:string;orderStatus?:string;collectionReference?:string;collectionStatus?:string;receipt?:{receiptNumber:string;paidAtUtc:string;currency:string;tender:string;lines:{name:string;unitPrice:number;quantity:number;total:number}[];subtotalAmount:number;serviceChargeAmount:number;taxAmount:number;totalAmount:number}};
 type Submission={quoteId:string;fingerprint:string};
-export function QrGuestRequests({currency,onExpired}:{currency:string;onExpired:()=>void}){
+export function QrGuestRequests({currency,tableCode,onExpired}:{currency:string;tableCode:string;onExpired:()=>void}){
  const [requests,setRequests]=useState<RequestView[]>([]),[loaded,setLoaded]=useState(false),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false),[notice,setNotice]=useState<string>(),[cartKey,setCartKey]=useState(0);
  const reading=useRef(false),readOperation=useRef(0);
  const controllers=useRef(new Set<AbortController>());
@@ -47,7 +47,8 @@ export function QrGuestRequests({currency,onExpired}:{currency:string;onExpired:
   {uncertain&&<Button style={{minHeight:44}} disabled={busy||!original.current} onClick={()=>original.current&&void send(original.current)}>Retry original request</Button>}
   {!loaded&&<p role="status">Checking this visit's requests…</p>}
   {requests.map(r=><article key={r.id} style={{borderBottom:"1px solid #ddd",padding:12,overflowWrap:"anywhere"}}>
-   <strong>Request {r.id.slice(0,8)} · Table {r.tableCode} · {qrStatus(r)}</strong>
+   <strong>Request {r.id.slice(0,8)} · Table {r.tableCode}</strong>{" "}
+   <Tag>{qrStatus(r)}</Tag>
    <p>{new Intl.NumberFormat(undefined,{style:"currency",currency:r.quote.currency}).format(r.quote.totalAmount)} · deadline {new Date(r.deadlineUtc).toLocaleTimeString()}</p>
    {r.reason&&<p>Staff category: {r.reason.replaceAll("_"," ")}</p>}
    <ul>{r.quote.lines.map(l=><li key={l.productId}>{l.name} × {l.quantity}</li>)}</ul>
@@ -69,7 +70,7 @@ export function QrGuestRequests({currency,onExpired}:{currency:string;onExpired:
     {Date.parse(r.reviewQuote.expiresAtUtc)<=Date.now()&&<p>Price review expired. Ask staff to refresh this original request.</p>}
    </section>}
   </article>)}
-  {loaded&&!pending&&!uncertain&&!busy&&<QrMenuCart key={cartKey} currency={currency} onExpired={onExpired} submit={quote=>{if(quote.quoteId)void send({quoteId:quote.quoteId,fingerprint:quote.fingerprint});}}/>}
+  {loaded&&!pending&&!uncertain&&!busy&&<QrMenuCart key={cartKey} currency={currency} tableCode={tableCode} onExpired={onExpired} submit={quote=>{if(quote.quoteId)void send({quoteId:quote.quoteId,fingerprint:quote.fingerprint});}}/>}
   {pending&&<Alert role="status" message="A request is pending. Check its status before creating another."/>}
  </section>;
 }

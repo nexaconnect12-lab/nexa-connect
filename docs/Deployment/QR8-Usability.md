@@ -5,6 +5,17 @@ No API, database, pricing, permission, custody, idempotency or settlement contra
 
 ## Operator behavior
 
+- The guest menu keeps category and search controls within reach while scrolling
+  on taller viewports. **View cart** jumps to the editable cart and moves keyboard
+  focus there. The toolbar shows the item count and the server-quoted total while
+  the quote is valid. Short viewports use an inline toolbar to leave room for items.
+- Sold-out items have a text label and a disabled Add action. The cart shows the
+  table from the active visit, and request cards highlight the existing service
+  status label beside the request reference. On iPhone Safari and Android Chrome,
+  scan a table, filter the menu, edit the cart, review totals and confirm the
+  status changes after staff review and cashier collection. Include a changed
+  price, an unavailable item and a duplicate tap in the target acceptance run.
+
 - Guest and staff requests display Waiting for staff, Review updated prices, Preparing,
   Awaiting cashier, At cashier and Paid, as supported by the original service response.
   These are presentation labels, not additional order or Kitchen states. Preparing does

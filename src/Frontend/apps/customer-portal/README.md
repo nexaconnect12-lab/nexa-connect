@@ -52,6 +52,11 @@ Use the optional local Media profile to test **Media management → Upload photo
 
 QR8 adds friendly request/collection labels and 15-second mounted, visible/focused read refresh with serialization, cancellation and 20-second timeouts. Guest unknown outcomes retain the original in-memory submission identity for explicit retry; no automatic acceptance/payment or browser persistence. See [QR8](../../../../docs/Deployment/QR8-Usability.md).
 
+The Phase 3 guest menu adds persistent browsing controls on taller viewports,
+sold-out labels and a **View cart** shortcut with the item count and live quoted
+total. The cart displays the active table, and request cards highlight the
+existing status. Physical iPhone and Android acceptance remains pending.
+
 QR6 uses patched Zod4.6.7 and GUID-compatible financial response validation. No portal route, permission or financial command changes. The QR, preparation/cutoff/seal and settlement-reporting browser suites feed a new local candidate; actual phones remain separately pending. See [QR6](../../../../docs/Deployment/QR6-Integration.md).
 
 QR5 shows the accepted original collection reference and live-visit safe original paid receipt in guest status; staff queue distinguishes Paid. Browser adds no payment command or staff credential. See [QR5](../../../../docs/Deployment/QR5-Collection.md).

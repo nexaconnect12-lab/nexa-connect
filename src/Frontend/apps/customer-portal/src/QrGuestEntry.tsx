@@ -33,7 +33,7 @@ export function QrGuestEntry(){
         {notice&&<Alert role="status" message={notice}/>}
         {visit&&<><Typography.Title level={2}>{visit.restaurantName}</Typography.Title><Typography.Text>{visit.branchName}</Typography.Text>
           <Typography.Title level={3}>Table {visit.tableCode}</Typography.Title>
-          {visit.menuAvailable?(visit.requestsAvailable?<QrGuestRequests key={visit.visitorId} currency={visit.currency} onExpired={()=>{setVisit(undefined);setNotice("Your visit has expired or been revoked. Ask staff about any submitted request before rescanning.");}}/>:<QrMenuCart key={visit.visitorId} currency={visit.currency} onExpired={()=>{setVisit(undefined);setNotice("Your visit has expired or been revoked. Scan the current table QR again.");}}/>):
+          {visit.menuAvailable?(visit.requestsAvailable?<QrGuestRequests key={visit.visitorId} currency={visit.currency} tableCode={visit.tableCode} onExpired={()=>{setVisit(undefined);setNotice("Your visit has expired or been revoked. Ask staff about any submitted request before rescanning.");}}/>:<QrMenuCart key={visit.visitorId} currency={visit.currency} tableCode={visit.tableCode} onExpired={()=>{setVisit(undefined);setNotice("Your visit has expired or been revoked. Scan the current table QR again.");}}/>):
             <Alert type="info" message="Menu ordering is not available yet. Please ask staff to order and pay at the cashier."/>}
           <Button block style={{minHeight:44}} disabled={busy} onClick={()=>void end()}>End this visit</Button></>}
         {!visit&&!busy&&<Button block style={{minHeight:44}} onClick={()=>void restore()}>Restore this visit</Button>}
