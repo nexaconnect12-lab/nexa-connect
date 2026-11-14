@@ -5,11 +5,14 @@ $root=Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'first-draft-terminal-helpers.ps1')
 . (Join-Path $PSScriptRoot 'physical-pos-pilot-helpers.ps1')
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
-foreach($name in @('physical-pos-pilot.ps1','physical-pos-pilot-helpers.ps1','first-draft-stack.ps1','first-draft-helpers.ps1','../packaging/windows-pos/Test-DeviceOnboarding.ps1')){
+foreach($name in @('physical-pos-pilot.ps1','physical-pos-pilot-helpers.ps1','first-draft-stack.ps1','first-draft-helpers.ps1','provision-first-draft.ps1','../packaging/windows-pos/Test-DeviceOnboarding.ps1')){
     $tokens=$null;$errors=$null;[void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $name),[ref]$tokens,[ref]$errors)
     if($errors){throw "PowerShell syntax failed: $name"}
 }
 function Reject([scriptblock]$Action){$rejected=$false;try{&$Action}catch{$rejected=$true};if(-not $rejected){throw 'Expected rejection.'}}
+Reject { & (Join-Path $PSScriptRoot 'physical-pos-pilot.ps1') -Action Status -EnableRefundAcceptance }
+Reject { & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Validate -EnablePhysicalRefundAcceptance }
+Reject { & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -ConfirmTestResources -NoBuild -EnablePhysicalRefundAcceptance }
 if(-not(Test-PhysicalPosSameSubnet '192.168.0.191' '192.168.0.54' 24) -or (Test-PhysicalPosSameSubnet '192.168.0.191' '192.168.87.54' 24) -or -not(Test-PhysicalPosSameSubnet '172.28.0.1' '172.28.15.254' 20) -or (Test-PhysicalPosSameSubnet '172.28.0.1' '172.28.16.1' 20)){throw 'Subnet preflight incorrect.'}
 $temporary=Join-Path ([IO.Path]::GetTempPath()) ('nexa-physical-plan-'+[Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $temporary|Out-Null

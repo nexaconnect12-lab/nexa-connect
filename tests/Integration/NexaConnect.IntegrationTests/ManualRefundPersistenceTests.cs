@@ -137,6 +137,13 @@ public sealed class ManualRefundPersistenceTests
             await repository.ApproveAsync(promptPay, transfer, default);
             var transferCustody = custody with { CashSessionId = null };
             await repository.BeginAsync(promptPay, transfer.OperationId, transferCustody, default);
+            var historical = promptPay with { OrganizationId = Guid.NewGuid(), OrderId = Guid.NewGuid(), SettlementId = Guid.NewGuid() };
+            var oldApproval = Approval(10);
+            await repository.ApproveAsync(historical, oldApproval, default);
+            await repository.BeginAsync(historical, oldApproval.OperationId, transferCustody, default);
+            var encrypted = protector.CreateProtector("pos.manual-refund.transfer.v1", oldApproval.OperationId.ToString("D")).Protect("synthetic-proof");
+            await Run("INSERT INTO manual_refund_completions VALUES($1,NULL,$2,$3)", oldApproval.OperationId, encrypted, now.AddMinutes(2));
+            await Run(await File.ReadAllTextAsync(Path.Combine(scripts, "0030_manual_refund_transfer_claims/up.sql")));
             await repository.CompleteAsync(promptPay, transfer.OperationId, transferCustody, true, "synthetic-proof", now.AddMinutes(2), default);
             Assert.True((await restarted.CompleteAsync(promptPay, transfer.OperationId, transferCustody, true, "synthetic-proof", now.AddMinutes(3), default)).Replayed);
             Assert.Equal(1L, await Count("SELECT count(*) FROM cash_movements"));
@@ -147,6 +154,59 @@ public sealed class ManualRefundPersistenceTests
             await VerifyRefundReportingAsync(admin, settings, schema, source, sale, now);
             await VerifyHttpAsync(repository, promptPay with { OrderId = Guid.NewGuid(), SettlementId = Guid.NewGuid() },
                 new(terminal, shift, null));
+            var historicalNext = historical with { OrderId = Guid.NewGuid(), SettlementId = Guid.NewGuid() };
+            var nextApproval = Approval(10);
+            await repository.ApproveAsync(historicalNext, nextApproval, default);
+            await repository.BeginAsync(historicalNext, nextApproval.OperationId, transferCustody, default);
+            await Assert.ThrowsAsync<ManualRefundReferenceConflictException>(() => repository.CompleteAsync(historicalNext,
+                nextApproval.OperationId, transferCustody, true, " SYNTHETIC-PROOF ", now.AddMinutes(3), default));
+            await repository.CompleteAsync(historicalNext, nextApproval.OperationId, transferCustody, true, "new-historical-tenant-proof", now.AddMinutes(3), default);
+            Assert.Equal(2L, await Count("SELECT count(*) FROM manual_refund_reference_claims WHERE organization_id=$1", historical.OrganizationId));
+            Assert.True((await restarted.CompleteAsync(historical, oldApproval.OperationId, transferCustody, true,
+                "synthetic-proof", now.AddMinutes(4), default)).Replayed);
+
+            var (otherBranch, otherStore, otherTerminal, otherShift) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+            await Run("""
+                INSERT INTO stores(id,restaurant_id,branch_id,code,name,operational_status,created_at_utc,created_by,updated_at_utc,updated_by)
+                VALUES($1,$2,$3,'other','Other','active',now(),'fixture',now(),'fixture')
+                """, otherStore, restaurant, otherBranch);
+            await Run("""
+                INSERT INTO terminals(id,restaurant_id,store_id,code,device_type,registration_status,created_at_utc,updated_at_utc)
+                VALUES($1,$2,$3,'other','pos','active',now(),now())
+                """, otherTerminal, restaurant, otherStore);
+            await Run("""
+                INSERT INTO shifts(id,store_id,terminal_id,employee_identity_subject_id,shift_number,status,opened_at_utc,
+                    opened_by,created_at_utc,updated_at_utc,authorization_decision_id)
+                VALUES($1,$2,$3,'cashier','other','open',$4,'cashier',$4,$4,$5)
+                """, otherShift, otherStore, otherTerminal, now.AddHours(-1), Guid.NewGuid());
+            var racers = new[]
+            {
+                (Sale: promptPay with { OrderId = Guid.NewGuid(), SettlementId = Guid.NewGuid() }, Approval: Approval(10), Custody: transferCustody),
+                (Sale: promptPay with { OrderId = Guid.NewGuid(), SettlementId = Guid.NewGuid(), BranchId = otherBranch },
+                    Approval: Approval(10), Custody: transferCustody with { TerminalId = otherTerminal, ShiftId = otherShift })
+            };
+            foreach (var racer in racers)
+            {
+                await repository.ApproveAsync(racer.Sale, racer.Approval, default);
+                await repository.BeginAsync(racer.Sale, racer.Approval.OperationId, racer.Custody, default);
+            }
+            await Assert.ThrowsAsync<PostgresException>(() => Run(
+                "INSERT INTO manual_refund_completions VALUES($1,NULL,'unclaimed',$2)", racers[0].Approval.OperationId, now.AddMinutes(2)));
+            async Task<bool> Race(OriginalManualSale original, ManualRefundApproval approval, ManualRefundPayout originalCustody)
+            {
+                try
+                {
+                    await repository.CompleteAsync(original, approval.OperationId, originalCustody, true, "race-proof", now.AddMinutes(2), default);
+                    return true;
+                }
+                catch (ManualRefundReferenceConflictException) { return false; }
+            }
+            var results = await Task.WhenAll(racers.Select(racer => Race(racer.Sale,racer.Approval,racer.Custody)));
+            Assert.Single(results, result => result);
+            var loser = racers[Array.IndexOf(results,false)].Approval.OperationId;
+            Assert.Equal(0L, await Count("SELECT count(*) FROM manual_refund_completions WHERE operation_id=$1", loser));
+            Assert.Equal(0L, await Count("SELECT count(*) FROM outbox_messages WHERE aggregate_type='manual-refund' AND aggregate_id=$1", loser));
+            Assert.Equal(1L, await Count("SELECT count(*) FROM cash_movements"));
             await Assert.ThrowsAsync<PostgresException>(() => Run("UPDATE manual_refund_approvals SET amount=1"));
             await Assert.ThrowsAsync<PostgresException>(() => Run("BEGIN;\n" + down + "\nCOMMIT;"));
 
@@ -366,6 +426,12 @@ public sealed class ManualRefundPersistenceTests
 
         configuration["ManualRefunds:Enabled"] = "false";
         Assert.Equal("started", Assert.Single((await cashier.GetFromJsonAsync<AssignedManualRefundsV1>(assigned))!.Items).Status);
+        using var duplicate = await cashier.PostAsJsonAsync($"{operation}/complete", new CompleteManualRefundV1(custody, true, " SYNTHETIC-PROOF "));
+        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+        var duplicateBody = await duplicate.Content.ReadAsStringAsync();
+        Assert.Contains("manual_refund_transfer_reference_conflict", duplicateBody);
+        Assert.DoesNotContain("SYNTHETIC-PROOF", duplicateBody);
+        Assert.Equal("started", (await cashier.GetFromJsonAsync<ManualRefundStatusV1>(operation))!.Status);
         var completion = new CompleteManualRefundV1(custody, true, "fixture-return");
         using var completionResponse = await cashier.PostAsJsonAsync($"{operation}/complete", completion);
         completionResponse.EnsureSuccessStatusCode(); // Recovery deliberately ignores the completion response body.
@@ -389,7 +455,7 @@ public sealed class ManualRefundPersistenceTests
         HttpClient Client(string subject)
         {
             var client = host.CreateClient();
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", factory.CreateToken(subject));
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", factory.CreateToken(subject, "customer-user"));
             client.DefaultRequestHeaders.Add(TenantContextHeaders.OrganizationId, original.OrganizationId.ToString("D"));
             client.DefaultRequestHeaders.Add(TenantContextHeaders.ApplicationCode, "nexa_connect");
             return client;

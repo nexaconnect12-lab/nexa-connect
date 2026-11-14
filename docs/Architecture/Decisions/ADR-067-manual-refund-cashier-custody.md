@@ -38,6 +38,14 @@ completion evidence for reporting and refund-day attribution.
 
 ## Consequences
 
+POS 30 uses one reference namespace per organization because the workflow does not
+capture the bank or paying account. Comparison ignores outer whitespace and case.
+If different accounts use overlapping reference sequences, the conservative scope
+can require manager reconciliation. A random organization key, protected by the
+existing POS key ring, supports indexed comparison without storing raw references
+in the registry. Retain historical ciphertext to seed claims and preserve the key
+ring with the POS database backup.
+
 Separate credentials let the cashier retain custody throughout the shift. A manager
 can approve without taking over the terminal's drawer. The transaction boundary keeps
 cash refunds and the register ledger consistent. Order must supply authoritative

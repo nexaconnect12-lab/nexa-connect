@@ -5,9 +5,11 @@ lets the cashier load assigned approvals, bind payout custody, and record funds
 already returned. A Windows-protected original operation supports lookup after
 interruption. [Manager approval and release](../../../docs/Deployment/POS-Manual-Refund-Review.md#manager-approval-and-release)
 uses a verified original sale and expiring cashier availability. Pilot activation is pending.
+If POS reports a duplicate transfer reference, leave the original payout pending
+and ask a manager to reconcile the bank evidence.
 
 [Cash and manual PromptPay review](../../../docs/Deployment/POS-Manual-Refund-Review.md)
-reads the original Paid receipt from the branch order list. Refund recording is pending.
+reads the original Paid receipt from the branch order list.
 
 **QR orders** can show a provisioned table-ordering QR on the idle customer display.
 See [customer-screen QR setup](../../../docs/Deployment/POS-Customer-Table-QR.md).

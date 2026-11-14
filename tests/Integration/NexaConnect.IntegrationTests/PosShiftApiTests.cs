@@ -450,14 +450,14 @@ public sealed class PosShiftApiFactory : WebApplicationFactory<PosProgram>
         });
     }
 
-    public string CreateToken(string? subject = null)
+    public string CreateToken(string? subject = null, string role = "customer-viewer")
     {
         DateTime now = DateTime.UtcNow;
         var claims = new[]
         {
             new Claim("sub", subject ?? Subject),
             new Claim("preferred_username", "integration-test-user"),
-            new Claim("roles", "customer-viewer")
+            new Claim("roles", role)
         };
         var token = new JwtSecurityToken(
             issuer: Issuer,

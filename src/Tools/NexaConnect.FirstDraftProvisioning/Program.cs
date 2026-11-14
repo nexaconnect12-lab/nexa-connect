@@ -16,7 +16,7 @@ try
 {
     string run = Environment.GetEnvironmentVariable("NEXACONNECT_DRAFT_RUN") ?? "";
     string path = Environment.GetEnvironmentVariable("NEXACONNECT_DRAFT_REFERENCE") ?? "";
-    if (args.Length != 1 || args[0] is not ("--confirm" or "--media-access" or "--recovery-lab-access") || !System.Text.RegularExpressions.Regex.IsMatch(run,"^[a-f0-9]{32}$") ||
+    if (args.Length != 1 || args[0] is not ("--confirm" or "--media-access" or "--recovery-lab-access" or "--physical-refund-limit") || !System.Text.RegularExpressions.Regex.IsMatch(run,"^[a-f0-9]{32}$") ||
         Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") != "Development" ||
         !Path.GetFullPath(path).EndsWith(Path.Combine(".runstate", "first-draft", run, "reference.json"), StringComparison.OrdinalIgnoreCase))
         throw new InvalidOperationException();
@@ -31,6 +31,21 @@ try
         if (builder.Host != "127.0.0.1" || builder.Database != $"nexa_review_it_{run}_{suffix}" || builder.Username != user)
             throw new InvalidOperationException();
         return NpgsqlDataSource.Create(builder.ConnectionString);
+    }
+    if (args[0] == "--physical-refund-limit")
+    {
+        stage = "physical-refund-limit";
+        using var lifecycle = JsonDocument.Parse(File.ReadAllText(Path.Combine(Path.GetDirectoryName(path)!, "state.json")));
+        var owned = lifecycle.RootElement;
+        if (!state.Completed || state.RestaurantId == Guid.Empty || !state.Subjects.TryGetValue("store-manager", out var manager)
+            || owned.GetProperty("runId").GetString() != run || owned.GetProperty("status").GetString() != "Ready"
+            || owned.GetProperty("physicalPosPilot").ValueKind != JsonValueKind.Object
+            || !owned.GetProperty("physicalRefundAcceptance").GetBoolean()) throw new InvalidOperationException();
+        using var refundLimitTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await using var authorization = Source("authorization");
+        await new DraftApprovalLimitProvisioner(authorization).EnsurePhysicalManualRefundAsync(state.RestaurantId, manager, refundLimitTimeout.Token);
+        Console.WriteLine("Physical pilot manager refund limit prepared. Existing limits and revocations were preserved.");
+        return 0;
     }
     if (args[0] == "--media-access")
     {

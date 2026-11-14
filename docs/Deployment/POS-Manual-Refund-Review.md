@@ -105,12 +105,25 @@ verification for this release. [Reporting configuration and evidence](../API/Man
 
 ## Remaining activation work
 
-- Add transfer-reference uniqueness across orders. Reconcile uncertain payouts before
-  allowing another payout attempt.
-- Deploy POS 29 / Reporting 24 and matching code, then verify protocol-four
+Use the [physical terminal acceptance runbook](POS-Physical-Refund-Acceptance.md).
+
+- Apply POS 30 at application compatibility 0.50.0 and deploy matching POS service and
+  Windows POS builds. Stop older POS service writers during the upgrade and retain the
+  POS Data Protection key ring and application identity. The first successful PromptPay
+  refund completion per organization indexes historical protected references. If an
+  older reference cannot be decrypted, restore the key ring before retrying the original operation.
+  For the standalone migration wrapper, pass `-ApplicationVersion 0.50.0`.
+- On a duplicate-reference message, ask a manager to compare the transfer evidence with
+  the exact pending refund. Keep the payout reserved. Record a different reference only
+  if it identifies a verified transfer already made for that payout. Never send another
+  transfer to clear the error.
+- Deploy Reporting 24 and matching code, then verify protocol-four
   cutoff/seal and V3 settlement evidence plus the drawer flow on the physical
-  pilot with synthetic data. Keep new work disabled until rollout prerequisites
-  (including transfer-reference policy) are resolved.
+  pilot with synthetic data. Keep new work disabled until rollout prerequisites are verified.
 
 The cashier workspace requires a matching Windows POS build and backend. The
 retained physical pilot remains disabled for new refund work.
+
+Run `./scripts/test-qr-entry-persistence.ps1 -ConfirmDisposableInfrastructure`
+and `./scripts/test-settlement-reporting.ps1 -ConfirmDisposableInfrastructure`
+for disposable verification before the physical checks.

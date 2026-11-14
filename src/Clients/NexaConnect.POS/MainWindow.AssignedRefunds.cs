@@ -104,7 +104,9 @@ public partial class MainWindow
                 else
                 {
                     ShowAssignedRefund(null);
-                    AssignedRefundStatus.Text = pendingManualRefund is null
+                    AssignedRefundStatus.Text = error is ManualRefundTransferReferenceConflictException
+                    ? "This transfer reference is already recorded. Do not send another transfer. Ask a manager to reconcile the original payout."
+                    : pendingManualRefund is null
                     ? "Could not load the refund. Check branch access and try again."
                     : "Refund outcome needs verification. Use Verify saved refund before any further action.";
                     StatusText.Text = AssignedRefundStatus.Text;

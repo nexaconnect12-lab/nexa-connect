@@ -140,7 +140,7 @@ public sealed class ManualRefundLedger
         }
 
         if (reference is not null && refunds.Values.Any(other => other.Completion?.TransferReference == reference))
-            throw new InvalidOperationException("The transfer reference already records a refund for this order.");
+            throw new ManualRefundReferenceConflictException();
 
         refund = refund with { Completion = new(reference, now) };
         refunds[operationId] = refund;

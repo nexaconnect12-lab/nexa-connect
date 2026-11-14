@@ -68,13 +68,15 @@ public sealed partial class DaySealPostgresTests
         Assert.Equal(final.Receipt.Snapshot.Corrections.Adjustment,settlementReport.Items.Single().Corrections!.Adjustment);
 
         Assert.Equal(1,await Count(pos,"late_cash_corrections"));Assert.Equal(0,await Count(pos,"cash_movements"));
-        await Assert.ThrowsAsync<PostgresException>(()=>Sql(pos,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0022_correction_day_evidence/down.sql"))));
+        await Assert.ThrowsAsync<PostgresException>(()=>Sql(pos,File.ReadAllText(Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0029_manual_refund_day_evidence/down.sql"))));
     }
 
     [ReportingDatabaseFact]
     public async Task Correction_protocol_upgrade_preserves_legacy_payload_and_requires_a_new_capture()
     {
         var migration=Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0022_correction_day_evidence");
+        var current=Path.Combine(Root(),"src/Tools/NexaConnect.DataMigration/Scripts/POS/0029_manual_refund_day_evidence");
+        await Sql(pos,File.ReadAllText(Path.Combine(current,"down.sql")));
         await Sql(pos,File.ReadAllText(Path.Combine(migration,"down.sql")));
         var command=new SourceCutoffCommand(Guid.NewGuid(),Window);
         var legacy=await new NexaConnect.Infrastructure.Persistence.PostgresSnapshotRetention<PosDaySummary>(pos).CaptureAsync(command,"manager",async(c,t,ct)=>
@@ -85,6 +87,7 @@ public sealed partial class DaySealPostgresTests
         await using var query=pos.CreateCommand("SELECT payload::text FROM source_day_cutoffs WHERE id=$1");query.Parameters.AddWithValue(legacy.ManifestId);
         var original=(string)(await query.ExecuteScalarAsync())!;
         await Sql(pos,File.ReadAllText(Path.Combine(migration,"up.sql")));
+        await Sql(pos,File.ReadAllText(Path.Combine(current,"up.sql")));
         var store=new P.PostgresPosCutoffStore(pos);var oldRead=(await store.ReadAsync(Window,legacy.ManifestId,default))!;
         Assert.False(oldRead.Current);Assert.Equal(2,oldRead.Manifest.EvidenceProtocolVersion);Assert.Null(oldRead.Manifest.CashCorrections);
         Assert.Equal(legacy.ManifestId,(await store.CaptureAsync(command,"manager",default)).ManifestId);Assert.Equal(original,(string)(await query.ExecuteScalarAsync())!);

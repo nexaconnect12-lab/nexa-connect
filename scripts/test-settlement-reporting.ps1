@@ -36,7 +36,7 @@ try {
     $env:NEXACONNECT_ENVIRONMENT='Testing'
     $env:NEXACONNECT_POS_INTEGRATION_DB="Host=127.0.0.1;Port=$dbPort;Database=day_close_it;Username=postgres;Password=$temporaryPassword"
     $env:NEXACONNECT_REPORTING_INTEGRATION_DB=$env:NEXACONNECT_POS_INTEGRATION_DB
-    dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter 'FullyQualifiedName~DaySealPostgresTests&(FullyQualifiedName~Settlement_reporting|FullyQualifiedName~Correction_posting_window)' -v quiet --logger 'console;verbosity=normal' --logger 'trx;LogFileName=seals.trx' --results-directory $evidenceDirectory
+    dotnet test tests/Integration/NexaConnect.IntegrationTests --no-restore --filter 'FullyQualifiedName~DaySealPostgresTests&(FullyQualifiedName~Settlement_reporting|FullyQualifiedName~Correction_posting_window|FullyQualifiedName~Correction_protocol_upgrade)' -v quiet --logger 'console;verbosity=normal' --logger 'trx;LogFileName=seals.trx' --results-directory $evidenceDirectory
     if($LASTEXITCODE -ne 0){throw 'Day-seal PostgreSQL acceptance failed.'}
     [xml]$testResult=Get-Content -LiteralPath (Join-Path $evidenceDirectory 'seals.trx') -Raw
     $counters=$testResult.TestRun.ResultSummary.Counters

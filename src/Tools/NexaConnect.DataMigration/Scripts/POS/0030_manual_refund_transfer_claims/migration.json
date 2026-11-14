@@ -1,0 +1,1 @@
+{"version":30,"name":"manual_refund_transfer_claims","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.50.0"}

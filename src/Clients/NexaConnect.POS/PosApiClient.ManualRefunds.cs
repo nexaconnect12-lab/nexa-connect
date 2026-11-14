@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
 using NexaConnect.Contracts.POS;
 
 namespace NexaConnect.POS;
@@ -108,6 +109,16 @@ public sealed partial class PosApiClient
         AddTenantContext(request, _configuration.OrganizationId);
         if (body is not null) request.Content = JsonContent.Create(body);
         using var response = await SendCheckoutAsync(_httpClient, request, operation, Guid.NewGuid(), deadline.Token, true);
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict && operation == "pos.manual-refund.complete")
+        {
+            await response.Content.LoadIntoBufferAsync(4096, deadline.Token);
+            using var payload = await response.Content.ReadFromJsonAsync<JsonDocument>(deadline.Token);
+            if (payload?.RootElement is { ValueKind: JsonValueKind.Object } root
+                && root.TryGetProperty("code", out var code)
+                && code.ValueKind == JsonValueKind.String
+                && code.GetString() == "manual_refund_transfer_reference_conflict")
+                throw new ManualRefundTransferReferenceConflictException();
+        }
         await EnsureSuccessAsync(response, "Manual refund status unavailable. Verify the original operation before taking further action.");
         await response.Content.LoadIntoBufferAsync(32768, deadline.Token);
         return await response.Content.ReadFromJsonAsync<T>(deadline.Token) ?? throw new InvalidDataException("Empty manual refund response.");
@@ -130,3 +141,5 @@ public sealed partial class PosApiClient
             throw new InvalidDataException("The refund status does not match the requested operation.");
     }
 }
+
+internal sealed class ManualRefundTransferReferenceConflictException : IOException;

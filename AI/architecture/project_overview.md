@@ -10,7 +10,10 @@ and serialized release of unused approvals. Reporting 23 projects completion by
 refund time and compares exact POS evidence in the day-close draft. POS 29 /
 Reporting 24 add protocol-four cutoff/seal delivery proof, refund-day financial
 journaling and V3 permanent settlements with separate cash/PromptPay totals.
+POS 30 prevents reuse of PromptPay return-transfer references across an organization.
+Windows POS directs conflicts to manager reconciliation.
 Pilot activation and physical acceptance remain pending.
+The separate LAN pilot supports explicit refund acceptance with synthetic data.
 See [manual payment review](../../docs/Deployment/POS-Manual-Refund-Review.md).
 
 Windows POS can show a provisioned table-ordering QR on the idle customer display.

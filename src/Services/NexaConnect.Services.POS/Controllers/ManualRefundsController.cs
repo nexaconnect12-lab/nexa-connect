@@ -5,11 +5,12 @@ using NexaConnect.Contracts.Platform;
 using NexaConnect.Contracts.POS;
 using NexaConnect.Services.POS.Application.ManualRefunds;
 using NexaConnect.Services.POS.Application.Shifts;
+using NexaConnect.Services.POS.Domain.ManualRefunds;
 using Npgsql;
 
 namespace NexaConnect.Services.POS.Controllers;
 
-[ApiController, Authorize(Roles = "customer-owner,customer-admin,customer-manager,customer-viewer"), RequestSizeLimit(4096)]
+[ApiController, Authorize(Roles = "customer-owner,customer-admin,customer-manager,customer-viewer,customer-user"), RequestSizeLimit(4096)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("api/pos/v1/customer/organizations/{organizationId:guid}/branches/{branchId:guid}/orders/{orderId:guid}/manual-refunds")]
 public sealed class ManualRefundsController(ManualRefunds application, IConfiguration configuration,
@@ -77,6 +78,11 @@ public sealed class ManualRefundsController(ManualRefunds application, IConfigur
         }
         catch (ArgumentException) { return BadRequest(new { code = "manual_refund_invalid" }); }
         catch (UnauthorizedAccessException) { logger.LogWarning("Manual refund boundary denied"); return NotFound(); }
+        catch (ManualRefundReferenceConflictException)
+        {
+            logger.LogWarning("Manual refund transfer reference conflict");
+            return Conflict(new { code = "manual_refund_transfer_reference_conflict" });
+        }
         catch (InvalidOperationException) { logger.LogWarning("Manual refund state conflict"); return Conflict(new { code = "manual_refund_conflict" }); }
         catch (PostgresException e) when (e.SqlState is PostgresErrorCodes.UniqueViolation or "PDS01" || e.SqlState == "P0001" && e.MessageText == "financial_day_fenced")
         { logger.LogWarning("Manual refund database conflict"); return Conflict(new { code = "manual_refund_conflict" }); }

@@ -532,6 +532,8 @@ authorization or any claim that automated tests establish Windows user acceptanc
 
 ## Phase 2 prompt — Professional UI foundation
 
+Use the [EPOS-informed market readiness priorities](Market-Readiness-Roadmap.md#professional-ui-roadmap-informed-by-the-epos-demo) when selecting the next R06 design slices and installed operator checks.
+
 ```text
 Implement phase 2, R06, using the common instructions.
 1. Apply the phase-0 UI direction to Product Owner, Customer Portal and WPF POS using

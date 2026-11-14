@@ -1,5 +1,18 @@
 # POS manual refund storage
 
+POS 30 (`manual_refund_transfer_claims`, compatibility 0.50.0) adds two POS-owned
+tables. `manual_refund_reference_keys` holds a random organization key encrypted
+with the POS Data Protection key ring. `manual_refund_reference_claims` uniquely
+binds the organization's HMAC-SHA-256 digest to a completed operation. POS inserts
+the claim, completion, financial journal entry and outbox event in one transaction.
+The database rejects a new PromptPay completion without a claim. The runtime needs
+SELECT and INSERT on both tables.
+
+On first use, POS claims historical references using retained encrypted proof. When
+historical completions share a reference, the earliest completion supplies the claim.
+All original receipts remain readable. Preserve the POS key ring across deployments
+and recovery. Downgrade requires empty claim and key tables.
+
 POS migration 27 (`manual_refunds`) requires application compatibility 0.46.0.
 It adds four POS-owned tables:
 

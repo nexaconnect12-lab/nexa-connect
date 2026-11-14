@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using NexaConnect.Contracts.IntegrationEvents;
 using NexaConnect.Observability;
@@ -333,6 +335,8 @@ public sealed class PostgresManualRefundStore(NpgsqlDataSource source, IDataProt
 
         string encrypted = completion.TransferReference is { } reference
             ? Protector(refund.Approval.OperationId).Protect(reference) : "";
+        if (completion.TransferReference is { } transfer)
+            await ClaimTransferAsync(sale.OrganizationId, refund.Approval.OperationId, transfer, transaction, ct);
         await ExecuteAsync("""
             INSERT INTO manual_refund_completions (operation_id, cash_movement_id, protected_transfer_reference, recorded_at_utc)
             VALUES ($1,NULLIF($2, '00000000-0000-0000-0000-000000000000'::uuid),NULLIF($3,''),$4)
@@ -350,6 +354,85 @@ public sealed class PostgresManualRefundStore(NpgsqlDataSource source, IDataProt
             VALUES ($1,$2,1,'manual-refund',$3,$4::jsonb,$5,$6)
             """, transaction, ct, message.EventId, PosManualRefundCompletedV1.EventType, message.OperationId,
             JsonSerializer.Serialize(message), correlation.ToString("D"), completedAt);
+    }
+
+    private async Task ClaimTransferAsync(Guid organization, Guid operation, string reference,
+        NpgsqlTransaction transaction, CancellationToken ct)
+    {
+        var protector = protection.CreateProtector("pos.manual-refund.reference-key.v1", organization.ToString("D"));
+        await using var lookup = Command("SELECT protected_key FROM manual_refund_reference_keys WHERE organization_id=$1",
+            transaction, organization);
+        string? protectedKey = await lookup.ExecuteScalarAsync(ct) as string;
+        bool initialize = false;
+        if (protectedKey is null)
+        {
+            byte[] generated = RandomNumberGenerator.GetBytes(32);
+            try
+            {
+                string candidate = Convert.ToBase64String(protector.Protect(generated));
+                await using var insert = Command("""
+                    INSERT INTO manual_refund_reference_keys(organization_id,protected_key)
+                    VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING protected_key
+                    """, transaction, organization, candidate);
+                protectedKey = await insert.ExecuteScalarAsync(ct) as string;
+                initialize = protectedKey is not null;
+                protectedKey ??= await lookup.ExecuteScalarAsync(ct) as string;
+            }
+            finally { CryptographicOperations.ZeroMemory(generated); }
+        }
+
+        byte[] key = protector.Unprotect(Convert.FromBase64String(protectedKey
+            ?? throw new InvalidOperationException("Manual refund reference key unavailable.")));
+        try
+        {
+            if (initialize)
+            {
+                // Keep original completions immutable. Seed claims from the protected historical evidence once.
+                var historical = new Dictionary<string, Guid>(StringComparer.Ordinal);
+                await using (var query = Command("""
+                    SELECT completion.operation_id,completion.protected_transfer_reference
+                    FROM manual_refund_sales sale
+                    JOIN manual_refund_approvals approval USING(order_id)
+                    JOIN manual_refund_completions completion USING(operation_id)
+                    WHERE sale.organization_id=$1 AND sale.tender='promptpay_manual'
+                    ORDER BY completion.recorded_at_utc,completion.operation_id
+                    """, transaction, organization))
+                await using (var rows = await query.ExecuteReaderAsync(ct))
+                {
+                    while (await rows.ReadAsync(ct))
+                    {
+                        Guid prior = rows.GetGuid(0);
+                        string priorReference = Protector(prior).Unprotect(rows.GetString(1));
+                        historical.TryAdd(Convert.ToHexString(Digest(key, priorReference)), prior);
+                    }
+                }
+                if (historical.Count > 0)
+                {
+                    string claims = JsonSerializer.Serialize(historical.Select(entry => new { digest = entry.Key, operation_id = entry.Value }));
+                    await ExecuteAsync("""
+                        INSERT INTO manual_refund_reference_claims(organization_id,digest,operation_id)
+                        SELECT $1,decode(prior.digest,'hex'),prior.operation_id
+                        FROM jsonb_to_recordset($2::jsonb) prior(digest text,operation_id uuid)
+                        """, transaction, ct, organization, claims);
+                }
+            }
+            await InsertTransferClaimAsync(organization, operation, Digest(key, reference), transaction, ct);
+        }
+        finally { CryptographicOperations.ZeroMemory(key); }
+    }
+
+    private static byte[] Digest(byte[] key, string reference) =>
+        HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(reference.Trim().ToUpperInvariant()));
+
+    private static async Task InsertTransferClaimAsync(Guid organization, Guid operation, byte[] digest,
+        NpgsqlTransaction transaction, CancellationToken ct)
+    {
+        await using var claim = Command("""
+            INSERT INTO manual_refund_reference_claims(organization_id,digest,operation_id)
+            VALUES($1,$2,$3) ON CONFLICT (organization_id,digest) DO NOTHING RETURNING operation_id
+            """, transaction, organization, digest, operation);
+        if (await claim.ExecuteScalarAsync(ct) is null)
+            throw new ManualRefundReferenceConflictException();
     }
 
     private static async Task LockCustodyAsync(OriginalManualSale sale, ManualRefundPayout payout, DateTimeOffset at,

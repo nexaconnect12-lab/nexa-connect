@@ -72,6 +72,6 @@ public sealed class ManualRefundLedgerTests
         var another = Approval(50);
         ledger.Approve(another);
         ledger.BeginPayout(another.OperationId, payout);
-        Assert.Throws<InvalidOperationException>(() => ledger.Complete(another.OperationId, payout, true, "verified-ref", Now.AddMinutes(3)));
+        Assert.Throws<ManualRefundReferenceConflictException>(() => ledger.Complete(another.OperationId, payout, true, "verified-ref", Now.AddMinutes(3)));
     }
 }

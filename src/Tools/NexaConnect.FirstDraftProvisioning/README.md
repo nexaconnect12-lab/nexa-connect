@@ -1,5 +1,11 @@
 # First-draft provisioning
 
+The explicit physical refund acceptance mode provisions a THB 100 manual refund
+limit for the test store manager. Existing limits and revocations are preserved.
+The launcher adds the existing customer-viewer entry role for that verified test
+manager in the owned realm so day-close requests can reach the source services.
+Scoped product authorization still applies.
+
 The owned [UX21 lab](../../../docs/Deployment/POS-UX21-Real-Identity-Recovery-Lab.md) invokes
 `--recovery-lab-access` after reference setup with an explicit matching lab marker. It adds
 another lab-branch cashier and a denied-branch cashier through existing Platform Directory

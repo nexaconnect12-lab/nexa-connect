@@ -1,6 +1,6 @@
 #requires -Version 7.4
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$RunId,[switch]$ConfirmTestResources,[switch]$NoBuild)
+param([Parameter(Mandatory)][string]$RunId,[switch]$ConfirmTestResources,[switch]$NoBuild,[switch]$PhysicalRefundAcceptance)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -11,6 +11,7 @@ $old=@{}
 try {
  $state=Get-Content (Join-Path $run 'state.json') -Raw | ConvertFrom-Json -AsHashtable
  if($state.runId -ne $RunId -or $state.project -ne "nexa-draft-$RunId" -or $state.realm -ne "nexa-review-it-$RunId" -or $state.status -ne 'Ready'){throw 'Only the owned Ready draft may be provisioned.'}
+ if($PhysicalRefundAcceptance -and (-not $state.physicalPosPilot -or $state.physicalRefundAcceptance -ne $true)){throw 'Refund limit requires the explicit physical acceptance start.'}
  Assert-DraftUrls $state.urls
  $secrets=Read-DraftSecrets (Join-Path $run 'secrets.clixml')
  $staffPilotOrigin=if($state.Contains('physicalPosPilot')){[string]$state.physicalPosPilot.origin}else{''}
@@ -61,6 +62,20 @@ try {
  & dotnet (Join-Path $artifact 'NexaConnect.FirstDraftProvisioning.dll') --confirm
  if($LASTEXITCODE -ne 0){throw 'Draft reference provisioning failed; inspect protected journal.'}
  if($state.Contains('mediaEnabled') -and $state.mediaEnabled){& dotnet (Join-Path $artifact 'NexaConnect.FirstDraftProvisioning.dll') --media-access;if($LASTEXITCODE -ne 0){throw 'Draft Media permission provisioning failed.'}}
+ if($PhysicalRefundAcceptance){
+  & dotnet (Join-Path $artifact 'NexaConnect.FirstDraftProvisioning.dll') --physical-refund-limit
+  if($LASTEXITCODE -ne 0){throw 'Physical pilot refund limit provisioning failed.'}
+  $referenceManager=(Get-Content $referencePath -Raw | ConvertFrom-Json -AsHashtable).subjects['store-manager']
+  $managerId=[guid]::Empty
+  if(-not [guid]::TryParse($referenceManager,[ref]$managerId) -or $managerId -eq [guid]::Empty){throw 'Physical pilot manager identity missing.'}
+  $admin=Invoke-RestMethod "http://127.0.0.1:$($state.infrastructure.keycloak)/realms/master/protocol/openid-connect/token" -Method Post -Body @{grant_type='password';client_id='admin-cli';username='acceptance-admin';password=$secrets.KEYCLOAK_ADMIN_PASSWORD}
+  $headers=@{Authorization='Bearer '+$admin.access_token}
+  $adminBase="http://127.0.0.1:$($state.infrastructure.keycloak)/admin/realms/$($state.realm)"
+  $manager=Invoke-RestMethod "$adminBase/users/$managerId" -Headers $headers
+  if($manager.username -cne 'draft-store-manager' -or -not $manager.enabled){throw 'Physical pilot manager identity mismatch.'}
+  $viewer=Invoke-RestMethod "$adminBase/roles/customer-viewer" -Headers $headers
+  Invoke-RestMethod "$adminBase/users/$managerId/role-mappings/realm" -Method Post -Headers $headers -ContentType 'application/json' -Body (ConvertTo-Json -InputObject @($viewer)) | Out-Null
+ }
  $reference=Get-Content $referencePath -Raw | ConvertFrom-Json
  if(-not $reference.completed){throw 'Draft reference incomplete.'}
  $pos=Get-Content (Join-Path $run 'pos-configuration.json') -Raw | ConvertFrom-Json

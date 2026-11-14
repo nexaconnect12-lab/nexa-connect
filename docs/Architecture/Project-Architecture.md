@@ -17,6 +17,11 @@ manual-refund digests, compare exact scoped projection inventories, and protect
 payout changes with the existing financial journal, fences and durable barriers.
 V3 settlement publications preserve separate manual cash/PromptPay totals in
 immutable receipts, Reporting and CSV; original V1/V2 history stays unchanged.
+POS 30 reserves an organization-scoped keyed digest in the refund completion
+transaction. Historical protected references seed that registry on first use.
+Windows POS keeps a conflicting payout in recovery for manager reconciliation.
+The LAN pilot can enable synthetic refund testing after Reporting confirms its
+completion and settlement bindings.
 See [ADR-067](Decisions/ADR-067-manual-refund-cashier-custody.md) and
 [manual payment review](../Deployment/POS-Manual-Refund-Review.md).
 

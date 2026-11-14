@@ -14,6 +14,7 @@ param(
     [switch]$EnableOmiseTestCheckout,
     [switch]$EnableBranchPromptPayQr,
     [switch]$EnableDrawerHistory,
+    [switch]$EnablePhysicalRefundAcceptance,
     [switch]$NoBuild
 )
 $ErrorActionPreference='Stop'
@@ -28,6 +29,9 @@ $ErrorActionPreference='Stop'
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $catalog=Get-DraftServiceCatalog $root -IncludeMedia:$EnableMedia
 $compatibility=($catalog.Values | Sort-Object { [version]$_.minimumApplicationVersion })[-1].minimumApplicationVersion
+if($EnablePhysicalRefundAcceptance -and ($Action -ne 'Start' -or -not $ConfirmTestResources -or $NoBuild)){
+    throw 'Manual refund acceptance requires confirmed build-enabled Start.'
+}
 if($PSBoundParameters.ContainsKey('PhysicalGuestQrPort') -and ($Action -ne 'Start' -or -not $ConfirmTestResources -or $NoBuild)){
     throw 'Physical guest QR changes require build-enabled Start -ConfirmTestResources.'
 }
@@ -175,10 +179,15 @@ function Set-Configurations {
             $config.PaymentReconciliationConsumer__Enabled='true';$config.PaymentReconciliationConsumer__ConnectionString=$broker
         }
         if($name -eq 'POS') {
+            $config.ManualRefunds__Enabled='false'
             $config.OrderSettlementConsumer__Enabled='true';$config.OrderSettlementConsumer__ConnectionString=$broker
             $config.CashClosePublication__Enabled='true';$config.SettlementRecovery__Enabled='true'
         }
         if($name -eq 'Reporting') {
+            if($script:state.Contains('physicalPosPilot')){
+                $config.ManualRefundConsumer__Enabled='true'
+                $config.ManualRefundConsumer__ConnectionString=$broker
+            }
             foreach ($consumer in @('OrderSaleConsumer','PaymentRefundConsumer','CashCloseConsumer','CashCorrectionConsumer','SettlementConsumer','ActivityConsumer')) {
                 $config[$consumer+'__Enabled']='true';$config[$consumer+'__ConnectionString']=$broker
             }
@@ -222,6 +231,9 @@ function Wait-Bindings {
         'nexaconnect.pos.order-manual-tender.v1'='order.manual-tender-settled.v1'
         'nexaconnect.order.payment-reconciled.v1'='payment.capture-reconciled.v1'
     }
+    if($script:state.Contains('physicalPosPilot')){
+        $required['nexaconnect.reporting.manual-refunds.v1']='pos.manual-refund-completed.v1'
+    }
     $deadline=[DateTimeOffset]::UtcNow.AddSeconds(60)
     while([DateTimeOffset]::UtcNow -lt $deadline) {
         $bindings=(& docker @compose exec -T rabbitmq gosu rabbitmq rabbitmqctl list_bindings source_name destination_name routing_key 2>$null) -join "`n"
@@ -231,7 +243,9 @@ function Wait-Bindings {
             $bindings -notmatch ('nexaconnect\.events\s+'+[regex]::Escape($_)+'\s+'+[regex]::Escape($required[$_])+'(?:\s|$)') -or
             $queues -notmatch ('(?m)^'+[regex]::Escape($_)+'\s+[1-9][0-9]*\s*$')
         })
-        if($bindingsExit -eq 0 -and $LASTEXITCODE -eq 0 -and $missing.Count -eq 0){return}
+        $v3Ready=-not $script:state.Contains('physicalPosPilot') -or
+            $bindings -match 'nexaconnect\.events\s+nexaconnect\.reporting\.day-settlements\.v1\s+pos\.branch-day-settled\.v3(?:\s|$)'
+        if($bindingsExit -eq 0 -and $LASTEXITCODE -eq 0 -and $missing.Count -eq 0 -and $v3Ready){return}
         Start-Sleep -Seconds 1
     }
     throw 'Required owned financial queue bindings are not ready; producers remain disabled.'
@@ -312,6 +326,7 @@ if($state.Contains('mediaEnabled') -and $state.mediaEnabled){
     $compose=Get-DraftComposeArguments $root $RunId
 }
 Assert-DraftUrls $state.urls
+if($EnablePhysicalRefundAcceptance -and -not $state.Contains('physicalPosPilot')){throw 'Manual refund acceptance requires the owned physical POS pilot.'}
 if($state.Contains('physicalPosPilot') -and $Action -notin @('Start','Status','Stop','Reset')){throw 'Use complete Start/Stop maintenance for this separate LAN pilot; partial service recovery is not supported.'}
 [void](Test-DraftBranchPromptPayEnabled $state)
 [void](Test-DraftDrawerHistoryEnabled $state)
@@ -488,6 +503,7 @@ try {
     # Bind all consumers while producers are disabled; Order also owns a consumer.
     foreach($name in @('PlatformDirectory','Authorization','Restaurant','Catalog','Inventory','Kitchen','Payment','Reporting','POS','Order')){Start-DraftApp $name}
     Wait-Bindings
+    if($EnablePhysicalRefundAcceptance){$configurations.POS.ManualRefunds__Enabled='true'}
     foreach($name in @('PlatformDirectory','Restaurant','Catalog','Inventory','Kitchen','Payment','POS','Order')) {
         Stop-DraftApp $name;$configurations[$name].Outbox__Enabled='true';$configurations[$name].Outbox__BatchSize='100';Start-DraftApp $name
     }
@@ -538,6 +554,8 @@ try {
     $publicationAfter=& node (Join-Path $PSScriptRoot 'release/source.mjs')
     if($LASTEXITCODE -ne 0 -or ($publicationAfter|ConvertFrom-Json -AsHashtable|ConvertTo-Json -Depth 8 -Compress) -cne ($publicationSource|ConvertTo-Json -Depth 8 -Compress)){throw 'Source changed during publication/startup.'}
     $state.publishedSource=$publicationSource
+    $state.applicationCompatibility=$compatibility
+    if($state.Contains('physicalPosPilot')){$state.physicalRefundAcceptance=[bool]$EnablePhysicalRefundAcceptance}
     $state.publishedArtifacts=Get-DraftQrPilotArtifactHash $run
     $state.status='Ready';Save-State
     Write-Output "Draft Ready. RunId=$RunId Portal=$($state.urls.Bff)"

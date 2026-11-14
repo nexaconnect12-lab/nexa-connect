@@ -1,5 +1,12 @@
 # NexaConnect POS Service
 
+The manual refund routes accept the draft `customer-user` entry role and enforce
+live scoped refund grants. See [physical acceptance](../../../docs/Deployment/POS-Physical-Refund-Acceptance.md).
+
+POS 30 adds organization-wide duplicate protection for manual PromptPay returns.
+Keep the POS Data Protection key ring when upgrading or restoring the database.
+See [manual refund storage](../../../docs/Database/POS-Manual-Refunds.md).
+
 The [manual refund domain](../../../docs/Deployment/POS-Manual-Refund-Review.md#approval-and-payout-domain)
 models manager approval, cashier payout custody and replay against the original manual
 payment. [POS 27](../../../docs/Database/POS-Manual-Refunds.md) adds durable storage,

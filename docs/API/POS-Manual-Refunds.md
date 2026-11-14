@@ -5,6 +5,17 @@ The POS API uses the prefix
 Send a customer bearer with the `nexaconnect-api` audience, the matching
 `X-Nexa-Organization-Id` and `X-Nexa-Application-Code: nexa_connect`.
 POS checks live Platform Directory membership and Restaurant branch ownership.
+The `customer-user` entry role can reach these routes. Live scoped refund grants
+and the manager's financial approval limit still apply.
+
+POS 30 compares trimmed, case-insensitive PromptPay return-transfer references across
+all orders and branches of the same organization. Completion returns HTTP 409 with
+`manual_refund_transfer_reference_conflict` if another payout already uses the reference.
+The response omits the reference and other payout's identity. The attempted payout
+remains started for manager reconciliation. An exact retry of a completed operation
+recovers the original result. Query
+`{service_name="nexaconnect-pos"} |= "Manual refund transfer reference conflict"`
+and narrow by the validated `CorrelationId`.
 
 | Method and suffix | Behavior |
 | --- | --- |

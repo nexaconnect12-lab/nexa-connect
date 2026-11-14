@@ -216,6 +216,8 @@ assignment/scaling, select/test the printer and enable/test scanner input using 
 
 ## Later version updates
 
+For the refund workflow, see [physical refund acceptance](POS-Physical-Refund-Acceptance.md).
+
 Setup creates Desktop and Start menu shortcuts for the installing Windows account.
 For a managed install with an approved signer and feed, see [optional startup
 updates](POS-Startup-Updates.md). The unsigned LAN pilot continues to use manual

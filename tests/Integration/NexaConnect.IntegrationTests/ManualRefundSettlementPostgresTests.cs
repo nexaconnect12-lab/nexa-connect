@@ -20,8 +20,19 @@ public sealed partial class DaySealPostgresTests
         await Sql(pos,"INSERT INTO manual_refund_sales VALUES($1,$2,$3,$4,$5,'promptpay_manual','THB',100,$6)",orderId,settlementId,organization,restaurant,branch,at.AddDays(-2));
         await Sql(pos,"INSERT INTO manual_refund_approvals VALUES($1,$2,25,'customer_request','approver',$3,'manager',$4)",operationId,orderId,Guid.NewGuid(),at.AddMinutes(-2));
         await Sql(pos,"INSERT INTO manual_refund_payouts SELECT $1,s.terminal_id,s.id,NULL,$3 FROM shifts s JOIN cash_sessions c ON c.shift_id=s.id WHERE c.id=$2",operationId,drawer,at.AddMinutes(-1));
-        await Sql(pos,"INSERT INTO manual_refund_completions VALUES($1,NULL,'synthetic-protected-proof',$2)",operationId,at);
+        await SeedProtectedCompletion(operationId, at);
         return new(Guid.NewGuid(),Guid.NewGuid(),at,organization,restaurant,branch,orderId,settlementId,operationId,"promptpay_manual",25,"THB",null);
+    }
+
+    private async Task SeedProtectedCompletion(Guid operationId, DateTimeOffset at)
+    {
+        await Sql(pos,"INSERT INTO manual_refund_reference_keys VALUES($1,'fixture-key') ON CONFLICT DO NOTHING",organization);
+        await Sql(pos,"""
+            WITH claim AS (
+                INSERT INTO manual_refund_reference_claims VALUES($3,sha256(uuid_send($1)),$1) RETURNING operation_id
+            )
+            INSERT INTO manual_refund_completions SELECT operation_id,NULL,'synthetic-protected-proof',$2 FROM claim
+            """,operationId,at,organization);
     }
 
     private async Task<CutoffReconciliationCommand> ManualCutoff()
@@ -65,7 +76,7 @@ public sealed partial class DaySealPostgresTests
         // The same original sale may be refunded on a later day without changing its finalized day.
         var later=DateTimeOffset.UtcNow;
         await Sql(pos,"INSERT INTO manual_refund_payouts SELECT $1,terminal_id,shift_id,cash_session_id,$2 FROM manual_refund_payouts LIMIT 1",laterOperation,later);
-        await Sql(pos,"INSERT INTO manual_refund_completions VALUES($1,NULL,'synthetic-later-proof',$2)",laterOperation,later.AddSeconds(1));
+        await SeedProtectedCompletion(laterOperation, later.AddSeconds(1));
         var sealedPos=first.Settlement.Receipt!.Snapshot.Seals!.Pos;
         var observation=await new PDb.PostgresPosCutoffStore(pos).ReadSealAsync(Window,sealedPos.SealId,default);
         Assert.Equal(0,observation!.PendingChanges);Assert.Equal(0,observation.UnknownChanges);
