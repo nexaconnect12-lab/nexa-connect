@@ -61,6 +61,11 @@ public partial class MainWindow
         Grid.SetColumn(CashReconciliationCard, stack ? 0 : 1);
         Grid.SetRow(CashReconciliationCard, stack ? 1 : 0);
         ShiftSetupCard.Margin = stack ? new Thickness(0, 0, 0, 12) : new Thickness(0, 0, 16, 0);
+        PaymentTenderColumn.Width = stack ? new GridLength(0) : new GridLength(2, GridUnitType.Star);
+        Grid.SetColumn(PaymentTenderScroll, stack ? 0 : 1);
+        Grid.SetRow(PaymentTenderScroll, stack ? 1 : 0);
+        Grid.SetRowSpan(PaymentTenderScroll, stack ? 1 : 2);
+        PaymentOrderCard.Margin = stack ? new Thickness(0, 0, 0, 8) : new Thickness(0, 0, 12, 0);
         double height = ActualHeight > 0 ? ActualHeight : Height;
         bool compact = PosResponsiveLayout.CompactHeight(height);
         InputViewport.Margin = compact ? new Thickness(12, 8, 12, 8) : new Thickness(24);

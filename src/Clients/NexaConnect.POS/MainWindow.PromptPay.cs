@@ -80,6 +80,8 @@ public partial class MainWindow
             bool context=IsSignedIn()&&_activeShift is not null&&pendingOrder is not null&&!settlementInFlight&&!busy&&!displaySafetyBlocked&&cancellationStatus is null&&!CardCheckout;
             PaidButton.IsEnabled=context&&readiness.Allowed&&(!promptPayQrReading||original||method!="promptpay_manual");
             PaymentReadinessText.Text=displaySafetyBlocked?"Restore the private staff display before confirming payment.":_activeShift is null?"Open or resume the original shift.":pendingOrder is null?"Send or load the original order before confirming payment.":CardCheckout?"Card checkout must use original-order verification, not manual payment.":busy||settlementInFlight?"A command is in progress. Wait; do not repeat it.":cancellationStatus is not null?"Resolve the original cancellation or reconciliation before confirming payment.":promptPayQrReading&&!original&&method=="promptpay_manual"?"Refreshing the approved branch QR…":readiness.Guidance;
+            if (settlementUncertain && PaidButton.IsEnabled)
+                PaymentReadinessText.Text = "Verify the original payment attempt. Do not collect again.";
             PaidButton.ToolTip=PaymentReadinessText.Text;
             RefreshPromptPayQrButton.IsEnabled=IsSignedIn()&&!busy&&!promptPayQrReading&&!displaySafetyBlocked;
         }catch{PaidButton.IsEnabled=false;PaymentReadinessText.Text="Payment recovery is unavailable. Preserve the original order and recovery files.";}

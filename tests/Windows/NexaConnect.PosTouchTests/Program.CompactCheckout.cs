@@ -8,6 +8,8 @@ internal static partial class Program
     private static void VerifyCompactCheckout(MainWindow window)
     {
         var menu=(IList)typeof(MainWindow).GetField("menu",Private)!.GetValue(window)!;
+        var cart = (IList)typeof(MainWindow).GetField("cart", Private)!.GetValue(window)!;
+        var emptyPrompt = (TextBlock)window.FindName("CartEmptyPrompt");
         var shift=typeof(MainWindow).GetField("_activeShift",Private)!;
         var cash=typeof(MainWindow).GetField("cashSessionId",Private)!;
         object? oldShift=shift.GetValue(window),oldCash=cash.GetValue(window);
@@ -16,7 +18,11 @@ internal static partial class Program
         try
         {
             shift.SetValue(window,new LocalShiftState(Guid.NewGuid(),"LAYOUT",DateTimeOffset.UtcNow));cash.SetValue(window,Guid.NewGuid());
-            for(int i=0;i<24;i++)menu.Add(new PosMenuItem(Guid.NewGuid(),$"Fixture meal {i+1}",65,"THB","kitchen",true));
+            for(int i=0;i<24;i++)
+            {
+                string name = i == 0 ? "ข้าวไก่และผักรวม · Chicken rice with assorted vegetables" : $"Fixture meal {i+1}";
+                menu.Add(new PosMenuItem(Guid.NewGuid(),name,65,"THB","kitchen",true));
+            }
             ((TabItem)window.FindName("CheckoutTab")).IsSelected=true;
             Invoke(window,"UpdateOperationalState");
             Require(!more.IsExpanded,"secondary menu controls default collapsed");
@@ -32,13 +38,14 @@ internal static partial class Program
                 Require(menuList.ActualWidth>=window.CheckoutCartWidthForFixture(),"menu is wider than bounded cart");
                 if(choice==0)
                 {
-                    var tiles=Descendants<Button>(menuList).Where(b=>b.Style==window.FindResource("MenuTile")).ToArray();
+                    var tiles=Descendants<ListBoxItem>(menuList).ToArray();
                     var positions=tiles.Select(b=>b.TransformToAncestor(menuList).Transform(new Point())).ToArray();
                     double first=positions.Min(p=>p.Y);
                     Require(positions.Count(p=>Math.Abs(p.Y-first)<1)>=3,"standard menu fits at least three complete columns without wasted wrap space");
                 }
                 Require(((FrameworkElement)window.FindName("CashierReadyPanel")).Visibility==Visibility.Collapsed,"checkout omits the duplicate ready banner");
                 Require(!((FrameworkElement)window.FindName("TotalText")).IsVisible&&((FrameworkElement)window.FindName("WorkflowAmount")).IsVisible,"one visible pinned total");
+                Require(emptyPrompt.IsVisible, "empty cart gives the cashier a next action");
                 var button=(Button)window.FindName("PlaceOrderButton");var root=(FrameworkElement)window.Content;
                 var bounds=button.TransformToAncestor(root).TransformBounds(new Rect(button.RenderSize));
                 Require(bounds.Top>=0&&bounds.Bottom<=root.ActualHeight+1,"checkout action remains on screen");
@@ -46,10 +53,23 @@ internal static partial class Program
                 typeof(MainWindow).GetField("pendingOrder",Private)!.SetValue(window,new PosOrderResult(Guid.NewGuid(),PosOrderStatus.PaymentPending,65,"THB"));
                 Invoke(window,"RenderWorkflow");
                 Require(((TextBlock)window.FindName("WorkflowDescription")).IsVisible,"payment uncertainty guidance stays visible even at short heights");
+                var recoveryAction = (Button)window.FindName("WorkflowNextButton");
+                Require(recoveryAction.IsVisible && Equals(recoveryAction.Content, "Open Payment"),
+                    "checkout points to the existing payment verification workspace");
                 typeof(MainWindow).GetField("pendingOrder",Private)!.SetValue(window,null);
                 typeof(MainWindow).GetField("settlementUncertain",Private)!.SetValue(window,false);Invoke(window,"RenderWorkflow");
                 if(choice==0)SavePreview(window,$".runstate/pos-compact-checkout-{(int)size.Width}.png");
             }
+            foreach (PosMenuItem item in menu) Invoke(window, "TryAddMenuItem", item);
+            Pump(window);
+            Require(cart.Count == 24 && !emptyPrompt.IsVisible, "populated cart hides empty guidance");
+            var cartScroll = Descendants<ScrollViewer>((ListBox)window.FindName("CartList")).First();
+            Require(cartScroll.ScrollableHeight > 0, "long cart has independent scrolling");
+            cartScroll.ScrollToBottom();
+            Pump(window);
+            var action = (Button)window.FindName("PlaceOrderButton");
+            Require(action.TransformToAncestor(window).TransformBounds(new Rect(action.RenderSize)).Bottom <= window.ActualHeight,
+                "checkout action stays on screen after scrolling a long cart");
             Invoke(window,"WorkspaceOptions_Click",window,new RoutedEventArgs());Pump(window);
             Require(((Button)window.FindName("SignOutButton")).IsVisible,"sign-out remains reachable in workspace options");
             Invoke(window,"WorkspaceOptions_Click",window,new RoutedEventArgs());
@@ -59,6 +79,7 @@ internal static partial class Program
         }
         finally
         {
+            cart.Clear();Invoke(window,"RefreshCart");
             menu.Clear();shift.SetValue(window,oldShift);cash.SetValue(window,oldCash);density.SelectedIndex=oldDensity;
             Invoke(window,"UpdateOperationalState");window.Width=1280;window.Height=700;
         }

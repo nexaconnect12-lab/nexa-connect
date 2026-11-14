@@ -84,18 +84,21 @@
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
               </Grid.RowDefinitions>
               <Grid>
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="210"/></Grid.ColumnDefinitions>
                 <Grid Margin="0,0,8,0">
                   <TextBox x:Name="MenuSearchTextBox" AutomationProperties.Name="Search menu" ToolTip="Search menu by name" TextChanged="MenuFilter_Changed" Margin="0,0,0,6" />
                   <TextBlock Text="Search menu…" Foreground="#63756A" Margin="10,0,0,6" VerticalAlignment="Center" IsHitTestVisible="False">
                     <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=MenuSearchTextBox}" Value=""><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                   </TextBlock>
                 </Grid>
-                <ComboBox Grid.Column="1" x:Name="CategoryComboBox" DisplayMemberPath="Label" SelectionChanged="MenuCategory_Changed" AutomationProperties.Name="Menu category filter" ToolTip="Category" Margin="0,0,0,6"/>
+                <Grid Grid.Column="1" Margin="0,0,0,6">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                  <TextBlock Text="Category" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                  <ComboBox Grid.Column="1" x:Name="CategoryComboBox" DisplayMemberPath="Label" SelectionChanged="MenuCategory_Changed" AutomationProperties.Name="Menu category filter" ToolTip="Category" VerticalAlignment="Center"/>
+                </Grid>
               </Grid>
               <Expander x:Name="MenuOptionsExpander" Grid.Row="1" Margin="0,0,0,8" Collapsed="MenuOptions_Collapsed">
                 <Expander.Header><Border MinHeight="{DynamicResource PosControlHeight}" Background="Transparent"><TextBlock Text="More filters &amp; scanner" VerticalAlignment="Center"/></Border></Expander.Header>
@@ -119,8 +122,8 @@
                 </StackPanel>
                 </ScrollViewer>
               </Expander>
-              <Grid Grid.Row="3">
-                <ListBox x:Name="MenuList" SizeChanged="MenuArea_SizeChanged" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <Grid Grid.Row="2">
+                <ListBox x:Name="MenuList" SizeChanged="MenuArea_SizeChanged" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Menu products" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.PanningMode="VerticalOnly">
                   <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                       <WrapPanel />
@@ -141,11 +144,11 @@
                           <Image Source="{Binding Photo}" Height="76" Stretch="Uniform" Margin="0,0,0,8">
                             <Image.Style><Style TargetType="Image"><Style.Triggers><DataTrigger Binding="{Binding Photo}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Image.Style>
                           </Image>
-                          <TextBlock Text="{Binding Item.Name}" FontSize="{DynamicResource PosMenuNameFontSize}" FontWeight="SemiBold" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="44" />
+                          <TextBlock Text="{Binding Item.Name}" FontSize="{DynamicResource PosMenuNameFontSize}" FontWeight="SemiBold" TextWrapping="Wrap" />
                           <TextBlock Text="Sold out" FontWeight="SemiBold" Margin="0,4,0,0">
                             <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding Item.Available}" Value="False"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                           </TextBlock>
-                          <TextBlock FontSize="{DynamicResource PosMenuPriceFontSize}" Margin="0,6,0,0">
+                          <TextBlock FontSize="{DynamicResource PosMenuPriceFontSize}" FontWeight="SemiBold" Margin="0,6,0,0">
                             <Run Text="{Binding Item.Currency, Mode=OneWay}" />
                             <Run Text=" " />
                             <Run Text="{Binding Item.UnitPrice, Mode=OneWay, StringFormat=N2}" />
@@ -173,7 +176,7 @@
                 <RowDefinition Height="Auto" />
               </Grid.RowDefinitions>
               <TextBlock Text="Current order" Style="{StaticResource Heading}" FontSize="18" Margin="0,0,0,8" />
-              <ListBox Grid.Row="1" x:Name="CartList" BorderThickness="0" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+              <ListBox Grid.Row="1" x:Name="CartList" BorderThickness="0" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Current order items" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.PanningMode="VerticalOnly">
                 <ListBox.ItemTemplate>
                   <DataTemplate>
                     <Border BorderBrush="{StaticResource PosDivider}" BorderThickness="0,0,0,1" Padding="0,6"><StackPanel>
@@ -188,6 +191,18 @@
                   </DataTemplate>
                 </ListBox.ItemTemplate>
               </ListBox>
+              <TextBlock x:Name="CartEmptyPrompt" Grid.Row="1" Text="Add a menu item to start the order." Foreground="#52655A" TextWrapping="Wrap" Margin="0,4" IsHitTestVisible="False">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding HasItems, ElementName=CartList}" Value="False">
+                        <Setter Property="Visibility" Value="Visible"/>
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
               <StackPanel Grid.Row="2">
                 <TextBlock x:Name="TotalText" Visibility="Collapsed" />
                 <TextBlock Text="Checkout payment" FontWeight="SemiBold" />
@@ -208,11 +223,19 @@
         </Grid>
       </TabItem>
       <TabItem x:Name="PaymentTab" Header="Payment" Tag="&#xE8C7;">
-        <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
-          <Border Style="{StaticResource Card}" MaxWidth="700" HorizontalAlignment="Center">
+        <Grid x:Name="PaymentLayout">
+          <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition x:Name="PaymentTenderColumn" Width="2*"/></Grid.ColumnDefinitions>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+          <Border x:Name="PaymentOrderCard" Style="{StaticResource Card}" VerticalAlignment="Top">
             <StackPanel>
-              <TextBlock Text="Complete payment" Style="{StaticResource Heading}" />
-              <TextBlock x:Name="PendingOrderText" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,20" />
+              <TextBlock Text="Original order" Style="{StaticResource Heading}" />
+              <TextBlock x:Name="PendingOrderText" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+            </StackPanel>
+          </Border>
+          <ScrollViewer x:Name="PaymentTenderScroll" Grid.Column="1" Grid.RowSpan="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" AutomationProperties.Name="Payment and cancellation controls">
+          <Border Style="{StaticResource Card}">
+            <StackPanel>
+              <TextBlock Text="Tender" Style="{StaticResource Heading}" />
               <TextBlock Text="Payment method" />
               <ComboBox x:Name="TenderMethodComboBox" SelectedIndex="0" SelectionChanged="TenderMethod_SelectionChanged" AutomationProperties.Name="Payment method">
                 <ComboBoxItem Content="Cash" Tag="cash" />
@@ -226,9 +249,9 @@
                 <TextBox x:Name="BankReferenceTextBox" MaxLength="64" AutomationProperties.Name="Receipt or bank reference" TextChanged="PaymentProof_Changed" />
                 <CheckBox x:Name="ReceiptConfirmedCheckBox" Content="I verified the received payment and receipt" VerticalContentAlignment="Center" Checked="PaymentProof_Changed" Unchecked="PaymentProof_Changed" />
               </StackPanel>
-              <TextBlock x:Name="PaymentReadinessText" TextWrapping="Wrap" Margin="0,8" />
-              <TextBlock Text="Confirm only after receiving the exact amount. If the result is uncertain, verify the existing payment; do not collect again." TextWrapping="Wrap" Margin="0,16" Foreground="#63756A" />
-              <TextBlock Text="Cancellation reason" Margin="0,16,0,0" />
+              <TextBlock x:Name="PaymentReadinessText" TextWrapping="Wrap" Margin="0,8" AutomationProperties.LiveSetting="Polite" />
+              <Separator Margin="0,8,0,8"/>
+              <TextBlock Text="Cancellation reason" />
               <TextBox x:Name="CancellationReasonTextBox" MaxLength="200" AutomationProperties.Name="Cancellation reason" />
               <WrapPanel>
                 <Button Content="Customer request" Click="CancellationPreset_Click" IsEnabled="{Binding IsEnabled, ElementName=CancellationReasonTextBox}" />
@@ -237,7 +260,8 @@
               <Button x:Name="CancelOrderButton" Content="Cancel unpaid order" Click="CancelOrder_Click" ToolTipService.ShowOnDisabled="True" />
             </StackPanel>
           </Border>
-        </ScrollViewer>
+          </ScrollViewer>
+        </Grid>
       </TabItem>
       <TabItem x:Name="QrRequestsTab" Header="QR orders" Tag="&#xE8A5;">
         <Grid>

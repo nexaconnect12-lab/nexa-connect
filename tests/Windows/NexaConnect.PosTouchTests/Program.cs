@@ -17,9 +17,14 @@ internal static partial class Program
     {
         if (args is ["--shutdown-child", var childRoot, var mode]) { RunShutdownChild(childRoot, mode); return; }
         if (args is ["--shutdown-only"]) { VerifyShutdown(); return; }
-        VerifySessionExpiry();
-        if (args is ["--session-expiry-only"]) return;
-        VerifyShutdown();
+        bool checkoutLayoutOnly = args is ["--checkout-layout-only"];
+        bool paymentLayoutOnly = args is ["--payment-layout-only"];
+        if (!checkoutLayoutOnly && !paymentLayoutOnly)
+        {
+            VerifySessionExpiry();
+            if (args is ["--session-expiry-only"]) return;
+            VerifyShutdown();
+        }
         var keyboard = new TouchKeyboard();
         string? last = null; keyboard.KeyPressed += key => last = key;
         keyboard.Configure("Fixture reference", false);
@@ -65,12 +70,20 @@ internal static partial class Program
                     SessionStartedAtUtc: DateTimeOffset.UtcNow, SessionExpiresAtUtc: DateTimeOffset.UtcNow.AddHours(1), Subject: "fixture", Authority: config.Authority));
             Invoke(window, "UpdateOperationalState");
             window.Show(); Pump(window);
+            if (checkoutLayoutOnly) { VerifyCompactCheckout(window); return; }
+            if (paymentLayoutOnly)
+            {
+                VerifyPaymentLayout(window);
+                VerifyPromptPayProof(window, config);
+                return;
+            }
             VerifySessionDisplayLayout(window);
             VerifyDisplayPlacement();
             VerifyTableQr(root);
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
             VerifyCashierNavigation(window);
             VerifyCompactCheckout(window);
+            VerifyPaymentLayout(window);
             VerifyRefundSelection(window, config);
             VerifyAssignedManualRefund(window, config);
             VerifyAssignedManualRefund(window, config, tamperedTerms: true);
@@ -265,6 +278,70 @@ internal static partial class Program
         for(int i=0;i<60&&(bool)typeof(MainWindow).GetField("checkingServiceAvailability",Private)!.GetValue(window)!;i++){Pump(window);Thread.Sleep(5);}
         Require(serviceText.Text.StartsWith("Service availability not checked"),"late header checks cannot restore results after privacy clearing");
     }
+    private static void VerifyPaymentLayout(MainWindow window)
+    {
+        var tab = (TabItem)window.FindName("PaymentTab");
+        var density = (ComboBox)window.FindName("DensityPicker");
+        var orderText = (TextBlock)window.FindName("PendingOrderText");
+        var amount = (TextBlock)window.FindName("WorkflowAmount");
+        var action = (Button)window.FindName("PaidButton");
+        var tenderScroll = (ScrollViewer)window.FindName("PaymentTenderScroll");
+        var order = Guid.NewGuid();
+        var shift = typeof(MainWindow).GetField("_activeShift", Private)!;
+        var cash = typeof(MainWindow).GetField("cashSessionId", Private)!;
+        var pending = typeof(MainWindow).GetField("pendingOrder", Private)!;
+        var uncertain = typeof(MainWindow).GetField("settlementUncertain", Private)!;
+        var previousTab = ((TabControl)window.FindName("WorkspaceTabs")).SelectedItem as TabItem;
+        int previousDensity = density.SelectedIndex;
+        double previousWidth = window.Width, previousHeight = window.Height;
+        try
+        {
+            tab.IsSelected = true;
+            Invoke(window, "UpdateOperationalState");
+            Require(!action.IsEnabled, "payment without an original order is disabled");
+            shift.SetValue(window, new LocalShiftState(Guid.NewGuid(), "PAYMENT", DateTimeOffset.UtcNow));
+            cash.SetValue(window, Guid.NewGuid());
+            pending.SetValue(window, new PosOrderResult(order, PosOrderStatus.KitchenAccepted, 50, "THB"));
+            foreach (int choice in new[] { 0, 1 })
+            foreach (var size in new[] { new Size(1093, 614), new Size(1366, 768), new Size(1920, 1080) })
+            {
+                density.SelectedIndex = choice;
+                window.Width = size.Width;
+                window.Height = size.Height;
+                uncertain.SetValue(window, false);
+                Invoke(window, "UpdateOperationalState");
+                Pump(window);
+                Require(Grid.GetColumn(tenderScroll) == (size.Width < 1100 ? 0 : 1), "tender reflows with window width");
+                Require(action.IsEnabled && Equals(action.Content, "Confirm payment received"), "cash confirmation is available");
+                uncertain.SetValue(window, true);
+                Invoke(window, "UpdateOperationalState");
+                Pump(window);
+                Require(Equals(action.Content, "Verify payment"), "uncertainty changes the existing action to verification");
+                Require(((TextBlock)window.FindName("PaymentReadinessText")).Text.Contains("Do not collect again."),
+                    "tender guidance switches from collection to verification");
+                Require(orderText.IsVisible && orderText.Text.Contains(order.ToString("D"))
+                    && amount.Text == CashierPresentation.Money(50m, "THB"), "verification retains the original order and amount");
+                var root = (FrameworkElement)window.Content;
+                Require(action.TransformToAncestor(root).TransformBounds(new Rect(action.RenderSize)).Bottom <= root.ActualHeight + 1,
+                    "payment action stays on screen");
+                if (choice == 0) SavePreview(window, $".runstate/pos-payment-layout-{(int)size.Width}.png");
+            }
+            Console.WriteLine("PASS: payment layout — responsive order/tender panels and cash verification dock.");
+        }
+        finally
+        {
+            pending.SetValue(window, null);
+            uncertain.SetValue(window, false);
+            shift.SetValue(window, null);
+            cash.SetValue(window, null);
+            if (previousTab is not null) previousTab.IsSelected = true;
+            density.SelectedIndex = previousDensity;
+            window.Width = previousWidth;
+            window.Height = previousHeight;
+            Invoke(window, "UpdateOperationalState");
+        }
+    }
+
     private static void VerifyPromptPayProof(MainWindow window,PosClientConfiguration config)
     {
         var store=(LocalPosStore)typeof(MainWindow).GetField("_localStore",Private)!.GetValue(window)!;

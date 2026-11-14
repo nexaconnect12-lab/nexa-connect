@@ -2,6 +2,24 @@
 
 ## Menu and payment follow-up
 
+The Phase 1 Payment layout places the original order beside tender controls at
+1100 logical pixels and wider. At smaller sizes the order appears above the
+scrolling tender controls. The pinned dock shows the amount and changes from
+**Confirm payment received** to **Verify payment** for uncertain payments. Cash
+uses the original server amount and exact-receipt confirmation. PromptPay uses
+the existing QR and receipt/reference controls. A cash-entry keypad would need a
+separate amount-received workflow.
+
+Run `dotnet run --project tests/Windows/NexaConnect.PosTouchTests -- --payment-layout-only`
+for the Standard/Touch layout, cash confirmation and verification states, and
+synthetic PromptPay proof and recovery checks. Physical-terminal acceptance is pending.
+
+The Phase 1 checkout layout adds a persistent Category label, wraps multilingual item
+names, emphasizes prices, and gives an empty cart a next step. Menu and cart lists
+support independent vertical touch panning. The pinned workflow dock continues to show
+the total and the current checkout or recovery action. Physical-device acceptance of this
+source change is pending.
+
 The cashier navigation labels the cart and item workspace **Menu**. The cashier name and
 session status share one header row. Select **Review order total** to see the server-priced
 lines and total in Menu, then **Send order · Continue to payment**. Editing the cart
@@ -22,7 +40,7 @@ This update reduces routine text and expands menu browsing in the existing WPF P
 - A compact header shows the brand, verified cashier, session/shift status and Lock. Full sign-in remains visible when needed. **More** reveals the original sign-out, Windows keyboard, service-check and branch/terminal details; their existing guards remain authoritative.
 - Checkout omits the duplicate ready banner. The ready identity/register/start-sale card remains on **Shift & cash** when idle.
 - Search and category selection share one row. **More filters & scanner** contains station selection, refresh, clear filters, category status and the existing explicitly enabled scanner controls, in a scroll area bounded to160DIP. Its toggle retains the selected Standard/Touch target height (36/52DIP). Empty/no-match states retain direct Refresh menu/Clear filters actions. The Terminal scanner shortcut opens the advanced section without enabling scanning or submitting anything. Collapsing it moves focus back to search; automatic input follows the saved input preference.
-- Menu tiles fit the available width, with the complete name available through its accessible name/tooltip, a bounded two-line visual name, optional existing approved image, price and conditional sold-out label. Repeated preparation-station labels are removed from tiles; station filtering remains. Existing item identities/prices and photo isolation are unchanged.
+- Menu tiles fit the available width, with a wrapping name, the complete name in its accessible name and tooltip, an optional approved image, a prominent price and a conditional sold-out label. Station filtering remains under **More filters & scanner**.
 - The cart column uses280/330/380DIP at window widths below1100/below1500/otherwise, giving the remaining width to the menu. The original cart-total text remains as an internal presentation source; the pinned workflow total is the single visible total. Existing quantity controls, payment selector and server pricing breakdown remain. Routine sandbox-capability text is hidden for manual checkout; sandbox and retained-method guidance remains when relevant.
 - Routine workflow explanations are collapsed. Payment uncertainty, retained-order/refund/cancellation, sync, prerequisite and busy guidance stays visible at all supported heights. The status area remains visible and scrollable; no business/recovery warning is converted into an automatically dismissed toast.
 
@@ -32,6 +50,13 @@ views use the outer scroll area. Standard input and density are the defaults. To
 and Touch density remain independent preferences.
 
 ## Verification and rollout
+
+Run the checkout layout fixture independently with
+`dotnet run --project tests/Windows/NexaConnect.PosTouchTests -- --checkout-layout-only`.
+It covers empty-cart guidance, multilingual tile content and a populated cart that
+scrolls independently of the checkout action.
+The Phase 1 targeted fixture passed. The full fixture stopped in the shutdown
+callback test with named-pipe access denied before reaching the layout checks.
 
 The isolated native fixture checks Standard/Touch at1093×614,1366×768 and1920×1080 logical sizes, default collapsed options, at least three Standard menu columns, menu height, no whole-checkout scroll, a reachable pinned action/total, visible uncertainty guidance and access to secondary controls. Logical1093×614 approximates a1366×768 display at125% scaling; it is not actual Windows DPI/device acceptance. Existing native payment, scanner, keyboard, session, display, QR, photo and shutdown fixtures remain required.
 

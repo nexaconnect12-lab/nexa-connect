@@ -30,9 +30,16 @@ Use the [Phase 0 review pack](Professional-UI-Phase-0.md) for the source baselin
 
 ### First build slice — checkout layout
 
+The checkout layout is implemented in source. The isolated Windows layout fixture passes
+in Standard and Touch at three logical viewport sizes. Installed operator acceptance
+remains pending.
+
+The pinned dock uses **Verify original order** for a saved checkout. An uncertain
+payment exposes **Open Payment** from Menu and **Verify payment** in Payment.
+
 Start in [MainWindow.xaml](../../src/Clients/NexaConnect.POS/MainWindow.xaml) and reuse the existing WPF presentation resources. Make product search and category selection easy to scan, keep product names and prices legible, and keep cart lines and the existing primary checkout action in view. Keep the total and the next action visible when the menu or cart scrolls. Place the original-order recovery action in the same area so the cashier sees it before attempting another sale.
 
-Use the [Checkout wireframe](Professional-UI-Phase-0.md#wireframe-a--windows-checkout) as the review target. Verify the empty cart, a long cart with multilingual items, sold-out or unavailable items where surfaced today, and an unresolved original payment. Run the compact workspace checks in Standard and Touch modes, including the smallest supported logical viewport, and compare the rendered checkout before and after. Reuse current menu, cart, payment and recovery handlers. Keypad and tender layout work follows in the next slice.
+Use the [Checkout wireframe](Professional-UI-Phase-0.md#wireframe-a--windows-checkout) as the review target. Verify the empty cart, a long cart with multilingual items, sold-out or unavailable items where surfaced today, and an unresolved original payment. Run the compact workspace checks in Standard and Touch modes, including the smallest supported logical viewport, and compare the rendered checkout before and after. Reuse current menu, cart, payment and recovery handlers.
 
 Preview this layout with synthetic data during design review. Release acceptance still uses the installed target and cashier tasks described below.
 
@@ -41,6 +48,14 @@ Preview this layout with synthetic data during design review. Release acceptance
 3. Run relevant POS regressions and the current [guided acceptance pack](../Deployment/POS-UX24-Guided-Acceptance.md) on the matching physical install. Exercise long carts, multilingual labels, scaling, scanner use, paper output, PIN lock/resume, and a lost response followed by restart and verification.
 
 **Exit gate.** The cashier completes the baseline tasks at the agreed threshold. An interrupted checkout retains the same order and payment identity and reconciles with one payment, one kitchen delivery and the expected receipt and cash movement.
+
+### Payment layout source status
+
+The responsive original-order and tender panels are implemented. The pinned dock uses
+the original amount and switches to verification when payment is uncertain. Cash uses
+the server-pinned amount and exact-receipt confirmation. Track any keypad as a future
+amount-received design. The targeted native fixture passed. Run the installed cashier
+checks before approving the pilot release.
 
 ## Phase 2. Manager Sales and Menu management
 
