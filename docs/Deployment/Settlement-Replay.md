@@ -7,7 +7,7 @@ Build `src/Tools/NexaConnect.CashCloseReplay`. Inject `NEXACONNECT_SETTLEMENT_RE
 Issue controlled least-privilege administrative logins for the approved scope. Preview needs database CONNECT, schema USAGE and SELECT on `branch_day_settlements`, `branch_day_settlement_decisions`, `branch_day_settlement_receipts`, `outbox_messages`. Execute additionally needs SELECT/INSERT on the two replay audit tables and their normal trigger execution. Do not grant source UPDATE/DELETE, migration/DDL privileges or Reporting credentials. Broker credentials need the reviewed exchange declaration/publication capability. Scope validation prevents cross-tenant selection, but this is not OIDC/RLS authority: access to the issued database/broker login is privileged, and the operator UUID is asserted attribution. `session_user` records the actual authenticated database login and cannot be overridden by the insert argument. Customers/accountants cannot invoke replay through the portal.
 
 1. Inspect the protected ledger's missing/conflicting delivery and original POS history. Review exact organization/Restaurant/branch/business dates and authorized operator credentials.
-2. Start the Reporting settlement consumer and verify durable queue, subscriber and **both** `pos.branch-day-settled.v1`/`.v2` bindings on the actual exchange. Initial readiness alone is not ongoing health. Confirm broadcast effects for other matching subscribers.
+2. Start the Reporting settlement consumer and verify the durable queue, subscriber and `pos.branch-day-settled.v1`, `.v2` and `.v3` bindings on the actual exchange. Initial readiness alone is not ongoing health. Confirm broadcast effects for other matching subscribers.
 3. Preview without broker access:
 
 ```powershell

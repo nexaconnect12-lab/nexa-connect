@@ -36,7 +36,7 @@ public sealed partial class DaySealPostgresTests
     [ReportingDatabaseFact]
     public async Task Settlement_replay_uncertain_publication_restart_retains_original_payload_and_append_only_audit()
     {
-        var manifest=await CommittedSettlementManifest();var id=manifest.Events.Single().V2!.EventId;
+        var manifest=await CommittedSettlementManifest();var id=manifest.Events.Single().V3!.EventId;
         await Sql(pos,"UPDATE outbox_messages SET published_at_utc=clock_timestamp() WHERE id=$1",id);
         var before=await ReplaySourceFingerprint();var transport=new SettlementReplayProbe{FailAfterPublish=true};var app=ReplayApplication(transport);
         var preview=await app.PreviewAsync(ReplaySelection,default);Assert.Equal(1,preview.Count);Assert.Empty(transport.Events);Assert.Equal(0,await Count(pos,"settlement_replay_runs"));
@@ -65,7 +65,7 @@ public sealed partial class DaySealPostgresTests
     [ReportingDatabaseFact]
     public async Task Settlement_replay_exact_tenant_scope_and_corrupt_unknown_or_missing_original_fail_before_audit()
     {
-        var manifest=await CommittedSettlementManifest();var id=manifest.Events.Single().V2!.EventId;var transport=new SettlementReplayProbe();var app=ReplayApplication(transport);
+        var manifest=await CommittedSettlementManifest();var id=manifest.Events.Single().V3!.EventId;var transport=new SettlementReplayProbe();var app=ReplayApplication(transport);
         Assert.Equal(0,(await app.PreviewAsync(ReplaySelection with{OrganizationId=Guid.NewGuid()},default)).Count);
         Assert.Equal(0,(await app.PreviewAsync(ReplaySelection with{RestaurantId=Guid.NewGuid()},default)).Count);
         Assert.Equal(0,(await app.PreviewAsync(ReplaySelection with{BranchId=Guid.NewGuid()},default)).Count);
@@ -92,10 +92,13 @@ public sealed partial class DaySealPostgresTests
     }
     [ReportingRabbitFact]public Task Settlement_replay_cli_restricted_V1_history_recovers_after_queue_creation()=>SettlementCliCase(1);
     [ReportingRabbitFact]public Task Settlement_replay_cli_restricted_V2_uncertain_confirmation_restart_and_deduplication()=>SettlementCliCase(2);
+    [ReportingRabbitFact]public Task Settlement_replay_cli_restricted_V3_uncertain_confirmation_restart_and_deduplication()=>SettlementCliCase(3);
     private async Task SettlementCliCase(int version)
     {
-        var manifest=await CommittedSettlementManifest();var original=manifest.Events.Single().V2!;
-        if(version==1)await Sql(pos,"UPDATE outbox_messages SET event_type='pos.branch-day-settled.v1',contract_version=1,payload=$2::jsonb WHERE id=$1",original.EventId,JsonSerializer.Serialize(original.Settlement,new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        var manifest=await CommittedSettlementManifest();var current=manifest.Events.Single().V3!;var original=current.Settlement;
+        if(version<3)await Sql(pos,"UPDATE outbox_messages SET event_type=$3,contract_version=$4,payload=$2::jsonb WHERE id=$1",original.EventId,
+            version==1?JsonSerializer.Serialize(original.Settlement,new JsonSerializerOptions(JsonSerializerDefaults.Web)):JsonSerializer.Serialize(original,new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+            $"pos.branch-day-settled.v{version}",version);
         await Sql(pos,"UPDATE outbox_messages SET published_at_utc=clock_timestamp() WHERE id=$1",original.EventId);manifest=await SettlementManifest();var before=await ReplaySourceFingerprint();
         var schema=owned.Single(x=>ReferenceEquals(x.Db,pos)).Schema;var role="settlement_replay_"+Guid.NewGuid().ToString("N");var password=Guid.NewGuid().ToString("N");var quote=new NpgsqlCommandBuilder();
         await Sql(pos,"CREATE ROLE "+quote.QuoteIdentifier(role)+" LOGIN PASSWORD '"+password+"'");
@@ -116,7 +119,7 @@ public sealed partial class DaySealPostgresTests
             string[] execute=["--execute","--operator",Guid.NewGuid().ToString(),"--reason","retry","--manifest",hash];
             var denied=await RunSettlementCli(connection,uri,execute,exchange);Assert.Equal(1,denied.Exit);Assert.Equal(0,await Count(pos,"settlement_replay_runs"));
             await Sql(pos,"GRANT SELECT,INSERT ON settlement_replay_runs,settlement_replay_attempts TO "+quote.QuoteIdentifier(role));
-            if(version==2)
+            if(version>=2)
             {
                 await using var restrictedReplay=NpgsqlDataSource.Create(connection);
                 await using var publisher=new RabbitMqOutboxTransport(rabbit,Options.Create(new OutboxOptions{Exchange=exchange}));
@@ -140,7 +143,7 @@ public sealed partial class DaySealPostgresTests
             var retried=await RunSettlementCli(connection,uri,execute,exchange);Assert.Equal(0,retried.Exit);
             using(var restarted=new ConsumerR(provider.GetRequiredService<IServiceScopeFactory>(),config,NullLogger<ConsumerR>.Instance))
             {int calls=repo.Calls;await restarted.StartAsync(default);using var again=new CancellationTokenSource(TimeSpan.FromSeconds(15));await restarted.WaitUntilReadyAsync(again.Token);await Wait(()=>Task.FromResult(Volatile.Read(ref repo.Calls)>calls));await restarted.StopAsync(default);}
-            Assert.Equal(1,await Count(reporting,"settlement_facts"));Assert.Equal(version==2?3:2,await Count(pos,"settlement_replay_runs"));Assert.Equal(version==2?5:4,await Count(pos,"settlement_replay_attempts"));Assert.Equal(before,await ReplaySourceFingerprint());
+            Assert.Equal(1,await Count(reporting,"settlement_facts"));Assert.Equal(version>=2?3:2,await Count(pos,"settlement_replay_runs"));Assert.Equal(version>=2?5:4,await Count(pos,"settlement_replay_attempts"));Assert.Equal(before,await ReplaySourceFingerprint());
             await using var actor=pos.CreateCommand("SELECT bool_and(database_actor=$1) FROM settlement_replay_runs");actor.Parameters.AddWithValue(role);Assert.Equal(true,await actor.ExecuteScalarAsync());
             await using var restricted=NpgsqlDataSource.Create(connection);
             await Assert.ThrowsAsync<PostgresException>(async()=>{await using var q=restricted.CreateCommand("UPDATE outbox_messages SET published_at_utc=NULL");await q.ExecuteNonQueryAsync();});

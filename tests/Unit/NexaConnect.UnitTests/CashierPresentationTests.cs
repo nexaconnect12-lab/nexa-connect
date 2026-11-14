@@ -65,7 +65,7 @@ public sealed class CashierPresentationTests
     [Theory]
     [InlineData(false, true, false, false, false, false, "Sign in")]
     [InlineData(true, true, false, false, true, false, "Payment")]
-    [InlineData(true, true, false, true, false, false, "Checkout")]
+    [InlineData(true, true, false, true, false, false, "Open Menu")]
     [InlineData(true, true, true, false, false, true, "Terminal & sync")]
     [InlineData(true, true, true, false, false, false, "Close cash session")]
     [InlineData(true, true, false, false, false, false, "Close shift")]
