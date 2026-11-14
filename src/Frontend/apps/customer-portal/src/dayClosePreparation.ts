@@ -3,6 +3,11 @@ import {z} from "zod";
 const uuid=z.guid(), money=z.number().finite(), count=z.number().int().nonnegative();
 export const preparationCommand=z.object({branchId:uuid,businessDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),operationId:uuid,expectedVersion:count,reasonCode:z.enum(["routine_close","recheck"]),reviewedCutoffVersion:count.safe().positive().nullable().optional()});
 const cutoffReference=z.object({manifestId:uuid,generation:count.positive(),evidenceVersion:z.string().regex(/^[a-f0-9]{64}$/),revisionEpoch:uuid.nullable().optional(),sourceRevision:count.safe().nullable().optional()});
+const manualRefunds=z.object({
+  manifestId:uuid,revisionEpoch:uuid,sourceRevision:count.safe(),
+  cashAmount:money.nonnegative(),promptPayAmount:money.nonnegative(),completedCount:count.max(10000),
+  evidenceVersion:z.string().regex(/^[a-f0-9]{64}$/i).nullable(),matched:z.boolean(),
+});
 const cutoff=z.object({order:cutoffReference,payment:cutoffReference,pos:cutoffReference,checkId:uuid,sourcesCurrent:z.boolean(),financialGaps:count,deliveryComplete:z.boolean().optional(),evidenceProtocolVersion:z.number().int().optional()});
 const sealReference=z.object({sealId:uuid,manifestId:uuid,revisionEpoch:uuid,sourceRevision:count.safe()});
 const seals=z.object({order:sealReference,payment:sealReference,pos:sealReference,pendingChanges:count.safe(),journalComplete:z.boolean(),deliveryComplete:z.boolean()});
@@ -27,10 +32,20 @@ export function readCutoffPreparation(value:unknown,organization:string,branch:s
   if(result.snapshot&&!result.snapshot.cutoff)throw new Error("Retained cutoff references missing");
   if(result.status==="ready_for_review"&&(!result.snapshot?.cutoff?.sourcesCurrent||result.snapshot.cutoff.financialGaps!==0))throw new Error("Cutoff not reconciled");
   const cut=result.snapshot?.cutoff;
-  if(result.status==="ready_for_review"&&(!cut||(cut.evidenceProtocolVersion!==3&&!(allowLegacy&&cut.evidenceProtocolVersion===2))||!cut.deliveryComplete||[cut.order,cut.payment,cut.pos].some(r=>!r.revisionEpoch||r.revisionEpoch==="00000000-0000-0000-0000-000000000000"||r.sourceRevision==null)))throw new Error("Cutoff revision or delivery evidence missing");
+  const protocol=cut?.evidenceProtocolVersion;
+  if(result.status==="ready_for_review"&&(!cut||(protocol!==4&&protocol!==3&&!(allowLegacy&&protocol===2))||!cut.deliveryComplete||[cut.order,cut.payment,cut.pos].some(r=>!r.revisionEpoch||r.revisionEpoch==="00000000-0000-0000-0000-000000000000"||r.sourceRevision==null)))throw new Error("Cutoff revision or delivery evidence missing");
   const evidence=result.snapshot?.corrections;
   if(evidence&&result.snapshot&&cut)validateDayCorrections(evidence,result.snapshot.fromUtc,result.snapshot.toUtc,cut.pos,result.status==="ready_for_review");
-  if(result.status==="ready_for_review"&&cut?.evidenceProtocolVersion===3&&!evidence)throw new Error("Correction evidence is missing");
+  if(result.status==="ready_for_review"&&(protocol===3||protocol===4)&&!evidence)throw new Error("Correction evidence is missing");
+  if(protocol===4&&result.status==="ready_for_review"){
+    const raw=value as {snapshot?:{manualRefunds?:unknown}};
+    const refund=manualRefunds.parse(raw.snapshot?.manualRefunds);
+    const pos=cut!.pos;
+    const empty=refund.completedCount===0;
+    if(!refund.matched||refund.manifestId!==pos.manifestId||refund.revisionEpoch!==pos.revisionEpoch||refund.sourceRevision!==pos.sourceRevision
+      ||(empty?(refund.cashAmount!==0||refund.promptPayAmount!==0||refund.evidenceVersion!==null):(refund.cashAmount+refund.promptPayAmount<=0||refund.evidenceVersion===null)))
+      throw new Error("Manual refund delivery evidence is missing or differs from the cutoff");
+  }
   return result;
 }
 

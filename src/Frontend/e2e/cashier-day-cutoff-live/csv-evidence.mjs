@@ -23,7 +23,13 @@ export async function verifyCsv(response,receipt,scope,delivery='matched'){
  const settlements=rows.filter(r=>r.record_type==='settlement');expect(settlements).toHaveLength(1);
  const sale=settlements[0];expect(sale.event_id).toBe(receipt.eventId);expect(sale.approval_id).toBe(receipt.approvalId);
  expect(sale.delivery_status).toBe(delivery);expect(sale.report_status).toBe(delivery==='matched'?'matched':'gaps');
- expect(sale.correction_evidence).toBe('verified');expect(sale.contract_version).toBe('2');
+ expect(sale.correction_evidence).toBe('verified');expect(sale.contract_version).toBe('3');
+ const manual=receipt.snapshot.manualRefunds;
+ expect(manual?.matched).toBe(true);
+ expect(Number(sale.manual_cash_refunds)).toBe(manual.cashAmount);
+ expect(Number(sale.manual_promptpay_refunds)).toBe(manual.promptPayAmount);
+ expect(Number(sale.manual_refund_count)).toBe(manual.completedCount);
+ expect(sale.manual_refund_evidence_hash).toBe(manual.evidenceVersion??'');
  for(const [field,key] of Object.entries({gross_sales:'grossSales',completed_refunds:'completedRefunds',net_sales:'netSales',cash_variance:'cashVariance'}))expect(Number(sale[field])).toBe(receipt.snapshot[key]);
  expect(rows.filter(r=>r.record_type==='source_seal')).toHaveLength(3);
  for(const row of rows){expect(row.organization_id).toBe(scope.organizationId);expect(row.branch_id).toBe(scope.branchId);expect(row.manifest_hash).toMatch(/^[a-f0-9]{64}$/i);expect(Date.parse(row.compared_at_utc)).not.toBeNaN();if(row.record_type!=='settlement')for(const field of ['gross_sales','net_sales','cash_variance'])expect(row[field]).toBe('');}

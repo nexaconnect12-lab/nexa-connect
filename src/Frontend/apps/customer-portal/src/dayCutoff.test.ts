@@ -1,5 +1,14 @@
 import {it,expect} from "vitest";
 import {readCutoffPreparation} from "./dayClosePreparation";
+it("requires matched manual refund evidence for protocol four",()=>{
+ const f=fixture();
+ const snapshot={...f.snapshot,cutoff:{...f.snapshot.cutoff,evidenceProtocolVersion:4}};
+ const proof={manifestId:ref.manifestId,revisionEpoch:ref.revisionEpoch,sourceRevision:ref.sourceRevision,
+  cashAmount:0,promptPayAmount:0,completedCount:0,evidenceVersion:null,matched:true};
+ expect(readCutoffPreparation({...f,snapshot:{...snapshot,manualRefunds:proof}},org,branch,date).status).toBe("ready_for_review");
+ for(const manualRefunds of [undefined,{...proof,matched:false},{...proof,sourceRevision:1},{...proof,cashAmount:10}])
+  expect(()=>readCutoffPreparation({...f,snapshot:{...snapshot,manualRefunds}},org,branch,date)).toThrow();
+});
 const org="33333333-3333-3333-3333-333333333333",branch="11111111-1111-1111-1111-111111111111",date="2026-09-01";
 const ref={manifestId:branch,generation:1,evidenceVersion:"a".repeat(64),revisionEpoch:org,sourceRevision:0};
 const fixture=()=>({identity:{organizationId:org,restaurantId:org,branchId:branch,businessDate:date},version:2,status:"ready_for_review",snapshot:{timeZone:"UTC",currency:"THB",fromUtc:"2026-09-01T00:00:00Z",toUtc:"2026-09-02T00:00:00Z",grossSales:100,completedRefunds:0,netSales:100,cashVariance:0,tenders:[],orderVersion:"a".repeat(64),paymentVersion:"b".repeat(64),posVersion:"c".repeat(64),unresolvedOrders:0,unresolvedPayments:0,unresolvedRefunds:0,openShifts:0,openCashSessions:0,pendingCashReviews:0,issues:[],observedAtUtc:"2026-09-03T00:00:00Z",corrections:{manifestId:ref.manifestId,revisionEpoch:ref.revisionEpoch,sourceRevision:ref.sourceRevision,manifestHash:"a".repeat(64),adjustmentText:"0",expected:0,matched:0,missing:0,conflicting:0,unexpected:0,items:[]},cutoff:{order:ref,payment:ref,pos:ref,checkId:org,sourcesCurrent:true,financialGaps:0,deliveryComplete:true,evidenceProtocolVersion:3}},blockers:[],validatedAtUtc:"2026-09-03T00:00:01Z",canPrepare:true,pendingCommand:null});
