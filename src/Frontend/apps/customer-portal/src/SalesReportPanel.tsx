@@ -11,6 +11,9 @@ const api=createApiClient({onUnauthorized:()=>location.assign("/bff/customer/log
 
 export function SalesReportPanel({organizationId}:{organizationId:string}) {
   const [branch,setBranch]=useState("");
+  const [branchLabel,setBranchLabel]=useState("");
+  const [applied,setApplied]=useState<{branch:string;from:string;to:string}>();
+  const [reference,setReference]=useState("");
   const [from,setFrom]=useState(()=>new Date(Date.now()-7*86400000).toISOString().slice(0,16));
   const [to,setTo]=useState(()=>new Date().toISOString().slice(0,16));
   const [sales,setSales]=useState<SalesReport>();const [completeness,setCompleteness]=useState<Completeness>();
@@ -19,10 +22,12 @@ export function SalesReportPanel({organizationId}:{organizationId:string}) {
   useEffect(()=>()=>{generation.current++;request.current?.abort();},[]);
   const clear=()=>{
     generation.current++;request.current?.abort();setBusy(false);setSales(undefined);setCompleteness(undefined);setSalesError(undefined);setStatusError(undefined);
+    setApplied(undefined);setReference("");
   };
   const window=reportWindow(branch,from,to);
   const load=async()=>{
     if(!window)return;clear();const id=++generation.current,controller=new AbortController();request.current=controller;setBusy(true);
+    setApplied({branch:branchLabel||branch,from,to});
     const timer=globalThis.setTimeout(()=>{
       if(generation.current!==id)return;generation.current++;controller.abort();setBusy(false);
       setSalesError("Sales report unavailable. Reload when your connection is restored.");
@@ -45,30 +50,52 @@ export function SalesReportPanel({organizationId}:{organizationId:string}) {
     }finally{globalThis.clearTimeout(timer);if(generation.current===id)setBusy(false);}
   };
   const observation=completeness?.observation;
+  const search=reference.trim().toLowerCase();
+  const matchingOrders=sales?.items.filter(order=>order.orderId.toLowerCase().includes(search));
   return <Space direction="vertical" size="middle" style={{width:"100%"}}>
-    
+    <Card title="Report filters">
     <Form layout="vertical" onFinish={()=>void load()}>
       <Space wrap>
-        <Form.Item label="Branch ID"><OperationalBranchPicker capability="reports" label="Sales branch" value={branch} onChange={value=>{clear();setBranch(value);}}/></Form.Item>
+        <Form.Item label="Branch"><OperationalBranchPicker capability="reports" label="Sales branch" value={branch} onChange={(value,label)=>{clear();setBranch(value);setBranchLabel(label);}}/></Form.Item>
         <Form.Item label="From (UTC, inclusive)"><Input aria-label="Sales from UTC" type="datetime-local" value={from} onChange={e=>{clear();setFrom(e.target.value);}}/></Form.Item>
         <Form.Item label="To (UTC, exclusive)"><Input aria-label="Sales to UTC" type="datetime-local" value={to} onChange={e=>{clear();setTo(e.target.value);}}/></Form.Item>
       </Space>
-      <Button htmlType="submit" loading={busy} disabled={!window||busy}>Load sales report</Button>
+      <Button type="primary" htmlType="submit" loading={busy} disabled={!window||busy}>Load sales report</Button>
     </Form>
-    <Typography.Text>One branch and a closed UTC period of at most 31 days. Enter the branch ID supplied by your administrator.</Typography.Text>
+    <Typography.Paragraph style={{marginTop:12,marginBottom:0}}>Choose a branch and a closed UTC period of up to 31 days.</Typography.Paragraph>
+    </Card>
+    {applied&&<Descriptions title="Applied report scope" size="small" column={{xs:1,lg:3}}>
+      <Descriptions.Item label="Branch">{applied.branch}</Descriptions.Item>
+      <Descriptions.Item label="From (UTC, inclusive)">{applied.from.replace("T"," ")}</Descriptions.Item>
+      <Descriptions.Item label="To (UTC, exclusive)">{applied.to.replace("T"," ")}</Descriptions.Item>
+    </Descriptions>}
+    {busy&&<Typography.Text role="status">Loading sales report…</Typography.Text>}
     {salesError&&<Alert role="status" type="error" message={salesError}/>}
     {sales&&<>
-      <Descriptions bordered><Descriptions.Item label="Completed sales">{sales.currency??""} {sales.grossSales}</Descriptions.Item>
+      <Card title="Sales totals">
+      <Descriptions bordered column={{xs:1,sm:2,lg:3}}><Descriptions.Item label="Completed sales">{sales.currency??""} {sales.grossSales}</Descriptions.Item>
         <Descriptions.Item label="Refunded in range">{sales.currency??""} {sales.refundedAmount}</Descriptions.Item>
+        <Descriptions.Item label="Net sales">{sales.currency??""} {sales.netSales}</Descriptions.Item>
         <Descriptions.Item label="Cash refunds">{sales.currency??""} {sales.manualCashRefunds??0}</Descriptions.Item>
         <Descriptions.Item label="Manual PromptPay refunds">{sales.currency??""} {sales.manualPromptPayRefunds??0}</Descriptions.Item>
-        <Descriptions.Item label="Net sales">{sales.currency??""} {sales.netSales}</Descriptions.Item></Descriptions>
-      <Table rowKey="orderId" scroll={{x:650}} dataSource={sales.items} columns={[{title:"Ordered (UTC)",dataIndex:"orderedAtUtc"},{title:"Channel",dataIndex:"channel"},
-        {title:"Service",dataIndex:"serviceType"},{title:"Status",dataIndex:"orderStatus",render:value=><Tag>{value}</Tag>},
-        {title:"Total",render:(_,row)=>`${row.currency} ${row.totalAmount}`}]}/>
+      </Descriptions>
+      </Card>
+      <Card title="Transactions">
+        <Form layout="vertical">
+          <Form.Item label="Find order reference in loaded results" htmlFor="sales-order-reference">
+            <Input id="sales-order-reference" allowClear value={reference} onChange={event=>setReference(event.target.value)}/>
+          </Form.Item>
+        </Form>
+        <Table key={search} rowKey="orderId" scroll={{x:850}} dataSource={matchingOrders}
+          locale={{emptyText:search?"No matching order references in the loaded results.":"No transactions in the selected period."}}
+          columns={[{title:"Order reference",dataIndex:"orderId",width:295},{title:"Ordered (UTC)",dataIndex:"orderedAtUtc"},{title:"Channel",dataIndex:"channel"},
+            {title:"Service",dataIndex:"serviceType"},{title:"Status",dataIndex:"orderStatus",render:value=><Tag>{value}</Tag>},
+            {title:"Total",align:"right",render:(_,row)=>`${row.currency} ${row.totalAmount}`}]}/>
+      </Card>
       <Typography.Text type="secondary">Latest global projector checkpoint: {sales.latestGlobalCheckpointUpdatedAtUtc??"No projector checkpoint yet"}. This does not establish completeness for this branch.</Typography.Text>
     </>}
     <Card title="Financial reconciliation" aria-label="Financial reconciliation">
+      <Typography.Paragraph>For day-close evidence and settlement, open <a href="#end-of-day">End-of-day draft</a>.</Typography.Paragraph>
       <Typography.Paragraph>This view reads a recorded check; it does not run reconciliation or repair records. A check reflects evidence available at that time. Later activity may change it, and it does not certify settlement or complete accounting.</Typography.Paragraph>
       {busy&&<Typography.Text role="status">Loading reconciliation status…</Typography.Text>}
       {statusError&&<Alert role="status" type="error" message={statusError}/>}

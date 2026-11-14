@@ -59,6 +59,13 @@ checks before approving the pilot release.
 
 ## Phase 2. Manager Sales and Menu management
 
+The first Sales layout slice is implemented. It adds an applied scope summary,
+grouped totals, order reference search over loaded rows, and navigation to the
+existing End-of-day draft. See [Sales layout acceptance](../Deployment/Financial-Completeness-Portal-Acceptance.md#sales-layout-acceptance).
+The Menu management slice adds loaded branch context, name/category/availability
+filters and a row action into the existing availability editor. The live manager
+walkthrough remains pending. See [Menu list acceptance](../Deployment/POS-UX15-Menu-Management.md#phase-2-menu-list).
+
 1. Use the [shared web design system](../../src/Frontend/packages/design-system/README.md) for page headers, visible branch context, filters, table actions, status labels and feedback. Apply the pattern first to [Sales](../../src/Frontend/apps/customer-portal/src/SalesReportPanel.tsx), then to [Menu management](../../src/Frontend/apps/customer-portal/src/MenuManagementPanel.tsx).
 2. Put the most useful supported sales filters and columns first. Preserve filters and scope when drilling into an authorized record and returning to the list. Clarify settlement status and which totals are provisional. Confirm available report contracts before scheduling optional columns, new report dimensions or an export.
 3. Apply consistent search, category and availability controls to the menu list. Reuse existing edit, photo approval and save workflows. Show validation, stale edits and permission denial where the manager can act on them.

@@ -1,5 +1,18 @@
 # POS UX15 — unified Menu management
 
+## Phase 2 menu list
+
+Choose the intended branch and select **Load menu**. Check **Loaded branch** above
+the results. Filter the loaded menu by item name, category and availability. Category
+filtering is available after category data loads. **Clear filters** restores the
+loaded list. Filters leave the open editor and its draft in place.
+
+Select **Edit availability** on the matching item, choose **Mark sold out**, then
+review and confirm the change. Check the row for **Sold out**, or use the Sold out
+filter after saving. The existing availability editor owns review, confirmation
+and version checks. Run the mocked Menu management browser cases in the gallery
+suite. Live manager acceptance is pending for this layout.
+
 UX15 passes complete source verification and is activated in the retained local pilot on
 31 October 2026. All twelve services are Ready, the served portal bundle contains the unified
 workspace, and matching POS reopened responsively. Operator acceptance remains separate.

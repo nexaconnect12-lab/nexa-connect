@@ -44,6 +44,18 @@ test("shows recorded status, provenance and three inventories for the same repor
   for(const kind of ["Sales","Payments","Refunds"])await expect(card(page).getByRole("cell",{name:kind,exact:true})).toBeVisible();
   expect(state.queries).toHaveLength(2);expect(state.queries[0].params.toString()).toBe(state.queries[1].params.toString());expect(state.writes).toBe(0);
   await expect(page.getByRole("cell",{name:"THB 100",exact:true})).toHaveCount(2);
+  await expect(page.getByText("Applied report scope")).toBeVisible();
+  await expect(page.getByText("2026-09-01 00:00",{exact:true})).toBeVisible();
+  await expect(page.getByRole("cell",{name:"sale-one",exact:true})).toBeVisible();
+  const reference=page.getByLabel("Find order reference in loaded results");
+  await reference.fill("missing");
+  await expect(page.getByText("No matching order references in the loaded results.")).toBeVisible();
+  await expect(page.getByText("Net sales",{exact:true})).toBeVisible();
+  await reference.fill("SALE-ONE");
+  await expect(page.getByRole("cell",{name:"sale-one",exact:true})).toBeVisible();
+  expect(state.queries).toHaveLength(2);
+  await page.getByRole("link",{name:"End-of-day draft"}).click();
+  await expect(page).toHaveURL(/#end-of-day$/);
 });
 test("not checked and gaps are explicit and never claim certification",async({page})=>{
   const state=await setup(page);state.status="not_checked";await load(page);await expect(card(page).getByRole("status")).toContainText("Not checked");
@@ -64,6 +76,7 @@ test("dependency failure removes old observation while current totals remain ind
 test("changing filters cancels a delayed response and permits a new request without stale evidence",async({page})=>{
   const state=await setup(page);state.delay=800;await load(page);
   await expect.poll(()=>state.queries.length).toBe(2);await page.getByLabel("Sales branch").selectOption(otherBranch);
+  await expect(page.getByText("Applied report scope")).toHaveCount(0);
   state.delay=0;state.status="not_checked";await load(page);await expect(card(page).getByRole("status")).toContainText("Not checked");
   await page.waitForTimeout(1000);await expect(card(page).getByRole("status")).toContainText("Not checked");
   await expect(card(page).getByText("Observed complete",{exact:true})).toHaveCount(0);

@@ -1,5 +1,14 @@
 # NexaConnect Customer Portal
 
+Sales displays the applied branch and UTC window, grouped totals, and a transaction
+list with order references. Reference search matches only the loaded rows and
+leaves the report totals scoped to the full applied period. Open **End-of-day draft**
+from Financial reconciliation for the existing day-close workflow.
+
+**Menu management** shows the loaded branch above the menu list. Filter by item
+name, category or availability and use **Edit availability** to open the selected
+item's existing review and confirmation flow. [Manager workflow and acceptance](../../../../docs/Deployment/POS-UX15-Menu-Management.md#phase-2-menu-list)
+
 Sales and the end-of-day draft show separate cash and manual PromptPay refund
 totals. The draft identifies missing drawer and Reporting evidence. See
 [manual refund reporting](../../../../docs/API/Manual-Refund-Reporting.md).

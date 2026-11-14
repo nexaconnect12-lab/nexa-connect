@@ -46,6 +46,27 @@ test('metadata save refreshes shared item and requires only its own explicit rev
 test('availability save never replaces the metadata concurrency version',async({page})=>{
  const state=await setup(page);await page.getByRole('tab',{name:'Availability',exact:true}).click();await page.getByRole('button',{name:'Mark sold out Soup'}).click();await page.getByRole('button',{name:'Confirm availability'}).click();await expect(page.getByText(/Availability saved/)).toBeVisible();await page.getByRole('tab',{name:'Details',exact:true}).click();await nameInput(page).fill('Soup revised');await saveDetails(page);await expect(page.getByRole('button',{name:'Manage Soup revised'})).toBeVisible();expect(state.writes.map(w=>w.body.expectedVersion)).toEqual([9,3]);
 });
+test('manager filters the loaded branch menu and marks the matching item sold out',async({page})=>{
+ const state=await setup(page);
+ const table=page.getByRole('table').first();
+ await expect(page.getByText(/Loaded branch: Main/)).toBeVisible();
+ await page.getByLabel('Category',{exact:true}).selectOption('uncategorized');
+ await page.getByLabel('Search managed menu items').fill('Rice');
+ await expect(table.getByRole('button',{name:'Manage Soup'})).toHaveCount(0);
+ await page.getByRole('combobox',{name:'Availability',exact:true}).selectOption('sold-out');
+ await expect(table.getByText('No menu items match these filters.')).toBeVisible();
+ await page.getByRole('button',{name:'Clear filters'}).click();
+ await page.getByRole('button',{name:'Edit availability for Soup'}).click();
+ await page.getByRole('button',{name:'Mark sold out Soup'}).click();
+ expect(state.writes).toHaveLength(0);
+ await page.getByRole('button',{name:'Confirm availability'}).click();
+ await page.getByRole('combobox',{name:'Availability',exact:true}).selectOption('sold-out');
+ await expect(table.getByRole('row').filter({hasText:'Soup'})).toContainText('Sold out');
+ await expect(table.getByRole('button',{name:'Manage Rice'})).toHaveCount(0);
+ expect(state.writes).toHaveLength(1);
+ expect(state.writes[0].path).toContain(`/branches/${branch}/products/${product}`);
+ expect(state.writes[0].body.expectedVersion).toBe(9);
+});
 test('image preview and explicit approval cannot transfer to another item',async({page})=>{
  const state=await setup(page);await page.getByRole('tab',{name:'Image',exact:true}).click();await expect(page.getByText('Bank QR.png')).toHaveCount(0);await pickPhoto(page,'Soup.png');await page.getByRole('checkbox',{name:/I approve/}).check();page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Manage Rice'}).click();await expect(page.getByText('Image for Rice',{exact:true})).toBeVisible();await expect(page.getByRole('checkbox',{name:/I approve/})).not.toBeChecked();await expect(page.getByRole('button',{name:'Save menu image'})).toBeDisabled();expect(state.writes).toHaveLength(0);
 });

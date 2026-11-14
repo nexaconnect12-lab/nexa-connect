@@ -50,3 +50,15 @@ Existing JSON/correlation telemetry remains on `nexaconnect-customer-bff` and `n
 The joined matrix exposed a missing Restaurant hierarchy in Reporting's customer authorization decision. Deploy the corrected Reporting authorization adapter with `Services__Restaurant`, `WorkloadIdentity__Authority`, `WorkloadIdentity__ClientId=nexaconnect-reporting-service` and a distinct secret-managed `WorkloadIdentity__ClientSecret`. Provision the dedicated client/audience in persisted Keycloak realms through a reviewed update; restart/import does not apply it. Restaurant's endpoint-specific branch-scope policy permits this read without granting Reporting generic workload access. Coordinate Restaurant policy and identity configuration before enabling corrected Reporting reads. No schema or customer permission widening is required; see [Reporting setup](../../src/Services/NexaConnect.Services.Reporting/README.md).
 
 The joined CI job runs both production and full-tree npm audits before acceptance, rejecting moderate-or-higher advisories. Use Node 22.12+ (22.x) or 24+; see [frontend dependency policy](Frontend-Dependency-Hardening.md).
+
+## Sales layout acceptance
+
+In **Sales**, select an authorized branch and a closed UTC window, then load the
+report. Verify the applied scope, totals and original order reference. Search
+within the loaded transactions and check that the report totals retain their
+original scope. Change the branch or dates and verify that the prior results
+clear. Open **End-of-day draft** from Financial reconciliation to continue with
+day-close evidence under its existing permissions.
+
+Run `npm run test:e2e:financial-completeness` from `src/Frontend` for the mocked
+browser coverage. Use the joined procedure above for live authorization acceptance.
