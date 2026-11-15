@@ -7,6 +7,32 @@ public partial class MainWindow
 {
     private PosDisplayDensity displayDensity;
     private bool updatingDensity;
+    private bool sidebarCollapsed;
+
+    private void ToggleSidebar_Click(object sender, RoutedEventArgs e)
+    {
+        if (!viewInitialized || reauthenticationRequired || displaySafetyBlocked) return;
+        try
+        {
+            bool requested = !sidebarCollapsed;
+            inputPreferences.Save(new(touchFirst, displayDensity, requested));
+            sidebarCollapsed = requested;
+            ApplySidebarLayout();
+        }
+        catch (Exception error) when (error is System.IO.IOException or System.IO.InvalidDataException or UnauthorizedAccessException)
+        {
+            StatusText.Text = "Sidebar preference could not be saved. Check local folder access and retry.";
+        }
+    }
+
+    private void ApplySidebarLayout()
+    {
+        Resources["PosSidebarWidth"] = new GridLength(sidebarCollapsed ? 80 : 164);
+        Resources["PosSidebarLabelVisibility"] = sidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
+        string action = sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
+        SidebarToggleButton.ToolTip = action;
+        System.Windows.Automation.AutomationProperties.SetName(SidebarToggleButton, action);
+    }
 
     private void Density_Changed(object sender, SelectionChangedEventArgs e)
     {
@@ -15,7 +41,7 @@ public partial class MainWindow
         try
         {
             if (busy || !IsSignedIn() || reauthenticationRequired || displaySafetyBlocked) return;
-            inputPreferences.Save(new(touchFirst, requested));
+            inputPreferences.Save(new(touchFirst, requested, sidebarCollapsed));
             displayDensity = requested;
             ApplyDisplayDensity();
         }

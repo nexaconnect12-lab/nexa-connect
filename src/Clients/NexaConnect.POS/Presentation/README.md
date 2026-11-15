@@ -28,6 +28,10 @@ UX17 queues display-change notifications and ignores callbacks after coordinator
 
 UX16 refines `PosTheme.xaml` and the staff operational layout with flat content panels, restrained shared control corners, dark navigation/solid selected state, neutral grid headers and row/action separators. Adjacent Category/Station filters retain their controls and handlers. Light navigation labels are template-local, never inherited as workspace text. Native contrast/bounds/popup fixtures and synthetic preview cover presentation; customer display, lock gallery and financial/session behavior remain independent. See [UX16](../../../../docs/Deployment/POS-UX16-Flat-Cashier.md).
 
+The cashier sidebar toggle stores `SidebarCollapsed` in the terminal-scoped
+`input.json` alongside touch input and density. Profiles without that field use
+the labeled rail. The compact rail uses the same tab controls and selection.
+
 UX11 adds an optional category picker and category/text/station filter composition over original-item MenuTile wrappers. Branch-scoped layout requests are bounded and fenced; missing/invalid metadata falls back to the full menu, and privacy transitions clear labels. Barcode/cart/price objects are unchanged. See [UX11](../../../../docs/Deployment/POS-UX11-Menu-Organization.md).
 
 Terminal & sync groups Overview, Input & devices, Cash drawer and Sync & recovery into inner

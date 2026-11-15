@@ -1,7 +1,7 @@
 namespace NexaConnect.POS;
 
 public enum PosDisplayDensity { Standard, Touch }
-public sealed record PosUiOptions(bool TouchFirst = false, PosDisplayDensity Density = PosDisplayDensity.Standard);
+public sealed record PosUiOptions(bool TouchFirst = false, PosDisplayDensity Density = PosDisplayDensity.Standard, bool SidebarCollapsed = false);
 
 public sealed record PosDensityMetrics(double ControlHeight, double BodyFontSize, double ButtonHorizontalPadding,
     double ButtonVerticalPadding, double FieldPadding, double CardPadding, double MenuWidth, double MenuHeight)

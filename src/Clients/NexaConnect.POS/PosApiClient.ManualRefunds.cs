@@ -12,6 +12,31 @@ public sealed partial class PosApiClient
         $"api/pos/v1/customer/organizations/{_configuration.OrganizationId:D}/branches/{_configuration.BranchId:D}";
     private string ManualRefundOrderPath(Guid orderId) => $"{ManualRefundBranchPath}/orders/{orderId:D}/manual-refunds";
 
+    public async Task<ManualRefundPreviewV1?> CashierCashRefundPreviewAsync(PosTokenSet token, Guid orderId, CancellationToken ct)
+    {
+        try
+        {
+            var result = await SendManualRefundAsync<ManualRefundPreviewV1>(token, HttpMethod.Get,
+                $"{ManualRefundOrderPath(orderId)}/cashier-cash/preview", null, "pos.manual-refund.cashier-cash.preview", ct);
+            if (result.OrderId != orderId || result.Method != "cash" || result.Currency != _configuration.Currency
+                || result.AvailableAmount < 0 || result.AvailableAmount > result.PaidAmount)
+                throw new InvalidDataException("Invalid cashier cash refund preview.");
+            return result;
+        }
+        catch (PosApiException error) when (error.StatusCode == 404) { return null; }
+    }
+
+    public async Task<ManualRefundStatusV1> StartCashierCashRefundAsync(PosTokenSet token, Guid orderId, StartCashierCashRefundV1 command, CancellationToken ct)
+    {
+        var result = await SendManualRefundAsync<ManualRefundStatusV1>(token, HttpMethod.Post,
+            $"{ManualRefundOrderPath(orderId)}/cashier-cash/start", command, "pos.manual-refund.cashier-cash.start", ct);
+        ValidateManualRefundStatus(result, orderId, command.OperationId);
+        if (result.Method != "cash" || result.Amount != command.Amount || result.Reason != command.Reason
+            || result.Status is not ("started" or "completed"))
+            throw new InvalidDataException("Cash refund response differs from the original request.");
+        return result;
+    }
+
     public async Task RegisterManualRefundAvailabilityAsync(PosTokenSet token, ManualRefundAvailabilityV1 availability, CancellationToken ct)
     {
         var result = await SendManualRefundAsync<ManualRefundAvailabilityResultV1>(token, HttpMethod.Post,
@@ -109,15 +134,20 @@ public sealed partial class PosApiClient
         AddTenantContext(request, _configuration.OrganizationId);
         if (body is not null) request.Content = JsonContent.Create(body);
         using var response = await SendCheckoutAsync(_httpClient, request, operation, Guid.NewGuid(), deadline.Token, true);
-        if (response.StatusCode == System.Net.HttpStatusCode.Conflict && operation == "pos.manual-refund.complete")
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict &&
+            operation is "pos.manual-refund.complete" or "pos.manual-refund.cashier-cash.start")
         {
             await response.Content.LoadIntoBufferAsync(4096, deadline.Token);
             using var payload = await response.Content.ReadFromJsonAsync<JsonDocument>(deadline.Token);
             if (payload?.RootElement is { ValueKind: JsonValueKind.Object } root
                 && root.TryGetProperty("code", out var code)
-                && code.ValueKind == JsonValueKind.String
-                && code.GetString() == "manual_refund_transfer_reference_conflict")
-                throw new ManualRefundTransferReferenceConflictException();
+                && code.ValueKind == JsonValueKind.String)
+            {
+                if (operation == "pos.manual-refund.complete" && code.GetString() == "manual_refund_transfer_reference_conflict")
+                    throw new ManualRefundTransferReferenceConflictException();
+                if (operation == "pos.manual-refund.cashier-cash.start" && code.GetString() == "cash_refund_manager_approval_required")
+                    throw new CashRefundManagerApprovalRequiredException();
+            }
         }
         await EnsureSuccessAsync(response, "Manual refund status unavailable. Verify the original operation before taking further action.");
         await response.Content.LoadIntoBufferAsync(32768, deadline.Token);
@@ -141,5 +171,7 @@ public sealed partial class PosApiClient
             throw new InvalidDataException("The refund status does not match the requested operation.");
     }
 }
+
+internal sealed class CashRefundManagerApprovalRequiredException : Exception;
 
 internal sealed class ManualRefundTransferReferenceConflictException : IOException;

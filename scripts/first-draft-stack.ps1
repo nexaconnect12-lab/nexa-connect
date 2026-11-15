@@ -15,6 +15,7 @@ param(
     [switch]$EnableBranchPromptPayQr,
     [switch]$EnableDrawerHistory,
     [switch]$EnablePhysicalRefundAcceptance,
+    [decimal]$PhysicalCashierCashRefundLimit,
     [switch]$NoBuild
 )
 $ErrorActionPreference='Stop'
@@ -31,6 +32,12 @@ $catalog=Get-DraftServiceCatalog $root -IncludeMedia:$EnableMedia
 $compatibility=($catalog.Values | Sort-Object { [version]$_.minimumApplicationVersion })[-1].minimumApplicationVersion
 if($EnablePhysicalRefundAcceptance -and ($Action -ne 'Start' -or -not $ConfirmTestResources -or $NoBuild)){
     throw 'Manual refund acceptance requires confirmed build-enabled Start.'
+}
+if($PSBoundParameters.ContainsKey('PhysicalCashierCashRefundLimit') -and (
+    -not $EnablePhysicalRefundAcceptance -or $PhysicalCashierCashRefundLimit -le 0 -or
+    $PhysicalCashierCashRefundLimit -ge 1000000000000000 -or
+    [decimal]::Round($PhysicalCashierCashRefundLimit, 2) -ne $PhysicalCashierCashRefundLimit)){
+    throw 'A positive THB limit in whole satang requires physical refund acceptance.'
 }
 if($PSBoundParameters.ContainsKey('PhysicalGuestQrPort') -and ($Action -ne 'Start' -or -not $ConfirmTestResources -or $NoBuild)){
     throw 'Physical guest QR changes require build-enabled Start -ConfirmTestResources.'
@@ -327,6 +334,18 @@ if($state.Contains('mediaEnabled') -and $state.mediaEnabled){
 }
 Assert-DraftUrls $state.urls
 if($EnablePhysicalRefundAcceptance -and -not $state.Contains('physicalPosPilot')){throw 'Manual refund acceptance requires the owned physical POS pilot.'}
+$physicalCashierRefundSetting=$null
+if($PSBoundParameters.ContainsKey('PhysicalCashierCashRefundLimit')){
+    $profilePath=Join-Path $run 'pos-configuration.json'
+    if(-not $state.provisionedBranch -or -not (Test-Path -LiteralPath $profilePath)){
+        throw 'Start and provision the pilot before adding its cashier cash refund limit.'
+    }
+    $profile=Get-Content -LiteralPath $profilePath -Raw | ConvertFrom-Json
+    $organizationId=[guid]$profile.Pos.OrganizationId
+    $branchId=[guid]$profile.Pos.BranchId
+    if($organizationId -eq [guid]::Empty -or $branchId -eq [guid]::Empty){throw 'The retained physical POS profile requires an organization and branch.'}
+    $physicalCashierRefundSetting="ManualRefunds__CashierLimits__${organizationId}__${branchId}"
+}
 if($state.Contains('physicalPosPilot') -and $Action -notin @('Start','Status','Stop','Reset')){throw 'Use complete Start/Stop maintenance for this separate LAN pilot; partial service recovery is not supported.'}
 [void](Test-DraftBranchPromptPayEnabled $state)
 [void](Test-DraftDrawerHistoryEnabled $state)
@@ -504,6 +523,9 @@ try {
     foreach($name in @('PlatformDirectory','Authorization','Restaurant','Catalog','Inventory','Kitchen','Payment','Reporting','POS','Order')){Start-DraftApp $name}
     Wait-Bindings
     if($EnablePhysicalRefundAcceptance){$configurations.POS.ManualRefunds__Enabled='true'}
+    if($physicalCashierRefundSetting){
+        $configurations.POS[$physicalCashierRefundSetting]=$PhysicalCashierCashRefundLimit.ToString([Globalization.CultureInfo]::InvariantCulture)
+    }
     foreach($name in @('PlatformDirectory','Restaurant','Catalog','Inventory','Kitchen','Payment','POS','Order')) {
         Stop-DraftApp $name;$configurations[$name].Outbox__Enabled='true';$configurations[$name].Outbox__BatchSize='100';Start-DraftApp $name
     }
@@ -555,7 +577,10 @@ try {
     if($LASTEXITCODE -ne 0 -or ($publicationAfter|ConvertFrom-Json -AsHashtable|ConvertTo-Json -Depth 8 -Compress) -cne ($publicationSource|ConvertTo-Json -Depth 8 -Compress)){throw 'Source changed during publication/startup.'}
     $state.publishedSource=$publicationSource
     $state.applicationCompatibility=$compatibility
-    if($state.Contains('physicalPosPilot')){$state.physicalRefundAcceptance=[bool]$EnablePhysicalRefundAcceptance}
+    if($state.Contains('physicalPosPilot')){
+        $state.physicalRefundAcceptance=[bool]$EnablePhysicalRefundAcceptance
+        $state.physicalCashierCashRefundLimit=if($physicalCashierRefundSetting){$PhysicalCashierCashRefundLimit}else{$null}
+    }
     $state.publishedArtifacts=Get-DraftQrPilotArtifactHash $run
     $state.status='Ready';Save-State
     Write-Output "Draft Ready. RunId=$RunId Portal=$($state.urls.Bff)"

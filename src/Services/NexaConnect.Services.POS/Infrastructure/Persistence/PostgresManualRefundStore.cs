@@ -112,7 +112,7 @@ public sealed class PostgresManualRefundStore(NpgsqlDataSource source, IDataProt
         string manager, int limit, CancellationToken ct)
     {
         await using var query = source.CreateCommand(ReadOrderRefunds
-            + " AND a.manager_subject=$5 ORDER BY (p.operation_id IS NOT NULL OR r.operation_id IS NOT NULL), a.approved_at_utc DESC, a.operation_id LIMIT $6");
+            + " AND a.manager_subject=$5 AND a.manager_subject<>a.cashier_subject ORDER BY (p.operation_id IS NOT NULL OR r.operation_id IS NOT NULL), a.approved_at_utc DESC, a.operation_id LIMIT $6");
         foreach (var value in new object[] { scope.OrganizationId, scope.RestaurantId, scope.BranchId, orderId, manager, limit })
             query.Parameters.AddWithValue(value);
         await using var reader = await query.ExecuteReaderAsync(ct);
@@ -192,6 +192,13 @@ public sealed class PostgresManualRefundStore(NpgsqlDataSource source, IDataProt
     public Task<ManualRefundWrite> BeginAsync(OriginalManualSale sale, Guid operationId, ManualRefundPayout payout, CancellationToken ct) =>
         WriteAsync(sale, operationId, ledger => ledger.BeginPayout(operationId, payout), createSale: false, ct);
 
+    public Task<ManualRefundWrite> StartCashierCashRefundAsync(OriginalManualSale sale, ManualRefundApproval approval, ManualRefundPayout payout, CancellationToken ct) =>
+        WriteAsync(sale, approval.OperationId, ledger =>
+        {
+            ledger.Approve(approval);
+            return ledger.BeginPayout(approval.OperationId, payout);
+        }, createSale: true, ct);
+
     public Task<ManualRefundWrite> CompleteAsync(OriginalManualSale sale, Guid operationId, ManualRefundPayout custody,
         bool transferVerified, string? transferReference, DateTimeOffset now, CancellationToken ct) =>
         WriteAsync(sale, operationId, ledger => ledger.Complete(operationId, custody, transferVerified, transferReference, now),
@@ -246,28 +253,27 @@ public sealed class PostgresManualRefundStore(NpgsqlDataSource source, IDataProt
                 await RequireReadyCashierAsync(sale, shift, approval, transaction, ct);
             await ExecuteAsync("""
                 INSERT INTO manual_refund_approvals
-                    (operation_id, order_id, amount, reason, manager_subject, authorization_decision_id, cashier_subject, approved_at_utc)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                    (operation_id, order_id, amount, reason, manager_subject, authorization_decision_id, cashier_subject, approved_at_utc, cashier_limit)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,0))
                 """, transaction, ct, operationId, sale.OrderId, approval.Amount, approval.Reason, approval.ManagerSubject,
-                approval.AuthorizationDecisionId, approval.CashierSubject, approval.ApprovedAtUtc);
+                approval.AuthorizationDecisionId, approval.CashierSubject, approval.ApprovedAtUtc, approval.CashierLimit ?? 0);
         }
-        else if (updated.Release is { } release)
+        if (updated.Release is { } release)
         {
             await ExecuteAsync("""
                 INSERT INTO manual_refund_releases (operation_id, manager_subject, authorization_decision_id, released_at_utc)
                 VALUES ($1,$2,$3,$4)
                 """, transaction, ct, operationId, release.ManagerSubject, release.AuthorizationDecisionId, release.ReleasedAtUtc);
         }
-        else if (previous.Payout is null)
+        else if (previous?.Payout is null && updated.Payout is { } payout)
         {
-            var payout = updated.Payout!;
             await LockCustodyAsync(sale, payout, payout.StartedAtUtc, transaction, ct);
             await ExecuteAsync("""
                 INSERT INTO manual_refund_payouts (operation_id, terminal_id, shift_id, cash_session_id, started_at_utc)
                 VALUES ($1,$2,$3,NULLIF($4, '00000000-0000-0000-0000-000000000000'::uuid),$5)
                 """, transaction, ct, operationId, payout.TerminalId, payout.ShiftId, payout.CashSessionId ?? Guid.Empty, payout.StartedAtUtc);
         }
-        else
+        else if (updated.Completion is not null)
         {
             await RecordCompletionAsync(sale, updated, transaction, ct);
         }
@@ -281,7 +287,7 @@ public sealed class PostgresManualRefundStore(NpgsqlDataSource source, IDataProt
         await using var command = Command("""
             SELECT a.operation_id, a.amount, a.reason, a.manager_subject, a.authorization_decision_id, a.cashier_subject, a.approved_at_utc,
                    p.terminal_id, p.shift_id, p.cash_session_id, p.started_at_utc, c.recorded_at_utc, c.protected_transfer_reference,
-                   r.manager_subject, r.authorization_decision_id, r.released_at_utc
+                   r.manager_subject, r.authorization_decision_id, r.released_at_utc, a.cashier_limit
             FROM manual_refund_approvals a
             LEFT JOIN manual_refund_payouts p USING (operation_id)
             LEFT JOIN manual_refund_completions c USING (operation_id)
@@ -294,8 +300,9 @@ public sealed class PostgresManualRefundStore(NpgsqlDataSource source, IDataProt
         {
             if (++count > MaximumApprovals) throw new InvalidOperationException("Manual refund history exceeds its supported limit.");
             var approval = new ManualRefundApproval(reader.GetGuid(0), reader.GetDecimal(1), reader.GetString(2),
-                reader.GetString(3), reader.GetGuid(4), reader.GetString(5), reader.GetFieldValue<DateTimeOffset>(6));
-            ledger.Approve(approval);
+                reader.GetString(3), reader.GetGuid(4), reader.GetString(5), reader.GetFieldValue<DateTimeOffset>(6),
+                reader.IsDBNull(16) ? null : reader.GetDecimal(16));
+            ledger.RestoreApproval(approval);
             if (!reader.IsDBNull(13))
             {
                 if (!reader.IsDBNull(7)) throw new InvalidOperationException("A released refund cannot have payout evidence.");

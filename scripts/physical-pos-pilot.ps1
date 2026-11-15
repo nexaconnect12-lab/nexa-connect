@@ -4,10 +4,12 @@ param([Parameter(Mandatory)][ValidateSet('Init','Status','Start','Stop','Bundle'
  [string]$PlanPath,[string]$HostAddress,[string]$DeviceAddress,[string]$InstallerDirectory,[string]$OutputDirectory,[string]$PreviousBundle,
  [ValidateRange(0,65535)][int]$GuestQrPort,
  [switch]$EnableRefundAcceptance,
+ [decimal]$CashierCashRefundLimit,
  [switch]$ConfirmTestResources)
 $ErrorActionPreference='Stop'
 if($PSBoundParameters.ContainsKey('GuestQrPort') -and $Action -ne 'Start'){throw 'GuestQrPort is a Start option.'}
 if($EnableRefundAcceptance -and $Action -ne 'Start'){throw 'EnableRefundAcceptance is a Start option.'}
+if($PSBoundParameters.ContainsKey('CashierCashRefundLimit') -and -not $EnableRefundAcceptance){throw 'CashierCashRefundLimit requires Start -EnableRefundAcceptance.'}
 $root=Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'first-draft-helpers.ps1')
 . (Join-Path $PSScriptRoot 'first-draft-terminal-helpers.ps1')
@@ -28,14 +30,18 @@ $run=Get-DraftRunDirectory $root $plan.runId
 if($Action -eq 'Start'){
     if(-not $ConfirmTestResources){throw 'Start requires -ConfirmTestResources for the explicitly separate new pilot.'}
     Assert-PhysicalPosNetwork $plan
-    $guest=@{}
-    if($PSBoundParameters.ContainsKey('GuestQrPort')){$guest.PhysicalGuestQrPort=$GuestQrPort}
+    $options=@{}
+    if($PSBoundParameters.ContainsKey('GuestQrPort')){$options.PhysicalGuestQrPort=$GuestQrPort}
+    if($PSBoundParameters.ContainsKey('CashierCashRefundLimit')){
+        if(-not (Test-Path -LiteralPath (Join-Path $run 'state.json'))){throw 'Start and provision the pilot before adding its cashier cash refund limit.'}
+        $options.PhysicalCashierCashRefundLimit=$CashierCashRefundLimit
+    }
     if(-not(Test-Path (Join-Path $run 'state.json'))){
-        & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -RunId $plan.runId -PhysicalPosPlan $PlanPath -EnableMedia -EnableBranchPromptPayQr -EnablePhysicalRefundAcceptance:$EnableRefundAcceptance -ConfirmTestResources @guest
+        & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -RunId $plan.runId -PhysicalPosPlan $PlanPath -EnableMedia -EnableBranchPromptPayQr -EnablePhysicalRefundAcceptance:$EnableRefundAcceptance -ConfirmTestResources @options
     }else{
         $state=Get-Content (Join-Path $run 'state.json') -Raw|ConvertFrom-Json -AsHashtable
         if(-not $state.Contains('physicalPosPilot') -or $state.physicalPosPilot.planHash -cne (Get-FileHash $PlanPath).Hash){throw 'Refusing to adopt an existing unrelated run.'}
-        & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -RunId $plan.runId -EnableMedia -EnablePhysicalRefundAcceptance:$EnableRefundAcceptance -ConfirmTestResources @guest
+        & (Join-Path $PSScriptRoot 'first-draft-stack.ps1') -Action Start -RunId $plan.runId -EnableMedia -EnablePhysicalRefundAcceptance:$EnableRefundAcceptance -ConfirmTestResources @options
     }
     & (Join-Path $PSScriptRoot 'provision-first-draft.ps1') -RunId $plan.runId -ConfirmTestResources -PhysicalRefundAcceptance:$EnableRefundAcceptance
     Write-Output 'Separate LAN test branch/menu/terminal provisioned. Build a fresh installer, then use Bundle. No device installation or financial transaction performed.';return

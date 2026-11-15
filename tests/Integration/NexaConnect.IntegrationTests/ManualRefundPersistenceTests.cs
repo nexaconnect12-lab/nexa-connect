@@ -59,6 +59,7 @@ public sealed class ManualRefundPersistenceTests
             string management = await File.ReadAllTextAsync(Path.Combine(scripts, "0028_manual_refund_management/up.sql"));
             await Run(management);
             await Run(await File.ReadAllTextAsync(Path.Combine(scripts, "0029_manual_refund_day_evidence/up.sql")));
+            await Run(await File.ReadAllTextAsync(Path.Combine(scripts, "0031_cashier_cash_refunds/up.sql")));
 
             var (org, restaurant, branch, store, terminal, shift, drawer) =
                 (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
@@ -207,6 +208,29 @@ public sealed class ManualRefundPersistenceTests
             Assert.Equal(0L, await Count("SELECT count(*) FROM manual_refund_completions WHERE operation_id=$1", loser));
             Assert.Equal(0L, await Count("SELECT count(*) FROM outbox_messages WHERE aggregate_type='manual-refund' AND aggregate_id=$1", loser));
             Assert.Equal(1L, await Count("SELECT count(*) FROM cash_movements"));
+
+            Guid otherDrawer = Guid.NewGuid();
+            await Run("""
+                INSERT INTO cash_sessions (id,store_id,shift_id,currency,opening_amount,status,opened_at_utc,created_at_utc,updated_at_utc)
+                VALUES ($1,$2,$3,'THB',1000,'open',$4,$4,$4)
+                """, otherDrawer, otherStore, otherShift, now.AddHours(-1));
+            var cashierCustody = new ManualRefundPayout(otherTerminal, otherShift, otherDrawer, "cashier", now.AddMinutes(1));
+            var cashierSale = sale with { OrderId = Guid.NewGuid(), SettlementId = Guid.NewGuid(), BranchId = otherBranch };
+            var cashierApprovals = new[] { Approval(30), Approval(30) }
+                .Select(row => row with { ManagerSubject = "cashier", CashierLimit = 50 }).ToArray();
+            async Task<ManualRefundWrite?> StartCashier(ManualRefundApproval approval)
+            {
+                try { return await repository.StartCashierCashRefundAsync(cashierSale, approval, cashierCustody, default); }
+                catch (CashRefundManagerApprovalRequiredException) { return null; }
+            }
+            var starts = await Task.WhenAll(cashierApprovals.Select(StartCashier));
+            var winner = Assert.Single(starts, result => result is not null)!.Refund.Approval;
+            Assert.True((await StartCashier(winner with { CashierLimit = 0 }))!.Replayed);
+            var recorded = await repository.CompleteAsync(cashierSale, winner.OperationId, cashierCustody, false, null, now.AddMinutes(2), default);
+            Assert.False(recorded.Replayed);
+            Assert.True((await repository.CompleteAsync(cashierSale, winner.OperationId, cashierCustody, false, null, now.AddMinutes(3), default)).Replayed);
+            Assert.Equal(2L, await Count("SELECT count(*) FROM cash_movements"));
+            await VerifyHttpAsync(repository, cashierSale, new(otherTerminal, otherShift, otherDrawer), winner.OperationId);
             await Assert.ThrowsAsync<PostgresException>(() => Run("UPDATE manual_refund_approvals SET amount=1"));
             await Assert.ThrowsAsync<PostgresException>(() => Run("BEGIN;\n" + down + "\nCOMMIT;"));
 
@@ -356,7 +380,8 @@ public sealed class ManualRefundPersistenceTests
         }
     }
 
-    private static async Task VerifyHttpAsync(IManualRefundStore repository, OriginalManualSale original, ManualRefundCustodyV1 custody)
+    private static async Task VerifyHttpAsync(IManualRefundStore repository, OriginalManualSale original,
+        ManualRefundCustodyV1 custody, Guid? completedCashierOperation = null)
     {
         using var factory = new PosShiftApiFactory();
         var fixture = new RefundAuthority(original);
@@ -381,6 +406,23 @@ public sealed class ManualRefundPersistenceTests
         using var manager = Client("manager");
         using var cashier = Client("cashier");
         using var wrongCashier = Client("other-cashier");
+        if (completedCashierOperation is { } completed)
+        {
+            var request = new StartCashierCashRefundV1(completed, 30, "customer_request", custody);
+            var replay = await cashier.PostAsJsonAsync($"{path}/cashier-cash/start", request);
+            Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+            Assert.True((await replay.Content.ReadFromJsonAsync<ManualRefundStatusV1>())!.Replayed);
+            Assert.Equal(HttpStatusCode.NotFound, (await cashier.GetAsync($"{path}/cashier-cash/preview")).StatusCode);
+            configuration["ManualRefunds:Enabled"] = "true";
+            configuration[$"ManualRefunds:CashierLimits:{original.OrganizationId:D}:{original.BranchId:D}"] = "50.00";
+            Assert.Equal(20m, (await cashier.GetFromJsonAsync<ManualRefundPreviewV1>($"{path}/cashier-cash/preview"))!.AvailableAmount);
+            Assert.Equal(HttpStatusCode.NotFound, (await manager.GetAsync($"{path}/cashier-cash/preview")).StatusCode);
+            var blocked = await cashier.PostAsJsonAsync($"{path}/cashier-cash/start", request with { OperationId = Guid.NewGuid(), Amount = 21 });
+            Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
+            using var blockedBody = JsonDocument.Parse(await blocked.Content.ReadAsStringAsync());
+            Assert.Equal("cash_refund_manager_approval_required", blockedBody.RootElement.GetProperty("code").GetString());
+            return;
+        }
         var approval = new ApproveManualRefundV1(Guid.NewGuid(), 30, "customer_request", "cashier", custody.ShiftId);
         string operation = $"{path}/{approval.OperationId:D}";
 
@@ -477,8 +519,9 @@ public sealed class ManualRefundPersistenceTests
                 ProductPermissions.PosManualRefundPayout => user.Subject is "cashier" or "other-cashier",
                 _ => false
             }, user.Subject == "manager" ? 50 : null));
-        public Task<ManualRefundSaleV1?> ReadAsync(RestaurantAuthorizationScope scope, Guid orderId, PosUserContext user, CancellationToken ct) =>
+        public Task<ManualRefundSaleV1?> ReadAsync(RestaurantAuthorizationScope scope, Guid orderId, PosUserContext user, CancellationToken ct, bool cashierCash = false) =>
             Task.FromResult<ManualRefundSaleV1?>(orderId != sale.OrderId ? null : new(sale.OrganizationId, sale.RestaurantId, sale.BranchId,
-                sale.OrderId, sale.SettlementId, "promptpay_manual", sale.PaidAmount, sale.Currency, sale.PaidAtUtc));
+                sale.OrderId, sale.SettlementId, sale.Tender == ManualRefundTender.Cash ? "cash" : "promptpay_manual",
+                sale.PaidAmount, sale.Currency, sale.PaidAtUtc));
     }
 }

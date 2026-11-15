@@ -24,6 +24,7 @@ public interface IManualRefundStore
     Task<bool> RegisterCashierAsync(RestaurantAuthorizationScope scope, ManualRefundAvailabilityV1 terminal, string subject, DateTimeOffset now, CancellationToken ct);
     Task<IReadOnlyList<ManualRefundCashierV1>> ListReadyCashiersAsync(RestaurantAuthorizationScope scope, DateTimeOffset now, CancellationToken ct);
     Task<ManualRefundWrite> BeginAsync(OriginalManualSale sale, Guid operationId, ManualRefundPayout payout, CancellationToken ct);
+    Task<ManualRefundWrite> StartCashierCashRefundAsync(OriginalManualSale sale, ManualRefundApproval approval, ManualRefundPayout payout, CancellationToken ct);
     Task<ManualRefundWrite> CompleteAsync(OriginalManualSale sale, Guid operationId, ManualRefundPayout custody,
         bool transferVerified, string? transferReference, DateTimeOffset now, CancellationToken ct);
 }

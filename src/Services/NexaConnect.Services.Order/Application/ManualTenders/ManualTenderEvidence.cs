@@ -18,12 +18,13 @@ public sealed class ManualTenderEvidence(IManualTenderEvidenceStore store,IOrder
  }
 
  public async Task<ManualRefundSaleV1?> ReadRefundSaleAsync(Guid organization, Guid restaurant, Guid branch,
-     Guid order, string bearer, CancellationToken ct)
+     Guid order, string bearer, CancellationToken ct, bool cashierCash = false)
  {
      if (new[] { organization, restaurant, branch, order }.Any(id => id == Guid.Empty)) throw new ArgumentException();
      if (!await authorization.HasBranchFinancialAccessAsync(organization, restaurant, branch, bearer, ct)
-         || !await authorization.HasBranchAccessAsync(organization, branch, ProductPermissions.PosManualRefundApprove, bearer, ct))
+         || !await authorization.HasBranchAccessAsync(organization, branch, cashierCash ? ProductPermissions.PosManualRefundPayout : ProductPermissions.PosManualRefundApprove, bearer, ct))
          throw new UnauthorizedAccessException();
-     return await store.ReadRefundSaleAsync(organization, restaurant, branch, order, ct);
+     var sale = await store.ReadRefundSaleAsync(organization, restaurant, branch, order, ct);
+     return cashierCash && sale?.Method != "cash" ? null : sale;
  }
 }

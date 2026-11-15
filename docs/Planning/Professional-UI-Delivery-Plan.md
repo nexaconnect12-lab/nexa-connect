@@ -92,6 +92,7 @@ pending.
 
 1. Bind source revision, CI evidence, service and schema versions, installer and profile. Check install/upgrade and recoverability on the target terminal. Route staging alerts to a named responder and complete the hosted restore and authenticated recovery gate.
 2. Run a complete synthetic shift through next-business-day settlement. Match checkout, kitchen, receipt, refund, cash movement and settlement evidence. Recheck the relevant cases on the matching candidate after fixes.
+   For a single till, verify the optional branch cash-refund cap, manager escalation, and interrupted payout recovery using the [physical test steps](../Deployment/POS-Manual-Refund-Review.md#cashier-cash-refunds-during-the-merchant-trial).
 3. Train staff on the supported workflow and run the supervised merchant trial. Track daily reconciliation, task time, operator interventions and support incidents. Follow the [market release decision](Market-Readiness-Roadmap.md#release-decision) for rollout approval.
 
 **Exit gate.** The release owner, operations and merchant approve the evidence. An unexplained variance, duplicate payment, lost order, unauthorized access or failed restore stops rollout.

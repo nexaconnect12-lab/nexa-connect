@@ -49,6 +49,14 @@ builder.Services.AddScoped<IShiftStore, PostgresShiftStore>();
 builder.Services.AddScoped<ICashSessionStore, PostgresCashSessionStore>();
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.ManualRefunds.IManualRefundStore, PostgresManualRefundStore>();
 builder.Services.AddScoped<NexaConnect.Services.POS.Application.ManualRefunds.ManualRefunds>();
+builder.Services.AddSingleton<NexaConnect.Services.POS.Application.ManualRefunds.CashRefundBranchLimit>(services =>
+{
+    var configuration = services.GetRequiredService<IConfiguration>();
+    return (organization, branch) => configuration.GetValue<bool>("ManualRefunds:Enabled") && decimal.TryParse(
+        configuration[$"ManualRefunds:CashierLimits:{organization:D}:{branch:D}"],
+        System.Globalization.NumberStyles.AllowDecimalPoint, System.Globalization.CultureInfo.InvariantCulture,
+        out var limit) ? limit : null;
+});
 builder.Services.AddHttpClient<NexaConnect.Services.POS.Application.ManualRefunds.IManualRefundSaleReader,
     NexaConnect.Services.POS.Infrastructure.ManualRefunds.HttpManualRefundSaleReader>(client => client.Timeout = TimeSpan.FromSeconds(12))
     .RemoveAllLoggers().ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })

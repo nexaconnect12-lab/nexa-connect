@@ -1,5 +1,8 @@
 # NexaConnect Data Migration
 
+POS 31 records branch-limited cashier authority at compatibility 0.51.0. Its
+downgrade refuses to remove any recorded cashier approval evidence.
+
 POS 30 adds protected manual refund reference keys, claims and a completion guard
 at compatibility 0.50.0. A populated registry requires forward recovery.
 See [manual refund storage](../../../docs/Database/POS-Manual-Refunds.md).
@@ -224,7 +227,7 @@ After reviewing all plans, execute them with explicit confirmation:
 .\scripts\migrate-databases.ps1 -Confirm
 ```
 
-The wrapper invokes each service with `dotnet run --no-restore`, so restore the solution before the first run and after dependency changes. Its historical `-ApplicationVersion` default is `0.38.0`. Pass `-ApplicationVersion 0.50.0` for the current catalog. This value is the application/schema compatibility gate passed to every service migration; it does not select the schema target, which remains the latest migration discovered for each service. When deliberately validating an older application release boundary, pass that release version, for example `-ApplicationVersion 0.9.0`; migrations requiring a newer application version will then fail safely.
+The wrapper invokes each service with `dotnet run --no-restore`, so restore the solution before the first run and after dependency changes. Its historical `-ApplicationVersion` default is `0.38.0`. Pass `-ApplicationVersion 0.51.0` for the current catalog. This value is the application/schema compatibility gate passed to every service migration; it does not select the schema target, which remains the latest migration discovered for each service. When deliberately validating an older application release boundary, pass that release version, for example `-ApplicationVersion 0.9.0`; migrations requiring a newer application version will then fail safely.
 
 The wrapper stops on the first failed service. Each service retains its own history, transaction boundary, connection string, and advisory lock; the wrapper does not create a cross-database transaction.
 

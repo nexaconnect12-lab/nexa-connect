@@ -35,8 +35,8 @@ See [POS 27 storage](../Database/POS-Manual-Refunds.md) and [API](../API/POS-Man
 
 ## Isolated backend verification
 
-Deploy matching POS, Order and Authorization code with POS 28 and Authorization 18
-at compatibility 0.47.0. POS needs direct `Services__Order` and
+Deploy matching POS, Order and Authorization code with POS 31 and Authorization 18
+at compatibility 0.51.0. POS needs direct `Services__Order` and
 `Services__PlatformDirectory` addresses alongside its existing Restaurant and
 Authorization dependencies. The new POS adapters require direct HTTPS, with
 loopback HTTP allowed in Development and Testing.
@@ -107,12 +107,12 @@ verification for this release. [Reporting configuration and evidence](../API/Man
 
 Use the [physical terminal acceptance runbook](POS-Physical-Refund-Acceptance.md).
 
-- Apply POS 30 at application compatibility 0.50.0 and deploy matching POS service and
+- Apply POS 31 at application compatibility 0.51.0 and deploy matching POS service and
   Windows POS builds. Stop older POS service writers during the upgrade and retain the
   POS Data Protection key ring and application identity. The first successful PromptPay
   refund completion per organization indexes historical protected references. If an
   older reference cannot be decrypted, restore the key ring before retrying the original operation.
-  For the standalone migration wrapper, pass `-ApplicationVersion 0.50.0`.
+  For the standalone migration wrapper, pass `-ApplicationVersion 0.51.0`.
 - On a duplicate-reference message, ask a manager to compare the transfer evidence with
   the exact pending refund. Keep the payout reserved. Record a different reference only
   if it identifies a verified transfer already made for that payout. Never send another
@@ -127,3 +127,39 @@ retained physical pilot remains disabled for new refund work.
 Run `./scripts/test-qr-entry-persistence.ps1 -ConfirmDisposableInfrastructure`
 and `./scripts/test-settlement-reporting.ps1 -ConfirmDisposableInfrastructure`
 for disposable verification before the physical checks.
+
+## Cashier cash refunds during the merchant trial
+
+Deploy POS schema 31 and matching POS service, Order service and Windows client.
+In the **POS service** configuration, set `ManualRefunds:Enabled` to `true` and
+set `ManualRefunds:CashierLimits:<organization GUID>:<branch GUID>` to the approved
+positive THB amount, for example `50.00`. Use the exact GUIDs with hyphens. For
+container environment configuration use
+`ManualRefunds__CashierLimits__<organization GUID>__<branch GUID>`.
+An omitted, zero or invalid limit requires a manager. This setting is managed by
+deployment operators. The Customer Portal has no editor for it.
+For the already-provisioned private LAN pilot, use the launcher option documented in
+[physical refund acceptance](POS-Physical-Refund-Acceptance.md).
+
+1. On the physical POS, sign in as the cashier and open the shift and drawer. Complete
+   a synthetic cash sale. In Orders, select the paid order and choose **Review manual payment**.
+2. With the branch limit enabled, enter an amount within it and select a reason.
+   Start the cash refund. Only a fresh successful start authorizes handing out
+   cash. Record completion after handing out the cash.
+3. Verify the exact operation, one refund cash movement and the corresponding
+   settlement total. Attempt a second partial refund whose cumulative amount
+   exceeds the cap and confirm the manager path is required.
+4. Repeat with the limit omitted or zero, with another branch and with an original
+   PromptPay payment. Confirm that the cashier cash option is unavailable where ineligible.
+5. Interrupt communication around start, verify the saved original operation and
+   retry the exact saved start under its original scope if the response remains ambiguous.
+   Preserve the saved reference and use support if the retry is denied or unavailable.
+   If it is already started and the cash
+   handoff is uncertain, reconcile the physical drawer before completing. Verify
+   that closing the drawer with a started payout is blocked and that restoring
+   connectivity and replaying completion creates no duplicate movement.
+
+The limit applies per original paid cash sale and includes completed and still
+reserved amounts, including manager approvals. Released approvals restore available
+capacity. Removing the limit blocks new cashier starts while exact verification
+and completion remain available for existing operations.

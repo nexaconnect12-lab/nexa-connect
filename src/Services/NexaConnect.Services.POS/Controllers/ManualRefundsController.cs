@@ -41,6 +41,14 @@ public sealed class ManualRefundsController(ManualRefunds application, IConfigur
     public Task<IActionResult> Approve(Guid organizationId, Guid branchId, Guid orderId, ApproveManualRefundV1 request, CancellationToken ct) =>
         Execute(organizationId, (user, token) => application.ApproveAsync(organizationId, branchId, orderId, request, user, token), newWork: true, ct);
 
+    [HttpGet("cashier-cash/preview")]
+    public Task<IActionResult> CashierCashPreview(Guid organizationId, Guid branchId, Guid orderId, CancellationToken ct) =>
+        Execute(organizationId, (user, token) => application.CashierCashPreviewAsync(organizationId, branchId, orderId, user, token), newWork: true, ct);
+
+    [HttpPost("cashier-cash/start")]
+    public Task<IActionResult> StartCashierCash(Guid organizationId, Guid branchId, Guid orderId, StartCashierCashRefundV1 request, CancellationToken ct) =>
+        Execute(organizationId, (user, token) => application.StartCashierCashRefundAsync(organizationId, branchId, orderId, request, user, token), newWork: false, ct);
+
     [HttpGet("{operationId:guid}")]
     public Task<IActionResult> Read(Guid organizationId, Guid branchId, Guid orderId, Guid operationId, CancellationToken ct) =>
         Execute(organizationId, (user, token) => application.ReadAsync(organizationId, branchId, orderId, operationId, user, token), newWork: false, ct);
@@ -82,6 +90,11 @@ public sealed class ManualRefundsController(ManualRefunds application, IConfigur
         {
             logger.LogWarning("Manual refund transfer reference conflict");
             return Conflict(new { code = "manual_refund_transfer_reference_conflict" });
+        }
+        catch (CashRefundManagerApprovalRequiredException)
+        {
+            logger.LogInformation("Cashier cash refund requires manager approval");
+            return Conflict(new { code = "cash_refund_manager_approval_required" });
         }
         catch (InvalidOperationException) { logger.LogWarning("Manual refund state conflict"); return Conflict(new { code = "manual_refund_conflict" }); }
         catch (PostgresException e) when (e.SqlState is PostgresErrorCodes.UniqueViolation or "PDS01" || e.SqlState == "P0001" && e.MessageText == "financial_day_fenced")

@@ -64,3 +64,15 @@ The setup preflight treats this key as retained work. No local schema migration
 is required. Transfer proof is excluded from the local payload.
 The manager uses `pending-manual-refund-approval` in the same table to retain the
 original request and identity for safe verification or exact retry.
+
+## POS 31 cashier cash authority
+
+POS 31 (`cashier_cash_refunds`, application compatibility 0.51.0) adds the nullable
+`cashier_limit` to immutable approval evidence. A populated limit identifies cashier
+authority and records the decision and limit in effect at start. The cashier subject
+also occupies the legacy approving-subject column. Manager rows retain a null limit
+and distinct subjects. POS validates cash tender in the domain. Under the original
+sale lock, POS reserves the amount and inserts the payout together, checking active
+drawer custody. Completion uses the existing atomic cash movement, completion and
+financial publication. The migration downgrade fails when cashier approval evidence
+exists. Disable new cashier starts through configuration if rollback is required.

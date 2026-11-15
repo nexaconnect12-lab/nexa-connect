@@ -1264,3 +1264,10 @@ container capability without assuming that OS. Hosted operation, reboot, remote 
 off-server backup and isolated restored-graph proof remain explicit gates. See
 [ADR-041](Decisions/ADR-041-dedicated-server-pilot-artifacts.md) and
 [Phase 6 operating guide](../Deployment/Next-Iteration-Phase-6.md).
+
+## Branch cashier cash refunds
+
+POS owns the organization-and-branch policy configuration and original-sale refund
+ledger. With an enabled cap, authorized cashiers reserve and start in one POS
+transaction. Order verifies the immutable cash sale and Reporting continues to
+consume POS completions. See [ADR-067](Decisions/ADR-067-manual-refund-cashier-custody.md).

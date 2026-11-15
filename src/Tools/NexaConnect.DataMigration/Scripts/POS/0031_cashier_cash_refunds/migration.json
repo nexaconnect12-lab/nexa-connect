@@ -1,0 +1,1 @@
+{"version":31,"name":"cashier_cash_refunds","transactional":true,"downgradeSafety":"destructive","minimumApplicationVersion":"0.51.0"}

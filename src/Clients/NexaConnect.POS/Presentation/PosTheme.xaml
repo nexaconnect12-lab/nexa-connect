@@ -128,7 +128,7 @@
         <Setter.Value>
           <ControlTemplate TargetType="TabControl">
             <Grid KeyboardNavigation.TabNavigation="Local">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="164"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="{DynamicResource PosSidebarWidth}"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
               <Border x:Name="NavigationSurface" Background="{StaticResource PosNavigationCanvas}" BorderThickness="0" CornerRadius="0" Padding="6" Margin="0,0,16,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="True">
                   <TabPanel x:Name="HeaderPanel" IsItemsHost="True" KeyboardNavigation.TabIndex="1" VerticalAlignment="Top" />
@@ -142,6 +142,8 @@
       </Setter>
     </Style>
     <Style TargetType="TabItem">
+      <Setter Property="ToolTip" Value="{Binding Header, RelativeSource={RelativeSource Self}}" />
+      <Setter Property="AutomationProperties.Name" Value="{Binding Header, RelativeSource={RelativeSource Self}}" />
       <Setter Property="Padding" Value="{DynamicResource PosButtonPadding}" />
       <Setter Property="MinHeight" Value="{DynamicResource PosControlHeight}" />
       <Setter Property="Margin" Value="0,0,0,6" />
@@ -155,12 +157,16 @@
               <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                 <TextBlock x:Name="NavigationGlyph" Text="{TemplateBinding Tag}" Foreground="{StaticResource PosNavigationInk}" FontFamily="Segoe MDL2 Assets" FontSize="16" VerticalAlignment="Center" />
-                <TextBlock x:Name="TabLabel" Grid.Column="1" Margin="8,0,0,0" Foreground="{StaticResource PosNavigationInk}" Text="{TemplateBinding Header}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <TextBlock x:Name="TabLabel" Grid.Column="1" Margin="8,0,0,0" Foreground="{StaticResource PosNavigationInk}" Text="{TemplateBinding Header}" TextWrapping="Wrap" VerticalAlignment="Center" Visibility="{DynamicResource PosSidebarLabelVisibility}" />
               </Grid>
             </Border>
             <Border x:Name="SelectedMarker" Width="3" Height="20" Background="White" CornerRadius="0" HorizontalAlignment="Left" Visibility="Collapsed" />
           </Grid>
           <ControlTemplate.Triggers>
+            <Trigger SourceName="TabLabel" Property="Visibility" Value="Collapsed">
+              <Setter TargetName="NavigationGlyph" Property="Grid.ColumnSpan" Value="2" />
+              <Setter TargetName="NavigationGlyph" Property="HorizontalAlignment" Value="Center" />
+            </Trigger>
             <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TabSurface" Property="Background" Value="{StaticResource PosNavigationHover}" /></Trigger>
             <Trigger Property="IsSelected" Value="True"><Setter TargetName="TabSurface" Property="Background" Value="{StaticResource Brand}" /><Setter TargetName="TabLabel" Property="Foreground" Value="White" /><Setter TargetName="NavigationGlyph" Property="Foreground" Value="White" /><Setter TargetName="SelectedMarker" Property="Visibility" Value="Visible" /></Trigger>
             <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TabSurface" Property="BorderBrush" Value="#7DD3FC" /></Trigger>

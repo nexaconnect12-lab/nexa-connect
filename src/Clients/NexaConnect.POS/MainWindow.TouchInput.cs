@@ -13,13 +13,15 @@ public partial class MainWindow
     private bool touchFirst;
     private bool updatingInputMode;
     private static readonly HashSet<string> AmountFields =
-        ["OpeningCashTextBox", "ClosingCashTextBox", "MovementAmountTextBox", "RefundAmountTextBox"];
+        ["OpeningCashTextBox", "ClosingCashTextBox", "MovementAmountTextBox", "RefundAmountTextBox", "CashierCashRefundAmount"];
 
     private void InitializeTouchInput()
     {
         var options = inputPreferences.Load();
         touchFirst = options.TouchFirst;
         displayDensity = options.Density;
+        sidebarCollapsed = options.SidebarCollapsed;
+        ApplySidebarLayout();
         TouchFirstCheckBox.IsChecked = touchFirst;
         DensityPicker.SelectedIndex = displayDensity == PosDisplayDensity.Touch ? 1 : 0;
         ApplyDisplayDensity();
@@ -96,7 +98,7 @@ public partial class MainWindow
         try
         {
             if (!allowed) return;
-            inputPreferences.Save(new(requested, displayDensity));
+            inputPreferences.Save(new(requested, displayDensity, sidebarCollapsed));
             touchFirst = requested;
             if (!touchFirst) HideTouchInput();
             RenderInputModeStatus();

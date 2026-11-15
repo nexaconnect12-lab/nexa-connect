@@ -7,7 +7,7 @@ namespace NexaConnect.Services.POS.Application.ManualRefunds;
 
 public interface IManualRefundSaleReader
 {
-    Task<ManualRefundSaleV1?> ReadAsync(RestaurantAuthorizationScope scope, Guid orderId, PosUserContext user, CancellationToken ct);
+    Task<ManualRefundSaleV1?> ReadAsync(RestaurantAuthorizationScope scope, Guid orderId, PosUserContext user, CancellationToken ct, bool cashierCash = false);
 }
 
 public interface IManualRefundMembership
@@ -15,9 +15,45 @@ public interface IManualRefundMembership
     Task<bool> HasAccessAsync(Guid organizationId, PosUserContext user, CancellationToken ct);
 }
 
+public delegate decimal? CashRefundBranchLimit(Guid organizationId, Guid branchId);
+
 public sealed class ManualRefunds(IManualRefundSaleReader sales, IManualRefundStore store, IRestaurantScopeReader scopes,
-    IAuthorizationDecisionClient authorization, IManualRefundMembership membership, TimeProvider clock)
+    IAuthorizationDecisionClient authorization, IManualRefundMembership membership, TimeProvider clock,
+    CashRefundBranchLimit? branchLimit = null)
 {
+    public async Task<ManualRefundPreviewV1?> CashierCashPreviewAsync(Guid organization, Guid branch, Guid order,
+        PosUserContext user, CancellationToken ct)
+    {
+        var scope = await ScopeAsync(organization, branch, order, user, ct);
+        decimal limit = branchLimit?.Invoke(scope.OrganizationId, scope.BranchId) ?? 0;
+        if (limit <= 0 || limit >= 1_000_000_000_000_000m || decimal.Round(limit, 2) != limit
+            || !await GrantedAsync(user, scope, ProductPermissions.PosManualRefundPayout, ct)) return null;
+        var sale = await OriginalAsync(scope, order, user, ct, cashierCash: true);
+        if (sale?.Tender != ManualRefundTender.Cash) return null;
+        decimal available = await store.AvailableAsync(sale, ct);
+        return new(order, "cash", sale.Currency, sale.PaidAmount, Math.Max(0, Math.Min(available, limit - (sale.PaidAmount - available))));
+    }
+
+    public async Task<ManualRefundStatusV1?> StartCashierCashRefundAsync(Guid organization, Guid branch, Guid order,
+        StartCashierCashRefundV1 request, PosUserContext user, CancellationToken ct)
+    {
+        if (request.OperationId == Guid.Empty || request.Amount is <= 0 or >= 1_000_000_000_000_000m
+            || decimal.Round(request.Amount, 2) != request.Amount
+            || request.Custody is not { } custody || custody.TerminalId == Guid.Empty || custody.ShiftId == Guid.Empty
+            || custody.CashSessionId is null || custody.CashSessionId == Guid.Empty
+            || request.Reason is not ("customer_request" or "duplicate_charge" or "item_unavailable" or "service_issue" or "other"))
+            throw new ArgumentException("Invalid cashier cash refund.");
+        var scope = await ScopeAsync(organization, branch, order, user, ct);
+        var decision = await authorization.DecideAsync(user, scope, ProductPermissions.PosManualRefundPayout, ct);
+        if (!decision.Granted || decision.DecisionId == Guid.Empty) return null;
+        var sale = await OriginalAsync(scope, order, user, ct, cashierCash: true);
+        if (sale?.Tender != ManualRefundTender.Cash) return null;
+        decimal ceiling = branchLimit?.Invoke(scope.OrganizationId, scope.BranchId) ?? 0;
+        var now = clock.GetUtcNow();
+        return Status(sale, await store.StartCashierCashRefundAsync(sale,
+            new(request.OperationId, request.Amount, request.Reason, user.Subject, decision.DecisionId, user.Subject, now, ceiling),
+            new(custody.TerminalId, custody.ShiftId, custody.CashSessionId, user.Subject, now), ct));
+    }
     public async Task<bool> RegisterAsync(Guid organization, Guid branch, ManualRefundAvailabilityV1 terminal,
         PosUserContext user, CancellationToken ct)
     {
@@ -107,8 +143,8 @@ public sealed class ManualRefunds(IManualRefundSaleReader sales, IManualRefundSt
         var scope = await ScopeAsync(organization, branch, order, user, ct);
         var existing = await ReadOperationAsync(scope, order, operation, ct);
         if (existing is null) return null;
-        string? permission = user.Subject == existing.Approval.ManagerSubject ? ProductPermissions.PosManualRefundApprove
-            : user.Subject == existing.Approval.CashierSubject ? ProductPermissions.PosManualRefundPayout : null;
+        string? permission = user.Subject == existing.Approval.CashierSubject ? ProductPermissions.PosManualRefundPayout
+            : user.Subject == existing.Approval.ManagerSubject ? ProductPermissions.PosManualRefundApprove : null;
         if (permission is null || !await GrantedAsync(user, scope, permission, ct)) return null;
         return View(existing.Sale, existing.Approval, existing.StartedAtUtc, existing.CompletedAtUtc, replayed: true, existing.ReleasedAtUtc);
     }
@@ -146,9 +182,9 @@ public sealed class ManualRefunds(IManualRefundSaleReader sales, IManualRefundSt
         return scope;
     }
 
-    private async Task<OriginalManualSale?> OriginalAsync(RestaurantAuthorizationScope scope, Guid order, PosUserContext user, CancellationToken ct)
+    private async Task<OriginalManualSale?> OriginalAsync(RestaurantAuthorizationScope scope, Guid order, PosUserContext user, CancellationToken ct, bool cashierCash = false)
     {
-        var sale = await sales.ReadAsync(scope, order, user, ct);
+        var sale = await sales.ReadAsync(scope, order, user, ct, cashierCash);
         if (sale is null) return null;
         if (sale.OrganizationId != scope.OrganizationId || sale.RestaurantId != scope.RestaurantId || sale.BranchId != scope.BranchId
             || sale.OrderId != order || sale.SettlementId == Guid.Empty || sale.Amount is <= 0 or >= 1_000_000_000_000_000m

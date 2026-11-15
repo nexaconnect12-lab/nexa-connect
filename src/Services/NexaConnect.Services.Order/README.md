@@ -187,3 +187,11 @@ The [joined end-of-day gate](../../../docs/Deployment/End-Of-Day-Portal-Acceptan
 The [joined cashier-to-day-close gate](../../../docs/Deployment/Cashier-Day-Close-Acceptance.md) implements real cashier PKCE, authorized shift/cash/checkout/manual-settlement/receipt/review commands, actual Order→POS/Reporting publication and Customer Portal preparation with manager contention and POS restart. Its reference-only fixture seeds no financial transitions. An acceptance-only host injects historical command time into actual Order/POS applications; production uses the system clock with no configurable clock switch. Five browser scenarios, six Authorization persistence cases and verified cleanup are required; execution evidence remains separate from production settlement/cutoff certification.
 
 Order persistence accepts an optional TimeProvider for save timestamps, defaulting to TimeProvider.System. The acceptance executable injects historical command time through service DI before returning to the live clock; production configuration exposes no historical-clock option. Repository-created/updated/completed timestamps and immutable receipt/publication creation follow the actual command path.
+
+### Cashier cash refund evidence
+
+The manual refund sale endpoint accepts `cashierCash=true` for original cash
+settlements. It checks live branch `order.read` and `pos.manual-refund.payout`.
+Order continues to own the immutable receipt and original settlement. Query
+`Manual refund sale boundary denied` in `nexaconnect-order` with the validated
+correlation ID. See [manual refund API](../../../docs/API/POS-Manual-Refunds.md).

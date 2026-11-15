@@ -15,3 +15,4 @@ public sealed record ManualRefundAvailabilityV1(Guid TerminalId, Guid ShiftId);
 public sealed record ManualRefundAvailabilityResultV1(bool Available);
 public sealed record ManualRefundCashierV1(Guid ShiftId, string Subject, string TerminalCode, string ShiftNumber, bool CashDrawerOpen);
 public sealed record ManualRefundCashiersV1(IReadOnlyList<ManualRefundCashierV1> Items);
+public sealed record StartCashierCashRefundV1(Guid OperationId, decimal Amount, string Reason, ManualRefundCustodyV1 Custody);

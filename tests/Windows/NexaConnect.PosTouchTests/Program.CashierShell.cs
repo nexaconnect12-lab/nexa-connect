@@ -44,6 +44,26 @@ internal static partial class Program
         tabs.SelectedIndex=0;
         window.Width=1280;window.Height=850;
         ((ScrollViewer)window.FindName("InputViewport")).ScrollToTop();Pump(window);
+        var toggle = (Button)window.FindName("SidebarToggleButton");
+        var checkout = (TabItem)tabs.SelectedItem;
+        var sidebar = (FrameworkElement)tabs.Template.FindName("NavigationSurface", tabs);
+        double expandedWidth = sidebar.ActualWidth;
+        toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Pump(window);
+        Require(sidebar.ActualWidth < expandedWidth && ReferenceEquals(checkout, tabs.SelectedItem), "collapse frees width and preserves the selected workspace");
+        Require(((TextBlock)checkout.Template.FindName("TabLabel", checkout)).Visibility == Visibility.Collapsed
+            && Equals(checkout.ToolTip, checkout.Header), "collapsed rail keeps named destinations");
+        var preferences = (PosUiPreferences)typeof(MainWindow).GetField("inputPreferences", Private)!.GetValue(window)!;
+        Require(preferences.Load().SidebarCollapsed, "collapse persists to terminal preferences");
+        tabs.SelectedItem = window.FindName("PaymentTab");
+        Pump(window);
+        Require(tabs.SelectedItem == window.FindName("PaymentTab"), "collapsed navigation can select Payment");
+        tabs.SelectedItem = checkout;
+        Pump(window);
+        SavePreview(window, ".runstate/pos-sidebar-collapsed.png");
+        toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Pump(window);
+        Require(sidebar.ActualWidth == expandedWidth && !preferences.Load().SidebarCollapsed, "second click restores and saves the labeled rail");
         var more=(Expander)window.FindName("MenuOptionsExpander");more.IsExpanded=true;Pump(window);
         var picker=(ComboBox)window.FindName("StationComboBox");
         picker.ApplyTemplate();

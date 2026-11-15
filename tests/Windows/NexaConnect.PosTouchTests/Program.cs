@@ -77,7 +77,7 @@ internal static partial class Program
                 VerifyQrReview(window, config, preview: true);
                 return;
             }
-            if (checkoutLayoutOnly) { VerifyCompactCheckout(window); return; }
+            if (checkoutLayoutOnly) { VerifyCashierNavigation(window); VerifyCompactCheckout(window); return; }
             if (paymentLayoutOnly)
             {
                 VerifyPaymentLayout(window);

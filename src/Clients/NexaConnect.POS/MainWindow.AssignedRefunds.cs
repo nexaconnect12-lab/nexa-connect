@@ -15,6 +15,59 @@ public partial class MainWindow
     private bool manualRefundVerificationRequired;
     private sealed record AssignedRefundRow(string Label, ManualRefundStatusV1 Refund);
 
+    private bool CanStartCashierCashRefund => pendingManualRefund is null && pendingCheckout is null
+        && pendingOrder is null && pendingRefund is null && cart.Count == 0
+        && _activeShift is not null && cashSessionId is not null;
+
+    private async void StartCashierCashRefund_Click(object sender, RoutedEventArgs e)
+    {
+        if (cashierCashRefundOrder is not { } order || !CanStartCashierCashRefund
+            || _activeShift is not { } shift
+            || !decimal.TryParse(CashierCashRefundAmount.Text, out decimal amount)
+            || amount is <= 0 or >= 1_000_000_000_000_000m || decimal.Round(amount, 2) != amount
+            || (CashierCashRefundReason.SelectedItem as ComboBoxItem)?.Tag is not string reason)
+        {
+            AssignedRefundStatus.Text = "Enter a positive cash refund amount in whole satang and select a reason.";
+            return;
+        }
+        await RunAssignedRefundAsync(async (token, ct) =>
+        {
+            var command = new StartCashierCashRefundV1(Guid.NewGuid(), amount, reason,
+                new(_configuration.TerminalId, shift.ShiftId, cashSessionId));
+            var saved = new LocalManualRefundReference(order, command.OperationId, token.Subject!, command);
+            _localStore.SaveManualRefund(saved);
+            pendingManualRefund = saved;
+            manualRefundVerificationRequired = true;
+            await SubmitCashierCashRefundAsync(saved, command, token, ct);
+        });
+    }
+
+    private async void RetryCashierCashRefund_Click(object sender, RoutedEventArgs e)
+    {
+        if (pendingManualRefund is { CashierStart: { } command } saved
+            && manualRefundVerificationRequired && saved.CashierSubject == _authentication.CurrentToken?.Subject)
+            await RunAssignedRefundAsync((token, ct) => SubmitCashierCashRefundAsync(saved, command, token, ct));
+    }
+
+    private async Task SubmitCashierCashRefundAsync(LocalManualRefundReference saved, StartCashierCashRefundV1 command,
+        PosTokenSet token, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _api.StartCashierCashRefundAsync(token, saved.OrderId, command, ct);
+            if (!AssignedRefundSessionCurrent(token, ct)) return;
+            if (result.Status == "completed") ClearSavedManualRefund();
+            ApplyAssignedRefundStatus(result, freshStart: result.Status == "started" && !result.Replayed);
+        }
+        catch (CashRefundManagerApprovalRequiredException)
+        {
+            if (!AssignedRefundSessionCurrent(token, ct)) return;
+            ClearSavedManualRefund();
+            ShowAssignedRefund(null);
+            AssignedRefundStatus.Text = "Manager approval is required for this cash refund. Do not return cash yet.";
+        }
+    }
+
     private async void LoadAssignedRefunds_Click(object sender, RoutedEventArgs e)
     {
         if (busy || !IsSignedIn() || displaySafetyBlocked) return;
@@ -191,6 +244,11 @@ public partial class MainWindow
         bool available = IsSignedIn() && !busy && !displaySafetyBlocked;
         VerifySavedManualRefundButton.IsEnabled = available && pendingManualRefund is { } saved
             && saved.CashierSubject == _authentication.CurrentToken?.Subject;
+        CashierCashRefundPanel.Visibility = cashierCashRefundOrder.HasValue ? Visibility.Visible : Visibility.Collapsed;
+        StartCashierCashRefundButton.IsEnabled = available && CanStartCashierCashRefund;
+        RetryCashierCashRefundButton.Visibility = pendingManualRefund?.CashierStart is not null && manualRefundVerificationRequired
+            ? Visibility.Visible : Visibility.Collapsed;
+        RetryCashierCashRefundButton.IsEnabled = VerifySavedManualRefundButton.IsEnabled;
         StartAssignedRefundButton.IsEnabled = available && selectedManualRefund is { Status: "approved" } approval
             && CanStartAssignedRefund(approval);
         AssignedRefundCompletion.Visibility = selectedManualRefund?.Status == "started" ? Visibility.Visible : Visibility.Collapsed;

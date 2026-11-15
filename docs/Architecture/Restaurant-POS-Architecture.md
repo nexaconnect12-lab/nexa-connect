@@ -664,3 +664,11 @@ No implementation decision should silently resolve these items. Each material de
 The online POS supports operator cancellation before payment. It preserves a stable protected operation identity, requires a bounded reason and confirmation, and blocks payment while cancellation is pending or under review. Order durably cancels Kitchen before Inventory release; completed Kitchen preparation keeps Inventory reserved and creates an investigation state. This cancellation path remains separate from Payment-owned post-capture refunds and does not support offline cancellation. See [pre-payment cancellation](../API/Order-Cancellation.md).
 
 Local Windows cashier-to-day-close acceptance passed all five real-command browser scenarios and six Authorization persistence cases without skips/retries, with verified cleanup on 2026-10-06. See [exact working-tree execution evidence](Evidence/Cashier-Day-Close-Acceptance.md). Remote CI and production acceptance remain separate.
+
+## Cashier authority for original cash sales
+
+POS 31 optionally allows cashier-initiated payouts within a cumulative limit per
+original cash settlement. Manager approval remains the default, and POS records
+the configured cap and live cashier decision with its drawer custody. Physical
+payout and recording completion remain distinct operator steps. See
+[ADR-067](Decisions/ADR-067-manual-refund-cashier-custody.md).

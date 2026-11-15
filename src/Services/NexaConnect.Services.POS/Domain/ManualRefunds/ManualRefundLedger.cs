@@ -3,7 +3,8 @@ namespace NexaConnect.Services.POS.Domain.ManualRefunds;
 public enum ManualRefundTender { Cash, PromptPay }
 
 public sealed record ManualRefundApproval(Guid OperationId, decimal Amount, string Reason,
-    string ManagerSubject, Guid AuthorizationDecisionId, string CashierSubject, DateTimeOffset ApprovedAtUtc);
+    string ManagerSubject, Guid AuthorizationDecisionId, string CashierSubject, DateTimeOffset ApprovedAtUtc,
+    decimal? CashierLimit = null);
 
 public sealed record ManualRefundPayout(Guid TerminalId, Guid ShiftId, Guid? CashSessionId,
     string CashierSubject, DateTimeOffset StartedAtUtc);
@@ -52,11 +53,18 @@ public sealed class ManualRefundLedger
     public decimal AvailableAmount => PaidAmount - refunds.Values.Where(refund => refund.Release is null).Sum(refund => refund.Approval.Amount);
     public ManualRefund? Read(Guid operationId) => refunds.GetValueOrDefault(operationId);
 
-    public ManualRefund Approve(ManualRefundApproval approval)
+    public ManualRefund Approve(ManualRefundApproval approval) => Approve(approval, restoring: false);
+
+    internal ManualRefund RestoreApproval(ManualRefundApproval approval) => Approve(approval, restoring: true);
+
+    private ManualRefund Approve(ManualRefundApproval approval, bool restoring)
     {
         if (approval.OperationId == Guid.Empty || approval.AuthorizationDecisionId == Guid.Empty
             || !ValidAmount(approval.Amount) || !ValidSubject(approval.ManagerSubject)
-            || !ValidSubject(approval.CashierSubject) || approval.ManagerSubject == approval.CashierSubject
+            || !ValidSubject(approval.CashierSubject)
+            || (approval.CashierLimit.HasValue
+                ? Tender != ManualRefundTender.Cash || approval.ManagerSubject != approval.CashierSubject
+                : approval.ManagerSubject == approval.CashierSubject)
             || approval.ApprovedAtUtc < PaidAtUtc
             || approval.Reason is not ("customer_request" or "duplicate_charge" or "item_unavailable" or "service_issue" or "other"))
             throw new ArgumentException("Valid refund approval, cashier and reason are required.");
@@ -65,15 +73,20 @@ public sealed class ManualRefundLedger
         {
             // A live authorization decision can change on retry. Preserve the decision
             // and time that authorized the original approval.
-            if (existing.Approval with
+            if (existing.Approval.CashierLimit.HasValue != approval.CashierLimit.HasValue || existing.Approval with
                 {
                     ApprovedAtUtc = approval.ApprovedAtUtc,
-                    AuthorizationDecisionId = approval.AuthorizationDecisionId
+                    AuthorizationDecisionId = approval.AuthorizationDecisionId,
+                    CashierLimit = approval.CashierLimit
                 } != approval)
                 throw new InvalidOperationException("The original refund approval differs from this request.");
             return existing;
         }
 
+        if (approval.CashierLimit is { } ceiling &&
+            (!ValidAmount(ceiling) || decimal.Round(ceiling, 2) != ceiling
+                || approval.Amount > ceiling || !restoring && PaidAmount - AvailableAmount + approval.Amount > ceiling))
+            throw new CashRefundManagerApprovalRequiredException();
         if (approval.Amount > AvailableAmount)
             throw new InvalidOperationException("The refund exceeds the remaining paid amount.");
         var refund = new ManualRefund(approval);
@@ -156,3 +169,5 @@ public sealed class ManualRefundLedger
     private static bool ValidAmount(decimal amount) =>
         amount is > 0 and < 1_000_000_000_000_000m && decimal.Round(amount, 4) == amount;
 }
+
+public sealed class CashRefundManagerApprovalRequiredException : InvalidOperationException;

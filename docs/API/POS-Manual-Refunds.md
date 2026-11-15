@@ -62,7 +62,7 @@ when a dependency declines the access lookup. Successful and error
 responses are non-cacheable.
 
 Order provides `GET /api/order/v1/orders/{orderId}/manual-refund-sale` with query
-`restaurantId` and `branchId` and the same tenant headers. It requires live
+`restaurantId` and `branchId` and the same tenant headers. By default, it requires live
 `order.read` and `pos.manual-refund.approve`, independently checks scope and validates
 the original settlement against the immutable Paid receipt. It returns only the
 scoped settlement identity, method, currency, amount and paid time. Cash and manual
@@ -83,3 +83,25 @@ The native client uses `pos.manual-refund.assigned`, `pos.manual-refund.start`,
 `pos.manual-refund.read`, and `pos.manual-refund.complete` under `nexaconnect-pos-client`.
 Manager and cashier readiness calls use the same prefix with the operation name
 `available`, `cashiers`, `preview`, `managed`, `approve` or `release`.
+
+## Cashier cash refunds (POS 31)
+
+`GET /cashier-cash/preview` returns the original cash tender, paid total and advisory
+amount available under the branch limit for a caller with live `pos.manual-refund.payout`.
+`POST /cashier-cash/start` takes `operationId`, `amount`, `reason`, and `custody`
+with `terminalId`, `shiftId` and `cashSessionId`. It reserves the amount and starts
+the payout atomically. Complete through the existing `/{operationId}/complete` route.
+
+A disabled or missing branch limit or an amount beyond the available limit returns
+409 with `cash_refund_manager_approval_required`. Exact retries resolve an existing
+operation even after the limit or the new-work switch is disabled. A replay never
+authorizes a second physical payout. Order accepts `cashierCash=true` on its original
+sale evidence lookup. That mode requires live branch `order.read` and
+`pos.manual-refund.payout` and returns only receipt-backed cash settlements. The
+default lookup continues to require live approval permission.
+
+Query `{service_name="nexaconnect-pos"} |= "Cashier cash refund requires manager approval"`
+for limit decisions. Use the validated `CorrelationId` across POS and
+`nexaconnect-order`, whose boundary logs include `Manual refund sale boundary denied`.
+Native diagnostics identify these calls as `pos.manual-refund.cashier-cash.preview`
+and `pos.manual-refund.cashier-cash.start`.

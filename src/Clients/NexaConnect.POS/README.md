@@ -1,5 +1,9 @@
 # NexaConnect POS
 
+Use **☰** in the top-left toolbar to collapse or expand the navigation rail.
+The choice is saved per Windows account and terminal profile.
+[Cashier layout and verification](../../../docs/Deployment/POS-Compact-Cashier-Workspace.md)
+
 The [QR orders workspace](../../../docs/Deployment/POS-QR-Orders-Workspace.md) shows
 request age at load, visible row counts and the original order's local creation
 time. Pending review puts the decision panel beside the list on wider windows
@@ -425,3 +429,11 @@ existing installed release cannot switch storage selection during an update. No 
 path setting or recovery migration is added. See [storage ownership](../../../docs/Database/POS-Local-SQLite.md),
 [current-user setup](../../../docs/Deployment/First-Draft-Windows-POS.md) and
 [ADR-050](../../../docs/Architecture/Decisions/ADR-050-local-pilot-pos-storage.md).
+
+### Cashier cash refunds
+
+Open a paid cash order in Orders and select **Review manual payment**. When enabled
+for the branch and available for that original sale, enter the amount and reason
+and start the cash refund from an open drawer. Use the saved operation to verify an
+interrupted response, then reconcile an uncertain physical handoff before recording
+completion. See [configuration and physical acceptance](../../../docs/Deployment/POS-Manual-Refund-Review.md).

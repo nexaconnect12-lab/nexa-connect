@@ -13,6 +13,27 @@ public sealed class ManualRefundLedgerTests
         new(Guid.NewGuid(), Guid.NewGuid(), drawer, "cashier", Now.AddMinutes(1));
 
     [Fact]
+    public void CashierLimitCountsCompletedAndReservedAmountsAndExactReplayRetainsAuthority()
+    {
+        var ledger = Ledger();
+        var approval = Approval(20) with { ManagerSubject = "cashier", CashierLimit = 50 };
+        Assert.Throws<CashRefundManagerApprovalRequiredException>(() => ledger.Approve(approval with { CashierLimit = 0 }));
+        ledger.Approve(approval);
+        var custody = Payout(Guid.NewGuid());
+        ledger.BeginPayout(approval.OperationId, custody);
+        ledger.Complete(approval.OperationId, custody, false, null, Now.AddMinutes(2));
+        ledger.Approve(Approval(25));
+        Assert.Throws<CashRefundManagerApprovalRequiredException>(() =>
+            ledger.Approve(approval with { OperationId = Guid.NewGuid(), Amount = 6 }));
+        var exact = ledger.Approve(approval with { OperationId = Guid.NewGuid(), Amount = 5 });
+        Assert.Equal(50m, exact.Approval.CashierLimit);
+        Assert.Same(exact, ledger.Approve(exact.Approval with { CashierLimit = 0, AuthorizationDecisionId = Guid.NewGuid() }));
+        Assert.Throws<InvalidOperationException>(() => ledger.Approve(exact.Approval with { Amount = 4 }));
+        Assert.Throws<ArgumentException>(() => Ledger(ManualRefundTender.PromptPay).Approve(approval));
+        Assert.Equal(50m, ledger.AvailableAmount);
+    }
+
+    [Fact]
     public void ApprovalReservesBalanceAndExactRetryPreservesOriginalDecision()
     {
         var ledger = Ledger();

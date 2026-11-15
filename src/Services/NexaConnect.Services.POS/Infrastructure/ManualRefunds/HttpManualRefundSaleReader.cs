@@ -11,10 +11,10 @@ namespace NexaConnect.Services.POS.Infrastructure.ManualRefunds;
 public sealed class HttpManualRefundSaleReader(HttpClient client, IConfiguration configuration, IHostEnvironment environment,
     ILogger<HttpManualRefundSaleReader> logger) : IManualRefundSaleReader
 {
-    public async Task<ManualRefundSaleV1?> ReadAsync(RestaurantAuthorizationScope scope, Guid orderId, PosUserContext user, CancellationToken ct)
+    public async Task<ManualRefundSaleV1?> ReadAsync(RestaurantAuthorizationScope scope, Guid orderId, PosUserContext user, CancellationToken ct, bool cashierCash = false)
     {
         var address = ManualRefundDependencyAddress.Resolve(configuration, environment, "Order",
-            $"api/order/v1/orders/{orderId:D}/manual-refund-sale?restaurantId={scope.RestaurantId:D}&branchId={scope.BranchId:D}");
+            $"api/order/v1/orders/{orderId:D}/manual-refund-sale?restaurantId={scope.RestaurantId:D}&branchId={scope.BranchId:D}&cashierCash={cashierCash}");
         using var request = new HttpRequestMessage(HttpMethod.Get, address);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", user.AccessToken);
         request.Headers.Add(TenantContextHeaders.OrganizationId, scope.OrganizationId.ToString("D"));

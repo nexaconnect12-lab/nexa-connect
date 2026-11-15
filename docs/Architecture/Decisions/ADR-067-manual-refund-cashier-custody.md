@@ -52,3 +52,14 @@ cash refunds and the register ledger consistent. Order must supply authoritative
 settlement evidence through its own service. Exact-scope authorization, protected
 PromptPay evidence, day-close and reporting verification are prerequisites for
 activation. [Workflow and status](../../Deployment/POS-Manual-Refund-Review.md)
+
+## POS 31 branch policy
+
+Separate manager and cashier accounts remain the default. An explicitly configured
+branch cap permits cashier authority for original receipt-backed cash sales. The
+cumulative cap includes every completed and active reserved refund against the
+same original sale. Under that sale's lock, POS records the live cashier decision
+and effective cap and binds the started payout to the cashier's open drawer in the
+same transaction. Completing the payout retains the existing custody and financial
+publication rules. The cap is independent of the manager's financial approval
+limit. See [pilot setup](../../Deployment/POS-Manual-Refund-Review.md).

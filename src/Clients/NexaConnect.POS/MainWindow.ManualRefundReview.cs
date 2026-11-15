@@ -1,12 +1,14 @@
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
+using NexaConnect.Contracts.POS;
 
 namespace NexaConnect.POS;
 
 public partial class MainWindow
 {
     private CancellationTokenSource? manualRefundReview;
+    private Guid? cashierCashRefundOrder;
 
     private void ChooseManualRefundOrder_Click(object sender, RoutedEventArgs e)
     {
@@ -39,10 +41,17 @@ public partial class MainWindow
                 "promptpay_manual" => "Manual PromptPay",
                 _ => null
             };
+            ManualRefundPreviewV1? cashierPreview = null;
+            if (tender == "Cash")
+            {
+                try { cashierPreview = await _api.CashierCashRefundPreviewAsync(token, orderId, deadline.Token); }
+                catch (Exception error) when (error is PosApiException or HttpRequestException or System.IO.IOException
+                    or System.IO.InvalidDataException or System.Text.Json.JsonException) { }
+            }
             ShowManualRefundReview(tender is null
                 ? "This receipt is for a different tender. Use Provider refund to review a captured card payment."
                 : $"{tender} · Original paid amount {CashierPresentation.Money(receipt.TotalAmount, receipt.Currency)}\n"
-                    + $"Order {receipt.OrderNumber} · Receipt {receipt.ReceiptNumber} · Paid {receipt.PaidAtUtc.LocalDateTime:g}", tender is not null);
+                    + $"Order {receipt.OrderNumber} · Receipt {receipt.ReceiptNumber} · Paid {receipt.PaidAtUtc.LocalDateTime:g}", tender is not null, cashierPreview);
         }
         catch (Exception error) when (error is HttpRequestException or System.IO.IOException
             or System.IO.InvalidDataException or System.Text.Json.JsonException or OperationCanceledException or PosApiException)
@@ -55,7 +64,7 @@ public partial class MainWindow
             UpdateOperationalState();
         }
 
-        void ShowManualRefundReview(string message, bool manualTender = false)
+        void ShowManualRefundReview(string message, bool manualTender = false, ManualRefundPreviewV1? cashierPreview = null)
         {
             if (!ReferenceEquals(manualRefundReview, deadline) || !OrdersTab.IsSelected
                 || !PrintSessionCurrent(generation, token.Subject)) return;
@@ -63,6 +72,9 @@ public partial class MainWindow
             ManualRefundSection.IsSelected = true;
             ManualRefundReviewText.Text = message;
             managerRefundOrder = manualTender ? orderId : null;
+            cashierCashRefundOrder = cashierPreview is { AvailableAmount: > 0 } ? orderId : null;
+            if (cashierPreview is not null)
+                ManualRefundReviewText.Text += $"\nAvailable without manager approval: {CashierPresentation.Money(cashierPreview.AvailableAmount, cashierPreview.Currency)}";
             StatusText.Text = "Original payment review finished.";
         }
     }
@@ -79,6 +91,8 @@ public partial class MainWindow
         manualRefundReview = null;
         review?.Cancel();
         ManualRefundReviewText.Text = "";
+        cashierCashRefundOrder = null;
+        CashierCashRefundAmount.Clear();
         ClearAssignedRefundView();
         ClearManagerRefundView();
     }

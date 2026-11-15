@@ -143,3 +143,12 @@ The [joined portal acceptance](../../../docs/Deployment/Cash-Close-Portal-Accept
 The [joined end-of-day gate](../../../docs/Deployment/End-Of-Day-Portal-Acceptance.md) exercises actual branch-authorized source reads over fresh historical fixture snapshots, including older open shifts/sessions, pending cash review and variance. Fixture initialization is separate from POS close/review command execution.
 
 Cash-session persistence accepts an optional TimeProvider and defaults to the system clock. Opening/closing timestamps now use the application host UTC provider rather than database `now()`; align service/database clocks for event-time session routing. Historical injection is confined to the acceptance executable, with no production environment switch.
+
+### Branch cashier cash refunds
+
+With POS 31 and `ManualRefunds:Enabled=true`, a configured
+`ManualRefunds:CashierLimits:<organization GUID>:<branch GUID>` allows an authorized
+cashier to reserve and start an eligible cash payout in one transaction. Missing or
+zero configuration keeps manager approval required. POS checks live permission,
+original receipt evidence, cumulative THB limit and exact active drawer custody.
+See [setup and verification](../../../docs/Deployment/POS-Manual-Refund-Review.md).

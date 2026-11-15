@@ -149,3 +149,10 @@ The [joined cash-close portal fixture](../Deployment/Cash-Close-Portal-Acceptanc
 Reporting's dedicated `nexaconnect-reporting-service` confidential workload client supplies the `nexaconnect-api` audience only for Restaurant's branch authorization-scope and business-calendar GETs. The endpoint-specific `BranchScopeReader` policy adds this client to the existing scope readers; generic `ServiceWorkload` policies continue to exclude it. Reporting validates returned ownership and supplies the full restaurant/branch hierarchy to the customer permission decision, fixing branch-accountant and restaurant-manager reads without widening grants. Configure a distinct workload secret and explicitly provision this client/audience in existing persisted realms. Customer bearer, product membership and live resource permission remain required; see [identity setup](../../docker/keycloak/README.md).
 
 Payment's confidential workload client now explicitly emits the nexaconnect-api audience for Order/Restaurant ownership lookup during refunds. Existing persisted realms require a reviewed audience-mapper update; restarting Keycloak does not re-import this change. The client remains credentials-only, with its existing distinct secret and unchanged endpoint authorization policies.
+
+## Cashier cash refund authority
+
+The branch cash limit uses the existing live `pos.manual-refund.payout` grant
+and original cashier subject. Order evidence also requires live branch `order.read`.
+The setting is evaluated for the resolved organization and branch. There is no
+additional token claim. See [manual refund API](../API/POS-Manual-Refunds.md).

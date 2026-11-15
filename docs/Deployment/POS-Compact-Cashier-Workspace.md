@@ -1,5 +1,16 @@
 # Compact cashier workspace
 
+Use the **☰** button in the upper-left toolbar to switch between the labeled
+sidebar and an icon rail. Each icon retains its destination name for tooltips
+and screen readers. The current workspace stays selected. The POS saves the
+choice locally for this Windows account and terminal profile. Fresh and older
+profiles default to the labeled sidebar.
+
+Run the Windows fixture with `--checkout-layout-only` to check width, navigation
+and preference persistence. On the physical terminal, toggle the rail, switch to
+Payment and back, and reopen the POS under the same Windows account to verify the
+saved preference.
+
 ## Menu and payment follow-up
 
 The Phase 1 Payment layout places the original order beside tender controls at

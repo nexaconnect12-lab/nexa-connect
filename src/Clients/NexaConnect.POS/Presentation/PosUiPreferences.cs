@@ -10,7 +10,7 @@ public sealed class PosUiPreferences(string directory)
 {
     private readonly string inputPath = Path.Combine(Path.GetFullPath(directory), "input.json");
     private readonly string displayPath = Path.Combine(Path.GetFullPath(directory), "displays.json");
-    private sealed record Settings(int Version, bool TouchFirst, string? Density = null);
+    private sealed record Settings(int Version, bool TouchFirst, string? Density = null, bool SidebarCollapsed = false);
     private sealed record DisplaySettings(int Version, PosDisplayRoles Roles);
 
     public static PosUiPreferences ForTerminal(PosClientConfiguration configuration, string? localApplicationData = null)
@@ -26,7 +26,8 @@ public sealed class PosUiPreferences(string directory)
     {
         var settings = Read<Settings>(inputPath);
         return settings is { Version: 1 } ? new(settings.TouchFirst,
-            settings.Density == nameof(PosDisplayDensity.Touch) ? PosDisplayDensity.Touch : PosDisplayDensity.Standard) : new();
+            settings.Density == nameof(PosDisplayDensity.Touch) ? PosDisplayDensity.Touch : PosDisplayDensity.Standard,
+            settings.SidebarCollapsed) : new();
     }
 
     public PosDisplayRoles? LoadDisplayRoles() => Read<DisplaySettings>(displayPath) is { Version: 1, Roles.IsValid: true } saved
@@ -69,7 +70,7 @@ public sealed class PosUiPreferences(string directory)
     public void Save(PosUiOptions options)
     {
         if (!Enum.IsDefined(options.Density)) throw new ArgumentOutOfRangeException(nameof(options));
-        Write(inputPath, new Settings(1, options.TouchFirst, options.Density.ToString()));
+        Write(inputPath, new Settings(1, options.TouchFirst, options.Density.ToString(), options.SidebarCollapsed));
     }
 
     private static void Write<T>(string path, T settings)

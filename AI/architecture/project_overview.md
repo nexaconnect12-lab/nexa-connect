@@ -1107,3 +1107,10 @@ are prerequisites, not assumed server specifications. No deployment, full-graph 
 or hosting acceptance has run; R07 stays open. See
 [Phase 6](../../docs/Deployment/Next-Iteration-Phase-6.md) and
 [ADR-041](../../docs/Architecture/Decisions/ADR-041-dedicated-server-pilot-artifacts.md).
+
+## Branch cashier cash refunds
+
+POS 31 supports an optional per-original-sale THB cap for scoped cashier-initiated
+cash payouts. POS retains the authority decision and cap with the original drawer
+custody. Order permits a cash-only lookup using live cashier permissions. See the
+[deployment and verification guide](../../docs/Deployment/POS-Manual-Refund-Review.md).
